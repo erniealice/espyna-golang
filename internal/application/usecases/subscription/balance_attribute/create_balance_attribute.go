@@ -1,0 +1,180 @@
+package balance_attribute
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"leapfor.xyz/espyna/internal/application/ports"
+	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
+	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	balancepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance"
+	balanceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance_attribute"
+)
+
+// CreateBalanceAttributeRepositories groups all repository dependencies
+type CreateBalanceAttributeRepositories struct {
+	BalanceAttribute balanceattributepb.BalanceAttributeDomainServiceServer // Primary entity repository
+	Balance          balancepb.BalanceDomainServiceServer                   // Entity reference validation
+	Attribute        attributepb.AttributeDomainServiceServer               // Entity reference validation
+}
+
+// CreateBalanceAttributeServices groups all business service dependencies
+type CreateBalanceAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
+	IDService            ports.IDService
+}
+
+// CreateBalanceAttributeUseCase handles the business logic for creating balance attributes
+type CreateBalanceAttributeUseCase struct {
+	repositories CreateBalanceAttributeRepositories
+	services     CreateBalanceAttributeServices
+}
+
+// NewCreateBalanceAttributeUseCase creates use case with grouped dependencies
+func NewCreateBalanceAttributeUseCase(
+	repositories CreateBalanceAttributeRepositories,
+	services CreateBalanceAttributeServices,
+) *CreateBalanceAttributeUseCase {
+	return &CreateBalanceAttributeUseCase{
+		repositories: repositories,
+		services:     services,
+	}
+}
+
+// Execute performs the create balance attribute operation
+func (uc *CreateBalanceAttributeUseCase) Execute(ctx context.Context, req *balanceattributepb.CreateBalanceAttributeRequest) (*balanceattributepb.CreateBalanceAttributeResponse, error) {
+	// Input validation (must be done first to avoid nil pointer access)
+	if err := uc.validateInput(ctx, req); err != nil {
+		return nil, err
+	}
+
+	// TODO: Re-enable workspace-scoped authorization check once Balance.WorkspaceId is available
+	// if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
+	// 	userID := contextutil.ExtractUserIDFromContext(ctx)
+	// 	if userID == "" {
+	// 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
+	// 	}
+	//
+	// 	permission := ports.EntityPermission(ports.EntityBalanceAttribute, ports.ActionCreate)
+	// 	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	// 	if err != nil {
+	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
+	// 		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	// 	}
+	// 	if !hasPerm {
+	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
+	// 		return nil, errors.New(translatedError)
+	// 	}
+	// }
+
+	// Business logic and enrichment
+	if err := uc.enrichBalanceAttributeData(req.Data); err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+
+	// Entity reference validation
+	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
+		return nil, err
+	}
+
+	// Call repository
+	resp, err := uc.repositories.BalanceAttribute.CreateBalanceAttribute(ctx, req)
+	if err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.creation_failed", "Balance attribute creation failed [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+
+	return resp, nil
+}
+
+// validateInput validates the input request
+func (uc *CreateBalanceAttributeUseCase) validateInput(ctx context.Context, req *balanceattributepb.CreateBalanceAttributeRequest) error {
+	if req == nil {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
+	}
+	if req.Data == nil {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.data_required", "Data is required [DEFAULT]"))
+	}
+	if req.Data.BalanceId == "" {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.balance_id_required", "Balance ID is required [DEFAULT]"))
+	}
+	if req.Data.AttributeId == "" {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
+	}
+	if req.Data.Value == "" {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.value_required", "Value is required [DEFAULT]"))
+	}
+	return nil
+}
+
+// enrichBalanceAttributeData adds generated fields and audit information
+func (uc *CreateBalanceAttributeUseCase) enrichBalanceAttributeData(balanceAttribute *balanceattributepb.BalanceAttribute) error {
+	now := time.Now()
+
+	// Generate BalanceAttribute ID
+	if balanceAttribute.Id == "" {
+		balanceAttribute.Id = uc.services.IDService.GenerateID()
+	}
+
+	// Set balance attribute audit fields
+	balanceAttribute.DateCreated = &[]int64{now.UnixMilli()}[0]
+	balanceAttribute.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]
+	balanceAttribute.DateModified = &[]int64{now.UnixMilli()}[0]
+	balanceAttribute.DateModifiedString = &[]string{now.Format(time.RFC3339)}[0]
+	balanceAttribute.Active = true
+
+	return nil
+}
+
+// validateEntityReferences validates that all referenced entities exist
+func (uc *CreateBalanceAttributeUseCase) validateEntityReferences(ctx context.Context, balanceAttribute *balanceattributepb.BalanceAttribute) error {
+	// Validate Balance entity reference
+	if balanceAttribute.BalanceId != "" {
+		balance, err := uc.repositories.Balance.ReadBalance(ctx, &balancepb.ReadBalanceRequest{
+			Data: &balancepb.Balance{Id: balanceAttribute.BalanceId},
+		})
+		if err != nil {
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.balance_reference_validation_failed", "Failed to validate balance entity reference [DEFAULT]")
+			return fmt.Errorf("%s: %w", translatedError, err)
+		}
+		if balance == nil || balance.Data == nil || len(balance.Data) == 0 {
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.balance_not_found", "Balance not found [DEFAULT]")
+			translatedError = strings.ReplaceAll(translatedError, "{balanceId}", balanceAttribute.BalanceId)
+			return errors.New(translatedError)
+		}
+		if !balance.Data[0].Active {
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.balance_not_active", "Referenced balance with ID '{balanceId}' is not active [DEFAULT]")
+			translatedError = strings.ReplaceAll(translatedError, "{balanceId}", balanceAttribute.BalanceId)
+			return errors.New(translatedError)
+		}
+	}
+
+	// Validate Attribute entity reference
+	if balanceAttribute.AttributeId != "" {
+		attribute, err := uc.repositories.Attribute.ReadAttribute(ctx, &attributepb.ReadAttributeRequest{
+			Data: &attributepb.Attribute{Id: balanceAttribute.AttributeId},
+		})
+		if err != nil {
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
+			return fmt.Errorf("%s: %w", translatedError, err)
+		}
+		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.attribute_not_found", "Attribute not found [DEFAULT]")
+			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", balanceAttribute.AttributeId)
+			return errors.New(translatedError)
+		}
+		if !attribute.Data[0].Active {
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
+			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", balanceAttribute.AttributeId)
+			return errors.New(translatedError)
+		}
+	}
+
+	return nil
+}

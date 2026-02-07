@@ -1,0 +1,83 @@
+package location_attribute
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"leapfor.xyz/espyna/internal/application/ports"
+	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
+	locationattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/location_attribute"
+)
+
+// ListLocationAttributesRepositories groups all repository dependencies
+type ListLocationAttributesRepositories struct {
+	LocationAttribute locationattributepb.LocationAttributeDomainServiceServer // Primary entity repository
+}
+
+// ListLocationAttributesServices groups all business service dependencies
+type ListLocationAttributesServices struct {
+	TransactionService ports.TransactionService // Current: Database transactions
+	TranslationService ports.TranslationService
+}
+
+// ListLocationAttributesUseCase handles the business logic for listing location attributes
+type ListLocationAttributesUseCase struct {
+	repositories ListLocationAttributesRepositories
+	services     ListLocationAttributesServices
+}
+
+// NewListLocationAttributesUseCase creates a new ListLocationAttributesUseCase
+func NewListLocationAttributesUseCase(
+	repositories ListLocationAttributesRepositories,
+	services ListLocationAttributesServices,
+) *ListLocationAttributesUseCase {
+	return &ListLocationAttributesUseCase{
+		repositories: repositories,
+		services:     services,
+	}
+}
+
+// NewListLocationAttributesUseCaseUngrouped creates use case with individual parameters
+// Deprecated: Use NewListLocationAttributesUseCase with grouped parameters instead
+func NewListLocationAttributesUseCaseUngrouped(
+	locationAttributeRepo locationattributepb.LocationAttributeDomainServiceServer,
+) *ListLocationAttributesUseCase {
+	// Build grouped parameters internally for backward compatibility
+	repositories := ListLocationAttributesRepositories{
+		LocationAttribute: locationAttributeRepo,
+	}
+
+	services := ListLocationAttributesServices{
+		TransactionService: ports.NewNoOpTransactionService(),
+		TranslationService: ports.NewNoOpTranslationService(),
+	}
+
+	return NewListLocationAttributesUseCase(repositories, services)
+}
+
+func (uc *ListLocationAttributesUseCase) Execute(ctx context.Context, req *locationattributepb.ListLocationAttributesRequest) (*locationattributepb.ListLocationAttributesResponse, error) {
+	// Input validation
+	if err := uc.validateInput(ctx, req); err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+
+	// Call repository
+	resp, err := uc.repositories.LocationAttribute.ListLocationAttributes(ctx, req)
+	if err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.list_failed", "Failed to retrieve location attributes [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+
+	return resp, nil
+}
+
+// validateInput validates the input request
+func (uc *ListLocationAttributesUseCase) validateInput(ctx context.Context, req *locationattributepb.ListLocationAttributesRequest) error {
+	if req == nil {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.request_required", "Request is required for location attributes [DEFAULT]"))
+	}
+	// List requests typically don't require additional validation beyond the request itself
+	return nil
+}

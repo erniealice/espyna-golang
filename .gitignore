@@ -1,0 +1,6 @@
+*.exe
+tmp/*
+dump/*
+
+!scripts/build
+*.json

@@ -1,0 +1,1 @@
+air --build.cmd "go build -o tmp/main.exe main.go" --build.exclude_dir "scripts,files,tmp,logs,node_modules,.git,assets"

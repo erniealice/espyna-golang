@@ -1,0 +1,37 @@
+package initializers
+
+import (
+	"leapfor.xyz/espyna/internal/application/ports"
+	"leapfor.xyz/espyna/internal/application/usecases/product"
+	"leapfor.xyz/espyna/internal/composition/providers/domain"
+)
+
+// InitializeProduct creates all product use cases from provider repositories
+// This is composition logic - it wires infrastructure (providers) to application (use cases)
+func InitializeProduct(
+	repos *domain.ProductRepositories,
+	authSvc ports.AuthorizationService,
+	txSvc ports.TransactionService,
+	i18nSvc ports.TranslationService,
+	idSvc ports.IDService,
+) (*product.ProductUseCases, error) {
+	// Use the domain's constructor which properly handles all use case creation
+	return product.NewUseCases(
+		product.ProductRepositories{
+			Collection:          repos.Collection,
+			CollectionAttribute: repos.CollectionAttribute,
+			CollectionPlan:      repos.CollectionPlan,
+			PriceProduct:        repos.PriceProduct,
+			Product:             repos.Product,
+			ProductAttribute:    repos.ProductAttribute,
+			ProductCollection:   repos.ProductCollection,
+			ProductPlan:         repos.ProductPlan,
+			Resource:            repos.Resource,
+			Attribute:           repos.Attribute,
+		},
+		authSvc,
+		txSvc,
+		i18nSvc,
+		idSvc,
+	), nil
+}

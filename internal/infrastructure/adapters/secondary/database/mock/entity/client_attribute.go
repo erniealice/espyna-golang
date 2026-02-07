@@ -1,0 +1,559 @@
+//go:build mock_db
+
+package entity
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"sync"
+	"time"
+
+	datamock "leapfor.xyz/copya/golang"
+	"leapfor.xyz/espyna/internal/application/shared/listdata"
+	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	clientattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/client_attribute"
+)
+
+// MockClientAttributeRepository implements entity.ClientAttributeRepository using stateful mock data
+type MockClientAttributeRepository struct {
+	clientattributepb.UnimplementedClientAttributeDomainServiceServer
+	businessType          string
+	clientAttributes      map[string]*clientattributepb.ClientAttribute // Store by simple ID
+	clientAttributesByKey map[string]*clientattributepb.ClientAttribute // Store by composite key (clientId-attributeId)
+	mutex                 sync.RWMutex                                  // Thread-safe concurrent access
+	initialized           bool                                          // Prevent double initialization
+	processor             *listdata.ListDataProcessor                   // List data processing for pagination, filtering, sorting
+}
+
+// ClientAttributeRepositoryOption allows configuration of repository behavior
+type ClientAttributeRepositoryOption func(*MockClientAttributeRepository)
+
+// WithClientAttributeTestOptimizations enables test-specific optimizations
+func WithClientAttributeTestOptimizations(enabled bool) ClientAttributeRepositoryOption {
+	return func(r *MockClientAttributeRepository) {
+		// Test optimizations could include faster ID generation, logging, etc.
+		// For now, this is a placeholder for future optimizations
+	}
+}
+
+// NewMockClientAttributeRepository creates a new mock client attribute repository
+func NewMockClientAttributeRepository(businessType string, options ...ClientAttributeRepositoryOption) clientattributepb.ClientAttributeDomainServiceServer {
+	if businessType == "" {
+		businessType = "education" // Default fallback
+	}
+
+	repo := &MockClientAttributeRepository{
+		businessType:          businessType,
+		clientAttributes:      make(map[string]*clientattributepb.ClientAttribute),
+		clientAttributesByKey: make(map[string]*clientattributepb.ClientAttribute),
+		processor:             listdata.NewListDataProcessor(),
+	}
+
+	// Apply optional configurations
+	for _, option := range options {
+		option(repo)
+	}
+
+	// Initialize with mock data once
+	if err := repo.loadInitialData(); err != nil {
+		// Log error but don't fail - allows graceful degradation
+		fmt.Printf("Warning: Failed to load initial mock data: %v\n", err)
+	}
+
+	return repo
+}
+
+// loadInitialData loads mock data from the copya package
+func (r *MockClientAttributeRepository) loadInitialData() error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if r.initialized {
+		return nil // Prevent double initialization
+	}
+
+	// Load from @leapfor/copya package
+	rawClientAttributes, err := datamock.LoadClientAttributes(r.businessType)
+	if err != nil {
+		return fmt.Errorf("failed to load initial client attributes: %w", err)
+	}
+
+	// Convert and store each client attribute in both maps
+	for _, rawClientAttribute := range rawClientAttributes {
+		if clientAttribute, err := r.mapToProtobufClientAttribute(rawClientAttribute); err == nil {
+			// Store by simple ID (for test compatibility)
+			if clientAttribute.Id != "" {
+				r.clientAttributes[clientAttribute.Id] = clientAttribute
+			}
+			// Store by composite key (for business logic)
+			compositeKey := fmt.Sprintf("%s-%s", clientAttribute.ClientId, clientAttribute.AttributeId)
+			r.clientAttributesByKey[compositeKey] = clientAttribute
+		}
+	}
+
+	r.initialized = true
+	return nil
+}
+
+// CreateClientAttribute creates a new client attribute with stateful storage
+func (r *MockClientAttributeRepository) CreateClientAttribute(ctx context.Context, req *clientattributepb.CreateClientAttributeRequest) (*clientattributepb.CreateClientAttributeResponse, error) {
+	// Input validation
+	if req == nil {
+		return nil, fmt.Errorf("create client attribute request is required")
+	}
+	if req.Data == nil {
+		return nil, fmt.Errorf("client attribute data is required")
+	}
+	if req.Data.ClientId == "" {
+		return nil, fmt.Errorf("client attribute clientId is required")
+	}
+	if req.Data.AttributeId == "" {
+		return nil, fmt.Errorf("client attribute attributeId is required")
+	}
+	if req.Data.Value == "" {
+		return nil, fmt.Errorf("client attribute value is required")
+	}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	// Generate unique key with client and attribute IDs
+	key := fmt.Sprintf("%s-%s", req.Data.ClientId, req.Data.AttributeId)
+
+	// Check if already exists
+	if _, exists := r.clientAttributes[key]; exists {
+		return nil, fmt.Errorf("client attribute with clientId '%s' and attributeId '%s' already exists", req.Data.ClientId, req.Data.AttributeId)
+	}
+
+	// Create new client attribute preserving use case data
+	newClientAttribute := &clientattributepb.ClientAttribute{
+		Id:          req.Data.Id, // Preserve ID generated by use case
+		ClientId:    req.Data.ClientId,
+		AttributeId: req.Data.AttributeId,
+		Value:       req.Data.Value,
+		Active:      req.Data.Active, // Preserve active flag set by use case
+		// Use timestamps from use case (correct millisecond units)
+		DateCreated:        req.Data.DateCreated,
+		DateCreatedString:  req.Data.DateCreatedString,
+		DateModified:       req.Data.DateModified,
+		DateModifiedString: req.Data.DateModifiedString,
+	}
+
+	// Copy nested Client object if provided (key fix for nested object preservation)
+	if req.Data.Client != nil {
+		newClientAttribute.Client = req.Data.Client
+	}
+
+	// Copy nested Attribute object if provided (key fix for nested object preservation)
+	if req.Data.Attribute != nil {
+		newClientAttribute.Attribute = req.Data.Attribute
+	}
+
+	// Store in both maps for dual access patterns
+	if newClientAttribute.Id != "" {
+		r.clientAttributes[newClientAttribute.Id] = newClientAttribute
+	}
+	r.clientAttributesByKey[key] = newClientAttribute
+
+	return &clientattributepb.CreateClientAttributeResponse{
+		Data:    []*clientattributepb.ClientAttribute{newClientAttribute},
+		Success: true,
+	}, nil
+}
+
+// ReadClientAttribute retrieves a client attribute by ID or by client ID and attribute ID from stateful storage
+func (r *MockClientAttributeRepository) ReadClientAttribute(ctx context.Context, req *clientattributepb.ReadClientAttributeRequest) (*clientattributepb.ReadClientAttributeResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("read client attribute request is required")
+	}
+	if req.Data == nil {
+		return nil, fmt.Errorf("client attribute data is required")
+	}
+
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	var clientAttribute *clientattributepb.ClientAttribute
+	var exists bool
+
+	// Try simple ID lookup first (for test compatibility)
+	if req.Data.Id != "" {
+		clientAttribute, exists = r.clientAttributes[req.Data.Id]
+	}
+
+	// Fallback to composite key lookup if simple ID not found or not provided
+	if !exists && req.Data.ClientId != "" && req.Data.AttributeId != "" {
+		compositeKey := fmt.Sprintf("%s-%s", req.Data.ClientId, req.Data.AttributeId)
+		clientAttribute, exists = r.clientAttributesByKey[compositeKey]
+	}
+
+	// Return the found client attribute
+	if exists {
+		return &clientattributepb.ReadClientAttributeResponse{
+			Data:    []*clientattributepb.ClientAttribute{clientAttribute},
+			Success: true,
+		}, nil
+	}
+
+	// Return empty result for missing entity (no error)
+	return &clientattributepb.ReadClientAttributeResponse{
+		Data:    []*clientattributepb.ClientAttribute{},
+		Success: true,
+	}, nil
+}
+
+// UpdateClientAttribute updates an existing client attribute in stateful storage
+func (r *MockClientAttributeRepository) UpdateClientAttribute(ctx context.Context, req *clientattributepb.UpdateClientAttributeRequest) (*clientattributepb.UpdateClientAttributeResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("update client attribute request is required")
+	}
+	if req.Data == nil {
+		return nil, fmt.Errorf("client attribute data is required for update")
+	}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	var existingClientAttribute *clientattributepb.ClientAttribute
+	var exists bool
+	var simpleKey string
+	var compositeKey string
+
+	// Try simple ID lookup first (for test compatibility)
+	if req.Data.Id != "" {
+		existingClientAttribute, exists = r.clientAttributes[req.Data.Id]
+		simpleKey = req.Data.Id
+	}
+
+	// Fallback to composite key lookup
+	if !exists && req.Data.ClientId != "" && req.Data.AttributeId != "" {
+		compositeKey = fmt.Sprintf("%s-%s", req.Data.ClientId, req.Data.AttributeId)
+		existingClientAttribute, exists = r.clientAttributesByKey[compositeKey]
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("client attribute with client ID '%s' and attribute ID '%s' does not exist", req.Data.ClientId, req.Data.AttributeId)
+	}
+
+	// Update preserving use case timestamps and nested objects
+	updatedClientAttribute := &clientattributepb.ClientAttribute{
+		Id:          req.Data.Id,
+		ClientId:    req.Data.ClientId,
+		AttributeId: req.Data.AttributeId,
+		Value:       req.Data.Value,
+		Active:      req.Data.Active,
+		// Preserve creation timestamps
+		DateCreated:       existingClientAttribute.DateCreated,
+		DateCreatedString: existingClientAttribute.DateCreatedString,
+		// Use timestamps from use case (correct millisecond units)
+		DateModified:       req.Data.DateModified,
+		DateModifiedString: req.Data.DateModifiedString,
+	}
+
+	// Copy nested Client object if provided
+	if req.Data.Client != nil {
+		updatedClientAttribute.Client = req.Data.Client
+	} else {
+		updatedClientAttribute.Client = existingClientAttribute.Client
+	}
+
+	// Copy nested Attribute object if provided
+	if req.Data.Attribute != nil {
+		updatedClientAttribute.Attribute = req.Data.Attribute
+	} else {
+		updatedClientAttribute.Attribute = existingClientAttribute.Attribute
+	}
+
+	// Update in both maps for dual access patterns
+	if simpleKey != "" {
+		r.clientAttributes[simpleKey] = updatedClientAttribute
+	}
+	if compositeKey == "" {
+		compositeKey = fmt.Sprintf("%s-%s", updatedClientAttribute.ClientId, updatedClientAttribute.AttributeId)
+	}
+	r.clientAttributesByKey[compositeKey] = updatedClientAttribute
+
+	return &clientattributepb.UpdateClientAttributeResponse{
+		Data:    []*clientattributepb.ClientAttribute{updatedClientAttribute},
+		Success: true,
+	}, nil
+}
+
+// DeleteClientAttribute deletes a client attribute from stateful storage
+func (r *MockClientAttributeRepository) DeleteClientAttribute(ctx context.Context, req *clientattributepb.DeleteClientAttributeRequest) (*clientattributepb.DeleteClientAttributeResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("delete client attribute request is required")
+	}
+	if req.Data == nil {
+		return nil, fmt.Errorf("client attribute data is required for deletion")
+	}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	var existingClientAttribute *clientattributepb.ClientAttribute
+	var exists bool
+	var simpleKey string
+	var compositeKey string
+
+	// Try simple ID lookup first (for test compatibility)
+	if req.Data.Id != "" {
+		existingClientAttribute, exists = r.clientAttributes[req.Data.Id]
+		simpleKey = req.Data.Id
+		if exists {
+			compositeKey = fmt.Sprintf("%s-%s", existingClientAttribute.ClientId, existingClientAttribute.AttributeId)
+		}
+	}
+
+	// Fallback to composite key lookup
+	if !exists && req.Data.ClientId != "" && req.Data.AttributeId != "" {
+		compositeKey = fmt.Sprintf("%s-%s", req.Data.ClientId, req.Data.AttributeId)
+		existingClientAttribute, exists = r.clientAttributesByKey[compositeKey]
+		if exists {
+			simpleKey = existingClientAttribute.Id
+		}
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("client attribute with client ID '%s' and attribute ID '%s' does not exist", req.Data.ClientId, req.Data.AttributeId)
+	}
+
+	// Perform actual deletion from both persistent stores
+	if simpleKey != "" {
+		delete(r.clientAttributes, simpleKey)
+	}
+	if compositeKey != "" {
+		delete(r.clientAttributesByKey, compositeKey)
+	}
+
+	return &clientattributepb.DeleteClientAttributeResponse{
+		Success: true,
+	}, nil
+}
+
+// ListClientAttributes retrieves all client attributes from stateful storage
+func (r *MockClientAttributeRepository) ListClientAttributes(ctx context.Context, req *clientattributepb.ListClientAttributesRequest) (*clientattributepb.ListClientAttributesResponse, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	// Use composite key map as the authoritative source (avoids duplicates)
+	clientAttributes := make([]*clientattributepb.ClientAttribute, 0, len(r.clientAttributesByKey))
+	for _, clientAttribute := range r.clientAttributesByKey {
+		clientAttributes = append(clientAttributes, clientAttribute)
+	}
+
+	// Use the list data processor to handle filtering, sorting, searching, and pagination
+	result, err := r.processor.ProcessListRequest(
+		clientAttributes,
+		req.Pagination,
+		req.Filters,
+		req.Sort,
+		req.Search,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process client attribute list data: %w", err)
+	}
+
+	// Convert processed items back to client attribute protobuf format
+	processedClientAttributes := make([]*clientattributepb.ClientAttribute, len(result.Items))
+	for i, item := range result.Items {
+		if clientAttribute, ok := item.(*clientattributepb.ClientAttribute); ok {
+			processedClientAttributes[i] = clientAttribute
+		} else {
+			return nil, fmt.Errorf("failed to convert item to client attribute type")
+		}
+	}
+
+	return &clientattributepb.ListClientAttributesResponse{
+		Data:    processedClientAttributes,
+		Success: true,
+	}, nil
+}
+
+// GetClientAttributeListPageData retrieves client attributes with advanced filtering, sorting, searching, and pagination
+func (r *MockClientAttributeRepository) GetClientAttributeListPageData(
+	ctx context.Context,
+	req *clientattributepb.GetClientAttributeListPageDataRequest,
+) (*clientattributepb.GetClientAttributeListPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get client attribute list page data request is required")
+	}
+
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	// Convert map to slice of client attributes
+	clientattributes := make([]*clientattributepb.ClientAttribute, 0, len(r.clientAttributesByKey))
+	for _, clientattribute := range r.clientAttributesByKey {
+		clientattributes = append(clientattributes, clientattribute)
+	}
+
+	// Use the list data processor to handle filtering, sorting, searching, and pagination
+	result, err := r.processor.ProcessListRequest(
+		clientattributes,
+		req.Pagination,
+		req.Filters,
+		req.Sort,
+		req.Search,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process client attribute list data: %w", err)
+	}
+
+	// Convert processed items back to client attribute protobuf format
+	processedClientAttributes := make([]*clientattributepb.ClientAttribute, len(result.Items))
+	for i, item := range result.Items {
+		if clientattribute, ok := item.(*clientattributepb.ClientAttribute); ok {
+			processedClientAttributes[i] = clientattribute
+		} else {
+			return nil, fmt.Errorf("failed to convert item to client attribute type")
+		}
+	}
+
+	// Convert search results to protobuf format
+	searchResults := make([]*commonpb.SearchResult, len(result.SearchResults))
+	for i, searchResult := range result.SearchResults {
+		searchResults[i] = &commonpb.SearchResult{
+			Score:      searchResult.Score,
+			Highlights: searchResult.Highlights,
+		}
+	}
+
+	return &clientattributepb.GetClientAttributeListPageDataResponse{
+		ClientAttributeList: processedClientAttributes,
+		Pagination:          result.PaginationResponse,
+		SearchResults:       searchResults,
+		Success:             true,
+	}, nil
+}
+
+// GetClientAttributeItemPageData retrieves a single client attribute with enhanced item page data
+func (r *MockClientAttributeRepository) GetClientAttributeItemPageData(
+	ctx context.Context,
+	req *clientattributepb.GetClientAttributeItemPageDataRequest,
+) (*clientattributepb.GetClientAttributeItemPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get client attribute item page data request is required")
+	}
+	if req.ClientAttributeId == "" {
+		return nil, fmt.Errorf("client attribute ID is required")
+	}
+
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	// Check in-memory store
+	clientattribute, exists := r.clientAttributes[req.ClientAttributeId]
+	if !exists {
+		return nil, fmt.Errorf("client attribute with ID '%s' not found", req.ClientAttributeId)
+	}
+
+	// In a real implementation, you might:
+	// 1. Load related data (client details, attribute details)
+	// 2. Apply access control checks
+	// 3. Format data for optimal frontend consumption
+	// 4. Add audit logging
+
+	return &clientattributepb.GetClientAttributeItemPageDataResponse{
+		ClientAttribute: clientattribute,
+		Success:         true,
+	}, nil
+}
+
+// mapToProtobufClientAttribute converts raw mock data to protobuf ClientAttribute
+func (r *MockClientAttributeRepository) mapToProtobufClientAttribute(rawClientAttribute map[string]any) (*clientattributepb.ClientAttribute, error) {
+	clientAttribute := &clientattributepb.ClientAttribute{}
+
+	// Map ID field (for test compatibility)
+	if id, ok := rawClientAttribute["id"].(string); ok {
+		clientAttribute.Id = id
+	}
+
+	// Map required fields
+	if clientId, ok := rawClientAttribute["clientId"].(string); ok {
+		clientAttribute.ClientId = clientId
+	} else {
+		return nil, fmt.Errorf("missing or invalid clientId field")
+	}
+
+	if attributeId, ok := rawClientAttribute["attributeId"].(string); ok {
+		clientAttribute.AttributeId = attributeId
+	} else {
+		return nil, fmt.Errorf("missing or invalid attributeId field")
+	}
+
+	if value, ok := rawClientAttribute["value"].(string); ok {
+		clientAttribute.Value = value
+	} else {
+		return nil, fmt.Errorf("missing or invalid value field")
+	}
+
+	// Map active status
+	if active, ok := rawClientAttribute["active"].(bool); ok {
+		clientAttribute.Active = active
+	} else {
+		clientAttribute.Active = true // Default to active
+	}
+
+	// Handle date fields - convert string timestamps to Unix timestamps
+	if dateCreated, ok := rawClientAttribute["dateCreated"].(string); ok {
+		clientAttribute.DateCreatedString = &dateCreated
+		if timestamp, err := r.parseTimestamp(dateCreated); err == nil {
+			clientAttribute.DateCreated = &timestamp
+		}
+	}
+
+	if dateModified, ok := rawClientAttribute["dateModified"].(string); ok {
+		clientAttribute.DateModifiedString = &dateModified
+		if timestamp, err := r.parseTimestamp(dateModified); err == nil {
+			clientAttribute.DateModified = &timestamp
+		}
+	}
+
+	return clientAttribute, nil
+}
+
+// parseTimestamp converts string timestamp to Unix timestamp
+func (r *MockClientAttributeRepository) parseTimestamp(timestampStr string) (int64, error) {
+	// Direct timestamp parsing (already in milliseconds)
+	if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+		return timestamp, nil
+	}
+
+	// RFC3339 parsing converted to milliseconds
+	if t, err := time.Parse(time.RFC3339, timestampStr); err == nil {
+		return t.UnixMilli(), nil // Consistent milliseconds
+	}
+
+	// Try parsing as other common formats
+	formats := []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05.000Z",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, timestampStr); err == nil {
+			return t.UnixMilli(), nil // Consistent milliseconds
+		}
+	}
+
+	return 0, fmt.Errorf("unable to parse timestamp: %s", timestampStr)
+}
+
+// NewClientAttributeRepository creates a new client attribute repository - Provider interface compatibility
+func NewClientAttributeRepository(businessType string) clientattributepb.ClientAttributeDomainServiceServer {
+	return NewMockClientAttributeRepository(businessType)
+}
+
+func init() {
+	registry.RegisterRepositoryFactory("mock", "client_attribute", func(conn any, tableName string) (any, error) {
+		businessType, _ := conn.(string)
+		if businessType == "" {
+			businessType = "education"
+		}
+		return NewMockClientAttributeRepository(businessType), nil
+	})
+}

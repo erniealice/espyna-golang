@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	activitytemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
-	enginepb "leapfor.xyz/esqyma/golang/v1/orchestration/engine"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	activitytemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	enginepb "github.com/erniealice/esqyma/pkg/schema/v1/orchestration/engine"
 )
 
 // GetWorkflowStatusUseCase retrieves the current state of a workflow

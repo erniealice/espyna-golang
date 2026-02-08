@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	paymentMethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
-	paymentprofilepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_profile"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	paymentMethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
+	paymentprofilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
 )
 
 // CreatePaymentProfileRepositories groups all repository dependencies

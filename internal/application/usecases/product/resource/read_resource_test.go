@@ -40,9 +40,9 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	resourcepb "leapfor.xyz/esqyma/golang/v1/domain/product/resource"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 )
 
 // Type alias for read resource test cases

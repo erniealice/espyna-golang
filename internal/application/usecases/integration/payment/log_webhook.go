@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	integrationPorts "leapfor.xyz/espyna/internal/application/ports/integration"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/integration/payment"
+	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 // LogWebhookRepositories groups all repository dependencies

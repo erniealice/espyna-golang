@@ -1,20 +1,20 @@
 package initializers
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases/workflow"
-	"leapfor.xyz/espyna/internal/composition/providers/domain"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
 	// Workflow domain use cases
-	activityUseCases "leapfor.xyz/espyna/internal/application/usecases/workflow/activity"
-	activityTemplateUseCases "leapfor.xyz/espyna/internal/application/usecases/workflow/activity_template"
-	stageUseCases "leapfor.xyz/espyna/internal/application/usecases/workflow/stage"
-	stageTemplateUseCases "leapfor.xyz/espyna/internal/application/usecases/workflow/stage_template"
-	workflowUseCases "leapfor.xyz/espyna/internal/application/usecases/workflow/workflow"
-	workflowTemplateUseCases "leapfor.xyz/espyna/internal/application/usecases/workflow/workflow_template"
+	activityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/activity"
+	activityTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/activity_template"
+	stageUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/stage"
+	stageTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/stage_template"
+	workflowUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/workflow"
+	workflowTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/workflow_template"
 
 	// Orchestration layer - workflow engine
-	engineUseCases "leapfor.xyz/espyna/internal/orchestration/engine"
+	engineUseCases "github.com/erniealice/espyna-golang/internal/orchestration/engine"
 )
 
 // InitializeWorkflow creates all workflow domain use cases from provider repositories.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	emailpb "leapfor.xyz/esqyma/golang/v1/integration/email"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
 )
 
 /*

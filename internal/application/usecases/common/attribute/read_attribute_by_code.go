@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // ReadAttributeByCode looks up an Attribute by its code field and returns the attribute ID.

@@ -3,9 +3,9 @@ package integration
 import (
 	"log"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases"
-	"leapfor.xyz/espyna/internal/orchestration/workflow/executor"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	"github.com/erniealice/espyna-golang/internal/orchestration/workflow/executor"
 )
 
 // RegisterTabularIntegrationUseCases registers all tabular integration use cases with the registry.

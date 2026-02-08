@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	appConfig "leapfor.xyz/espyna/internal/composition/config"
+	appConfig "github.com/erniealice/espyna-golang/internal/composition/config"
 )
 
 // =============================================================================

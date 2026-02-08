@@ -5,11 +5,11 @@ import (
 	"errors"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	userpb "leapfor.xyz/esqyma/golang/v1/domain/entity/user"
-	workspacepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace"
-	workspaceuserpb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 )
 
 // ReadWorkspaceUserRepositories groups all repository dependencies

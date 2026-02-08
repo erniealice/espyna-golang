@@ -1,8 +1,8 @@
 package workflow
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
 )
 
 // WorkflowRepositories groups all repository dependencies for workflow use cases

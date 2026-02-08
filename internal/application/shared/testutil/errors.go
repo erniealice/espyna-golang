@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
 // AssertTranslatedError validates that an error matches the expected translated message

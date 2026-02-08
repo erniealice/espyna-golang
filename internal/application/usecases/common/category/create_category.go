@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	categorypb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // CreateCategoryUseCase handles the business logic for creating categories

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	storagepb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
+	storagepb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
 // storageOperations defines the operations interface for storage without Initialize

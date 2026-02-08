@@ -3,10 +3,10 @@ package domain
 import (
 	"fmt"
 
-	commonuc "leapfor.xyz/espyna/internal/application/usecases/common"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	categorypb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	commonuc "github.com/erniealice/espyna-golang/internal/application/usecases/common"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // ConfigureCommonDomain configures routes for the Common domain with use cases injected directly

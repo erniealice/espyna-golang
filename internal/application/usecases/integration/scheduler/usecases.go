@@ -15,7 +15,7 @@
 package scheduler
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // SchedulerRepositories groups all repository dependencies for scheduler use cases

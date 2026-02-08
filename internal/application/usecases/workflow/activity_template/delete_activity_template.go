@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	activityTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 )
 
 // DeleteActivityTemplateRepositories groups all repository dependencies

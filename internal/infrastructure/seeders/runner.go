@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 )
 
 // Seeder is the interface for all seeders

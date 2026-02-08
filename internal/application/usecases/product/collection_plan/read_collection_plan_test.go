@@ -35,9 +35,9 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	collectionplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_plan"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
 )
 
 // Type alias for read collection plan test cases

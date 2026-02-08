@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports/infrastructure"
-	"leapfor.xyz/espyna/internal/infrastructure/seeders"
+	"github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/seeders"
 	"leapfor.xyz/vya"
 )
 

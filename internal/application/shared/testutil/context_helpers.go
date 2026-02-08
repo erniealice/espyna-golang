@@ -8,7 +8,7 @@ import (
 	"context"
 	"os"
 
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
 // GetTestUserID returns the test user ID from environment variable TEST_USER_ID.

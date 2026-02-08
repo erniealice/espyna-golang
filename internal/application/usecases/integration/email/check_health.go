@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	emailpb "leapfor.xyz/esqyma/golang/v1/integration/email"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
 )
 
 // CheckHealthRepositories groups all repository dependencies

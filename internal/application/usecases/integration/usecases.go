@@ -18,17 +18,17 @@
 package integration
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	integrationPorts "leapfor.xyz/espyna/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
 
 	// Email integration use cases
-	emailUseCases "leapfor.xyz/espyna/internal/application/usecases/integration/email"
+	emailUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/integration/email"
 	// Payment integration use cases
-	paymentUseCases "leapfor.xyz/espyna/internal/application/usecases/integration/payment"
+	paymentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/integration/payment"
 	// Scheduler integration use cases
-	schedulerUseCases "leapfor.xyz/espyna/internal/application/usecases/integration/scheduler"
+	schedulerUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/integration/scheduler"
 	// Tabular integration use cases
-	tabularUseCases "leapfor.xyz/espyna/internal/application/usecases/integration/tabular"
+	tabularUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/integration/tabular"
 )
 
 // IntegrationUseCases contains all integration domain use cases

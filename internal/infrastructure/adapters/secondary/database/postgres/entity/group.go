@@ -10,11 +10,11 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	grouppb "leapfor.xyz/esqyma/golang/v1/domain/entity/group"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	postgresCore "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/core"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
 
 func init() {

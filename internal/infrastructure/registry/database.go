@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	dbpb "leapfor.xyz/esqyma/golang/v1/infrastructure/database"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 )
 
 // =============================================================================

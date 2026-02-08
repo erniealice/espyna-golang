@@ -1,9 +1,9 @@
 package options
 
 import (
-	infra "leapfor.xyz/espyna/internal/composition/options/infrastructure"
-	"leapfor.xyz/espyna/internal/composition/options/integrations/messaging"
-	"leapfor.xyz/espyna/internal/composition/options/integrations/payment"
+	infra "github.com/erniealice/espyna-golang/internal/composition/options/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/composition/options/integrations/messaging"
+	"github.com/erniealice/espyna-golang/internal/composition/options/integrations/payment"
 )
 
 // ManagerConfig holds configuration for all providers.

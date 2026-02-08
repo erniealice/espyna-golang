@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // ReadAttributeUseCase handles the business logic for reading attributes

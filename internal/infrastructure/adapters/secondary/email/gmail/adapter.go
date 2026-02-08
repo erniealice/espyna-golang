@@ -19,11 +19,11 @@ import (
 	"time"
 
 	"google.golang.org/api/gmail/v1"
-	"leapfor.xyz/espyna/internal/application/ports"
-	googleclient "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/google"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	emailpb "leapfor.xyz/esqyma/golang/v1/integration/email"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	googleclient "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/google"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
 )
 
 // =============================================================================

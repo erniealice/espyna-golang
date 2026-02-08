@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	workspacepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
 // MockWorkspaceServiceForListPageData implements WorkspaceDomainServiceServer for testing list page data

@@ -1,9 +1,9 @@
 package price_product
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	priceproductpb "leapfor.xyz/esqyma/golang/v1/domain/product/price_product"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // UseCases contains all price product-related use cases

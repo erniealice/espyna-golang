@@ -1,10 +1,10 @@
 package group_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	grouppb "leapfor.xyz/esqyma/golang/v1/domain/entity/group"
-	groupattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/group_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
+	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
 
 // UseCases contains all group attribute-related use cases

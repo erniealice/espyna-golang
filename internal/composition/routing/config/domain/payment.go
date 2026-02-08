@@ -3,13 +3,13 @@ package domain
 import (
 	"fmt"
 
-	paymentuc "leapfor.xyz/espyna/internal/application/usecases/payment"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment"
-	paymentattributepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_attribute"
-	paymentmethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
-	paymentprofilepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_profile"
-	// paymentprofilepaymentmethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_profile_payment_method" // TODO: Uncomment when PaymentProfilePaymentMethod is implemented
+	paymentuc "github.com/erniealice/espyna-golang/internal/application/usecases/payment"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
+	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
+	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
+	paymentprofilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
+	// paymentprofilepaymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile_payment_method" // TODO: Uncomment when PaymentProfilePaymentMethod is implemented
 )
 
 // ConfigurePaymentDomain configures routes for the Payment domain with use cases injected directly

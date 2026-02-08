@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"context"
 
-	authpb "leapfor.xyz/esqyma/golang/v1/infrastructure/auth"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
 // AuthProvider defines the contract for authentication providers

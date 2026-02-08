@@ -16,12 +16,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/composition/core"
-	"leapfor.xyz/espyna/internal/composition/routing"
-	"leapfor.xyz/espyna/internal/composition/routing/customization"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	"github.com/erniealice/espyna-golang/internal/composition/routing"
+	"github.com/erniealice/espyna-golang/internal/composition/routing/customization"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // =============================================================================

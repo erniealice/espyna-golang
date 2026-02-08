@@ -1,8 +1,8 @@
 package role
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	rolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/role"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 )
 
 // RoleRepositories groups all repository dependencies for role use cases

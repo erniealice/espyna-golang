@@ -1,9 +1,9 @@
 package initializers
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases/product"
-	"leapfor.xyz/espyna/internal/composition/providers/domain"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
 // InitializeProduct creates all product use cases from provider repositories

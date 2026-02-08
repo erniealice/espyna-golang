@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	tabularpb "leapfor.xyz/esqyma/golang/v1/integration/tabular"
-	spreadsheetpb "leapfor.xyz/esqyma/golang/v1/integration/tabular/extensions"
+	tabularpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/tabular"
+	spreadsheetpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/tabular/extensions"
 )
 
 // TabularSourceProvider defines the contract for tabular data source providers.

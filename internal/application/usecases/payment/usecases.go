@@ -1,21 +1,21 @@
 package payment
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Payment use cases
-	paymentUseCases "leapfor.xyz/espyna/internal/application/usecases/payment/payment"
-	paymentAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/payment/payment_attribute"
-	paymentMethodUseCases "leapfor.xyz/espyna/internal/application/usecases/payment/payment_method"
-	paymentProfileUseCases "leapfor.xyz/espyna/internal/application/usecases/payment/payment_profile"
+	paymentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment"
+	paymentAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment_attribute"
+	paymentMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment_method"
+	paymentProfileUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment_profile"
 
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment"
-	paymentattributepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_attribute"
-	paymentmethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
-	paymentprofilepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_profile"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
+	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
+	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
+	paymentprofilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // PaymentRepositories contains all payment domain repositories

@@ -2,14 +2,14 @@ package usecases
 
 import (
 	// Domain use case packages
-	"leapfor.xyz/espyna/internal/application/usecases/common"
-	"leapfor.xyz/espyna/internal/application/usecases/entity"
-	"leapfor.xyz/espyna/internal/application/usecases/event"
-	"leapfor.xyz/espyna/internal/application/usecases/integration"
-	"leapfor.xyz/espyna/internal/application/usecases/payment"
-	"leapfor.xyz/espyna/internal/application/usecases/product"
-	"leapfor.xyz/espyna/internal/application/usecases/subscription"
-	"leapfor.xyz/espyna/internal/application/usecases/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 )
 
 // Aggregate is a collection of all domain use cases across the application.

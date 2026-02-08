@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	productcollectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_collection"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 )
 
 // UpdateProductCollectionUseCase handles the business logic for updating product collections

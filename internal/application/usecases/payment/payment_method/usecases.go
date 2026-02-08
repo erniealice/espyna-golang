@@ -1,8 +1,8 @@
 package payment_method
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	paymentmethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
 )
 
 // PaymentMethodRepositories groups all repository dependencies for payment method use cases

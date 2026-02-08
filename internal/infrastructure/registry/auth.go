@@ -1,8 +1,8 @@
 package registry
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	authpb "leapfor.xyz/esqyma/golang/v1/infrastructure/auth"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
 // =============================================================================

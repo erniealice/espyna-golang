@@ -1,0 +1,1 @@
+use @packages/espyna/AGENTS.md

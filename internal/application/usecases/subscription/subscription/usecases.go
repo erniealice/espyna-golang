@@ -1,10 +1,10 @@
 package subscription
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	priceplanpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/price_plan"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // SubscriptionRepositories groups all repository dependencies

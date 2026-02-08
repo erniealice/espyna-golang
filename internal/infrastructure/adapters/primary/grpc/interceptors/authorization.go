@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // AuthorizationInterceptor provides authorization interceptor for gRPC requests

@@ -1,9 +1,9 @@
 package initializers
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases/common"
-	"leapfor.xyz/espyna/internal/composition/providers/domain"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
 // InitializeCommon creates all common use cases from provider repositories

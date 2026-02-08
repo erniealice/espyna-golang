@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	eventattributepb "leapfor.xyz/esqyma/golang/v1/domain/event/event_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 )
 
 type GetEventAttributeItemPageDataRepositories struct {

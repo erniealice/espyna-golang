@@ -9,8 +9,8 @@ import (
 	"time"
 
 	datamock "leapfor.xyz/copya/golang"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 func init() {

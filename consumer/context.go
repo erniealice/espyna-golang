@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	internalctx "leapfor.xyz/espyna/internal/application/shared/context"
+	internalctx "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
 // Context-specific errors (re-exported from internal package)

@@ -9,11 +9,11 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/google/uuid"
-	integrationPorts "leapfor.xyz/espyna/internal/application/ports/integration"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	firestoreCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/firestore/core"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/integration/payment"
+	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	firestoreCore "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/firestore/core"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 func init() {

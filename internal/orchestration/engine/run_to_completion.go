@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	enginepb "leapfor.xyz/esqyma/golang/v1/orchestration/engine"
+	enginepb "github.com/erniealice/esqyma/pkg/schema/v1/orchestration/engine"
 )
 
 // RunToCompletionUseCase executes a workflow from start to finish in a single call.

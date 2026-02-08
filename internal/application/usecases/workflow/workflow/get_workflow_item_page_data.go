@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
 )
 
 type GetWorkflowItemPageDataRepositories struct {

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	licensepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // UpdateLicenseRepositories groups all repository dependencies

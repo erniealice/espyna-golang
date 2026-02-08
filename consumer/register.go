@@ -11,34 +11,34 @@ package consumer
 
 import (
 	// --- Auth (mock + noop) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/noop"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/noop"
 
 	// --- Database (mock) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
 
 	// --- Email (mock) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/email/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/email/mock"
 
 	// --- ID (noop + uuidv7 — both have stub.go, zero-cost) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/id/noop"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/id/uuidv7"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/id/noop"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/id/uuidv7"
 
 	// --- Payment (mock) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/payment/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/payment/mock"
 
 	// --- Scheduler (mock) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/scheduler/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/scheduler/mock"
 
 	// --- Storage (mock + local) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/storage/local"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/storage/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/local"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/mock"
 
 	// --- Tabular (mock — no build tag, always compiles) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/tabular/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/tabular/mock"
 
 	// --- Translation (noop + file + mock — all have stubs) ---
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation/file"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation/mock"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation/noop"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/file"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/noop"
 )

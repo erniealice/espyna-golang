@@ -14,7 +14,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // PostgresMigrationService implements the MigrationService interface for PostgreSQL

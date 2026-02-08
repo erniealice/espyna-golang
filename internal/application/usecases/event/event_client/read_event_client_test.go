@@ -34,10 +34,10 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockEntity "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	mockEvent "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/event"
-	eventclientpb "leapfor.xyz/esqyma/golang/v1/domain/event/event_client"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockEntity "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	mockEvent "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/event"
+	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 )
 
 // Type alias for read event client test cases

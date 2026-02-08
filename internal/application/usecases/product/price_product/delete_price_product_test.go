@@ -37,13 +37,13 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockAuth "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	mockDb "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation"
-	priceproductpb "leapfor.xyz/esqyma/golang/v1/domain/product/price_product"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation"
+	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 )
 
 // Type alias for delete price product test cases

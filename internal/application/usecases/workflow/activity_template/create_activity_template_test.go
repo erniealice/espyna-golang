@@ -47,10 +47,10 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockDb "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/workflow"
-	activityTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
+	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 )
 
 // Type alias for create activity template test cases

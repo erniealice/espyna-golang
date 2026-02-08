@@ -1,10 +1,10 @@
 package activity
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	activityTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
 )
 
 // ActivityRepositories groups all repository dependencies for activity use cases

@@ -6,10 +6,10 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	mockAuth "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	mockDb "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	mockTranslation "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation/mock"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	mockTranslation "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/mock"
 )
 
 // StandardServices provides the complete set of services needed for testing

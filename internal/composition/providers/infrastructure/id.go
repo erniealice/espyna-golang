@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // IDProviderAdapter wraps an IDService to implement the contracts.Provider interface

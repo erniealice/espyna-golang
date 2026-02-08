@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"leapfor.xyz/espyna/internal/application/ports"
-	storagecommon "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/storage/common"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	pb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	storagecommon "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/common"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
 // =============================================================================

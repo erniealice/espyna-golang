@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	delegateattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
 
 // GetDelegateAttributeItemPageDataUseCase handles the business logic for getting delegate attribute item page data

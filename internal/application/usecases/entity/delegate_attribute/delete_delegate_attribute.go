@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	delegateattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
 
 // DeleteDelegateAttributeUseCase handles the business logic for deleting delegate attributes

@@ -10,10 +10,10 @@ import (
 	"time"
 
 	datamock "leapfor.xyz/copya/golang"
-	"leapfor.xyz/espyna/internal/application/shared/listdata"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	paymentmethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // MockPaymentMethodRepository implements payment.PaymentMethodRepository using stateful mock data

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	licensepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 )
 
 // ReadLicenseRepositories groups all repository dependencies

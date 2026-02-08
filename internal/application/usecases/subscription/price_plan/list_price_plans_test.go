@@ -36,9 +36,9 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/subscription"
-	priceplanpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/price_plan"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/subscription"
+	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 )
 
 // Type alias for list price plans test cases

@@ -1,9 +1,9 @@
 package initializers
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases/subscription"
-	"leapfor.xyz/espyna/internal/composition/providers/domain"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
 // InitializeSubscription creates all subscription use cases from provider repositories

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventattributepb "leapfor.xyz/esqyma/golang/v1/domain/event/event_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 )
 
 // UpdateEventAttributeUseCase handles the business logic for updating event attributes

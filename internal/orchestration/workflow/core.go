@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases"
-	"leapfor.xyz/espyna/internal/orchestration/workflow/domain"
-	"leapfor.xyz/espyna/internal/orchestration/workflow/integration"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	"github.com/erniealice/espyna-golang/internal/orchestration/workflow/domain"
+	"github.com/erniealice/espyna-golang/internal/orchestration/workflow/integration"
 )
 
 // Registry implements ports.ExecutorRegistry for the workflow engine.

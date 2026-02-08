@@ -17,9 +17,9 @@ package location_attribute
 import (
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	locationattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/location_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
 
 // createTestReadLocationAttributeUseCase is a helper function to create the use case with mock dependencies

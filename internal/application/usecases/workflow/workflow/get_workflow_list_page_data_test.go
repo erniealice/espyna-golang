@@ -41,9 +41,9 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/workflow"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
 )
 
 func TestGetWorkflowListPageDataUseCase_Execute_Success(t *testing.T) {

@@ -8,10 +8,10 @@ import (
 	"log"
 	"time"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
-	enginepb "leapfor.xyz/esqyma/golang/v1/orchestration/engine"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	enginepb "github.com/erniealice/esqyma/pkg/schema/v1/orchestration/engine"
 )
 
 // ExecuteActivityUseCase handles the execution of a single workflow activity

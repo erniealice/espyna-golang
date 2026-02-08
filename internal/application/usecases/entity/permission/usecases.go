@@ -1,8 +1,8 @@
 package permission
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	permissionpb "leapfor.xyz/esqyma/golang/v1/domain/entity/permission"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 )
 
 // PermissionRepositories groups all repository dependencies for permission use cases

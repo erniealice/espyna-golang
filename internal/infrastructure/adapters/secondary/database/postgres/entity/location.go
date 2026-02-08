@@ -10,12 +10,12 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	locationpb "leapfor.xyz/esqyma/golang/v1/domain/entity/location"
-	locationattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/location_attribute"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	postgresCore "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/core"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
+	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
 
 func init() {
@@ -254,13 +254,11 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 					jsonb_build_object(
 						'id', la.id,
 						'location_id', la.location_id,
-						'key', la.key,
-						'value', la.value,
-						'active', la.active
-					) ORDER BY la.key
+						'attribute_id', la.attribute_id,
+						'value', la.value
+					) ORDER BY la.attribute_id
 				) FILTER (WHERE la.id IS NOT NULL) as attributes
 			FROM location_attribute la
-			WHERE la.active = true
 			GROUP BY la.location_id
 		),
 		enriched AS (
@@ -268,21 +266,16 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 				l.id,
 				l.name,
 				l.address,
-				l.city,
-				l.state,
-				l.country,
-				l.postal_code,
 				l.active,
 				l.date_created,
-				l.date_modified
+				l.date_modified,
 				COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 			FROM location l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
 			WHERE l.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   l.name ILIKE $1 OR
-				   l.address ILIKE $1 OR
-				   l.city ILIKE $1)
+				   l.address ILIKE $1)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -307,10 +300,6 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 			id                 string
 			name               string
 			address            *string
-			city               *string
-			state              *string
-			country            *string
-			postalCode         *string
 			active             bool
 			dateCreated        time.Time
 			dateModified       time.Time
@@ -319,7 +308,7 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		)
 
 		err := rows.Scan(
-			&id, &name, &address, &city, &state, &country, &postalCode,
+			&id, &name, &address,
 			&active, &dateCreated, &dateModified,
 			&attributesJSON, &total,
 		)
@@ -366,8 +355,8 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 					if locationID, ok := attrMap["location_id"].(string); ok {
 						attr.LocationId = locationID
 					}
-					if key, ok := attrMap["key"].(string); ok {
-						attr.AttributeId = key
+					if attrID, ok := attrMap["attribute_id"].(string); ok {
+						attr.AttributeId = attrID
 					}
 					if value, ok := attrMap["value"].(string); ok {
 						attr.Value = value
@@ -422,18 +411,17 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 					jsonb_build_object(
 						'id', la.id,
 						'location_id', la.location_id,
-						'key', la.key,
-						'value', la.value,
-						'active', la.active
-					) ORDER BY la.key
+						'attribute_id', la.attribute_id,
+						'value', la.value
+					) ORDER BY la.attribute_id
 				) FILTER (WHERE la.id IS NOT NULL) as attributes
 			FROM location_attribute la
-			WHERE la.active = true AND la.location_id = $1
+			WHERE la.location_id = $1
 			GROUP BY la.location_id
 		)
 		SELECT
-			l.id, l.name, l.address, l.city, l.state, l.country, l.postal_code,
-			l.active, l.date_created, l.date_modified
+			l.id, l.name, l.address,
+			l.active, l.date_created, l.date_modified,
 			COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 		FROM location l
 		LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
@@ -446,10 +434,6 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		id                 string
 		name               string
 		address            *string
-		city               *string
-		state              *string
-		country            *string
-		postalCode         *string
 		active             bool
 		dateCreated        time.Time
 		dateModified       time.Time
@@ -457,7 +441,7 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 	)
 
 	err := row.Scan(
-		&id, &name, &address, &city, &state, &country, &postalCode,
+		&id, &name, &address,
 		&active, &dateCreated, &dateModified,
 		&attributesJSON,
 	)

@@ -1,4 +1,4 @@
-module leapfor.xyz/espyna
+module github.com/erniealice/espyna-golang
 
 go 1.25.0
 
@@ -27,13 +27,12 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	golang.org/x/oauth2 v0.31.0
-	golang.org/x/text v0.29.0
+	golang.org/x/text v0.33.0
 	google.golang.org/api v0.251.0
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.10
 	leapfor.xyz/copya v0.0.0
-	leapfor.xyz/esqyma v0.0.0
-	leapfor.xyz/lyngua v0.0.0-00010101000000-000000000000
+	github.com/erniealice/lyngua v0.0.0-00010101000000-000000000000
 	leapfor.xyz/vya v0.0.0
 )
 
@@ -130,14 +129,14 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	golang.org/x/arch v0.21.0 // indirect
-	golang.org/x/crypto v0.42.0 // indirect
+	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/exp v0.0.0-20230515195305-f3d0a9c9a5cc // indirect
-	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/net v0.44.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/mod v0.31.0 // indirect
+	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/time v0.13.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/tools v0.40.0 // indirect
 	google.golang.org/appengine/v2 v2.0.6 // indirect
 	google.golang.org/genproto v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251002232023-7c0ddcbb5797 // indirect
@@ -145,12 +144,12 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace leapfor.xyz/entydad => ../entydad-golang-ryta
+replace github.com/erniealice/entydad-golang => ../entydad-golang-ryta
 
 replace leapfor.xyz/copya => ../../../master-monorepo-v2/packages/copya
 
-replace leapfor.xyz/esqyma => ../../../master-monorepo-v2/packages/esqyma
+replace github.com/erniealice/esqyma => ../esqyma-ryta
 
-replace leapfor.xyz/lyngua => ../../../master-monorepo-v2/packages/lyngua
+replace github.com/erniealice/lyngua => ../lyngua-ryta
 
 replace leapfor.xyz/vya => ../../../master-monorepo-v2/packages/vya

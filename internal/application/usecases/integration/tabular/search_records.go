@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	"leapfor.xyz/espyna/internal/application/ports/integration"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	tabularpb "leapfor.xyz/esqyma/golang/v1/integration/tabular"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	tabularpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/tabular"
 )
 
 // SearchRecordsRepositories groups all repository dependencies

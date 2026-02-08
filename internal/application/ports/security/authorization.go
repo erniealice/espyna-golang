@@ -155,10 +155,11 @@ const (
 	EntityPaymentProfile              = "payment_profile"
 	EntityPaymentProfilePaymentMethod = "payment_profile_payment_method"
 
-	// Product Domain (9 entities)
+	// Product Domain (10 entities)
 	EntityCollection          = "collection"
 	EntityCollectionAttribute = "collection_attribute"
 	EntityCollectionPlan      = "collection_plan"
+	EntityPriceList           = "price_list"
 	EntityPriceProduct        = "price_product"
 	EntityProduct             = "product"
 	EntityProductAttribute    = "product_attribute"

@@ -1,11 +1,11 @@
 package common
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributeUseCases "leapfor.xyz/espyna/internal/application/usecases/common/attribute"
-	categoryUseCases "leapfor.xyz/espyna/internal/application/usecases/common/category"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	categorypb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/common/attribute"
+	categoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/common/category"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // CommonUseCases contains all common domain use cases

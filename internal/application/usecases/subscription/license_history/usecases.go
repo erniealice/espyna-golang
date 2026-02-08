@@ -1,8 +1,8 @@
 package licensehistory
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	licensehistorypb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license_history"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 )
 
 // LicenseHistoryRepositories groups all repository dependencies for license history use cases

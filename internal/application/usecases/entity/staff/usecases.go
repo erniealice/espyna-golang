@@ -1,8 +1,8 @@
 package staff
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	staffpb "leapfor.xyz/esqyma/golang/v1/domain/entity/staff"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 )
 
 // StaffRepositories groups all repository dependencies for staff use cases

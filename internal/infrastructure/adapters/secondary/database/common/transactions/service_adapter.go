@@ -3,8 +3,8 @@ package transactions
 import (
 	"context"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
 )
 
 // TransactionServiceAdapter adapts infrastructure TransactionManager to application TransactionService

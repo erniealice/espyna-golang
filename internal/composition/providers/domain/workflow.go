@@ -3,16 +3,16 @@ package domain
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 
 	// Protobuf domain services - Workflow domain
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	activitytemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
-	stagetemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
-	workflowtemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	activitytemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
+	stagetemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	workflowtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // WorkflowRepositories contains all 6 workflow domain repositories

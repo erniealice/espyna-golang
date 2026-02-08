@@ -33,9 +33,9 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/subscription"
-	plansettingspb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_settings"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/subscription"
+	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
 // Type alias for list plan settings test cases

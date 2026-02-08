@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/event"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/event"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 
 func TestGetEventListPageDataUseCase_Execute_Success(t *testing.T) {

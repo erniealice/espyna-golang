@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	stageTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 )
 
 // ListStageTemplatesRepositories groups all repository dependencies

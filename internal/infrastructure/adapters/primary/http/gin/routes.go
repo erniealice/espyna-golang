@@ -13,8 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/protobuf/proto"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/composition/routing"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/composition/routing"
 )
 
 // setupRoutes configures all HTTP routes using the route manager.

@@ -32,11 +32,11 @@ import (
 	"time"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
 
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	userpb "leapfor.xyz/esqyma/golang/v1/domain/entity/user"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
 func createTestUpdateClientUseCase(businessType string, supportsTransaction bool) *UpdateClientUseCase {

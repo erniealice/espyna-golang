@@ -3,9 +3,9 @@
 package integration
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	integrationuc "leapfor.xyz/espyna/internal/application/usecases/integration"
-	"leapfor.xyz/espyna/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	integrationuc "github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 
 // Ensure ports is used (for interface compatibility)

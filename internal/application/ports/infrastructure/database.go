@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"context"
 
-	dbpb "leapfor.xyz/esqyma/golang/v1/infrastructure/database"
+	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 )
 
 // DatabaseProvider defines the contract for database providers

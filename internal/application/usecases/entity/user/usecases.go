@@ -1,8 +1,8 @@
 package user
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	userpb "leapfor.xyz/esqyma/golang/v1/domain/entity/user"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
 // UseCases contains all user-related use cases

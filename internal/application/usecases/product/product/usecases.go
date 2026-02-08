@@ -1,8 +1,8 @@
 package product
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // ProductRepositories groups all repository dependencies for product use cases

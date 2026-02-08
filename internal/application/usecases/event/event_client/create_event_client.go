@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventclientpb "leapfor.xyz/esqyma/golang/v1/domain/event/event_client"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 )
 
 // CreateEventClientRepositories groups all repository dependencies

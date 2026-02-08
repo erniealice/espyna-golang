@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/model"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/model"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 func init() {

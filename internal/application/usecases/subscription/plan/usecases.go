@@ -1,8 +1,8 @@
 package plan
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 )
 
 // PlanRepositories groups all repository dependencies for plan use cases

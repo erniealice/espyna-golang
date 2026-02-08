@@ -41,11 +41,11 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockDb "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/common"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	productattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/product_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/common"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 )
 
 // Type alias for create product attribute test cases

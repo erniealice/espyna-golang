@@ -6,10 +6,10 @@ import (
 	"context"
 	"log"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	schedulerpb "leapfor.xyz/esqyma/golang/v1/integration/scheduler"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	schedulerpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/scheduler"
 )
 
 func init() {

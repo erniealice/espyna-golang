@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
-	plansettingspb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_settings"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
+	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
 // CreatePlanSettingsRepositories groups all repository dependencies

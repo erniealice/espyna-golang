@@ -2,7 +2,7 @@ package operations
 
 import (
 	"fmt"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
 )
 
 // SimpleQueryBuilder provides a simple implementation of QueryBuilder

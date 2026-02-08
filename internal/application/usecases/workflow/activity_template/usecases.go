@@ -1,9 +1,9 @@
 package activity_template
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	activityTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stageTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 )
 
 // ActivityTemplateRepositories groups all repository dependencies for activity template use cases

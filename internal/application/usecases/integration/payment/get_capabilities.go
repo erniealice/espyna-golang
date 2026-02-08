@@ -3,9 +3,9 @@ package payment
 import (
 	"context"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/integration/payment"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 // GetCapabilitiesRepositories groups all repository dependencies

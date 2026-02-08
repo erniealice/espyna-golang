@@ -38,12 +38,12 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockAuth "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	rolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/role"
-	workspaceuserpb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user"
-	workspaceuserrolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user_role"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
+	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
 
 // Type alias for create workspace user test cases

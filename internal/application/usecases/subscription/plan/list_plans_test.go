@@ -27,12 +27,12 @@ package plan
 import (
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockAuth "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	mockDb "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/subscription"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/subscription"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 )
 
 // createTestListPlansUseCase is a helper function to create the use case with mock dependencies

@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	stageTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // CreateStageTemplateRepositories groups all repository dependencies

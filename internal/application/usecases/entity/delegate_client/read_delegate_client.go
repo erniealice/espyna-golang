@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	delegatepb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate"
-	delegateclientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate_client"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
+	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
 )
 
 // ReadDelegateClientRepositories groups all repository dependencies

@@ -3,7 +3,7 @@ package integration
 import (
 	"context"
 
-	paymentpb "leapfor.xyz/esqyma/golang/v1/integration/payment"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 // IntegrationPaymentRepository defines the interface for integration payment operations.

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // Manager is the unified provider management system that handles all external dependencies.

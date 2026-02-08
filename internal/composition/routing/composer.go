@@ -6,9 +6,9 @@ import (
 	"log"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases"
-	"leapfor.xyz/espyna/internal/composition/routing/config"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	"github.com/erniealice/espyna-golang/internal/composition/routing/config"
 )
 
 // Note: Composer and ComposerConfig structs have been moved to types.go

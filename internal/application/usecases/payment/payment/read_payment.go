@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
 )
 
 // ReadPaymentRepositories groups all repository dependencies

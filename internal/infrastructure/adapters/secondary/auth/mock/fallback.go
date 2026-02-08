@@ -5,7 +5,7 @@ package mock
 import (
 	"context"
 
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // AllowAllAuthService is a simple authorization service that allows all permissions

@@ -1,10 +1,10 @@
 package location_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	locationpb "leapfor.xyz/esqyma/golang/v1/domain/entity/location"
-	locationattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/location_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
+	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
 
 // LocationAttributeRepositories groups all repository dependencies for location attribute use cases

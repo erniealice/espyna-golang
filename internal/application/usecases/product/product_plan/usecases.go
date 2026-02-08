@@ -1,9 +1,9 @@
 package product_plan
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	productplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_plan"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 )
 
 // ProductPlanRepositories groups all repository dependencies for product plan use cases

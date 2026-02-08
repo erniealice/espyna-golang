@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/firebase"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/google"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/firebase"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/google"
 )
 
 // TestGoogleStorageIntegration tests Google Cloud Storage client creation

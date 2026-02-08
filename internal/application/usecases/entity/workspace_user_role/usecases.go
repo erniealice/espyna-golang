@@ -1,10 +1,10 @@
 package workspace_user_role
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	rolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/role"
-	workspaceuserpb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user"
-	workspaceuserrolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user_role"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
+	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
 
 // WorkspaceUserRoleRepositories groups all repository dependencies for workspace user role use cases

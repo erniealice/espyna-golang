@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	permissionpb "leapfor.xyz/esqyma/golang/v1/domain/entity/permission"
-	rolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/role"
-	rolepermissionpb "leapfor.xyz/esqyma/golang/v1/domain/entity/role_permission"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
+	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
+	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
 )
 
 // CreateRolePermissionRepositories groups all repository dependencies

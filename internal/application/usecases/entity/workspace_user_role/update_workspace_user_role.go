@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	rolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/role"
-	workspaceuserpb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user"
-	workspaceuserrolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user_role"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
+	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
 
 // UpdateWorkspaceUserRoleRepositories groups all repository dependencies

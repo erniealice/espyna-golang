@@ -3,22 +3,22 @@ package domain
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 
 	// Protobuf domain services - Common domain
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 
 	// Protobuf domain services - Product domain
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	collectionattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_attribute"
-	collectionplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_plan"
-	priceproductpb "leapfor.xyz/esqyma/golang/v1/domain/product/price_product"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	productattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/product_attribute"
-	productcollectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_collection"
-	productplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_plan"
-	resourcepb "leapfor.xyz/esqyma/golang/v1/domain/product/resource"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
+	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
+	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
+	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 )
 
 // ProductRepositories contains all 9 product domain repositories and cross-domain dependencies

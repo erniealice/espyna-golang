@@ -1,8 +1,8 @@
 package workspace
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	workspacepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
 // WorkspaceRepositories groups all repository dependencies for workspace use cases

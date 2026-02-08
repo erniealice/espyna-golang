@@ -3,7 +3,7 @@ package customization
 import (
 	"strings"
 
-	"leapfor.xyz/espyna/internal/composition/routing"
+	"github.com/erniealice/espyna-golang/internal/composition/routing"
 )
 
 // NewRouteCustomizer creates a new route customizer

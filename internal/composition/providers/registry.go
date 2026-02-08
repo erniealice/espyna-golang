@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"sync"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/composition/providers/domain"
-	"leapfor.xyz/espyna/internal/composition/providers/infrastructure"
-	"leapfor.xyz/espyna/internal/composition/providers/integration"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/integration"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // Registry orchestrates all provider sub-registries

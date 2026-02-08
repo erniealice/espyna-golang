@@ -2,4 +2,4 @@
 
 package consumer
 
-import _ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation/lyngua"
+import _ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/lyngua"

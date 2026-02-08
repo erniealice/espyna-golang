@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"fmt"
 
-	pb "leapfor.xyz/esqyma/golang/v1/infrastructure/database"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 )
 
 // DatabaseConfigAdapter provides helpers to convert between map[string]any config

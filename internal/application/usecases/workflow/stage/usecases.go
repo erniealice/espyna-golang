@@ -1,10 +1,10 @@
 package stage
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
-	stageTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
+	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
 )
 
 // StageRepositories groups all repository dependencies for stage use cases

@@ -1,10 +1,10 @@
 package delegate_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	delegatepb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate"
-	delegateattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
+	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
 
 // UseCases contains all delegate attribute-related use cases

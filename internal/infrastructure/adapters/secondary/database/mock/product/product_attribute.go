@@ -10,10 +10,10 @@ import (
 	"time"
 
 	datamock "leapfor.xyz/copya/golang"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	productattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/product_attribute"
-	"leapfor.xyz/espyna/internal/application/shared/listdata"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // MockProductAttributeRepository implements product.ProductAttributeRepository using stateful mock data

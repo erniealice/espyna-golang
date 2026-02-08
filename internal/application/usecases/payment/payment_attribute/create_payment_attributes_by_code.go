@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	paymentattributepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_attribute"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
 )
 
 // CreatePaymentAttributesByCodeRepositories groups repository dependencies

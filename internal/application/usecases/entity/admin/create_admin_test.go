@@ -34,11 +34,11 @@ import (
 	"time"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
 
-	adminpb "leapfor.xyz/esqyma/golang/v1/domain/entity/admin"
-	userpb "leapfor.xyz/esqyma/golang/v1/domain/entity/user"
+	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
 // createTestCreateAdminUseCase is a helper function to create the use case with mock dependencies

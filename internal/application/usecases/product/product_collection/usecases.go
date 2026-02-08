@@ -1,10 +1,10 @@
 package product_collection
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	productcollectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_collection"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 )
 
 // ProductCollectionRepositories groups all repository dependencies for product collection use cases

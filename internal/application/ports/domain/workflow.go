@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	enginepb "leapfor.xyz/esqyma/golang/v1/orchestration/engine"
+	enginepb "github.com/erniealice/esqyma/pkg/schema/v1/orchestration/engine"
 )
 
 // WorkflowEngineService defines the port for the orchestration engine.

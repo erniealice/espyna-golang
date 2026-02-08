@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	paymentmethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
 )
 
 // CreatePaymentMethodRepositories groups all repository dependencies

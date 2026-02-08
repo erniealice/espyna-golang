@@ -1,8 +1,8 @@
 package group
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	grouppb "leapfor.xyz/esqyma/golang/v1/domain/entity/group"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
 
 // GroupRepositories groups all repository dependencies for group use cases

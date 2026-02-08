@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	subscriptionattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription_attribute"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
 // FindSubscriptionAttributeByValue finds subscription attributes by attribute ID and value.

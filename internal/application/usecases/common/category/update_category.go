@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	categorypb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // UpdateCategoryRepositories groups all repository dependencies

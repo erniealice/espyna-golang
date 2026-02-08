@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"leapfor.xyz/espyna/consumer"
+	"github.com/erniealice/espyna-golang/consumer"
 )
 
 /*

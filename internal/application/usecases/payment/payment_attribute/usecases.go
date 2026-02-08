@@ -1,10 +1,10 @@
 package payment_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment"
-	paymentattributepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
+	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
 )
 
 // PaymentAttributeRepositories groups all repository dependencies for payment attribute use cases

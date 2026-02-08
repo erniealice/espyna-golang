@@ -1,8 +1,8 @@
 package balance
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	balancepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 )
 
 // BalanceRepositories groups all repository dependencies for balance use cases

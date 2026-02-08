@@ -1,10 +1,10 @@
 package payment_profile
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	paymentMethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
-	paymentProfilepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_profile"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	paymentMethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
+	paymentProfilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
 )
 
 // PaymentProfileRepositories groups all repository dependencies for payment profile use cases

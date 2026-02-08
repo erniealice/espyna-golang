@@ -3,8 +3,8 @@ package registry
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports/integration"
-	tabularpb "leapfor.xyz/esqyma/golang/v1/integration/tabular"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	tabularpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/tabular"
 )
 
 // =============================================================================

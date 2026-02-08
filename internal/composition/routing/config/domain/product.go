@@ -3,18 +3,18 @@ package domain
 import (
 	"fmt"
 
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	collectionattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_attribute"
-	collectionplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_plan"
-	priceproductpb "leapfor.xyz/esqyma/golang/v1/domain/product/price_product"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	productattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/product_attribute"
-	productcollectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_collection"
-	productplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_plan"
-	resourcepb "leapfor.xyz/esqyma/golang/v1/domain/product/resource"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
+	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
+	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
+	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 
-	productuc "leapfor.xyz/espyna/internal/application/usecases/product"
-	"leapfor.xyz/espyna/internal/composition/contracts"
+	productuc "github.com/erniealice/espyna-golang/internal/application/usecases/product"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 
 // ConfigureProductDomain configures routes for the Product domain with use cases injected directly

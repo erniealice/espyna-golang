@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	activitytemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stagetemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowtemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	activitytemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stagetemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // DefaultCacheTTL is the default time-to-live for cached templates

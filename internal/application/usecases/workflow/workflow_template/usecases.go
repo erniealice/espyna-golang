@@ -1,9 +1,9 @@
 package workflow_template
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	workspacepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace"
-	workflow_templatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
+	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // WorkflowTemplateRepositories groups all repository dependencies for workflow template use cases

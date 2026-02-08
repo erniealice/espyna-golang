@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	adminpb "leapfor.xyz/esqyma/golang/v1/domain/entity/admin"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
 
 // UpdateAdminRepositories groups all repository dependencies

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	collectionplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_plan"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 )
 
 // CreateCollectionPlanRepositories groups all repository dependencies

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
-	planattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
+	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 )
 
 // UpdatePlanAttributeRepositories groups all repository dependencies

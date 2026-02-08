@@ -18,9 +18,9 @@ package workspace_user
 import (
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	workspaceuserpb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 )
 
 // createTestReadWorkspaceUserUseCase is a helper function to create the use case with mock dependencies

@@ -2,33 +2,33 @@ package subscription
 
 import (
 	// Subscription use cases
-	balanceUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/balance"
-	balanceAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/balance_attribute"
-	invoiceUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/invoice"
-	invoiceAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/invoice_attribute"
-	planUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/plan"
-	planAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/plan_attribute"
-	planSettingsUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/plan_settings"
-	pricePlanUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/price_plan"
-	subscriptionUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/subscription"
-	subscriptionAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/subscription/subscription_attribute"
+	balanceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/balance"
+	balanceAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/balance_attribute"
+	invoiceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/invoice"
+	invoiceAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/invoice_attribute"
+	planUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan"
+	planAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan_attribute"
+	planSettingsUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan_settings"
+	pricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/price_plan"
+	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
+	subscriptionAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription_attribute"
 
 	// Application ports
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Protobuf domain services for subscription repositories
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	balancepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance"
-	balanceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance_attribute"
-	invoicepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice"
-	invoiceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice_attribute"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
-	planattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_attribute"
-	plansettingspb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_settings"
-	priceplanpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/price_plan"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
-	subscriptionattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription_attribute"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
+	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
+	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
+	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
+	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
+	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
+	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
 // SubscriptionRepositories contains all subscription domain repositories

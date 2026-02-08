@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/usecases"
-	"leapfor.xyz/espyna/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 
 // ============================================================================

@@ -34,9 +34,9 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockProduct "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	productcollectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_collection"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockProduct "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 )
 
 // Type alias for list product collections test cases

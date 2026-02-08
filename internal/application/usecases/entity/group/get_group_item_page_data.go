@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	grouppb "leapfor.xyz/esqyma/golang/v1/domain/entity/group"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
 
 // GetGroupItemPageDataUseCase handles the business logic for getting group item page data

@@ -27,9 +27,9 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/workflow"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
 )
 
 // Type alias for update stage test cases

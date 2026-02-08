@@ -35,9 +35,9 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockProduct "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	productplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_plan"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockProduct "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 )
 
 // Type alias for read product plan test cases

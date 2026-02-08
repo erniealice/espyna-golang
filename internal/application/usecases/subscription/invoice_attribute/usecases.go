@@ -1,10 +1,10 @@
 package invoice_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	invoicepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice"
-	invoiceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
+	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
 )
 
 // UseCases contains all invoice attribute-related use cases

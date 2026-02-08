@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	staffpb "leapfor.xyz/esqyma/golang/v1/domain/entity/staff"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 )
 
 // ListStaffsRepositories groups all repository dependencies

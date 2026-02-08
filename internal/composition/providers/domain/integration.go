@@ -3,9 +3,9 @@ package domain
 import (
 	"fmt"
 
-	integrationPorts "leapfor.xyz/espyna/internal/application/ports/integration"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // IntegrationPaymentRepository is an alias for the ports interface

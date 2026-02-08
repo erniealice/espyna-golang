@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	groupattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/group_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
 
 // GetGroupAttributeItemPageDataUseCase handles the business logic for getting group attribute item page data

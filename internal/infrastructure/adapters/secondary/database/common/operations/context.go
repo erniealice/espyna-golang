@@ -3,7 +3,7 @@ package operations
 import (
 	"context"
 	"fmt"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
 )
 
 // Context keys for transaction management

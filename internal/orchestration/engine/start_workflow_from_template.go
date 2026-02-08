@@ -7,11 +7,11 @@ import (
 	"log"
 	"time"
 
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
-	stagetemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
-	enginepb "leapfor.xyz/esqyma/golang/v1/orchestration/engine"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
+	stagetemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	enginepb "github.com/erniealice/esqyma/pkg/schema/v1/orchestration/engine"
 )
 
 // StartWorkflowFromTemplateUseCase handles the creation of a workflow instance from a template

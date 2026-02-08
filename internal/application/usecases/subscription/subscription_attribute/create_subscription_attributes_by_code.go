@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	subscriptionattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription_attribute"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
 // CreateSubscriptionAttributesByCodeRepositories groups repository dependencies

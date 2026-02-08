@@ -14,10 +14,10 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"leapfor.xyz/espyna/internal/application/ports/infrastructure"
-	dbinterfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/seeders"
-	workflowseeder "leapfor.xyz/espyna/internal/infrastructure/seeders/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	dbinterfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/seeders"
+	workflowseeder "github.com/erniealice/espyna-golang/internal/infrastructure/seeders/workflow"
 	"leapfor.xyz/vya"
 )
 

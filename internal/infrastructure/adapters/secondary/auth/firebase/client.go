@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"firebase.google.com/go/v4/auth"
-	firebaseCommon "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/firebase"
+	firebaseCommon "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/firebase"
 )
 
 // AuthService provides Firebase Authentication operations

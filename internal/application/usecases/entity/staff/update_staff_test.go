@@ -38,10 +38,10 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	staffpb "leapfor.xyz/esqyma/golang/v1/domain/entity/staff"
-	userpb "leapfor.xyz/esqyma/golang/v1/domain/entity/user"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
 // Type alias for update staff test cases

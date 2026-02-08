@@ -1,17 +1,17 @@
 package event
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Event use cases
-	eventUseCases "leapfor.xyz/espyna/internal/application/usecases/event/event"
-	eventAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/event/event_attribute"
-	eventClientUseCases "leapfor.xyz/espyna/internal/application/usecases/event/event_client"
+	eventUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event"
+	eventAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_attribute"
+	eventClientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_client"
 
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventattributepb "leapfor.xyz/esqyma/golang/v1/domain/event/event_attribute"
-	eventclientpb "leapfor.xyz/esqyma/golang/v1/domain/event/event_client"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
+	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 )
 
 // EventUseCases contains all event-related use cases

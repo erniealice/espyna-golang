@@ -18,7 +18,7 @@
 package tabular
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
 )
 
 // TabularRepositories groups all repository dependencies for tabular use cases

@@ -1,10 +1,10 @@
 package eventclient
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventclientpb "leapfor.xyz/esqyma/golang/v1/domain/event/event_client"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 )
 
 // UseCases contains all event client-related use cases

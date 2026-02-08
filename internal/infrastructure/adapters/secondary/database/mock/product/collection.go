@@ -10,10 +10,10 @@ import (
 	"time"
 
 	datamock "leapfor.xyz/copya/golang"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	"leapfor.xyz/espyna/internal/application/shared/listdata"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // MockCollectionRepository implements product.CollectionRepository using stateful mock data

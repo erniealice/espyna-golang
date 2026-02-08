@@ -3,7 +3,7 @@ package integration
 import (
 	"context"
 
-	schedulerpb "leapfor.xyz/esqyma/golang/v1/integration/scheduler"
+	schedulerpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/scheduler"
 )
 
 // SchedulerProvider defines the contract for scheduler providers

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	"leapfor.xyz/espyna/internal/application/shared/listdata"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	paymentattributepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
 )
 
 type GetPaymentAttributeListPageDataRepositories struct {

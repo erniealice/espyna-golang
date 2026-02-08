@@ -8,9 +8,9 @@ import (
 	"log"
 	"os"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	lynguaV1 "leapfor.xyz/lyngua/golang/v1"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	lynguaV1 "github.com/erniealice/lyngua/golang/v1"
 )
 
 // =============================================================================

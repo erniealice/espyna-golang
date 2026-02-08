@@ -3,13 +3,13 @@ package domain
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/usecases/event"
-	"leapfor.xyz/espyna/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	// Protobuf imports with module naming pattern
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventattributepb "leapfor.xyz/esqyma/golang/v1/domain/event/event_attribute"
-	eventclientpb "leapfor.xyz/esqyma/golang/v1/domain/event/event_client"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
+	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 )
 
 // ConfigureEventDomain configures routes for the Event domain with use cases injected directly

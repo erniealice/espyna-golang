@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 
 // Registry manages infrastructure provider instances (database, auth, storage, id)

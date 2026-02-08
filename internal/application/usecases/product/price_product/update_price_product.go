@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	priceproductpb "leapfor.xyz/esqyma/golang/v1/domain/product/price_product"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // UpdatePriceProductRepositories groups all repository dependencies

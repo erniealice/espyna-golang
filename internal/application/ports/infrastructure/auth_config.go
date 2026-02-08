@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"fmt"
 
-	authpb "leapfor.xyz/esqyma/golang/v1/infrastructure/auth"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
 // AuthConfigAdapter provides helpers to convert between map[string]any config

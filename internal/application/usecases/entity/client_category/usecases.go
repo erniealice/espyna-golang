@@ -1,8 +1,8 @@
 package client_category
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	clientcategorypb "leapfor.xyz/esqyma/golang/v1/domain/entity/client_category"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 )
 
 // ClientCategoryRepositories groups all repository dependencies for client_category use cases

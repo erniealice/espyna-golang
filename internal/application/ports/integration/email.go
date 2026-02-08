@@ -3,7 +3,7 @@ package integration
 import (
 	"context"
 
-	emailpb "leapfor.xyz/esqyma/golang/v1/integration/email"
+	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
 )
 
 // EmailProvider defines the contract for email providers

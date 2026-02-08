@@ -1,18 +1,18 @@
 package ports
 
 // This file provides backward compatibility by re-exporting types from sub-packages.
-// Existing code that imports "leapfor.xyz/espyna/internal/application/ports" continues to work.
+// Existing code that imports "github.com/erniealice/espyna-golang/internal/application/ports" continues to work.
 // New code can import specific sub-packages for cleaner dependencies:
-//   - leapfor.xyz/espyna/internal/application/ports/infrastructure
-//   - leapfor.xyz/espyna/internal/application/ports/integration
-//   - leapfor.xyz/espyna/internal/application/ports/domain
-//   - leapfor.xyz/espyna/internal/application/ports/security
+//   - github.com/erniealice/espyna-golang/internal/application/ports/infrastructure
+//   - github.com/erniealice/espyna-golang/internal/application/ports/integration
+//   - github.com/erniealice/espyna-golang/internal/application/ports/domain
+//   - github.com/erniealice/espyna-golang/internal/application/ports/security
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports/domain"
-	"leapfor.xyz/espyna/internal/application/ports/infrastructure"
-	"leapfor.xyz/espyna/internal/application/ports/integration"
-	"leapfor.xyz/espyna/internal/application/ports/security"
+	"github.com/erniealice/espyna-golang/internal/application/ports/domain"
+	"github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/application/ports/security"
 )
 
 // =============================================================================
@@ -306,6 +306,7 @@ const (
 	EntityCollection          = security.EntityCollection
 	EntityCollectionAttribute = security.EntityCollectionAttribute
 	EntityCollectionPlan      = security.EntityCollectionPlan
+	EntityPriceList           = security.EntityPriceList
 	EntityPriceProduct        = security.EntityPriceProduct
 	EntityProduct             = security.EntityProduct
 	EntityProductAttribute    = security.EntityProductAttribute

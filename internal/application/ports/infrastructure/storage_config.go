@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"fmt"
 
-	pb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
 // StorageConfigAdapter provides helpers to convert between map[string]any config

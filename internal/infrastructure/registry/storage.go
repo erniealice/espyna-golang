@@ -1,8 +1,8 @@
 package registry
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	storagepb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	storagepb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
 // =============================================================================

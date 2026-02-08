@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // AuthorizationMiddleware provides authorization middleware for vanilla HTTP requests

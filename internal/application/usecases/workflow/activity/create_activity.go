@@ -7,11 +7,11 @@ import (
 	"regexp"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	activityTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
 )
 
 // CreateActivityRepositories groups all repository dependencies

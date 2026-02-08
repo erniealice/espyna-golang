@@ -15,7 +15,7 @@
 package email
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // EmailRepositories groups all repository dependencies for email use cases

@@ -1,8 +1,8 @@
 package event
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 
 // EventRepositories groups all repository dependencies for event use cases

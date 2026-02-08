@@ -3,16 +3,16 @@ package domain
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 
 	// Protobuf domain services - Entity domain
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 
 	// Protobuf domain services - Event domain
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventattributepb "leapfor.xyz/esqyma/golang/v1/domain/event/event_attribute"
-	eventclientpb "leapfor.xyz/esqyma/golang/v1/domain/event/event_client"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
+	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 )
 
 // EventRepositories contains all event domain repositories and cross-domain dependencies

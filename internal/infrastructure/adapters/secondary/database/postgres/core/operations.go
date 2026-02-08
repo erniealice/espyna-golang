@@ -10,10 +10,10 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/model"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/model"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 func init() {

@@ -4,7 +4,7 @@ package postgres
 
 import (
 	"github.com/lib/pq"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/model"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/model"
 )
 
 // mapPostgresError maps a PostgreSQL-specific error to a common DatabaseError

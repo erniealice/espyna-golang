@@ -1,8 +1,8 @@
 package payment
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	integrationPorts "leapfor.xyz/espyna/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
 )
 
 // PaymentRepositories groups all repository dependencies for payment use cases

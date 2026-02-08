@@ -16,9 +16,9 @@ package workspace
 import (
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	workspacepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
 // createTestListWorkspacesUseCase is a helper function to create the use case with mock dependencies

@@ -7,11 +7,11 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/firestore"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
-	firestoreCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/firestore/core"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	adminpb "leapfor.xyz/esqyma/golang/v1/domain/entity/admin"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/operations"
+	firestoreCore "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/firestore/core"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
 
 func init() {

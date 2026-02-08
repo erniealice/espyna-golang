@@ -1,10 +1,10 @@
 package event_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventattributepb "leapfor.xyz/esqyma/golang/v1/domain/event/event_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 )
 
 // EventAttributeRepositories groups all repository dependencies for event attribute use cases

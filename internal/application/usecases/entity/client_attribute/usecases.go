@@ -1,10 +1,10 @@
 package client_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	clientattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/client_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 )
 
 // UseCases contains all client attribute-related use cases

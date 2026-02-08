@@ -3,31 +3,31 @@ package core
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/composition/providers"
+	"github.com/erniealice/espyna-golang/internal/composition/providers"
 
 	// Application use cases aggregate
-	"leapfor.xyz/espyna/internal/application/usecases"
+	"github.com/erniealice/espyna-golang/internal/application/usecases"
 
 	// Application ports (for service interfaces)
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Infrastructure adapters for mock services
-	mockAuth "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
+	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
 
 	// Domain use cases (for proper initialization)
-	"leapfor.xyz/espyna/internal/application/usecases/common"
-	"leapfor.xyz/espyna/internal/application/usecases/entity"
-	"leapfor.xyz/espyna/internal/application/usecases/event"
-	"leapfor.xyz/espyna/internal/application/usecases/integration"
-	"leapfor.xyz/espyna/internal/application/usecases/payment"
-	"leapfor.xyz/espyna/internal/application/usecases/product"
-	"leapfor.xyz/espyna/internal/application/usecases/subscription"
-	"leapfor.xyz/espyna/internal/application/usecases/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 
-	domain "leapfor.xyz/espyna/internal/composition/providers/domain"
+	domain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
 	// Composition initializers (for domain-specific wiring)
-	"leapfor.xyz/espyna/internal/composition/core/initializers"
+	"github.com/erniealice/espyna-golang/internal/composition/core/initializers"
 )
 
 // UseCaseInitializer handles the initialization of all use cases across different domains

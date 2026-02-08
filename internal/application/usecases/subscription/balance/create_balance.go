@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	balancepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 )
 
 // CreateBalanceRepositories groups all repository dependencies

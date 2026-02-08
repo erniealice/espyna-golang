@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 
 // ProviderWrapper adapts existing infrastructure providers to the contracts.Provider interface

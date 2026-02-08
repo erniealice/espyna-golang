@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/operations"
 )
 
 // PostgreSQLTransactionManager implements interfaces.TransactionManager for PostgreSQL

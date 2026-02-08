@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/subscription"
-	balancepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/subscription"
+	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 )
 
 func TestGetBalanceItemPageDataUseCase_Execute_Success(t *testing.T) {

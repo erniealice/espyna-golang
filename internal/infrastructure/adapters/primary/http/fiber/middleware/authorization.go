@@ -4,7 +4,7 @@ package middleware
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // AuthorizationMiddleware provides authorization middleware for Fiber requests

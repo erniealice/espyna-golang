@@ -1,9 +1,9 @@
 package payment
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // PaymentRepositories groups all repository dependencies for payment use cases

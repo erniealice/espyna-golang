@@ -33,9 +33,9 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/workflow"
-	stageTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
+	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 func TestGetStageTemplateItemPageDataUseCase_Execute_Success(t *testing.T) {

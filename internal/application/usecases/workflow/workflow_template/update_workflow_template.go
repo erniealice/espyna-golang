@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	workspacepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace"
-	workflow_templatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
+	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // UpdateWorkflowTemplateRepositories groups all repository dependencies

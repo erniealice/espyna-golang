@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	staffattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/staff_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
 
 // GetStaffAttributeListPageDataUseCase handles the business logic for getting staff attribute list page data

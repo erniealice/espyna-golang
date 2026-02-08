@@ -1,10 +1,10 @@
 package balance_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	balancepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance"
-	balanceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
+	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 )
 
 // UseCases contains all balance attribute-related use cases

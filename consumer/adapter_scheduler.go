@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	schedulerpb "leapfor.xyz/esqyma/golang/v1/integration/scheduler"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	schedulerpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/scheduler"
 )
 
 /*

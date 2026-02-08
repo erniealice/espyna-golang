@@ -5,8 +5,8 @@ package gin
 import (
 	"github.com/gin-gonic/gin"
 
-	"leapfor.xyz/espyna/internal/composition/core"
-	ginMiddleware "leapfor.xyz/espyna/internal/infrastructure/adapters/primary/http/gin/middleware"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	ginMiddleware "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/http/gin/middleware"
 )
 
 // Server represents a Gin HTTP server with all dependencies

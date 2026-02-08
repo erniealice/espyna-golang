@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
 )
 
 // UpdateActivityRepositories groups all repository dependencies

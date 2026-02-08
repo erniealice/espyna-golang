@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // MockAuthorizationService provides a configurable mock for testing authorization scenarios

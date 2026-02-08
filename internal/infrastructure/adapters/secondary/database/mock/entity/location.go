@@ -10,10 +10,10 @@ import (
 	"time"
 
 	datamock "leapfor.xyz/copya/golang"
-	"leapfor.xyz/espyna/internal/application/shared/listdata"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	locationpb "leapfor.xyz/esqyma/golang/v1/domain/entity/location"
+	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 )
 
 // MockLocationRepository implements entity.LocationRepository using stateful mock data

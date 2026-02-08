@@ -1,8 +1,8 @@
 package admin
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	adminpb "leapfor.xyz/esqyma/golang/v1/domain/entity/admin"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
 
 // AdminRepositories groups all repository dependencies for admin use cases

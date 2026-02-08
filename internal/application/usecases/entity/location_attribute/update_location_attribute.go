@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	locationpb "leapfor.xyz/esqyma/golang/v1/domain/entity/location"
-	locationattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/location_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
+	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
 
 // UpdateLocationAttributeRepositories groups all repository dependencies

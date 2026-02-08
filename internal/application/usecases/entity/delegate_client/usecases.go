@@ -1,10 +1,10 @@
 package delegate_client
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	delegatepb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate"
-	delegateclientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate_client"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
+	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
 )
 
 // DelegateClientRepositories groups all repository dependencies for delegate client use cases

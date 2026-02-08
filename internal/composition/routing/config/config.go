@@ -1,12 +1,12 @@
 package config
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/composition/routing/config/domain"
-	"leapfor.xyz/espyna/internal/composition/routing/config/integration"
-	"leapfor.xyz/espyna/internal/composition/routing/config/orchestration"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/composition/routing/config/domain"
+	"github.com/erniealice/espyna-golang/internal/composition/routing/config/integration"
+	"github.com/erniealice/espyna-golang/internal/composition/routing/config/orchestration"
 )
 
 // GetAllDomainConfigurations returns all domain route configurations with use cases injected.

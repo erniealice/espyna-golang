@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	pb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
 // TestMockStorageProvider tests the mock storage provider implementation

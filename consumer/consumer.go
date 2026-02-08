@@ -1,12 +1,12 @@
 package consumer
 
 import (
-	"leapfor.xyz/espyna/internal/application/usecases"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/composition/core"
-	infraopts "leapfor.xyz/espyna/internal/composition/options/infrastructure"
-	"leapfor.xyz/espyna/internal/composition/routing"
-	"leapfor.xyz/espyna/internal/composition/routing/customization"
+	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	infraopts "github.com/erniealice/espyna-golang/internal/composition/options/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/composition/routing"
+	"github.com/erniealice/espyna-golang/internal/composition/routing/customization"
 )
 
 // Container is the exported container type for consumer apps

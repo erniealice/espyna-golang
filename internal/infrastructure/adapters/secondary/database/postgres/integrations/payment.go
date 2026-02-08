@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/integration/payment"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 func init() {

@@ -13,10 +13,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	"leapfor.xyz/espyna/internal/composition/core"
-	"leapfor.xyz/espyna/internal/composition/routing"
-	"leapfor.xyz/espyna/internal/composition/routing/customization"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/primary/grpc/interceptors"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	"github.com/erniealice/espyna-golang/internal/composition/routing"
+	"github.com/erniealice/espyna-golang/internal/composition/routing/customization"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/grpc/interceptors"
 )
 
 // EspynaService is a dynamic gRPC service that maps gRPC methods to HTTP routes

@@ -2,15 +2,15 @@ package engine
 
 import (
 	"context"
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	activitytemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
-	stagetemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
-	workflowtemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
-	enginepb "leapfor.xyz/esqyma/golang/v1/orchestration/engine"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	activitytemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
+	stagetemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	workflowtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	enginepb "github.com/erniealice/esqyma/pkg/schema/v1/orchestration/engine"
 )
 
 // EngineRepositories groups all repository dependencies for engine use cases

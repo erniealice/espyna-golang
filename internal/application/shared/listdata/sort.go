@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // SortUtils provides utilities for sorting data based on protobuf sort requests

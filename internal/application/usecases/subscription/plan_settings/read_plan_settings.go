@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	plansettingspb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_settings"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
 // ReadPlanSettingsRepositories groups all repository dependencies

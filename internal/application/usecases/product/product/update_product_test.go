@@ -46,14 +46,14 @@ import (
 	"testing"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockAuth "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	mockProduct "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/id/uuidv7"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	mockProduct "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/id/uuidv7"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // MockTransactionServiceAdapter adapts infrastructure MockTransactionManager to ports.TransactionService

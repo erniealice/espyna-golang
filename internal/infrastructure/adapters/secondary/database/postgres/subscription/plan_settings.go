@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
-	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	plansettingspb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_settings"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/operations"
+	postgresCore "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/core"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
 // PostgresPlanSettingsRepository implements plan_settings CRUD operations using PostgreSQL

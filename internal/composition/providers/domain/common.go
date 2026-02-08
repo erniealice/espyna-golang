@@ -3,12 +3,12 @@ package domain
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 
 	// Protobuf domain services - Common domain
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	categorypb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // CommonRepositories contains all common domain repositories

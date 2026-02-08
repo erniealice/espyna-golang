@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	collectionattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
 )
 
 // UpdateCollectionAttributeUseCase handles the business logic for updating product attributes

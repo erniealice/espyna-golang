@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 	// TODO: Uncomment when handlers package is available
-	// "leapfor.xyz/espyna/internal/composition/routing/handlers"
+	// "github.com/erniealice/espyna-golang/internal/composition/routing/handlers"
 )
 
 // Note: RouteManager struct has been moved to types.go

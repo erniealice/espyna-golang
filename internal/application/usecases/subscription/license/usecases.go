@@ -1,13 +1,13 @@
 package license
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	licensehistory "leapfor.xyz/espyna/internal/application/usecases/subscription/license_history"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
-	licensepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license"
-	licensehistorypb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license_history"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
+	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // LicenseRepositories groups all repository dependencies for license use cases

@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // CreateTranslationService creates a translation service using provider self-configuration.

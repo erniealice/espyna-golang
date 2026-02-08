@@ -4,7 +4,7 @@ package e2e
 import (
 	"testing"
 
-	"leapfor.xyz/espyna/tests/e2e/helper"
+	"github.com/erniealice/espyna-golang/tests/e2e/helper"
 )
 
 // TestEntityDomainCRUDOperations validates create, read, and list operations for Entity domain

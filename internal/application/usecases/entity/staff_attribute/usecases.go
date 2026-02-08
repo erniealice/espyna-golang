@@ -1,10 +1,10 @@
 package staff_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	staffpb "leapfor.xyz/esqyma/golang/v1/domain/entity/staff"
-	staffattributepb "leapfor.xyz/esqyma/golang/v1/domain/entity/staff_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
+	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
 
 // UseCases contains all staff attribute-related use cases

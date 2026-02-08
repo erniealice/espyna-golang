@@ -2,4 +2,4 @@
 
 package consumer
 
-import _ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/firestore"
+import _ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/firestore"

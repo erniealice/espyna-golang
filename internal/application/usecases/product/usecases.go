@@ -2,32 +2,34 @@ package product
 
 import (
 	// Product use cases
-	collectionUseCases "leapfor.xyz/espyna/internal/application/usecases/product/collection"
-	collectionAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/product/collection_attribute"
-	collectionPlanUseCases "leapfor.xyz/espyna/internal/application/usecases/product/collection_plan"
-	priceProductUseCases "leapfor.xyz/espyna/internal/application/usecases/product/price_product"
-	productUseCases "leapfor.xyz/espyna/internal/application/usecases/product/product"
-	productAttributeUseCases "leapfor.xyz/espyna/internal/application/usecases/product/product_attribute"
-	productCollectionUseCases "leapfor.xyz/espyna/internal/application/usecases/product/product_collection"
-	productPlanUseCases "leapfor.xyz/espyna/internal/application/usecases/product/product_plan"
-	resourceUseCases "leapfor.xyz/espyna/internal/application/usecases/product/resource"
+	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/collection"
+	collectionAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/collection_attribute"
+	collectionPlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/collection_plan"
+	priceListUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/price_list"
+	priceProductUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/price_product"
+	productUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product"
+	productAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_attribute"
+	productCollectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_collection"
+	productPlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_plan"
+	resourceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/resource"
 
 	// Application ports
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Protobuf domain services for product repositories
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	collectionattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_attribute"
-	collectionplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_plan"
-	priceproductpb "leapfor.xyz/esqyma/golang/v1/domain/product/price_product"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	productattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/product_attribute"
-	productcollectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_collection"
-	productplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/product_plan"
-	resourcepb "leapfor.xyz/esqyma/golang/v1/domain/product/resource"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
+	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
+	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
+	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
+	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 
 	// Cross-domain dependencies
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // ProductRepositories contains all product domain repositories
@@ -35,6 +37,7 @@ type ProductRepositories struct {
 	Collection          collectionpb.CollectionDomainServiceServer
 	CollectionAttribute collectionattributepb.CollectionAttributeDomainServiceServer
 	CollectionPlan      collectionplanpb.CollectionPlanDomainServiceServer
+	PriceList           pricelistpb.PriceListDomainServiceServer
 	PriceProduct        priceproductpb.PriceProductDomainServiceServer
 	Product             productpb.ProductDomainServiceServer
 	ProductAttribute    productattributepb.ProductAttributeDomainServiceServer
@@ -50,6 +53,7 @@ type ProductUseCases struct {
 	Collection          *collectionUseCases.UseCases
 	CollectionAttribute *collectionAttributeUseCases.UseCases
 	CollectionPlan      *collectionPlanUseCases.UseCases
+	PriceList           *priceListUseCases.UseCases
 	PriceProduct        *priceProductUseCases.UseCases
 	Product             *productUseCases.UseCases
 	ProductAttribute    *productAttributeUseCases.UseCases
@@ -98,6 +102,19 @@ func NewUseCases(
 			CollectionPlan: repos.CollectionPlan,
 		},
 		collectionPlanUseCases.CollectionPlanServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	priceListUC := priceListUseCases.NewUseCases(
+		priceListUseCases.PriceListRepositories{
+			PriceList:    repos.PriceList,
+			PriceProduct: repos.PriceProduct,
+		},
+		priceListUseCases.PriceListServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,
 			TranslationService:   i18nSvc,
@@ -181,6 +198,7 @@ func NewUseCases(
 		Collection:          collectionUC,
 		CollectionAttribute: collectionAttributeUC,
 		CollectionPlan:      collectionPlanUC,
+		PriceList:           priceListUC,
 		PriceProduct:        priceProductUC,
 		Product:             productUC,
 		ProductAttribute:    productAttributeUC,

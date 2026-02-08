@@ -27,10 +27,10 @@
 package integration
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	integrationuc "leapfor.xyz/espyna/internal/application/usecases/integration"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/integration/payment"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	integrationuc "github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 // Ensure ports is used (for interface compatibility)

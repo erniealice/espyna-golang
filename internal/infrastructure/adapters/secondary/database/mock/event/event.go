@@ -10,11 +10,11 @@ import (
 	"time"
 
 	datamock "leapfor.xyz/copya/golang"
-	"leapfor.xyz/espyna/internal/application/shared/listdata"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	eventpb "leapfor.xyz/esqyma/golang/v1/domain/event/event"
-	eventclientpb "leapfor.xyz/esqyma/golang/v1/domain/event/event_client"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // MockEventRepository implements event.EventRepository using stateful mock data

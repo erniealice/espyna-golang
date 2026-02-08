@@ -1,8 +1,8 @@
 package collection
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 )
 
 // CollectionRepositories groups all repository dependencies for collection use cases

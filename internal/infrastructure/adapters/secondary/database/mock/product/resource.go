@@ -10,10 +10,10 @@ import (
 	"time"
 
 	datamock "leapfor.xyz/copya/golang"
-	"leapfor.xyz/espyna/internal/application/shared/listdata"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	resourcepb "leapfor.xyz/esqyma/golang/v1/domain/product/resource"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // MockResourceRepository implements product.ResourceRepository using stateful mock data

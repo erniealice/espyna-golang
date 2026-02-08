@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // Registry manages integration provider instances (email, payment, etc.)

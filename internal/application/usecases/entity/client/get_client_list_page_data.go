@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )
 
 // GetClientListPageDataRepositories groups repository dependencies for GetClientListPageData use case

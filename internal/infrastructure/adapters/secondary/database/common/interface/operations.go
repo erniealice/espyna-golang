@@ -3,7 +3,7 @@ package interfaces
 import (
 	"context"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // ListParams contains standardized parameters for list operations

@@ -3,18 +3,18 @@ package domain
 import (
 	"fmt"
 
-	subscriptionuc "leapfor.xyz/espyna/internal/application/usecases/subscription"
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	balancepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance"
-	balanceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/balance_attribute"
-	invoicepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice"
-	invoiceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice_attribute"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
-	planattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_attribute"
-	plansettingspb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_settings"
-	priceplanpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/price_plan"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
-	subscriptionattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription_attribute"
+	subscriptionuc "github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
+	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
+	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
+	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
+	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
+	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
+	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
 // ConfigureSubscriptionDomain configures routes for the Subscription domain with use cases injected directly

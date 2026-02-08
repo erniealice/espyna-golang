@@ -31,10 +31,10 @@ import (
 	"testing"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockDb "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/workflow"
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
 )
 
 // Type alias for read activity test cases

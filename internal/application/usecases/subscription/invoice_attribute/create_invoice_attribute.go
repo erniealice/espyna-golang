@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	invoicepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice"
-	invoiceattributepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
+	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
 )
 
 // CreateInvoiceAttributeRepositories groups all repository dependencies

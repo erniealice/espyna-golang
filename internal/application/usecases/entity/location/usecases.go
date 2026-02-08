@@ -1,8 +1,8 @@
 package location
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	locationpb "leapfor.xyz/esqyma/golang/v1/domain/entity/location"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 )
 
 // LocationRepositories groups all repository dependencies for location use cases

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // TODO: JWTAuthAdapter does not implement ports.AuthProvider (no Initialize, Name,

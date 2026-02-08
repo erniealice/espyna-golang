@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/gcp"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/gcp"
 )
 
 // GoogleClientManager manages Google Cloud clients

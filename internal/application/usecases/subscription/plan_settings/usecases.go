@@ -1,10 +1,10 @@
 package plan_settings
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
-	plansettingspb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan_settings"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
+	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
 // PlanSettingsRepositories groups all repository dependencies for plan_settings use cases

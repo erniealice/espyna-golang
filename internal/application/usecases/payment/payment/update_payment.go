@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment"
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // UpdatePaymentRepositories groups all repository dependencies

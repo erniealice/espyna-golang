@@ -1,10 +1,10 @@
 package product_attribute
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	productattributepb "leapfor.xyz/esqyma/golang/v1/domain/product/product_attribute"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 )
 
 // ProductAttributeRepositories groups all repository dependencies for product attribute use cases

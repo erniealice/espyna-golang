@@ -18,9 +18,9 @@ import (
 	"strings"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	permissionpb "leapfor.xyz/esqyma/golang/v1/domain/entity/permission"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 )
 
 // createTestReadPermissionUseCase is a helper function to create the use case with mock dependencies

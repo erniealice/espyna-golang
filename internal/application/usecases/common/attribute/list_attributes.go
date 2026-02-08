@@ -3,8 +3,8 @@ package attribute
 import (
 	"context"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // ListAttributesUseCase handles the business logic for listing attributes

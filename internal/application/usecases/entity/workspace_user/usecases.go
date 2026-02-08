@@ -1,10 +1,10 @@
 package workspace_user
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	userpb "leapfor.xyz/esqyma/golang/v1/domain/entity/user"
-	workspacepb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace"
-	workspaceuserpb "leapfor.xyz/esqyma/golang/v1/domain/entity/workspace_user"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 )
 
 // UseCases contains all workspace user-related use cases

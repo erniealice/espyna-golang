@@ -11,11 +11,11 @@ import (
 	"cloud.google.com/go/firestore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"leapfor.xyz/espyna/internal/application/ports"
-	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/firestore/core"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	dbpb "leapfor.xyz/esqyma/golang/v1/infrastructure/database"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/firestore/core"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 )
 
 // =============================================================================

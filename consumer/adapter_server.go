@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/composition/core"
-	"leapfor.xyz/espyna/internal/composition/providers/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/infrastructure"
 )
 
 /*

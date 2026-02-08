@@ -15,11 +15,11 @@ import (
 	"cloud.google.com/go/storage"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/google"
-	storagecommon "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/storage/common"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	pb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/google"
+	storagecommon "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/common"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
 // =============================================================================

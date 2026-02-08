@@ -6,12 +6,12 @@ import (
 	"log"
 	"sync"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	authpb "leapfor.xyz/esqyma/golang/v1/infrastructure/auth"
-	dbpb "leapfor.xyz/esqyma/golang/v1/infrastructure/database"
-	storagepb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
-	emailpb "leapfor.xyz/esqyma/golang/v1/integration/email"
-	paymentpb "leapfor.xyz/esqyma/golang/v1/integration/payment"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
+	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
+	storagepb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
+	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 // =============================================================================

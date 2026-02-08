@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"leapfor.xyz/espyna/internal/application/ports/integration"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // CreateTabularProvider creates a tabular provider using provider self-configuration.

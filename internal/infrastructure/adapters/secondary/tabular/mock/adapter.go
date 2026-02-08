@@ -8,10 +8,10 @@ import (
 	"strings"
 	"sync"
 
-	"leapfor.xyz/espyna/internal/application/ports/integration"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	tabularpb "leapfor.xyz/esqyma/golang/v1/integration/tabular"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	tabularpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/tabular"
 )
 
 // =============================================================================

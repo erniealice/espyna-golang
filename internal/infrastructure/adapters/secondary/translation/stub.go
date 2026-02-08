@@ -10,8 +10,8 @@
 package translation
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation/mock"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/mock"
 )
 
 // NewLynguaTranslationService returns a mock translation service for testing.

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"leapfor.xyz/espyna/internal/composition/core"
-	adminpb "leapfor.xyz/esqyma/golang/v1/domain/entity/admin"
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )
 
 // SetupTestEnvironment sets environment variables for a specific provider

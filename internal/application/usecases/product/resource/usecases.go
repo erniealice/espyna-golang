@@ -1,9 +1,9 @@
 package resource
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	productpb "leapfor.xyz/esqyma/golang/v1/domain/product/product"
-	resourcepb "leapfor.xyz/esqyma/golang/v1/domain/product/resource"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 )
 
 // ResourceRepositories groups all repository dependencies for resource use cases

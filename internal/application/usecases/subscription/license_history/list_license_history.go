@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	licensehistorypb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license_history"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 )
 
 // ListLicenseHistoryRepositories groups all repository dependencies

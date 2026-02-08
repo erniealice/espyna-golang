@@ -17,11 +17,11 @@ package delegate_client
 import (
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockAuth "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
 
-	delegateclientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate_client"
+	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
 )
 
 // createTestDeleteDelegateClientUseCase is a helper function to create the use case with mock dependencies

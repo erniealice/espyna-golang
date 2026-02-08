@@ -1,16 +1,16 @@
 package main
 
 import (
-	"leapfor.xyz/espyna/internal/composition/core"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
 
 	// Import only required adapters (no HTTP adapters needed for seeder)
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/auth/mock"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/firestore"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/id/noop"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/id/uuidv7"
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/storage/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/firestore"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/id/noop"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/id/uuidv7"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/mock"
 )
 
 // SeederContainer wraps core.Container for seeder use

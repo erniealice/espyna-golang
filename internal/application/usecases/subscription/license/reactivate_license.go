@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	contextutil "leapfor.xyz/espyna/internal/application/shared/context"
-	licensehistory "leapfor.xyz/espyna/internal/application/usecases/subscription/license_history"
-	licensepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license"
-	licensehistorypb "leapfor.xyz/esqyma/golang/v1/domain/subscription/license_history"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
+	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
+	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 )
 
 // ReactivateLicenseRepositories groups all repository dependencies

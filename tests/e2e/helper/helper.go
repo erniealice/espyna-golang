@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"leapfor.xyz/espyna/internal/composition/core"
-	"leapfor.xyz/espyna/tests/testutil"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	"github.com/erniealice/espyna-golang/tests/testutil"
 )
 
 // TestEnvironment encapsulates test server and utilities

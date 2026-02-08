@@ -9,12 +9,12 @@ import (
 	"os"
 	"time"
 
-	authpb "leapfor.xyz/esqyma/golang/v1/infrastructure/auth"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	firebaseCommon "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/firebase"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	firebaseCommon "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/firebase"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // =============================================================================

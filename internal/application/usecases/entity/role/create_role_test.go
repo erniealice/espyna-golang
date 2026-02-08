@@ -37,9 +37,9 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/entity"
-	rolepb "leapfor.xyz/esqyma/golang/v1/domain/entity/role"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 )
 
 // Type alias for create role test cases

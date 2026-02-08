@@ -3,23 +3,23 @@ package domain
 import (
 	"fmt"
 
-	"leapfor.xyz/espyna/internal/composition/contracts"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 
 	// Protobuf domain services - Common domain
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 
 	// Protobuf domain services - Entity domain
-	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 
 	// Protobuf domain services - Payment domain
-	paymentpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment"
-	paymentattributepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_attribute"
-	paymentmethodpb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_method"
-	paymentprofilepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_profile"
+	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
+	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
+	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
+	paymentprofilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
 
 	// Protobuf domain services - Subscription domain
-	subscriptionpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/subscription"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // PaymentRepositories contains all 4 payment domain repositories and cross-domain dependencies

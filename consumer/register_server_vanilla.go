@@ -4,5 +4,5 @@ package consumer
 
 // Import vanilla adapter to trigger registration via init()
 import (
-	_ "leapfor.xyz/espyna/internal/infrastructure/adapters/primary/http/vanilla"
+	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/http/vanilla"
 )

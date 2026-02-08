@@ -5,8 +5,8 @@ package fiberv3
 import (
 	"github.com/gofiber/fiber/v3"
 
-	"leapfor.xyz/espyna/internal/composition/core"
-	fiberMiddleware "leapfor.xyz/espyna/internal/infrastructure/adapters/primary/http/fiberv3/middleware"
+	"github.com/erniealice/espyna-golang/internal/composition/core"
+	fiberMiddleware "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/http/fiberv3/middleware"
 )
 
 // Server represents a Fiber v3 HTTP server with all dependencies

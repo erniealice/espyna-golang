@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"leapfor.xyz/espyna/internal/application/ports"
-	microsoftclient "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/microsoft"
-	"leapfor.xyz/espyna/internal/infrastructure/registry"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	emailpb "leapfor.xyz/esqyma/golang/v1/integration/email"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	microsoftclient "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/microsoft"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
 )
 
 // =============================================================================

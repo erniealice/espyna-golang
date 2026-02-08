@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	authpb "leapfor.xyz/esqyma/golang/v1/infrastructure/auth"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
 // authProviderOperations defines the operations interface for auth without conflicting Initialize

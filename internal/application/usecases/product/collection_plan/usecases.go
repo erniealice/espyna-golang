@@ -1,10 +1,10 @@
 package collection_plan
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	collectionpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection"
-	collectionplanpb "leapfor.xyz/esqyma/golang/v1/domain/product/collection_plan"
-	planpb "leapfor.xyz/esqyma/golang/v1/domain/subscription/plan"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
+	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 )
 
 // CollectionPlanRepositories groups all repository dependencies for collection plan use cases

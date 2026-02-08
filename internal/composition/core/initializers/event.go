@@ -1,9 +1,9 @@
 package initializers
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	"leapfor.xyz/espyna/internal/application/usecases/event"
-	"leapfor.xyz/espyna/internal/composition/providers/domain"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
 // InitializeEvent creates all event use cases from provider repositories

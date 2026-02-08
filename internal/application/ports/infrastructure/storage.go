@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	pb "leapfor.xyz/esqyma/golang/v1/infrastructure/storage"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
 // StorageProvider defines the contract for storage providers

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // FilterUtils provides utilities for evaluating filters against data

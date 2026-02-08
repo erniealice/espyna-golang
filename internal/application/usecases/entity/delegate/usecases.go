@@ -1,8 +1,8 @@
 package delegate
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	delegatepb "leapfor.xyz/esqyma/golang/v1/domain/entity/delegate"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 )
 
 // DelegateRepositories groups all repository dependencies for delegate use cases

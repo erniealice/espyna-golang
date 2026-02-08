@@ -1,8 +1,8 @@
 package registry
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	schedulerpb "leapfor.xyz/esqyma/golang/v1/integration/scheduler"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	schedulerpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/scheduler"
 )
 
 // =============================================================================

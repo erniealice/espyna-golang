@@ -49,10 +49,10 @@ import (
 	"time"
 
 	copyatestutil "leapfor.xyz/copya/golang/testutil"
-	"leapfor.xyz/espyna/internal/application/shared/testutil"
-	mockDb "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/product"
-	resourcepb "leapfor.xyz/esqyma/golang/v1/domain/product/resource"
+	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
+	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
+	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 )
 
 // Type alias for update resource test cases

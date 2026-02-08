@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/mock/workflow"
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	activityTemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 )
 
 func TestGetActivityTemplateListPageDataUseCase_Execute_Success(t *testing.T) {

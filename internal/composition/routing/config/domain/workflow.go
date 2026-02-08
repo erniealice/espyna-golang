@@ -3,15 +3,15 @@ package domain
 import (
 	"fmt"
 
-	workflowuc "leapfor.xyz/espyna/internal/application/usecases/workflow"
-	"leapfor.xyz/espyna/internal/composition/contracts"
+	workflowuc "github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
+	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	activitytemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity_template"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
-	stagetemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
-	workflowtemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow_template"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	activitytemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
+	stagetemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	workflowtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // ConfigureWorkflowDomain configures routes for the Workflow domain use cases.

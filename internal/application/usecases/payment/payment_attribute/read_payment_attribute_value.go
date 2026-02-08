@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	attributepb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	paymentattributepb "leapfor.xyz/esqyma/golang/v1/domain/payment/payment_attribute"
+	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
 )
 
 // ReadPaymentAttributeValue retrieves the value of a PaymentAttribute by payment ID and attribute ID.

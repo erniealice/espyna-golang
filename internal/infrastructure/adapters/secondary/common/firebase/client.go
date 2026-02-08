@@ -11,7 +11,7 @@ import (
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/common/gcp"
+	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/gcp"
 )
 
 // FirebaseClientManager manages Firebase clients

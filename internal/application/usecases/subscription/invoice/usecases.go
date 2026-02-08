@@ -1,8 +1,8 @@
 package invoice
 
 import (
-	"leapfor.xyz/espyna/internal/application/ports"
-	invoicepb "leapfor.xyz/esqyma/golang/v1/domain/subscription/invoice"
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 )
 
 // InvoiceRepositories groups all repository dependencies for invoice use cases

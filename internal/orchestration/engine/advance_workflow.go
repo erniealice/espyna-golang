@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
-	activitypb "leapfor.xyz/esqyma/golang/v1/domain/workflow/activity"
-	stagepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage"
-	stagetemplatepb "leapfor.xyz/esqyma/golang/v1/domain/workflow/stage_template"
-	workflowpb "leapfor.xyz/esqyma/golang/v1/domain/workflow/workflow"
-	enginepb "leapfor.xyz/esqyma/golang/v1/orchestration/engine"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
+	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
+	stagetemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
+	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	enginepb "github.com/erniealice/esqyma/pkg/schema/v1/orchestration/engine"
 )
 
 // AdvanceWorkflowUseCase handles checking progress and moving to next steps

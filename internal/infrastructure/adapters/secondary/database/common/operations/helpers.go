@@ -152,6 +152,16 @@ func camelToSnake(s string) string {
 	return string(result)
 }
 
+// TimestampFromTime converts a time.Time (from TIMESTAMPTZ) into Unix millis
+// and an RFC3339 string suitable for protobuf fields.
+// Returns (unixMillis, rfc3339String, ok). ok is false when t is zero.
+func TimestampFromTime(t time.Time) (int64, string, bool) {
+	if t.IsZero() {
+		return 0, "", false
+	}
+	return t.UnixMilli(), t.Format(time.RFC3339), true
+}
+
 // ParseTimestamp converts string timestamp to Unix timestamp (milliseconds)
 // This is a common utility function for parsing various timestamp formats
 func ParseTimestamp(timestampStr string) (int64, error) {

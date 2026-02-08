@@ -3,6 +3,7 @@
 package event
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -255,9 +256,7 @@ func (r *PostgresEventRepository) GetEventListPageData(
 				e.end_date_time_utc,
 				e.active,
 				e.date_created,
-				e.date_created_string,
-				e.date_modified,
-				e.date_modified_string
+				e.date_modified
 			FROM event e
 			WHERE e.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -292,10 +291,8 @@ func (r *PostgresEventRepository) GetEventListPageData(
 			startDateTimeUTC    *string
 			endDateTimeUTC      *string
 			active              bool
-			dateCreated         *string
-			dateCreatedString   *string
-			dateModified        *string
-			dateModifiedString  *string
+			dateCreated         time.Time
+			dateModified        time.Time
 			total               int64
 		)
 
@@ -307,9 +304,7 @@ func (r *PostgresEventRepository) GetEventListPageData(
 			&endDateTimeUTC,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -340,23 +335,18 @@ func (r *PostgresEventRepository) GetEventListPageData(
 			}
 		}
 
-		if dateCreatedString != nil {
-			event.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			event.DateModifiedString = dateModifiedString
-		}
-
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				event.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				event.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		event.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		event.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		event.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		event.DateModifiedString = &dmStr
+	}
 
 		events = append(events, event)
 	}
@@ -407,9 +397,7 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 			end_date_time_utc,
 			active,
 			date_created,
-			date_created_string,
-			date_modified,
-			date_modified_string
+			date_modified
 		FROM event
 		WHERE id = $1 AND active = true
 	`
@@ -423,10 +411,8 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 		startDateTimeUTC   *string
 		endDateTimeUTC     *string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -437,9 +423,7 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 		&endDateTimeUTC,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("event with ID '%s' not found", req.EventId)
@@ -470,23 +454,18 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 				}
 			}
 	
-			if dateCreatedString != nil {
-				event.DateCreatedString = dateCreatedString
-			}
-			if dateModifiedString != nil {
-				event.DateModifiedString = dateModifiedString
-			}
-	
-			if dateCreated != nil && *dateCreated != "" {
-				if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-					event.DateCreated = &ts
-				}
-			}
-			if dateModified != nil && *dateModified != "" {
-				if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-					event.DateModified = &ts
-				}
-			}
+			if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		event.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		event.DateCreatedString = &dcStr
+	}
+			if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		event.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		event.DateModifiedString = &dmStr
+	}
 	return &eventpb.GetEventItemPageDataResponse{
 		Event:   event,
 		Success: true,

@@ -265,9 +265,7 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 				ec.client_id,
 				ec.active,
 				ec.date_created,
-				ec.date_created_string,
-				ec.date_modified,
-				ec.date_modified_string
+				ec.date_modified
 			FROM event_client ec
 			WHERE ec.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -300,10 +298,8 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 			eventId            string
 			clientId           string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -313,9 +309,7 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 			&clientId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -331,24 +325,19 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 			Active:   active,
 		}
 
-		if dateCreatedString != nil {
-			eventClient.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			eventClient.DateModifiedString = dateModifiedString
-		}
-
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := parseEventClientTimestamp(*dateCreated); err == nil {
-				eventClient.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := parseEventClientTimestamp(*dateModified); err == nil {
-				eventClient.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		eventClient.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		eventClient.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		eventClient.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		eventClient.DateModifiedString = &dmStr
+	}
 
 		eventClients = append(eventClients, eventClient)
 	}
@@ -396,9 +385,7 @@ func (r *PostgresEventClientRepository) GetEventClientItemPageData(
 			ec.client_id,
 			ec.active,
 			ec.date_created,
-			ec.date_created_string,
-			ec.date_modified,
-			ec.date_modified_string
+			ec.date_modified
 		FROM event_client ec
 		WHERE ec.id = $1 AND ec.active = true
 		LIMIT 1;
@@ -411,10 +398,8 @@ func (r *PostgresEventClientRepository) GetEventClientItemPageData(
 		eventId            string
 		clientId           string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -423,9 +408,7 @@ func (r *PostgresEventClientRepository) GetEventClientItemPageData(
 		&clientId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("event client with ID '%s' not found", req.EventClientId)
@@ -441,23 +424,18 @@ func (r *PostgresEventClientRepository) GetEventClientItemPageData(
 		Active:   active,
 	}
 
-	if dateCreatedString != nil {
-		eventClient.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		eventClient.DateModifiedString = dateModifiedString
-	}
-
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := parseEventClientTimestamp(*dateCreated); err == nil {
-			eventClient.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		eventClient.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		eventClient.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := parseEventClientTimestamp(*dateModified); err == nil {
-			eventClient.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		eventClient.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		eventClient.DateModifiedString = &dmStr
 	}
 
 	return &eventclientpb.GetEventClientItemPageDataResponse{

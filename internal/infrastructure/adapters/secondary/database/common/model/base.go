@@ -2,14 +2,17 @@ package model
 
 import "time"
 
-// BaseModel provides common fields for all database models
+// BaseModel provides common fields for all database models.
+// DateCreatedString and DateModifiedString are computed from the timestamp
+// fields in the adapter layer -- they are NOT stored as physical DB columns
+// in PostgreSQL (TIMESTAMPTZ). They remain here for Firestore compatibility.
 type BaseModel struct {
 	ID                 string    `json:"id" firestore:"id" db:"id"`
 	Active             bool      `json:"active" firestore:"active" db:"active"`
 	DateCreated        time.Time `json:"date_created" firestore:"date_created" db:"date_created"`
-	DateCreatedString  string    `json:"date_created_string" firestore:"date_created_string" db:"date_created_string"`
+	DateCreatedString  string    `json:"date_created_string" firestore:"date_created_string"`
 	DateModified       time.Time `json:"date_modified" firestore:"date_modified" db:"date_modified"`
-	DateModifiedString string    `json:"date_modified_string" firestore:"date_modified_string" db:"date_modified_string"`
+	DateModifiedString string    `json:"date_modified_string" firestore:"date_modified_string"`
 }
 
 // SetCreateProperties sets properties for new records

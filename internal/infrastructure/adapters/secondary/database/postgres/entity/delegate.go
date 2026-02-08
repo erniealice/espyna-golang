@@ -264,17 +264,13 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 						'delegate_id', dc.delegate_id,
 						'client_id', dc.client_id,
 						'date_created', dc.date_created,
-						'date_created_string', dc.date_created_string,
 						'date_modified', dc.date_modified,
-						'date_modified_string', dc.date_modified_string,
 						'active', dc.active,
 						'client', jsonb_build_object(
 							'id', c.id,
 							'user_id', c.user_id,
 							'date_created', c.date_created,
-							'date_created_string', c.date_created_string,
 							'date_modified', c.date_modified,
-							'date_modified_string', c.date_modified_string,
 							'active', c.active,
 							'user', CASE
 								WHEN cu.id IS NOT NULL THEN jsonb_build_object(
@@ -283,9 +279,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 									'last_name', cu.last_name,
 									'email_address', cu.email_address,
 									'date_created', cu.date_created,
-									'date_created_string', cu.date_created_string,
 									'date_modified', cu.date_modified,
-									'date_modified_string', cu.date_modified_string,
 									'active', cu.active
 								)
 								ELSE NULL
@@ -319,9 +313,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 				sf.user_id,
 				sf.active,
 				sf.date_created,
-				sf.date_created_string,
 				sf.date_modified,
-				sf.date_modified_string,
 				CASE
 					WHEN u.id IS NOT NULL THEN jsonb_build_object(
 						'id', u.id,
@@ -329,13 +321,11 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 						'last_name', u.last_name,
 						'email_address', u.email_address,
 						'date_created', u.date_created,
-						'date_created_string', u.date_created_string,
 						'date_modified', u.date_modified,
-						'date_modified_string', u.date_modified_string,
 						'active', u.active
 					)
 					ELSE NULL
-				END as user,
+				END as user
 				COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients
 			FROM search_filtered sf
 			LEFT JOIN "user" u ON sf.user_id = u.id
@@ -363,9 +353,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			s.user_id,
 			s.active,
 			s.date_created,
-			s.date_created_string,
 			s.date_modified,
-			s.date_modified_string,
 			s.user,
 			s.delegate_clients,
 			tc.total as _total_count
@@ -415,9 +403,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			&userId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&userJSON,
 			&delegateClientsJSON,
 			&rowTotalCount,
@@ -528,17 +514,13 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 						'delegate_id', dc.delegate_id,
 						'client_id', dc.client_id,
 						'date_created', dc.date_created,
-						'date_created_string', dc.date_created_string,
 						'date_modified', dc.date_modified,
-						'date_modified_string', dc.date_modified_string,
 						'active', dc.active,
 						'client', jsonb_build_object(
 							'id', c.id,
 							'user_id', c.user_id,
 							'date_created', c.date_created,
-							'date_created_string', c.date_created_string,
 							'date_modified', c.date_modified,
-							'date_modified_string', c.date_modified_string,
 							'active', c.active,
 							'user', CASE
 								WHEN cu.id IS NOT NULL THEN jsonb_build_object(
@@ -547,9 +529,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 									'last_name', cu.last_name,
 									'email_address', cu.email_address,
 									'date_created', cu.date_created,
-									'date_created_string', cu.date_created_string,
 									'date_modified', cu.date_modified,
-									'date_modified_string', cu.date_modified_string,
 									'active', cu.active
 								)
 								ELSE NULL
@@ -570,9 +550,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			d.user_id,
 			d.active,
 			d.date_created,
-			d.date_created_string,
 			d.date_modified,
-			d.date_modified_string,
 			CASE
 				WHEN u.id IS NOT NULL THEN jsonb_build_object(
 					'id', u.id,
@@ -580,13 +558,11 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 					'last_name', u.last_name,
 					'email_address', u.email_address,
 					'date_created', u.date_created,
-					'date_created_string', u.date_created_string,
 					'date_modified', u.date_modified,
-					'date_modified_string', u.date_modified_string,
 					'active', u.active
 				)
 				ELSE NULL
-			END as user,
+			END as user
 			COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients
 		FROM delegate d
 		LEFT JOIN "user" u ON d.user_id = u.id
@@ -618,9 +594,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		&userId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&userJSON,
 		&delegateClientsJSON,
 	)

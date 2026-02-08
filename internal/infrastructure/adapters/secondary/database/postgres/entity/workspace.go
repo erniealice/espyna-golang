@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -265,9 +265,7 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 				w.description,
 				w.active,
 				w.date_created,
-				w.date_created_string,
-				w.date_modified,
-				w.date_modified_string
+				w.date_modified
 			FROM workspace w
 			WHERE w.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -300,10 +298,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 			name               string
 			description        *string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -313,9 +309,7 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 			&description,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -335,24 +329,20 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			workspace.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			workspace.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				workspace.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				workspace.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		workspace.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		workspace.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		workspace.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		workspace.DateModifiedString = &dmStr
+	}
 
 		workspaces = append(workspaces, workspace)
 	}
@@ -403,9 +393,7 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 			w.description,
 			w.active,
 			w.date_created,
-			w.date_created_string,
-			w.date_modified,
-			w.date_modified_string
+			w.date_modified
 		FROM workspace w
 		WHERE w.id = $1 AND w.active = true
 		LIMIT 1;
@@ -418,10 +406,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 		name               string
 		description        *string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -430,9 +416,7 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 		&description,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("workspace with ID '%s' not found", req.WorkspaceId)
@@ -452,23 +436,19 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		workspace.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		workspace.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			workspace.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		workspace.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		workspace.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			workspace.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		workspace.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		workspace.DateModifiedString = &dmStr
 	}
 
 	return &workspacepb.GetWorkspaceItemPageDataResponse{

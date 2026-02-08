@@ -5,12 +5,12 @@ package entity
 import (
 	"context"
 	"database/sql"
+	"time"
 	"encoding/json"
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -241,7 +241,7 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, workspace_user_id, role_id, active, date_created, date_created_string, date_modified, date_modified_string FROM workspace_user_role WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR workspace_user_id ILIKE $1 OR role_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM workspace_user_role WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR workspace_user_id ILIKE $1 OR role_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -252,29 +252,25 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 	for rows.Next() {
 		var id, workspaceUserId, roleId string
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
+		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &workspaceUserId, &roleId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString, &total); err != nil {
+		if err := rows.Scan(&id, &workspaceUserId, &roleId, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
 		workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{Id: id, WorkspaceUserId: workspaceUserId, RoleId: roleId, Active: active}
-		if dateCreatedString != nil {
-			workspaceUserRole.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			workspaceUserRole.DateModifiedString = dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-				workspaceUserRole.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-				workspaceUserRole.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		workspaceUserRole.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		workspaceUserRole.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		workspaceUserRole.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		workspaceUserRole.DateModifiedString = &dmStr
+	}
 		workspaceUserRoles = append(workspaceUserRoles, workspaceUserRole)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
@@ -286,32 +282,28 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleItemPageData(c
 	if req == nil || req.WorkspaceUserRoleId == "" {
 		return nil, fmt.Errorf("workspace user role ID required")
 	}
-	query := `SELECT id, workspace_user_id, role_id, active, date_created, date_created_string, date_modified, date_modified_string FROM workspace_user_role WHERE id = $1 AND active = true`
+	query := `SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM workspace_user_role WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.WorkspaceUserRoleId)
 	var id, workspaceUserId, roleId string
 	var active bool
-	var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-	if err := row.Scan(&id, &workspaceUserId, &roleId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err == sql.ErrNoRows {
+	var dateCreated, dateModified time.Time
+	if err := row.Scan(&id, &workspaceUserId, &roleId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("workspace user role not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{Id: id, WorkspaceUserId: workspaceUserId, RoleId: roleId, Active: active}
-	if dateCreatedString != nil {
-		workspaceUserRole.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		workspaceUserRole.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		workspaceUserRole.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		workspaceUserRole.DateModifiedString = dateModifiedString
-	}
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-			workspaceUserRole.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-			workspaceUserRole.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		workspaceUserRole.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		workspaceUserRole.DateModifiedString = &dmStr
 	}
 	return &workspaceuserrolepb.GetWorkspaceUserRoleItemPageDataResponse{WorkspaceUserRole: workspaceUserRole, Success: true}, nil
 }

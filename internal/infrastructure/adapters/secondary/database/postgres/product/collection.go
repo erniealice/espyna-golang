@@ -265,18 +265,14 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 						'collection_id', cp.collection_id,
 						'plan_id', cp.plan_id,
 						'date_created', cp.date_created,
-						'date_created_string', cp.date_created_string,
 						'date_modified', cp.date_modified,
-						'date_modified_string', cp.date_modified_string,
 						'active', cp.active,
 						'plan', jsonb_build_object(
 							'id', p.id,
 							'name', p.name,
 							'description', p.description,
 							'date_created', p.date_created,
-							'date_created_string', p.date_created_string,
 							'date_modified', p.date_modified,
-							'date_modified_string', p.date_modified_string,
 							'active', p.active
 						)
 					) ORDER BY p.name ASC
@@ -296,18 +292,14 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 					'collection_id', cpp.collection_id,
 					'parent_id', cpp.parent_id,
 					'date_created', cpp.date_created,
-					'date_created_string', cpp.date_created_string,
 					'date_modified', cpp.date_modified,
-					'date_modified_string', cpp.date_modified_string,
 					'active', cpp.active,
 					'parent', jsonb_build_object(
 						'id', cp.id,
 						'name', cp.name,
 						'description', cp.description,
 						'date_created', cp.date_created,
-						'date_created_string', cp.date_created_string,
 						'date_modified', cp.date_modified,
-						'date_modified_string', cp.date_modified_string,
 						'active', cp.active
 					)
 				) as collection_parent
@@ -334,9 +326,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 				sf.description,
 				sf.active,
 				sf.date_created,
-				sf.date_created_string,
-				sf.date_modified,
-				sf.date_modified_string,
+				sf.date_modified
 				COALESCE(cpa.collection_plans, ARRAY[]::jsonb[]) as collection_plans,
 				cppa.collection_parent
 			FROM search_filtered sf
@@ -368,9 +358,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 			s.description,
 			s.active,
 			s.date_created,
-			s.date_created_string,
 			s.date_modified,
-			s.date_modified_string,
 			s.collection_plans,
 			s.collection_parent,
 			tc.total as _total_count
@@ -422,9 +410,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 			&description,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&collectionPlansJSON,
 			&collectionParentJSON,
 			&rowTotalCount,
@@ -521,18 +507,14 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 						'collection_id', cp.collection_id,
 						'plan_id', cp.plan_id,
 						'date_created', cp.date_created,
-						'date_created_string', cp.date_created_string,
 						'date_modified', cp.date_modified,
-						'date_modified_string', cp.date_modified_string,
 						'active', cp.active,
 						'plan', jsonb_build_object(
 							'id', p.id,
 							'name', p.name,
 							'description', p.description,
 							'date_created', p.date_created,
-							'date_created_string', p.date_created_string,
 							'date_modified', p.date_modified,
-							'date_modified_string', p.date_modified_string,
 							'active', p.active
 						)
 					) ORDER BY p.name ASC
@@ -552,18 +534,14 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 					'collection_id', cpp.collection_id,
 					'parent_id', cpp.parent_id,
 					'date_created', cpp.date_created,
-					'date_created_string', cpp.date_created_string,
 					'date_modified', cpp.date_modified,
-					'date_modified_string', cpp.date_modified_string,
 					'active', cpp.active,
 					'parent', jsonb_build_object(
 						'id', cp.id,
 						'name', cp.name,
 						'description', cp.description,
 						'date_created', cp.date_created,
-						'date_created_string', cp.date_created_string,
 						'date_modified', cp.date_modified,
-						'date_modified_string', cp.date_modified_string,
 						'active', cp.active
 					)
 				) as collection_parent
@@ -579,9 +557,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 			c.description,
 			c.active,
 			c.date_created,
-			c.date_created_string,
-			c.date_modified,
-			c.date_modified_string,
+			c.date_modified
 			COALESCE(cpa.collection_plans, ARRAY[]::jsonb[]) as collection_plans,
 			cppa.collection_parent
 		FROM collection c
@@ -616,9 +592,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 		&description,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&collectionPlansJSON,
 		&collectionParentJSON,
 	)

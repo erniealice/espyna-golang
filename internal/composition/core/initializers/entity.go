@@ -27,7 +27,8 @@ import (
 	workspaceUserRoleUseCases "leapfor.xyz/espyna/internal/application/usecases/entity/workspace_user_role"
 )
 
-// InitializeEntity creates all entity use cases from provider repositories
+// InitializeEntity creates all entity use cases from provider repositories.
+// Use cases are only created when their primary repository is available (graceful degradation).
 // This is composition logic - it wires infrastructure (providers) to application (use cases)
 func InitializeEntity(
 	repos *domain.EntityRepositories,
@@ -36,257 +37,192 @@ func InitializeEntity(
 	i18nSvc ports.TranslationService,
 	idSvc ports.IDService,
 ) (*entity.EntityUseCases, error) {
-	// Create individual domain use cases with proper dependency injection
-	adminUC := adminUseCases.NewUseCases(
-		adminUseCases.AdminRepositories{Admin: repos.Admin},
-		adminUseCases.AdminServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	svc := func() entityServices {
+		return entityServices{authSvc, txSvc, i18nSvc, idSvc}
+	}
 
-	clientUC := clientUseCases.NewUseCases(
-		clientUseCases.ClientRepositories{
-			Client: repos.Client,
-			User:   repos.User,
-		},
-		clientUseCases.ClientServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	result := &entity.EntityUseCases{}
 
-	clientAttributeUC := clientAttributeUseCases.NewUseCases(
-		clientAttributeUseCases.ClientAttributeRepositories{
-			ClientAttribute: repos.ClientAttribute,
-			Client:          repos.Client,
-			Attribute:       repos.Attribute,
-		},
-		clientAttributeUseCases.ClientAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Admin != nil {
+		result.Admin = adminUseCases.NewUseCases(
+			adminUseCases.AdminRepositories{Admin: repos.Admin},
+			adminUseCases.AdminServices(svc()),
+		)
+	}
 
-	delegateUC := delegateUseCases.NewUseCases(
-		delegateUseCases.DelegateRepositories{Delegate: repos.Delegate},
-		delegateUseCases.DelegateServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Client != nil {
+		result.Client = clientUseCases.NewUseCases(
+			clientUseCases.ClientRepositories{
+				Client: repos.Client,
+				User:   repos.User,
+			},
+			clientUseCases.ClientServices(svc()),
+		)
+	}
 
-	delegateAttributeUC := delegateAttributeUseCases.NewUseCases(
-		delegateAttributeUseCases.DelegateAttributeRepositories{
-			DelegateAttribute: repos.DelegateAttribute,
-			Delegate:          repos.Delegate,
-			Attribute:         repos.Attribute,
-		},
-		delegateAttributeUseCases.DelegateAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.ClientAttribute != nil {
+		result.ClientAttribute = clientAttributeUseCases.NewUseCases(
+			clientAttributeUseCases.ClientAttributeRepositories{
+				ClientAttribute: repos.ClientAttribute,
+				Client:          repos.Client,
+				Attribute:       repos.Attribute,
+			},
+			clientAttributeUseCases.ClientAttributeServices(svc()),
+		)
+	}
 
-	delegateClientUC := delegateClientUseCases.NewUseCases(
-		delegateClientUseCases.DelegateClientRepositories{
-			DelegateClient: repos.DelegateClient,
-			Delegate:       repos.Delegate,
-			Client:         repos.Client,
-		},
-		delegateClientUseCases.DelegateClientServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Delegate != nil {
+		result.Delegate = delegateUseCases.NewUseCases(
+			delegateUseCases.DelegateRepositories{Delegate: repos.Delegate},
+			delegateUseCases.DelegateServices(svc()),
+		)
+	}
 
-	groupUC := groupUseCases.NewUseCases(
-		groupUseCases.GroupRepositories{Group: repos.Group},
-		groupUseCases.GroupServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.DelegateAttribute != nil {
+		result.DelegateAttribute = delegateAttributeUseCases.NewUseCases(
+			delegateAttributeUseCases.DelegateAttributeRepositories{
+				DelegateAttribute: repos.DelegateAttribute,
+				Delegate:          repos.Delegate,
+				Attribute:         repos.Attribute,
+			},
+			delegateAttributeUseCases.DelegateAttributeServices(svc()),
+		)
+	}
 
-	groupAttributeUC := groupAttributeUseCases.NewUseCases(
-		groupAttributeUseCases.GroupAttributeRepositories{
-			GroupAttribute: repos.GroupAttribute,
-			Group:          repos.Group,
-			Attribute:      repos.Attribute,
-		},
-		groupAttributeUseCases.GroupAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.DelegateClient != nil {
+		result.DelegateClient = delegateClientUseCases.NewUseCases(
+			delegateClientUseCases.DelegateClientRepositories{
+				DelegateClient: repos.DelegateClient,
+				Delegate:       repos.Delegate,
+				Client:         repos.Client,
+			},
+			delegateClientUseCases.DelegateClientServices(svc()),
+		)
+	}
 
-	locationUC := locationUseCases.NewUseCases(
-		locationUseCases.LocationRepositories{Location: repos.Location},
-		locationUseCases.LocationServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Group != nil {
+		result.Group = groupUseCases.NewUseCases(
+			groupUseCases.GroupRepositories{Group: repos.Group},
+			groupUseCases.GroupServices(svc()),
+		)
+	}
 
-	locationAttributeUC := locationAttributeUseCases.NewUseCases(
-		locationAttributeUseCases.LocationAttributeRepositories{
-			LocationAttribute: repos.LocationAttribute,
-			Location:          repos.Location,
-			Attribute:         repos.Attribute,
-		},
-		locationAttributeUseCases.LocationAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.GroupAttribute != nil {
+		result.GroupAttribute = groupAttributeUseCases.NewUseCases(
+			groupAttributeUseCases.GroupAttributeRepositories{
+				GroupAttribute: repos.GroupAttribute,
+				Group:          repos.Group,
+				Attribute:      repos.Attribute,
+			},
+			groupAttributeUseCases.GroupAttributeServices(svc()),
+		)
+	}
 
-	permissionUC := permissionUseCases.NewUseCases(
-		permissionUseCases.PermissionRepositories{Permission: repos.Permission},
-		permissionUseCases.PermissionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Location != nil {
+		result.Location = locationUseCases.NewUseCases(
+			locationUseCases.LocationRepositories{Location: repos.Location},
+			locationUseCases.LocationServices(svc()),
+		)
+	}
 
-	roleUC := roleUseCases.NewUseCases(
-		roleUseCases.RoleRepositories{Role: repos.Role},
-		roleUseCases.RoleServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.LocationAttribute != nil {
+		result.LocationAttribute = locationAttributeUseCases.NewUseCases(
+			locationAttributeUseCases.LocationAttributeRepositories{
+				LocationAttribute: repos.LocationAttribute,
+				Location:          repos.Location,
+				Attribute:         repos.Attribute,
+			},
+			locationAttributeUseCases.LocationAttributeServices(svc()),
+		)
+	}
 
-	rolePermissionUC := rolePermissionUseCases.NewUseCases(
-		rolePermissionUseCases.RolePermissionRepositories{
-			RolePermission: repos.RolePermission,
-			Role:           repos.Role,
-			Permission:     repos.Permission,
-		},
-		rolePermissionUseCases.RolePermissionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Permission != nil {
+		result.Permission = permissionUseCases.NewUseCases(
+			permissionUseCases.PermissionRepositories{Permission: repos.Permission},
+			permissionUseCases.PermissionServices(svc()),
+		)
+	}
 
-	staffUC := staffUseCases.NewUseCases(
-		staffUseCases.StaffRepositories{Staff: repos.Staff},
-		staffUseCases.StaffServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Role != nil {
+		result.Role = roleUseCases.NewUseCases(
+			roleUseCases.RoleRepositories{Role: repos.Role},
+			roleUseCases.RoleServices(svc()),
+		)
+	}
 
-	staffAttributeUC := staffAttributeUseCases.NewUseCases(
-		staffAttributeUseCases.StaffAttributeRepositories{
-			StaffAttribute: repos.StaffAttribute,
-			Staff:          repos.Staff,
-			Attribute:      repos.Attribute,
-		},
-		staffAttributeUseCases.StaffAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.RolePermission != nil {
+		result.RolePermission = rolePermissionUseCases.NewUseCases(
+			rolePermissionUseCases.RolePermissionRepositories{
+				RolePermission: repos.RolePermission,
+				Role:           repos.Role,
+				Permission:     repos.Permission,
+			},
+			rolePermissionUseCases.RolePermissionServices(svc()),
+		)
+	}
 
-	userUC := userUseCases.NewUseCases(
-		userUseCases.UserRepositories{User: repos.User},
-		userUseCases.UserServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Staff != nil {
+		result.Staff = staffUseCases.NewUseCases(
+			staffUseCases.StaffRepositories{Staff: repos.Staff},
+			staffUseCases.StaffServices(svc()),
+		)
+	}
 
-	workspaceUC := workspaceUseCases.NewUseCases(
-		workspaceUseCases.WorkspaceRepositories{Workspace: repos.Workspace},
-		workspaceUseCases.WorkspaceServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.StaffAttribute != nil {
+		result.StaffAttribute = staffAttributeUseCases.NewUseCases(
+			staffAttributeUseCases.StaffAttributeRepositories{
+				StaffAttribute: repos.StaffAttribute,
+				Staff:          repos.Staff,
+				Attribute:      repos.Attribute,
+			},
+			staffAttributeUseCases.StaffAttributeServices(svc()),
+		)
+	}
 
-	workspaceUserUC := workspaceUserUseCases.NewUseCases(
-		workspaceUserUseCases.WorkspaceUserRepositories{
-			WorkspaceUser: repos.WorkspaceUser,
-			Workspace:     repos.Workspace,
-			User:          repos.User,
-		},
-		workspaceUserUseCases.WorkspaceUserServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.User != nil {
+		result.User = userUseCases.NewUseCases(
+			userUseCases.UserRepositories{User: repos.User},
+			userUseCases.UserServices(svc()),
+		)
+	}
 
-	workspaceUserRoleUC := workspaceUserRoleUseCases.NewUseCases(
-		workspaceUserRoleUseCases.WorkspaceUserRoleRepositories{
-			WorkspaceUserRole: repos.WorkspaceUserRole,
-			WorkspaceUser:     repos.WorkspaceUser,
-			Role:              repos.Role,
-		},
-		workspaceUserRoleUseCases.WorkspaceUserRoleServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-		},
-	)
+	if repos.Workspace != nil {
+		result.Workspace = workspaceUseCases.NewUseCases(
+			workspaceUseCases.WorkspaceRepositories{Workspace: repos.Workspace},
+			workspaceUseCases.WorkspaceServices(svc()),
+		)
+	}
 
-	// Note: Entity domain uses a different pattern - direct aggregation
-	// Return aggregated entity use cases
-	return &entity.EntityUseCases{
-		Admin:             adminUC,
-		Client:            clientUC,
-		ClientAttribute:   clientAttributeUC,
-		Delegate:          delegateUC,
-		DelegateAttribute: delegateAttributeUC,
-		DelegateClient:    delegateClientUC,
-		Group:             groupUC,
-		GroupAttribute:    groupAttributeUC,
-		Location:          locationUC,
-		LocationAttribute: locationAttributeUC,
-		Permission:        permissionUC,
-		Role:              roleUC,
-		RolePermission:    rolePermissionUC,
-		Staff:             staffUC,
-		StaffAttribute:    staffAttributeUC,
-		User:              userUC,
-		Workspace:         workspaceUC,
-		WorkspaceUser:     workspaceUserUC,
-		WorkspaceUserRole: workspaceUserRoleUC,
-	}, nil
+	if repos.WorkspaceUser != nil {
+		result.WorkspaceUser = workspaceUserUseCases.NewUseCases(
+			workspaceUserUseCases.WorkspaceUserRepositories{
+				WorkspaceUser: repos.WorkspaceUser,
+				Workspace:     repos.Workspace,
+				User:          repos.User,
+			},
+			workspaceUserUseCases.WorkspaceUserServices(svc()),
+		)
+	}
+
+	if repos.WorkspaceUserRole != nil {
+		result.WorkspaceUserRole = workspaceUserRoleUseCases.NewUseCases(
+			workspaceUserRoleUseCases.WorkspaceUserRoleRepositories{
+				WorkspaceUserRole: repos.WorkspaceUserRole,
+				WorkspaceUser:     repos.WorkspaceUser,
+				Role:              repos.Role,
+			},
+			workspaceUserRoleUseCases.WorkspaceUserRoleServices(svc()),
+		)
+	}
+
+	return result, nil
+}
+
+// entityServices is a type alias to reduce repetition in InitializeEntity.
+// All entity *Services structs share the same layout, so we can convert between them.
+type entityServices struct {
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
+	IDService            ports.IDService
 }

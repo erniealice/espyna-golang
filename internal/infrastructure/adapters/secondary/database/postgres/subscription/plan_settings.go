@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
@@ -259,7 +260,7 @@ func (r *PostgresPlanSettingsRepository) GetPlanSettingsListPageData(ctx context
 	limit, offset := int32(50), int32(0)
 	sortField, sortOrder := "date_created", "DESC"
 
-	query := `SELECT id, plan_id, name, description, active, date_created, date_created_string, date_modified, date_modified_string FROM plan_settings WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `SELECT id, plan_id, name, description, active, date_created, date_modified FROM plan_settings WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -269,28 +270,24 @@ func (r *PostgresPlanSettingsRepository) GetPlanSettingsListPageData(ctx context
 	for rows.Next() {
 		var id, planId, name, description string
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-		if err := rows.Scan(&id, &planId, &name, &description, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err != nil {
+		var dateCreated, dateModified time.Time
+		if err := rows.Scan(&id, &planId, &name, &description, &active, &dateCreated, &dateModified); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		// totalCount assignment removed - not needed for current protobuf schema
 planSettings := &plansettingspb.PlanSettings{Id: id, PlanId: planId, Name: name, Description: description, Active: active}
-		if dateCreatedString != nil {
-			planSettings.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			planSettings.DateModifiedString = dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-				planSettings.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-				planSettings.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		planSettings.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		planSettings.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		planSettings.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		planSettings.DateModifiedString = &dmStr
+	}
 		planSettingsList = append(planSettingsList, planSettings)
 	}
 	// totalPages calculation removed - not needed for current protobuf schema

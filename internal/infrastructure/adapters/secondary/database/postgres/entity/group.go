@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -269,9 +269,7 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 				g.description,
 				g.active,
 				g.date_created,
-				g.date_created_string,
-				g.date_modified,
-				g.date_modified_string
+				g.date_modified
 			FROM "group" g
 			WHERE g.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -304,10 +302,8 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 			name               string
 			description        *string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -317,9 +313,7 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 			&description,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -339,24 +333,20 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			group.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			group.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				group.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				group.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		group.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		group.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		group.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		group.DateModifiedString = &dmStr
+	}
 
 		groups = append(groups, group)
 	}
@@ -407,9 +397,7 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 			g.description,
 			g.active,
 			g.date_created,
-			g.date_created_string,
-			g.date_modified,
-			g.date_modified_string
+			g.date_modified
 		FROM "group" g
 		WHERE g.id = $1 AND g.active = true
 		LIMIT 1;
@@ -422,10 +410,8 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 		name               string
 		description        *string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -434,9 +420,7 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 		&description,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("group with ID '%s' not found", req.GroupId)
@@ -456,23 +440,19 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		group.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		group.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			group.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		group.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		group.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			group.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		group.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		group.DateModifiedString = &dmStr
 	}
 
 	return &grouppb.GetGroupItemPageDataResponse{

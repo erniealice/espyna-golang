@@ -5,12 +5,12 @@ package subscription
 import (
 	"context"
 	"database/sql"
+	"time"
 	"encoding/json"
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -241,7 +241,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 	}
 
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_created_string, date_modified, date_modified_string FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -253,28 +253,24 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		var id, planId, currency, name, description string
 		var amount float64
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-		if err := rows.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err != nil {
+		var dateCreated, dateModified time.Time
+		if err := rows.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
 		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: float64(amount), Currency: currency, Active: active}
-		if dateCreatedString != nil {
-			pricePlan.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			pricePlan.DateModifiedString = dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-				pricePlan.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-				pricePlan.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		pricePlan.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		pricePlan.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		pricePlan.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		pricePlan.DateModifiedString = &dmStr
+	}
 		pricePlans = append(pricePlans, pricePlan)
 	}
 	return &priceplanpb.GetPricePlanListPageDataResponse{PricePlanList: pricePlans, Success: true}, nil
@@ -286,33 +282,29 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	if req == nil || req.PricePlanId == "" {
 		return nil, fmt.Errorf("price plan ID required")
 	}
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_created_string, date_modified, date_modified_string FROM price_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified FROM price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
 	var id, planId, currency, name, description string
 	var amount float64
 	var active bool
-	var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-	if err := row.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err == sql.ErrNoRows {
+	var dateCreated, dateModified time.Time
+	if err := row.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: float64(amount), Currency: currency, Active: active}
-	if dateCreatedString != nil {
-		pricePlan.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		pricePlan.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		pricePlan.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		pricePlan.DateModifiedString = dateModifiedString
-	}
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-			pricePlan.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-			pricePlan.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		pricePlan.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		pricePlan.DateModifiedString = &dmStr
 	}
 	return &priceplanpb.GetPricePlanItemPageDataResponse{PricePlan: pricePlan, Success: true}, nil
 }

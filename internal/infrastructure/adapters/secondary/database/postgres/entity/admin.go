@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -293,18 +293,14 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 				a.user_id,
 				a.active,
 				a.date_created,
-				a.date_created_string,
 				a.date_modified,
-				a.date_modified_string,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.date_created as user_date_created,
-				u.date_created_string as user_date_created_string,
 				u.date_modified as user_date_modified,
-				u.date_modified_string as user_date_modified_string,
 				u.active as user_active
 			FROM admin a
 			LEFT JOIN "user" u ON a.user_id = u.id AND u.active = true
@@ -339,19 +335,15 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 			id                 string
 			userId             string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			// User fields
 			userIdValue              *string
 			userFirstName            *string
 			userLastName             *string
 			userEmailAddress         *string
-			userDateCreated          *string
-			userDateCreatedString    *string
-			userDateModified         *string
-			userDateModifiedString   *string
+			userDateCreated          time.Time
+			userDateModified         time.Time
 			userActive               *bool
 			total                    int64
 		)
@@ -361,17 +353,13 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 			&userId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
 			&userEmailAddress,
 			&userDateCreated,
-			&userDateCreatedString,
 			&userDateModified,
-			&userDateModifiedString,
 			&userActive,
 			&total,
 		)
@@ -388,24 +376,20 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 		}
 
 		// Handle nullable timestamp fields for admin
-		if dateCreatedString != nil {
-			admin.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			admin.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				admin.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				admin.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		admin.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		admin.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		admin.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		admin.DateModifiedString = &dmStr
+	}
 
 		// Populate user data if available
 		if userIdValue != nil {
@@ -423,24 +407,20 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 			if userEmailAddress != nil {
 				user.EmailAddress = *userEmailAddress
 			}
-			if userDateCreatedString != nil {
-				user.DateCreatedString = userDateCreatedString
-			}
-			if userDateModifiedString != nil {
-				user.DateModifiedString = userDateModifiedString
-			}
 
 			// Parse user timestamps
-			if userDateCreated != nil && *userDateCreated != "" {
-				if ts, err := operations.ParseTimestamp(*userDateCreated); err == nil {
-					user.DateCreated = &ts
-				}
-			}
-			if userDateModified != nil && *userDateModified != "" {
-				if ts, err := operations.ParseTimestamp(*userDateModified); err == nil {
-					user.DateModified = &ts
-				}
-			}
+			if !userDateCreated.IsZero() {
+			ts := userDateCreated.UnixMilli()
+			user.DateCreated = &ts
+			udcStr := userDateCreated.Format(time.RFC3339)
+			user.DateCreatedString = &udcStr
+		}
+			if !userDateModified.IsZero() {
+			ts := userDateModified.UnixMilli()
+			user.DateModified = &ts
+			udmStr := userDateModified.Format(time.RFC3339)
+			user.DateModifiedString = &udmStr
+		}
 
 			admin.User = user
 		}
@@ -494,18 +474,14 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 				a.user_id,
 				a.active,
 				a.date_created,
-				a.date_created_string,
 				a.date_modified,
-				a.date_modified_string,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.date_created as user_date_created,
-				u.date_created_string as user_date_created_string,
 				u.date_modified as user_date_modified,
-				u.date_modified_string as user_date_modified_string,
 				u.active as user_active
 			FROM admin a
 			LEFT JOIN "user" u ON a.user_id = u.id AND u.active = true
@@ -520,19 +496,15 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 		id                 string
 		userId             string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 		// User fields
 		userIdValue            *string
 		userFirstName          *string
 		userLastName           *string
 		userEmailAddress       *string
-		userDateCreated        *string
-		userDateCreatedString  *string
-		userDateModified       *string
-		userDateModifiedString *string
+		userDateCreated        time.Time
+		userDateModified       time.Time
 		userActive             *bool
 	)
 
@@ -541,17 +513,13 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 		&userId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
 		&userEmailAddress,
 		&userDateCreated,
-		&userDateCreatedString,
 		&userDateModified,
-		&userDateModifiedString,
 		&userActive,
 	)
 	if err == sql.ErrNoRows {
@@ -568,23 +536,19 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 	}
 
 	// Handle nullable timestamp fields for admin
-	if dateCreatedString != nil {
-		admin.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		admin.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			admin.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		admin.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		admin.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			admin.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		admin.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		admin.DateModifiedString = &dmStr
 	}
 
 	// Populate user data if available
@@ -603,23 +567,19 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 		if userEmailAddress != nil {
 			user.EmailAddress = *userEmailAddress
 		}
-		if userDateCreatedString != nil {
-			user.DateCreatedString = userDateCreatedString
-		}
-		if userDateModifiedString != nil {
-			user.DateModifiedString = userDateModifiedString
-		}
 
 		// Parse user timestamps
-		if userDateCreated != nil && *userDateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*userDateCreated); err == nil {
-				user.DateCreated = &ts
-			}
+		if !userDateCreated.IsZero() {
+			ts := userDateCreated.UnixMilli()
+			user.DateCreated = &ts
+			udcStr := userDateCreated.Format(time.RFC3339)
+			user.DateCreatedString = &udcStr
 		}
-		if userDateModified != nil && *userDateModified != "" {
-			if ts, err := operations.ParseTimestamp(*userDateModified); err == nil {
-				user.DateModified = &ts
-			}
+		if !userDateModified.IsZero() {
+			ts := userDateModified.UnixMilli()
+			user.DateModified = &ts
+			udmStr := userDateModified.Format(time.RFC3339)
+			user.DateModifiedString = &udmStr
 		}
 
 		admin.User = user

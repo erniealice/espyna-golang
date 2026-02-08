@@ -249,7 +249,7 @@ func (r *PostgresPriceProductRepository) GetPriceProductListPageData(
 	}
 
 	// CTE Query - Pricing pattern with amount/currency
-	query := `WITH enriched AS (SELECT id, product_id, amount, currency, active, date_created, date_created_string, date_modified, date_modified_string FROM price_product WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR product_id ILIKE $1 OR currency ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, product_id, amount, currency, active, date_created, date_modified FROM price_product WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR product_id ILIKE $1 OR currency ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -262,29 +262,25 @@ func (r *PostgresPriceProductRepository) GetPriceProductListPageData(
 		var id, productId, currency string
 		var amount int64
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
+		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &productId, &amount, &currency, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString, &total); err != nil {
+		if err := rows.Scan(&id, &productId, &amount, &currency, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
 		priceProduct := &priceproductpb.PriceProduct{Id: id, ProductId: productId, Amount: amount, Currency: currency, Active: active}
-		if dateCreatedString != nil {
-			priceProduct.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			priceProduct.DateModifiedString = dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := parsePriceProductTimestamp(*dateCreated); ts > 0 {
-				priceProduct.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := parsePriceProductTimestamp(*dateModified); ts > 0 {
-				priceProduct.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		priceProduct.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		priceProduct.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		priceProduct.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		priceProduct.DateModifiedString = &dmStr
+	}
 		priceProducts = append(priceProducts, priceProduct)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
@@ -296,33 +292,29 @@ func (r *PostgresPriceProductRepository) GetPriceProductItemPageData(ctx context
 	if req == nil || req.PriceProductId == "" {
 		return nil, fmt.Errorf("price product ID required")
 	}
-	query := `SELECT id, product_id, amount, currency, active, date_created, date_created_string, date_modified, date_modified_string FROM price_product WHERE id = $1 AND active = true`
+	query := `SELECT id, product_id, amount, currency, active, date_created, date_modified FROM price_product WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PriceProductId)
 	var id, productId, currency string
 	var amount int64
 	var active bool
-	var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-	if err := row.Scan(&id, &productId, &amount, &currency, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err == sql.ErrNoRows {
+	var dateCreated, dateModified time.Time
+	if err := row.Scan(&id, &productId, &amount, &currency, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price product not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	priceProduct := &priceproductpb.PriceProduct{Id: id, ProductId: productId, Amount: amount, Currency: currency, Active: active}
-	if dateCreatedString != nil {
-		priceProduct.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		priceProduct.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		priceProduct.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		priceProduct.DateModifiedString = dateModifiedString
-	}
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := parsePriceProductTimestamp(*dateCreated); ts > 0 {
-			priceProduct.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := parsePriceProductTimestamp(*dateModified); ts > 0 {
-			priceProduct.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		priceProduct.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		priceProduct.DateModifiedString = &dmStr
 	}
 	return &priceproductpb.GetPriceProductItemPageDataResponse{PriceProduct: priceProduct, Success: true}, nil
 }

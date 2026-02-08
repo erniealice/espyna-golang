@@ -5,12 +5,12 @@ package entity
 import (
 	"context"
 	"database/sql"
+	"time"
 	"encoding/json"
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -241,7 +241,7 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_created_string, date_modified, date_modified_string FROM delegate_client WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -252,29 +252,25 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 	for rows.Next() {
 		var id, delegateId, clientId string
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
+		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString, &total); err != nil {
+		if err := rows.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
 		delegateClient := &delegateclientpb.DelegateClient{Id: id, DelegateId: delegateId, ClientId: clientId, Active: active}
-		if dateCreatedString != nil {
-			delegateClient.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			delegateClient.DateModifiedString = dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-				delegateClient.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-				delegateClient.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		delegateClient.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		delegateClient.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		delegateClient.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		delegateClient.DateModifiedString = &dmStr
+	}
 		delegateClients = append(delegateClients, delegateClient)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
@@ -286,32 +282,28 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientItemPageData(ctx con
 	if req == nil || req.DelegateClientId == "" {
 		return nil, fmt.Errorf("delegate client ID required")
 	}
-	query := `SELECT id, delegate_id, client_id, active, date_created, date_created_string, date_modified, date_modified_string FROM delegate_client WHERE id = $1 AND active = true`
+	query := `SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.DelegateClientId)
 	var id, delegateId, clientId string
 	var active bool
-	var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-	if err := row.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err == sql.ErrNoRows {
+	var dateCreated, dateModified time.Time
+	if err := row.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("delegate client not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	delegateClient := &delegateclientpb.DelegateClient{Id: id, DelegateId: delegateId, ClientId: clientId, Active: active}
-	if dateCreatedString != nil {
-		delegateClient.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		delegateClient.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		delegateClient.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		delegateClient.DateModifiedString = dateModifiedString
-	}
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-			delegateClient.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-			delegateClient.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		delegateClient.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		delegateClient.DateModifiedString = &dmStr
 	}
 	return &delegateclientpb.GetDelegateClientItemPageDataResponse{DelegateClient: delegateClient, Success: true}, nil
 }

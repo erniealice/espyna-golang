@@ -45,41 +45,11 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 		return nil, model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)
 	}
 
-	// Set creation properties
-	now := time.Now().UTC()
-	if _, exists := data["id"]; !exists {
-		data["id"] = generateUUID()
-	}
-	data["active"] = true
-	data["date_created"] = now
-	data["date_created_string"] = now.Format(time.RFC3339)
-	data["date_modified"] = now
-	data["date_modified_string"] = now.Format(time.RFC3339)
+	// Normalize camelCase keys to snake_case (protojson compatibility)
+	data = normalizeKeys(data)
 
-	// Build INSERT query
-	columns := make([]string, 0, len(data))
-	placeholders := make([]string, 0, len(data))
-	values := make([]any, 0, len(data))
-
-	i := 1
-	for column, value := range data {
-		columns = append(columns, column)
-		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
-		values = append(values, value)
-		i++
-	}
-
-	query := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES (%s) RETURNING *",
-		tableName,
-		strings.Join(columns, ", "),
-		strings.Join(placeholders, ", "),
-	)
-
-	// Execute query
-	row := p.db.QueryRowContext(ctx, query, values...)
-
-	// Get column names for result mapping
+	// Get actual table columns so we can discard fields that don't exist in the DB
+	// (e.g. protobuf-only fields like date_created_string, date_modified_string)
 	resultColumns, err := p.getTableColumns(ctx, tableName)
 	if err != nil {
 		return nil, model.NewDatabaseError(
@@ -88,6 +58,45 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 			500,
 		)
 	}
+	validColumns := make(map[string]bool, len(resultColumns))
+	for _, col := range resultColumns {
+		validColumns[col] = true
+	}
+
+	// Set creation properties
+	now := time.Now().UTC()
+	if _, exists := data["id"]; !exists {
+		data["id"] = generateUUID()
+	}
+	data["active"] = true
+	data["date_created"] = now
+	data["date_modified"] = now
+
+	// Build INSERT query (only columns that exist in the table)
+	columns := make([]string, 0, len(data))
+	placeholders := make([]string, 0, len(data))
+	values := make([]any, 0, len(data))
+
+	i := 1
+	for column, value := range data {
+		if !validColumns[column] {
+			continue
+		}
+		columns = append(columns, column)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
+		values = append(values, value)
+		i++
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO \"%s\" (%s) VALUES (%s) RETURNING *",
+		tableName,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "),
+	)
+
+	// Execute query
+	row := p.db.QueryRowContext(ctx, query, values...)
 
 	// Scan result
 	result, err := p.scanRowToMap(row, resultColumns)
@@ -111,7 +120,7 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 		return nil, model.NewDatabaseError("record ID is required", "MISSING_RECORD_ID", 400)
 	}
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE id = $1 AND active = true", tableName)
+	query := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1 AND active = true", tableName)
 
 	row := p.db.QueryRowContext(ctx, query, id)
 
@@ -150,6 +159,23 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 		return nil, model.NewDatabaseError("record ID is required", "MISSING_RECORD_ID", 400)
 	}
 
+	// Normalize camelCase keys to snake_case (protojson compatibility)
+	data = normalizeKeys(data)
+
+	// Get actual table columns to discard protobuf-only fields
+	resultColumns, err := p.getTableColumns(ctx, tableName)
+	if err != nil {
+		return nil, model.NewDatabaseError(
+			fmt.Sprintf("failed to get table columns: %v", err),
+			"POSTGRES_SCHEMA_ERROR",
+			500,
+		)
+	}
+	validColumns := make(map[string]bool, len(resultColumns))
+	for _, col := range resultColumns {
+		validColumns[col] = true
+	}
+
 	// Check if record exists
 	existing, err := p.Read(ctx, tableName, id)
 	if err != nil {
@@ -159,28 +185,35 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	// Set update properties
 	now := time.Now().UTC()
 	data["date_modified"] = now
-	data["date_modified_string"] = now.Format(time.RFC3339)
 
-	// Preserve original creation data
-	data["date_created"] = existing["date_created"]
-	data["date_created_string"] = existing["date_created_string"]
+	// Preserve original creation data, converting millis back to time.Time
+	// (normalizeValue converts time.Time → int64 millis during Read, but
+	// Postgres needs time.Time for timestamp columns on write)
+	if dc := existing["date_created"]; dc != nil {
+		if millis, ok := dc.(int64); ok {
+			data["date_created"] = time.UnixMilli(millis).UTC()
+		} else {
+			data["date_created"] = dc
+		}
+	}
 
-	// Build UPDATE query
+	// Build UPDATE query (only columns that exist in the table)
 	setParts := make([]string, 0, len(data))
 	values := make([]any, 0, len(data)+1)
 
 	i := 1
 	for column, value := range data {
-		if column != "id" { // Don't update ID
-			setParts = append(setParts, fmt.Sprintf("%s = $%d", column, i))
-			values = append(values, value)
-			i++
+		if column == "id" || !validColumns[column] {
+			continue
 		}
+		setParts = append(setParts, fmt.Sprintf("%s = $%d", column, i))
+		values = append(values, value)
+		i++
 	}
 	values = append(values, id) // Add ID as last parameter
 
 	query := fmt.Sprintf(
-		"UPDATE %s SET %s WHERE id = $%d AND active = true RETURNING *",
+		"UPDATE \"%s\" SET %s WHERE id = $%d AND active = true RETURNING *",
 		tableName,
 		strings.Join(setParts, ", "),
 		i,
@@ -188,16 +221,6 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 
 	// Execute query
 	row := p.db.QueryRowContext(ctx, query, values...)
-
-	// Get column names
-	resultColumns, err := p.getTableColumns(ctx, tableName)
-	if err != nil {
-		return nil, model.NewDatabaseError(
-			fmt.Sprintf("failed to get table columns: %v", err),
-			"POSTGRES_SCHEMA_ERROR",
-			500,
-		)
-	}
 
 	// Scan result
 	result, err := p.scanRowToMap(row, resultColumns)
@@ -224,11 +247,11 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 	// Soft delete by setting active to false
 	now := time.Now().UTC()
 	query := fmt.Sprintf(
-		"UPDATE %s SET active = false, date_modified = $1, date_modified_string = $2 WHERE id = $3 AND active = true",
+		"UPDATE \"%s\" SET active = false, date_modified = $1 WHERE id = $2 AND active = true",
 		tableName,
 	)
 
-	result, err := p.db.ExecContext(ctx, query, now, now.Format(time.RFC3339), id)
+	result, err := p.db.ExecContext(ctx, query, now, id)
 	if err != nil {
 		return model.NewDatabaseError(
 			fmt.Sprintf("failed to delete record: %v", err),
@@ -262,7 +285,7 @@ func (p *PostgresOperations) HardDelete(ctx context.Context, tableName string, i
 		return model.NewDatabaseError("record ID is required", "MISSING_RECORD_ID", 400)
 	}
 
-	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", tableName)
+	query := fmt.Sprintf("DELETE FROM \"%s\" WHERE id = $1", tableName)
 
 	result, err := p.db.ExecContext(ctx, query, id)
 	if err != nil {
@@ -333,7 +356,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 
 	// Get total count before pagination
 	countQuery := fmt.Sprintf(
-		"SELECT COUNT(*) FROM %s WHERE %s",
+		"SELECT COUNT(*) FROM \"%s\" WHERE %s",
 		tableName,
 		strings.Join(whereConditions, " AND "),
 	)
@@ -365,7 +388,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 
 	// Build final query with pagination
 	query := fmt.Sprintf(
-		"SELECT * FROM %s WHERE %s %s LIMIT $%d OFFSET $%d",
+		"SELECT * FROM \"%s\" WHERE %s %s LIMIT $%d OFFSET $%d",
 		tableName,
 		strings.Join(whereConditions, " AND "),
 		orderByClause,
@@ -518,7 +541,7 @@ func (p *PostgresOperations) Query(ctx context.Context, tableName string, queryB
 	}
 
 	// Build the base query
-	query := fmt.Sprintf("SELECT * FROM %s", tableName)
+	query := fmt.Sprintf("SELECT * FROM \"%s\"", tableName)
 
 	// Add WHERE clause if we have conditions
 	if len(whereConditions) > 0 {
@@ -849,7 +872,7 @@ func (p *PostgresOperations) scanRowToMap(row *sql.Row, columns []string) (map[s
 
 	result := make(map[string]any)
 	for i, column := range columns {
-		result[column] = values[i]
+		result[column] = normalizeValue(values[i])
 	}
 
 	return result, nil
@@ -870,10 +893,25 @@ func (p *PostgresOperations) scanRowsToMap(rows *sql.Rows, columns []string) (ma
 
 	result := make(map[string]any)
 	for i, column := range columns {
-		result[column] = values[i]
+		result[column] = normalizeValue(values[i])
 	}
 
 	return result, nil
+}
+
+// normalizeValue converts DB-native types to protobuf-compatible types.
+// Specifically, time.Time (from TIMESTAMPTZ) → int64 Unix millis,
+// so protojson can unmarshal into int64 protobuf fields.
+func normalizeValue(v any) any {
+	switch t := v.(type) {
+	case time.Time:
+		if t.IsZero() {
+			return nil
+		}
+		return t.UnixMilli()
+	default:
+		return v
+	}
 }
 
 // generateUUID generates a simple UUID (simplified implementation)
@@ -918,4 +956,31 @@ func (p *PostgresOperations) WithTransaction(ctx context.Context, fn func(*sql.T
 // This is used for executing raw SQL queries in repository implementations
 func (p *PostgresOperations) GetDB() *sql.DB {
 	return p.db
+}
+
+// normalizeKeys converts all map keys from camelCase to snake_case.
+// This ensures protojson-marshaled data (camelCase) maps correctly to
+// PostgreSQL column names (snake_case).
+func normalizeKeys(data map[string]any) map[string]any {
+	result := make(map[string]any, len(data))
+	for key, value := range data {
+		result[camelToSnake(key)] = value
+	}
+	return result
+}
+
+// camelToSnake converts camelCase to snake_case.
+func camelToSnake(s string) string {
+	var result []rune
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result = append(result, '_')
+		}
+		if r >= 'A' && r <= 'Z' {
+			result = append(result, r-'A'+'a')
+		} else {
+			result = append(result, r)
+		}
+	}
+	return string(result)
 }

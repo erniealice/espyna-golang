@@ -260,18 +260,14 @@ func (r *PostgresPlanRepository) GetPlanListPageData(ctx context.Context, req *p
 						'plan_id', pl.plan_id,
 						'location_id', pl.location_id,
 						'date_created', pl.date_created,
-						'date_created_string', pl.date_created_string,
 						'date_modified', pl.date_modified,
-						'date_modified_string', pl.date_modified_string,
 						'active', pl.active,
 						'location', jsonb_build_object(
 							'id', l.id,
 							'name', l.name,
 							'address', l.address,
 							'date_created', l.date_created,
-							'date_created_string', l.date_created_string,
 							'date_modified', l.date_modified,
-							'date_modified_string', l.date_modified_string,
 							'active', l.active,
 							'description', l.description
 						)
@@ -301,9 +297,7 @@ func (r *PostgresPlanRepository) GetPlanListPageData(ctx context.Context, req *p
 				sf.description,
 				sf.active,
 				sf.date_created,
-				sf.date_created_string,
-				sf.date_modified,
-				sf.date_modified_string,
+				sf.date_modified
 				COALESCE(pla.plan_locations, ARRAY[]::jsonb[]) as plan_locations
 			FROM search_filtered sf
 			LEFT JOIN plan_locations_agg pla ON sf.id = pla.plan_id
@@ -333,9 +327,7 @@ func (r *PostgresPlanRepository) GetPlanListPageData(ctx context.Context, req *p
 			s.description,
 			s.active,
 			s.date_created,
-			s.date_created_string,
 			s.date_modified,
-			s.date_modified_string,
 			s.plan_locations,
 			tc.total as _total_count
 		FROM sorted s
@@ -385,9 +377,7 @@ func (r *PostgresPlanRepository) GetPlanListPageData(ctx context.Context, req *p
 			&description,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&planLocationsJSON,
 			&rowTotalCount,
 		)
@@ -485,18 +475,14 @@ func (r *PostgresPlanRepository) GetPlanItemPageData(ctx context.Context, req *p
 						'plan_id', pl.plan_id,
 						'location_id', pl.location_id,
 						'date_created', pl.date_created,
-						'date_created_string', pl.date_created_string,
 						'date_modified', pl.date_modified,
-						'date_modified_string', pl.date_modified_string,
 						'active', pl.active,
 						'location', jsonb_build_object(
 							'id', l.id,
 							'name', l.name,
 							'address', l.address,
 							'date_created', l.date_created,
-							'date_created_string', l.date_created_string,
 							'date_modified', l.date_modified,
-							'date_modified_string', l.date_modified_string,
 							'active', l.active,
 							'description', l.description
 						)
@@ -515,9 +501,7 @@ func (r *PostgresPlanRepository) GetPlanItemPageData(ctx context.Context, req *p
 			p.description,
 			p.active,
 			p.date_created,
-			p.date_created_string,
-			p.date_modified,
-			p.date_modified_string,
+			p.date_modified
 			COALESCE(pla.plan_locations, ARRAY[]::jsonb[]) as plan_locations
 		FROM plan p
 		LEFT JOIN plan_locations_agg pla ON p.id = pla.plan_id
@@ -549,9 +533,7 @@ func (r *PostgresPlanRepository) GetPlanItemPageData(ctx context.Context, req *p
 		&description,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&planLocationsJSON,
 	)
 	if err == sql.ErrNoRows {

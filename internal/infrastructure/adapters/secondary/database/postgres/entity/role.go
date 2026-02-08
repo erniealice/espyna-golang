@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -300,9 +300,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 				r.color,
 				r.active,
 				r.date_created,
-				r.date_created_string,
-				r.date_modified,
-				r.date_modified_string,
+				r.date_modified
 				COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions
 			FROM role r
 			LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
@@ -339,10 +337,8 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			description          string
 			color                string
 			active               bool
-			dateCreated          *string
-			dateCreatedString    *string
-			dateModified         *string
-			dateModifiedString   *string
+			dateCreated          time.Time
+			dateModified         time.Time
 			rolePermissionsJSON  []byte
 			total                int64
 		)
@@ -355,9 +351,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			&color,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&rolePermissionsJSON,
 			&total,
 		)
@@ -380,24 +374,20 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			role.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			role.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				role.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				role.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		role.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		role.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		role.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		role.DateModifiedString = &dmStr
+	}
 
 		// Parse role_permissions JSONB array
 		if len(rolePermissionsJSON) > 0 && string(rolePermissionsJSON) != "[]" {
@@ -490,9 +480,7 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 			r.color,
 			r.active,
 			r.date_created,
-			r.date_created_string,
-			r.date_modified,
-			r.date_modified_string,
+			r.date_modified
 			COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions
 		FROM role r
 		LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
@@ -509,10 +497,8 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 		description          string
 		color                string
 		active               bool
-		dateCreated          *string
-		dateCreatedString    *string
-		dateModified         *string
-		dateModifiedString   *string
+		dateCreated          time.Time
+		dateModified         time.Time
 		rolePermissionsJSON  []byte
 	)
 
@@ -524,9 +510,7 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 		&color,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&rolePermissionsJSON,
 	)
 	if err == sql.ErrNoRows {
@@ -549,23 +533,19 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		role.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		role.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			role.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		role.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		role.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			role.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		role.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		role.DateModifiedString = &dmStr
 	}
 
 	// Parse role_permissions JSONB array

@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -269,9 +269,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 				cc.description,
 				cc.active,
 				cc.date_created,
-				cc.date_created_string,
-				cc.date_modified,
-				cc.date_modified_string
+				cc.date_modified
 			FROM client_category cc
 			WHERE cc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -304,10 +302,8 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 			name               string
 			description        *string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -317,9 +313,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 			&description,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -342,24 +336,20 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			clientCategory.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			clientCategory.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				clientCategory.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				clientCategory.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		clientCategory.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		clientCategory.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		clientCategory.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		clientCategory.DateModifiedString = &dmStr
+	}
 
 		clientCategories = append(clientCategories, clientCategory)
 	}
@@ -410,9 +400,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 			cc.description,
 			cc.active,
 			cc.date_created,
-			cc.date_created_string,
-			cc.date_modified,
-			cc.date_modified_string
+			cc.date_modified
 		FROM client_category cc
 		WHERE cc.id = $1 AND cc.active = true
 		LIMIT 1;
@@ -425,10 +413,8 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 		name               string
 		description        *string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -437,9 +423,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 		&description,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("client_category with ID '%s' not found", req.ClientCategoryId)
@@ -462,23 +446,19 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		clientCategory.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		clientCategory.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			clientCategory.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		clientCategory.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		clientCategory.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			clientCategory.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		clientCategory.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		clientCategory.DateModifiedString = &dmStr
 	}
 
 	return &clientcategorypb.GetClientCategoryItemPageDataResponse{

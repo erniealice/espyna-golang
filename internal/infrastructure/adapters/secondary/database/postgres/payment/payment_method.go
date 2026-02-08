@@ -266,9 +266,7 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodListPageData(
 				pm.provider_name,
 				pm.active,
 				pm.date_created,
-				pm.date_created_string,
-				pm.date_modified,
-				pm.date_modified_string
+				pm.date_modified
 			FROM payment_method pm
 			WHERE pm.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -301,10 +299,8 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodListPageData(
 			name               string
 			providerName       *string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -314,9 +310,7 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodListPageData(
 			&providerName,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -336,24 +330,20 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			paymentMethod.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			paymentMethod.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := parsePaymentMethodTimestamp(*dateCreated); err == nil {
-				paymentMethod.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := parsePaymentMethodTimestamp(*dateModified); err == nil {
-				paymentMethod.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		paymentMethod.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		paymentMethod.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		paymentMethod.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		paymentMethod.DateModifiedString = &dmStr
+	}
 
 		paymentMethods = append(paymentMethods, paymentMethod)
 	}
@@ -404,9 +394,7 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodItemPageData(
 			pm.provider_name,
 			pm.active,
 			pm.date_created,
-			pm.date_created_string,
-			pm.date_modified,
-			pm.date_modified_string
+			pm.date_modified
 		FROM payment_method pm
 		WHERE pm.id = $1 AND pm.active = true
 		LIMIT 1;
@@ -419,10 +407,8 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodItemPageData(
 		name               string
 		providerName       *string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -431,9 +417,7 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodItemPageData(
 		&providerName,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("payment method with ID '%s' not found", req.PaymentMethodId)
@@ -453,23 +437,19 @@ func (r *PostgresPaymentMethodRepository) GetPaymentMethodItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		paymentMethod.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		paymentMethod.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := parsePaymentMethodTimestamp(*dateCreated); err == nil {
-			paymentMethod.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		paymentMethod.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		paymentMethod.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := parsePaymentMethodTimestamp(*dateModified); err == nil {
-			paymentMethod.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		paymentMethod.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		paymentMethod.DateModifiedString = &dmStr
 	}
 
 	return &paymentmethodpb.GetPaymentMethodItemPageDataResponse{

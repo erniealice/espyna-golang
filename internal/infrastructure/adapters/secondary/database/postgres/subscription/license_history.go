@@ -234,7 +234,6 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			s.license_status_before,
 			s.license_status_after,
 			s.date_created,
-			s.date_created_string,
 			s.active,
 			tc.total as _total_count
 		FROM sorted s
@@ -302,7 +301,6 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			&licenseStatusBefore,
 			&licenseStatusAfter,
 			&dateCreated,
-			&dateCreatedString,
 			&active,
 			&rowTotalCount,
 		)

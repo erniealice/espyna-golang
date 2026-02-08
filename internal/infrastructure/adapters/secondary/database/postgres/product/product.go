@@ -348,16 +348,14 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			SELECT
 				p.id,
 				p.date_created,
-				p.date_created_string,
 				p.date_modified,
-				p.date_modified_string,
 				p.active,
 				p.name,
 				p.description,
 				p.price,
-				p.currency,
-				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
-				COALESCE(pca.collections, '[]'::jsonb) as product_collections,
+				p.currency
+				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes
+				COALESCE(pca.collections, '[]'::jsonb) as product_collections
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
 			FROM product p
 			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
@@ -391,10 +389,8 @@ func (r *PostgresProductRepository) GetProductListPageData(
 	for rows.Next() {
 		var (
 			id                 string
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			active             bool
 			name               string
 			description        *string
@@ -409,9 +405,7 @@ func (r *PostgresProductRepository) GetProductListPageData(
 		err := rows.Scan(
 			&id,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&active,
 			&name,
 			&description,
@@ -442,24 +436,20 @@ func (r *PostgresProductRepository) GetProductListPageData(
 		}
 
 		// Handle date fields
-		if dateCreatedString != nil {
-			product.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			product.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := parseTimestamp(*dateCreated); err == nil {
-				product.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := parseTimestamp(*dateModified); err == nil {
-				product.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		product.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		product.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		product.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		product.DateModifiedString = &dmStr
+	}
 
 		// Note: The aggregated relationship data (productAttributes, productCollections, productPlans)
 		// is available in JSONB format but not directly mapped to the Product protobuf structure
@@ -557,16 +547,14 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 			SELECT
 				p.id,
 				p.date_created,
-				p.date_created_string,
 				p.date_modified,
-				p.date_modified_string,
 				p.active,
 				p.name,
 				p.description,
 				p.price,
-				p.currency,
-				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
-				COALESCE(pca.collections, '[]'::jsonb) as product_collections,
+				p.currency
+				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes
+				COALESCE(pca.collections, '[]'::jsonb) as product_collections
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
 			FROM product p
 			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
@@ -581,10 +569,8 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 
 	var (
 		id                 string
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 		active             bool
 		name               string
 		description        *string
@@ -598,9 +584,7 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 	err := row.Scan(
 		&id,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&active,
 		&name,
 		&description,
@@ -631,23 +615,19 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 	}
 
 	// Handle date fields
-	if dateCreatedString != nil {
-		product.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		product.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := parseTimestamp(*dateCreated); err == nil {
-			product.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		product.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		product.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := parseTimestamp(*dateModified); err == nil {
-			product.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		product.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		product.DateModifiedString = &dmStr
 	}
 
 	// Note: The aggregated relationship data (productAttributes, productCollections, productPlans)

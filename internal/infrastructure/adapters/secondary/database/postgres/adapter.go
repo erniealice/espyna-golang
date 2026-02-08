@@ -100,6 +100,8 @@ func buildPgTableConfig() *registry.DatabaseTableConfig {
 		Activity:         prefix + getPostgresTableEnv("ACTIVITY", "activity"),
 		StageTemplate:    prefix + getPostgresTableEnv("STAGE_TEMPLATE", "stage_template"),
 		ActivityTemplate: prefix + getPostgresTableEnv("ACTIVITY_TEMPLATE", "activity_template"),
+		// Session
+		Session: prefix + getPostgresTableEnv("SESSION", "session"),
 		// Subscription
 		Plan:                  prefix + getPostgresTableEnv("PLAN", "plan"),
 		PlanAttribute:         prefix + getPostgresTableEnv("PLAN_ATTRIBUTE", "plan_attribute"),

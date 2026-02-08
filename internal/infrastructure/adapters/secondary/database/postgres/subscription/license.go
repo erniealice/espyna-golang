@@ -291,9 +291,7 @@ func (r *PostgresLicenseRepository) GetLicenseListPageData(ctx context.Context, 
 			s.date_assigned_string,
 			s.sequence_number,
 			s.date_created,
-			s.date_created_string,
 			s.date_modified,
-			s.date_modified_string,
 			s.active,
 			tc.total as _total_count
 		FROM sorted s
@@ -371,9 +369,7 @@ func (r *PostgresLicenseRepository) GetLicenseListPageData(ctx context.Context, 
 			&dateAssignedString,
 			&sequenceNumber,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&active,
 			&rowTotalCount,
 		)
@@ -527,7 +523,6 @@ func (r *PostgresLicenseRepository) AssignLicense(ctx context.Context, req *lice
 	result["date_assigned_string"] = now.Format(time.RFC3339)
 	result["status"] = int32(licensepb.LicenseStatus_LICENSE_STATUS_ACTIVE)
 	result["date_modified"] = now.UnixMilli()
-	result["date_modified_string"] = now.Format(time.RFC3339)
 
 	// Update document
 	updatedResult, err := r.dbOps.Update(ctx, r.tableName, req.LicenseId, result)
@@ -574,7 +569,6 @@ func (r *PostgresLicenseRepository) RevokeLicenseAssignment(ctx context.Context,
 	delete(result, "date_assigned_string")
 	result["status"] = int32(licensepb.LicenseStatus_LICENSE_STATUS_REVOKED)
 	result["date_modified"] = now.UnixMilli()
-	result["date_modified_string"] = now.Format(time.RFC3339)
 
 	// Update document
 	updatedResult, err := r.dbOps.Update(ctx, r.tableName, req.LicenseId, result)
@@ -625,7 +619,6 @@ func (r *PostgresLicenseRepository) ReassignLicense(ctx context.Context, req *li
 	result["date_assigned"] = now.UnixMilli()
 	result["date_assigned_string"] = now.Format(time.RFC3339)
 	result["date_modified"] = now.UnixMilli()
-	result["date_modified_string"] = now.Format(time.RFC3339)
 
 	// Update document
 	updatedResult, err := r.dbOps.Update(ctx, r.tableName, req.LicenseId, result)
@@ -666,7 +659,6 @@ func (r *PostgresLicenseRepository) SuspendLicense(ctx context.Context, req *lic
 	now := time.Now()
 	result["status"] = int32(licensepb.LicenseStatus_LICENSE_STATUS_SUSPENDED)
 	result["date_modified"] = now.UnixMilli()
-	result["date_modified_string"] = now.Format(time.RFC3339)
 
 	// Update document
 	updatedResult, err := r.dbOps.Update(ctx, r.tableName, req.LicenseId, result)
@@ -707,7 +699,6 @@ func (r *PostgresLicenseRepository) ReactivateLicense(ctx context.Context, req *
 	now := time.Now()
 	result["status"] = int32(licensepb.LicenseStatus_LICENSE_STATUS_ACTIVE)
 	result["date_modified"] = now.UnixMilli()
-	result["date_modified_string"] = now.Format(time.RFC3339)
 
 	// Update document
 	updatedResult, err := r.dbOps.Update(ctx, r.tableName, req.LicenseId, result)
@@ -872,9 +863,7 @@ func (r *PostgresLicenseRepository) CreateLicensesFromPlan(ctx context.Context, 
 			"status":               int32(licensepb.LicenseStatus_LICENSE_STATUS_PENDING),
 			"sequence_number":      seqNum,
 			"date_created":         now.UnixMilli(),
-			"date_created_string":  now.Format(time.RFC3339),
 			"date_modified":        now.UnixMilli(),
-			"date_modified_string": now.Format(time.RFC3339),
 			"active":               true,
 		}
 

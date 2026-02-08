@@ -247,7 +247,7 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, product_id, collection_id, active, date_created, date_created_string, date_modified, date_modified_string FROM product_collection WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR product_id ILIKE $1 OR collection_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, product_id, collection_id, active, date_created, date_modified FROM product_collection WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR product_id ILIKE $1 OR collection_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -259,29 +259,25 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 	for rows.Next() {
 		var id, productId, collectionId string
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
+		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &productId, &collectionId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString, &total); err != nil {
+		if err := rows.Scan(&id, &productId, &collectionId, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
 		productCollection := &productcollectionpb.ProductCollection{Id: id, ProductId: productId, CollectionId: collectionId, Active: active}
-		if dateCreatedString != nil {
-			productCollection.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			productCollection.DateModifiedString = dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := parseProductCollectionTimestamp(*dateCreated); ts > 0 {
-				productCollection.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := parseProductCollectionTimestamp(*dateModified); ts > 0 {
-				productCollection.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		productCollection.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		productCollection.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		productCollection.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		productCollection.DateModifiedString = &dmStr
+	}
 		productCollections = append(productCollections, productCollection)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
@@ -293,32 +289,28 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionItemPageData(c
 	if req == nil || req.ProductCollectionId == "" {
 		return nil, fmt.Errorf("product collection ID required")
 	}
-	query := `SELECT id, product_id, collection_id, active, date_created, date_created_string, date_modified, date_modified_string FROM product_collection WHERE id = $1 AND active = true`
+	query := `SELECT id, product_id, collection_id, active, date_created, date_modified FROM product_collection WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductCollectionId)
 	var id, productId, collectionId string
 	var active bool
-	var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-	if err := row.Scan(&id, &productId, &collectionId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err == sql.ErrNoRows {
+	var dateCreated, dateModified time.Time
+	if err := row.Scan(&id, &productId, &collectionId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product collection not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	productCollection := &productcollectionpb.ProductCollection{Id: id, ProductId: productId, CollectionId: collectionId, Active: active}
-	if dateCreatedString != nil {
-		productCollection.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		productCollection.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		productCollection.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		productCollection.DateModifiedString = dateModifiedString
-	}
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := parseProductCollectionTimestamp(*dateCreated); ts > 0 {
-			productCollection.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := parseProductCollectionTimestamp(*dateModified); ts > 0 {
-			productCollection.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		productCollection.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		productCollection.DateModifiedString = &dmStr
 	}
 	return &productcollectionpb.GetProductCollectionItemPageDataResponse{ProductCollection: productCollection, Success: true}, nil
 }

@@ -145,10 +145,12 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace leapfor.xyz/copya => ../copya
+replace leapfor.xyz/entydad => ../entydad-golang-ryta
 
-replace leapfor.xyz/esqyma => ../esqyma
+replace leapfor.xyz/copya => ../../../master-monorepo-v2/packages/copya
 
-replace leapfor.xyz/lyngua => ../lyngua
+replace leapfor.xyz/esqyma => ../../../master-monorepo-v2/packages/esqyma
 
-replace leapfor.xyz/vya => ../vya
+replace leapfor.xyz/lyngua => ../../../master-monorepo-v2/packages/lyngua
+
+replace leapfor.xyz/vya => ../../../master-monorepo-v2/packages/vya

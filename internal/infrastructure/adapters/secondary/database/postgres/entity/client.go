@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,11 +11,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
 	clientpb "leapfor.xyz/esqyma/golang/v1/domain/entity/client"
+	userpb "leapfor.xyz/esqyma/golang/v1/domain/entity/user"
 )
 
 func init() {
@@ -258,7 +259,7 @@ func (r *DBClientRepository) Create(ctx context.Context, req *clientpb.CreateCli
 	err := r.db.QueryRowContext(ctx, query,
 		req.Data.UserId,
 		req.Data.Active,
-		req.Data.InternalId,
+		req.Data.InternalId
 	).Scan(&id, &dateCreated, &dateModified)
 
 	if err != nil {
@@ -339,15 +340,13 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				c.active,
 				c.internal_id,
 				c.date_created,
-				c.date_created_string,
 				c.date_modified,
-				c.date_modified_string,
 				-- User fields (1:1 relationship) - NO JSONB in domain model, direct fields
 				u.id as user_id_value,
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
-				u.phone_number as user_phone_number
+				u.mobile_number as user_phone_number
 			FROM client c
 			LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
 			WHERE c.active = true
@@ -383,10 +382,8 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			userId             string
 			active             bool
 			internalId         *string
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			// User fields
 			userIdValue       *string
 			userFirstName     *string
@@ -402,9 +399,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			&active,
 			&internalId,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
@@ -428,23 +423,28 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		if internalId != nil {
 			client.InternalId = *internalId
 		}
-		if dateCreatedString != nil {
-			client.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			client.DateModifiedString = dateModifiedString
+
+		// Populate joined user data
+		if userIdValue != nil {
+			client.User = &userpb.User{Id: deref(userIdValue)}
+			client.User.FirstName = deref(userFirstName)
+			client.User.LastName = deref(userLastName)
+			client.User.EmailAddress = deref(userEmailAddress)
+			client.User.MobileNumber = deref(userPhoneNumber)
 		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				client.DateCreated = &ts
-			}
+		if !dateCreated.IsZero() {
+			ts := dateCreated.UnixMilli()
+			client.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			client.DateCreatedString = &dcStr
 		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				client.DateModified = &ts
-			}
+		if !dateModified.IsZero() {
+			ts := dateModified.UnixMilli()
+			client.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			client.DateModifiedString = &dmStr
 		}
 
 		clients = append(clients, client)
@@ -497,15 +497,13 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 				c.active,
 				c.internal_id,
 				c.date_created,
-				c.date_created_string,
 				c.date_modified,
-				c.date_modified_string,
 				-- User fields (1:1 relationship) - NO JSONB in domain model, direct fields
 				u.id as user_id_value,
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
-				u.phone_number as user_phone_number
+				u.mobile_number as user_phone_number
 			FROM client c
 			LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
 			WHERE c.id = $1 AND c.active = true
@@ -520,10 +518,8 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		userId             string
 		active             bool
 		internalId         *string
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 		// User fields
 		userIdValue       *string
 		userFirstName     *string
@@ -538,9 +534,7 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		&active,
 		&internalId,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -564,23 +558,28 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	if internalId != nil {
 		client.InternalId = *internalId
 	}
-	if dateCreatedString != nil {
-		client.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		client.DateModifiedString = dateModifiedString
+
+	// Populate joined user data
+	if userIdValue != nil {
+		client.User = &userpb.User{Id: deref(userIdValue)}
+		client.User.FirstName = deref(userFirstName)
+		client.User.LastName = deref(userLastName)
+		client.User.EmailAddress = deref(userEmailAddress)
+		client.User.MobileNumber = deref(userPhoneNumber)
 	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			client.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		client.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		client.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			client.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		client.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		client.DateModifiedString = &dmStr
 	}
 
 	return &clientpb.GetClientItemPageDataResponse{
@@ -589,6 +588,14 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	}, nil
 }
 
+
+// deref safely dereferences a *string, returning "" if nil.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
 
 // NewClientRepository creates a new PostgreSQL client repository (old-style constructor)
 func NewClientRepository(db *sql.DB, tableName string) clientpb.ClientDomainServiceServer {

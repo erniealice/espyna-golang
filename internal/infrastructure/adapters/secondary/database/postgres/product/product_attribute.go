@@ -265,9 +265,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 				pa.attribute_id,
 				pa.value,
 				pa.date_created,
-				pa.date_created_string,
-				pa.date_modified,
-				pa.date_modified_string
+				pa.date_modified
 			FROM product_attribute pa
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       pa.product_id ILIKE $1 OR
@@ -300,10 +298,8 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 			productId          string
 			attributeId        string
 			value              string
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -313,9 +309,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 			&attributeId,
 			&value,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
@@ -330,23 +324,18 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 			Value:       value,
 		}
 
-		if dateCreatedString != nil {
-			productAttribute.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			productAttribute.DateModifiedString = dateModifiedString
-		}
-
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := parseProductAttributeTimestamp(*dateCreated); ts > 0 {
-				productAttribute.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := parseProductAttributeTimestamp(*dateModified); ts > 0 {
-				productAttribute.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		productAttribute.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		productAttribute.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		productAttribute.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		productAttribute.DateModifiedString = &dmStr
+	}
 
 		productAttributes = append(productAttributes, productAttribute)
 	}
@@ -393,9 +382,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeItemPageData(
 			pa.attribute_id,
 			pa.value,
 			pa.date_created,
-			pa.date_created_string,
-			pa.date_modified,
-			pa.date_modified_string
+			pa.date_modified
 		FROM product_attribute pa
 		WHERE pa.id = $1
 		LIMIT 1;
@@ -408,10 +395,8 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeItemPageData(
 		productId          string
 		attributeId        string
 		value              string
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	if err := row.Scan(
@@ -420,9 +405,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeItemPageData(
 		&attributeId,
 		&value,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product attribute not found")
 	} else if err != nil {
@@ -436,22 +419,17 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeItemPageData(
 		Value:       value,
 	}
 
-	if dateCreatedString != nil {
-		productAttribute.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		productAttribute.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		productAttribute.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		productAttribute.DateModifiedString = dateModifiedString
-	}
-
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := parseProductAttributeTimestamp(*dateCreated); ts > 0 {
-			productAttribute.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := parseProductAttributeTimestamp(*dateModified); ts > 0 {
-			productAttribute.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		productAttribute.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		productAttribute.DateModifiedString = &dmStr
 	}
 
 	return &productattributepb.GetProductAttributeItemPageDataResponse{

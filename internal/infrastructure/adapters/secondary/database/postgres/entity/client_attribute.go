@@ -7,10 +7,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -241,7 +241,7 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx c
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, client_id, key, value, active, date_created, date_created_string, date_modified, date_modified_string FROM client_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR key ILIKE $1 OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, client_id, key, value, active, date_created, date_modified FROM client_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR key ILIKE $1 OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -253,9 +253,9 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx c
 		var rawData map[string]interface{}
 		var id, clientId, attributeKey, attributeValue string
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
+		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &clientId, &attributeKey, &attributeValue, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString, &total); err != nil {
+		if err := rows.Scan(&id, &clientId, &attributeKey, &attributeValue, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
@@ -268,22 +268,16 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx c
 			"value":    attributeValue,
 			"active":   active,
 		}
-		if dateCreatedString != nil {
-			rawData["dateCreatedString"] = *dateCreatedString
-		}
-		if dateModifiedString != nil {
-			rawData["dateModifiedString"] = *dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-				rawData["dateCreated"] = ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-				rawData["dateModified"] = ts
-			}
-		}
+		
+		
+		if !dateCreated.IsZero() {
+		rawData["dateCreated"] = dateCreated.UnixMilli()
+		rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
+	}
+		if !dateModified.IsZero() {
+		rawData["dateModified"] = dateModified.UnixMilli()
+		rawData["dateModifiedString"] = dateModified.Format(time.RFC3339)
+	}
 
 		// Convert to protobuf
 		dataJSON, _ := json.Marshal(rawData)
@@ -301,12 +295,12 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeItemPageData(ctx c
 	if req == nil || req.ClientAttributeId == "" {
 		return nil, fmt.Errorf("client attribute ID required")
 	}
-	query := `SELECT id, client_id, key, value, active, date_created, date_created_string, date_modified, date_modified_string FROM client_attribute WHERE id = $1 AND active = true`
+	query := `SELECT id, client_id, key, value, active, date_created, date_modified FROM client_attribute WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ClientAttributeId)
 	var id, clientId, attributeKey, attributeValue string
 	var active bool
-	var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-	if err := row.Scan(&id, &clientId, &attributeKey, &attributeValue, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err == sql.ErrNoRows {
+	var dateCreated, dateModified time.Time
+	if err := row.Scan(&id, &clientId, &attributeKey, &attributeValue, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("client attribute not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -320,21 +314,15 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeItemPageData(ctx c
 		"value":    attributeValue,
 		"active":   active,
 	}
-	if dateCreatedString != nil {
-		rawData["dateCreatedString"] = *dateCreatedString
+	
+	
+	if !dateCreated.IsZero() {
+		rawData["dateCreated"] = dateCreated.UnixMilli()
+		rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
 	}
-	if dateModifiedString != nil {
-		rawData["dateModifiedString"] = *dateModifiedString
-	}
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := operations.ParseTimestamp(*dateCreated); ts > 0 {
-			rawData["dateCreated"] = ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := operations.ParseTimestamp(*dateModified); ts > 0 {
-			rawData["dateModified"] = ts
-		}
+	if !dateModified.IsZero() {
+		rawData["dateModified"] = dateModified.UnixMilli()
+		rawData["dateModifiedString"] = dateModified.Format(time.RFC3339)
 	}
 
 	// Convert to protobuf

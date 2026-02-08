@@ -247,7 +247,7 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, name, description, price, currency, product_id, active, date_created, date_created_string, date_modified, date_modified_string FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1 OR currency ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, name, description, price, currency, product_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1 OR currency ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -261,9 +261,9 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		var description *string
 		var price float64
 		var active bool
-		var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
+		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &name, &description, &price, &currency, &productId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString, &total); err != nil {
+		if err := rows.Scan(&id, &name, &description, &price, &currency, &productId, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
@@ -271,22 +271,18 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		if description != nil {
 			productPlan.Description = description
 		}
-		if dateCreatedString != nil {
-			productPlan.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			productPlan.DateModifiedString = dateModifiedString
-		}
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := parseProductPlanTimestamp(*dateCreated); ts > 0 {
-				productPlan.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := parseProductPlanTimestamp(*dateModified); ts > 0 {
-				productPlan.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		productPlan.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		productPlan.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		productPlan.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		productPlan.DateModifiedString = &dmStr
+	}
 		productPlans = append(productPlans, productPlan)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
@@ -298,14 +294,14 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	if req == nil || req.ProductPlanId == "" {
 		return nil, fmt.Errorf("product plan ID required")
 	}
-	query := `SELECT id, name, description, price, currency, product_id, active, date_created, date_created_string, date_modified, date_modified_string FROM product_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, price, currency, product_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPlanId)
 	var id, name, productId, currency string
 	var description *string
 	var price float64
 	var active bool
-	var dateCreated, dateCreatedString, dateModified, dateModifiedString *string
-	if err := row.Scan(&id, &name, &description, &price, &currency, &productId, &active, &dateCreated, &dateCreatedString, &dateModified, &dateModifiedString); err == sql.ErrNoRows {
+	var dateCreated, dateModified time.Time
+	if err := row.Scan(&id, &name, &description, &price, &currency, &productId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -314,21 +310,17 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	if description != nil {
 		productPlan.Description = description
 	}
-	if dateCreatedString != nil {
-		productPlan.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		productPlan.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		productPlan.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		productPlan.DateModifiedString = dateModifiedString
-	}
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := parseProductPlanTimestamp(*dateCreated); ts > 0 {
-			productPlan.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := parseProductPlanTimestamp(*dateModified); ts > 0 {
-			productPlan.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		productPlan.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		productPlan.DateModifiedString = &dmStr
 	}
 	return &productplanpb.GetProductPlanItemPageDataResponse{ProductPlan: productPlan, Success: true}, nil
 }

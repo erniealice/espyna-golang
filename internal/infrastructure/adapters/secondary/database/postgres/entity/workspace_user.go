@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -337,9 +337,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 							'active', r.active
 						),
 						'date_created', EXTRACT(EPOCH FROM wur.date_created) * 1000,
-						'date_created_string', wur.date_created_string,
 						'date_modified', EXTRACT(EPOCH FROM wur.date_modified) * 1000,
-						'date_modified_string', wur.date_modified_string,
 						'active', wur.active
 					)
 				) as roles
@@ -355,9 +353,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 				wu.user_id,
 				wu.active,
 				wu.date_created,
-				wu.date_created_string,
 				wu.date_modified,
-				wu.date_modified_string,
 				-- User fields (1:1 relationship) - Direct fields for protobuf mapping
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -403,10 +399,8 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			workspaceId        string
 			userId             string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			// User fields
 			userIdValue      *string
 			userFirstName    *string
@@ -425,9 +419,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			&userId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
@@ -451,24 +443,20 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			workspaceUser.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			workspaceUser.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				workspaceUser.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				workspaceUser.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		workspaceUser.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		workspaceUser.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		workspaceUser.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		workspaceUser.DateModifiedString = &dmStr
+	}
 
 		// Parse workspace_user_roles JSONB array
 		if len(workspaceUserRolesJSON) > 0 {
@@ -552,9 +540,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 							'active', r.active
 						),
 						'date_created', EXTRACT(EPOCH FROM wur.date_created) * 1000,
-						'date_created_string', wur.date_created_string,
 						'date_modified', EXTRACT(EPOCH FROM wur.date_modified) * 1000,
-						'date_modified_string', wur.date_modified_string,
 						'active', wur.active
 					)
 				) as roles
@@ -570,9 +556,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 				wu.user_id,
 				wu.active,
 				wu.date_created,
-				wu.date_created_string,
 				wu.date_modified,
-				wu.date_modified_string,
 				-- User fields (1:1 relationship) - Direct fields for protobuf mapping
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -597,10 +581,8 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 		workspaceId        string
 		userId             string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 		// User fields
 		userIdValue      *string
 		userFirstName    *string
@@ -618,9 +600,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 		&userId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -644,23 +624,19 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		workspaceUser.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		workspaceUser.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			workspaceUser.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		workspaceUser.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		workspaceUser.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			workspaceUser.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		workspaceUser.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		workspaceUser.DateModifiedString = &dmStr
 	}
 
 	// Parse workspace_user_roles JSONB array

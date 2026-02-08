@@ -264,9 +264,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 				cp.plan_id,
 				cp.active,
 				cp.date_created,
-				cp.date_created_string,
-				cp.date_modified,
-				cp.date_modified_string
+				cp.date_modified
 			FROM collection_plan cp
 			WHERE cp.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -299,10 +297,8 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 			collectionId       string
 			planId             string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -312,9 +308,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 			&planId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
@@ -329,23 +323,18 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 			Active:       active,
 		}
 
-		if dateCreatedString != nil {
-			collectionPlan.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			collectionPlan.DateModifiedString = dateModifiedString
-		}
-
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, _ := parseCollectionPlanTimestamp(*dateCreated); ts > 0 {
-				collectionPlan.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, _ := parseCollectionPlanTimestamp(*dateModified); ts > 0 {
-				collectionPlan.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		collectionPlan.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		collectionPlan.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		collectionPlan.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		collectionPlan.DateModifiedString = &dmStr
+	}
 
 		collectionPlans = append(collectionPlans, collectionPlan)
 	}
@@ -392,9 +381,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanItemPageData(
 			cp.plan_id,
 			cp.active,
 			cp.date_created,
-			cp.date_created_string,
-			cp.date_modified,
-			cp.date_modified_string
+			cp.date_modified
 		FROM collection_plan cp
 		WHERE cp.id = $1 AND cp.active = true
 		LIMIT 1;
@@ -407,10 +394,8 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanItemPageData(
 		collectionId       string
 		planId             string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	if err := row.Scan(
@@ -419,9 +404,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanItemPageData(
 		&planId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("collection plan not found")
 	} else if err != nil {
@@ -435,22 +418,17 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanItemPageData(
 		Active:       active,
 	}
 
-	if dateCreatedString != nil {
-		collectionPlan.DateCreatedString = dateCreatedString
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		collectionPlan.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		collectionPlan.DateCreatedString = &dcStr
 	}
-	if dateModifiedString != nil {
-		collectionPlan.DateModifiedString = dateModifiedString
-	}
-
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, _ := parseCollectionPlanTimestamp(*dateCreated); ts > 0 {
-			collectionPlan.DateCreated = &ts
-		}
-	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, _ := parseCollectionPlanTimestamp(*dateModified); ts > 0 {
-			collectionPlan.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		collectionPlan.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		collectionPlan.DateModifiedString = &dmStr
 	}
 
 	return &collectionplanpb.GetCollectionPlanItemPageDataResponse{

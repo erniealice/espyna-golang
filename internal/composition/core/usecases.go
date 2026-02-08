@@ -146,8 +146,7 @@ func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*
 
 	repos, err := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
-		fmt.Printf("⚠️  Entity repositories not yet implemented: %v\n", err)
-		fmt.Printf("📋 Entity domain includes: Admin, Client, ClientAttribute, Delegate, DelegateClient, Group, Location, LocationAttribute, Permission, Role, RolePermission, Staff, User, Workspace, WorkspaceUser, WorkspaceUserRole\n")
+		fmt.Printf("⚠️  Entity database provider not available: %v\n", err)
 		// Don't return error - return empty struct for graceful degradation
 		return &entity.EntityUseCases{}, nil
 	}

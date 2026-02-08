@@ -274,18 +274,14 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				sf.date_end_string,
 				sf.active,
 				sf.date_created,
-				sf.date_created_string,
 				sf.date_modified,
-				sf.date_modified_string,
 				jsonb_build_object(
 					'id', c.id,
 					'user_id', c.user_id,
 					'internal_id', c.internal_id,
 					'active', c.active,
 					'date_created', c.date_created,
-					'date_created_string', c.date_created_string,
 					'date_modified', c.date_modified,
-					'date_modified_string', c.date_modified_string,
 					'user', jsonb_build_object(
 						'id', u.id,
 						'first_name', u.first_name,
@@ -293,9 +289,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 						'email_address', u.email_address,
 						'active', u.active,
 						'date_created', u.date_created,
-						'date_created_string', u.date_created_string,
-						'date_modified', u.date_modified,
-						'date_modified_string', u.date_modified_string
+						'date_modified', u.date_modified
 					)
 				) as client,
 				jsonb_build_object(
@@ -304,9 +298,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					'description', pp.description,
 					'active', pp.active,
 					'date_created', pp.date_created,
-					'date_created_string', pp.date_created_string,
-					'date_modified', pp.date_modified,
-					'date_modified_string', pp.date_modified_string
+					'date_modified', pp.date_modified
 				) as price_plan
 			FROM search_filtered sf
 			LEFT JOIN client c ON sf.client_id = c.id AND c.active = true
@@ -345,9 +337,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			s.date_end_string,
 			s.active,
 			s.date_created,
-			s.date_created_string,
 			s.date_modified,
-			s.date_modified_string,
 			s.client,
 			s.price_plan,
 			tc.total as _total_count
@@ -409,9 +399,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			&dateEndString,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&clientJSON,
 			&pricePlanJSON,
 			&rowTotalCount,
@@ -532,18 +520,14 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 			s.date_end_string,
 			s.active,
 			s.date_created,
-			s.date_created_string,
 			s.date_modified,
-			s.date_modified_string,
 			jsonb_build_object(
 				'id', c.id,
 				'user_id', c.user_id,
 				'internal_id', c.internal_id,
 				'active', c.active,
 				'date_created', c.date_created,
-				'date_created_string', c.date_created_string,
 				'date_modified', c.date_modified,
-				'date_modified_string', c.date_modified_string,
 				'user', jsonb_build_object(
 					'id', u.id,
 					'first_name', u.first_name,
@@ -551,9 +535,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 					'email_address', u.email_address,
 					'active', u.active,
 					'date_created', u.date_created,
-					'date_created_string', u.date_created_string,
-					'date_modified', u.date_modified,
-					'date_modified_string', u.date_modified_string
+					'date_modified', u.date_modified
 				)
 			) as client,
 			jsonb_build_object(
@@ -562,9 +544,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 				'description', pp.description,
 				'active', pp.active,
 				'date_created', pp.date_created,
-				'date_created_string', pp.date_created_string,
-				'date_modified', pp.date_modified,
-				'date_modified_string', pp.date_modified_string
+				'date_modified', pp.date_modified
 			) as price_plan
 		FROM subscription s
 		LEFT JOIN client c ON s.client_id = c.id AND c.active = true
@@ -609,9 +589,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		&dateEndString,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&clientJSON,
 		&pricePlanJSON,
 	)

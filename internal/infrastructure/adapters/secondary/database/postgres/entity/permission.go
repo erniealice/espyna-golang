@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -269,9 +269,7 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 				p.description,
 				p.active,
 				p.date_created,
-				p.date_created_string,
-				p.date_modified,
-				p.date_modified_string
+				p.date_modified
 			FROM permission p
 			WHERE p.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -304,10 +302,8 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 			name               string
 			description        *string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -317,9 +313,7 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 			&description,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -337,24 +331,20 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 		// It has permission_code instead. If needed, map name to permission_code
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			permission.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			permission.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				permission.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				permission.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		permission.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		permission.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		permission.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		permission.DateModifiedString = &dmStr
+	}
 
 		permissions = append(permissions, permission)
 	}
@@ -405,9 +395,7 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 			p.description,
 			p.active,
 			p.date_created,
-			p.date_created_string,
-			p.date_modified,
-			p.date_modified_string
+			p.date_modified
 		FROM permission p
 		WHERE p.id = $1 AND p.active = true
 		LIMIT 1;
@@ -420,10 +408,8 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 		name               string
 		description        *string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -432,9 +418,7 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 		&description,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("permission with ID '%s' not found", req.PermissionId)
@@ -452,23 +436,19 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 	// It has permission_code instead. Consider mapping name to permission_code if needed
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		permission.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		permission.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			permission.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		permission.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		permission.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			permission.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		permission.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		permission.DateModifiedString = &dmStr
 	}
 
 	return &permissionpb.GetPermissionItemPageDataResponse{

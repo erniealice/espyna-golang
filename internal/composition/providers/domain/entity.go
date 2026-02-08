@@ -58,7 +58,9 @@ type EntityRepositories struct {
 	Attribute attributepb.AttributeDomainServiceServer
 }
 
-// NewEntityRepositories creates and returns a new set of EntityRepositories
+// NewEntityRepositories creates and returns a new set of EntityRepositories.
+// Individual repository failures are logged but do not prevent other repositories
+// from being created (graceful degradation per-repository).
 func NewEntityRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*EntityRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
@@ -70,135 +72,88 @@ func NewEntityRepositories(dbProvider contracts.Provider, dbTableConfig *registr
 	}
 
 	conn := repoCreator.GetConnection()
+	repos := &EntityRepositories{}
+	var skipped []string
 
-	// Create each repository individually using configured table names directly from dbTableConfig
-	adminRepo, err := repoCreator.CreateRepository("admin", conn, dbTableConfig.Admin)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create admin repository: %w", err)
+	// Helper: try to create a repository, log and skip on failure
+	tryCreate := func(name string, tableName string) interface{} {
+		repo, err := repoCreator.CreateRepository(name, conn, tableName)
+		if err != nil {
+			skipped = append(skipped, name)
+			return nil
+		}
+		return repo
 	}
 
-	clientRepo, err := repoCreator.CreateRepository("client", conn, dbTableConfig.Client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client repository: %w", err)
+	// Create each repository individually — failures are non-fatal
+	if r := tryCreate("admin", dbTableConfig.Admin); r != nil {
+		repos.Admin = r.(adminpb.AdminDomainServiceServer)
 	}
-
-	clientAttributeRepo, err := repoCreator.CreateRepository("client_attribute", conn, dbTableConfig.ClientAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client_attribute repository: %w", err)
+	if r := tryCreate("client", dbTableConfig.Client); r != nil {
+		repos.Client = r.(clientpb.ClientDomainServiceServer)
 	}
-
-	clientCategoryRepo, err := repoCreator.CreateRepository("client_category", conn, dbTableConfig.ClientCategory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client_category repository: %w", err)
+	if r := tryCreate("client_attribute", dbTableConfig.ClientAttribute); r != nil {
+		repos.ClientAttribute = r.(clientattributepb.ClientAttributeDomainServiceServer)
 	}
-
-	delegateRepo, err := repoCreator.CreateRepository("delegate", conn, dbTableConfig.Delegate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create delegate repository: %w", err)
+	if r := tryCreate("client_category", dbTableConfig.ClientCategory); r != nil {
+		repos.ClientCategory = r.(clientcategorypb.ClientCategoryDomainServiceServer)
 	}
-
-	delegateAttributeRepo, err := repoCreator.CreateRepository("delegate_attribute", conn, dbTableConfig.DelegateAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create delegate_attribute repository: %w", err)
+	if r := tryCreate("delegate", dbTableConfig.Delegate); r != nil {
+		repos.Delegate = r.(delegatepb.DelegateDomainServiceServer)
 	}
-
-	delegateClientRepo, err := repoCreator.CreateRepository("delegate_client", conn, dbTableConfig.DelegateClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create delegate_client repository: %w", err)
+	if r := tryCreate("delegate_attribute", dbTableConfig.DelegateAttribute); r != nil {
+		repos.DelegateAttribute = r.(delegateattributepb.DelegateAttributeDomainServiceServer)
 	}
-
-	groupRepo, err := repoCreator.CreateRepository("group", conn, dbTableConfig.Group)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create group repository: %w", err)
+	if r := tryCreate("delegate_client", dbTableConfig.DelegateClient); r != nil {
+		repos.DelegateClient = r.(delegateclientpb.DelegateClientDomainServiceServer)
 	}
-
-	groupAttributeRepo, err := repoCreator.CreateRepository("group_attribute", conn, dbTableConfig.GroupAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create group_attribute repository: %w", err)
+	if r := tryCreate("group", dbTableConfig.Group); r != nil {
+		repos.Group = r.(grouppb.GroupDomainServiceServer)
 	}
-
-	locationRepo, err := repoCreator.CreateRepository("location", conn, dbTableConfig.Location)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create location repository: %w", err)
+	if r := tryCreate("group_attribute", dbTableConfig.GroupAttribute); r != nil {
+		repos.GroupAttribute = r.(groupattributepb.GroupAttributeDomainServiceServer)
 	}
-
-	locationAttributeRepo, err := repoCreator.CreateRepository("location_attribute", conn, dbTableConfig.LocationAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create location_attribute repository: %w", err)
+	if r := tryCreate("location", dbTableConfig.Location); r != nil {
+		repos.Location = r.(locationpb.LocationDomainServiceServer)
 	}
-
-	permissionRepo, err := repoCreator.CreateRepository("permission", conn, dbTableConfig.Permission)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create permission repository: %w", err)
+	if r := tryCreate("location_attribute", dbTableConfig.LocationAttribute); r != nil {
+		repos.LocationAttribute = r.(locationattributepb.LocationAttributeDomainServiceServer)
 	}
-
-	roleRepo, err := repoCreator.CreateRepository("role", conn, dbTableConfig.Role)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create role repository: %w", err)
+	if r := tryCreate("permission", dbTableConfig.Permission); r != nil {
+		repos.Permission = r.(permissionpb.PermissionDomainServiceServer)
 	}
-
-	rolePermissionRepo, err := repoCreator.CreateRepository("role_permission", conn, dbTableConfig.RolePermission)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create role_permission repository: %w", err)
+	if r := tryCreate("role", dbTableConfig.Role); r != nil {
+		repos.Role = r.(rolepb.RoleDomainServiceServer)
 	}
-
-	staffRepo, err := repoCreator.CreateRepository("staff", conn, dbTableConfig.Staff)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create staff repository: %w", err)
+	if r := tryCreate("role_permission", dbTableConfig.RolePermission); r != nil {
+		repos.RolePermission = r.(rolepermissionpb.RolePermissionDomainServiceServer)
 	}
-
-	staffAttributeRepo, err := repoCreator.CreateRepository("staff_attribute", conn, dbTableConfig.StaffAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create staff_attribute repository: %w", err)
+	if r := tryCreate("staff", dbTableConfig.Staff); r != nil {
+		repos.Staff = r.(staffpb.StaffDomainServiceServer)
 	}
-
-	userRepo, err := repoCreator.CreateRepository("user", conn, dbTableConfig.User)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user repository: %w", err)
+	if r := tryCreate("staff_attribute", dbTableConfig.StaffAttribute); r != nil {
+		repos.StaffAttribute = r.(staffattributepb.StaffAttributeDomainServiceServer)
 	}
-
-	workspaceRepo, err := repoCreator.CreateRepository("workspace", conn, dbTableConfig.Workspace)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create workspace repository: %w", err)
+	if r := tryCreate("user", dbTableConfig.User); r != nil {
+		repos.User = r.(userpb.UserDomainServiceServer)
 	}
-
-	workspaceUserRepo, err := repoCreator.CreateRepository("workspace_user", conn, dbTableConfig.WorkspaceUser)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create workspace_user repository: %w", err)
+	if r := tryCreate("workspace", dbTableConfig.Workspace); r != nil {
+		repos.Workspace = r.(workspacepb.WorkspaceDomainServiceServer)
 	}
-
-	workspaceUserRoleRepo, err := repoCreator.CreateRepository("workspace_user_role", conn, dbTableConfig.WorkspaceUserRole)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create workspace_user_role repository: %w", err)
+	if r := tryCreate("workspace_user", dbTableConfig.WorkspaceUser); r != nil {
+		repos.WorkspaceUser = r.(workspaceuserpb.WorkspaceUserDomainServiceServer)
 	}
-
+	if r := tryCreate("workspace_user_role", dbTableConfig.WorkspaceUserRole); r != nil {
+		repos.WorkspaceUserRole = r.(workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer)
+	}
 	// Cross-domain dependency: Attribute repository from Common domain
-	attributeRepo, err := repoCreator.CreateRepository("attribute", conn, dbTableConfig.Attribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create attribute repository: %w", err)
+	if r := tryCreate("attribute", dbTableConfig.Attribute); r != nil {
+		repos.Attribute = r.(attributepb.AttributeDomainServiceServer)
 	}
 
-	return &EntityRepositories{
-		Admin:             adminRepo.(adminpb.AdminDomainServiceServer),
-		Client:            clientRepo.(clientpb.ClientDomainServiceServer),
-		ClientAttribute:   clientAttributeRepo.(clientattributepb.ClientAttributeDomainServiceServer),
-		ClientCategory:    clientCategoryRepo.(clientcategorypb.ClientCategoryDomainServiceServer),
-		Delegate:          delegateRepo.(delegatepb.DelegateDomainServiceServer),
-		DelegateAttribute: delegateAttributeRepo.(delegateattributepb.DelegateAttributeDomainServiceServer),
-		DelegateClient:    delegateClientRepo.(delegateclientpb.DelegateClientDomainServiceServer),
-		Group:             groupRepo.(grouppb.GroupDomainServiceServer),
-		GroupAttribute:    groupAttributeRepo.(groupattributepb.GroupAttributeDomainServiceServer),
-		Location:          locationRepo.(locationpb.LocationDomainServiceServer),
-		LocationAttribute: locationAttributeRepo.(locationattributepb.LocationAttributeDomainServiceServer),
-		Permission:        permissionRepo.(permissionpb.PermissionDomainServiceServer),
-		Role:              roleRepo.(rolepb.RoleDomainServiceServer),
-		RolePermission:    rolePermissionRepo.(rolepermissionpb.RolePermissionDomainServiceServer),
-		Staff:             staffRepo.(staffpb.StaffDomainServiceServer),
-		StaffAttribute:    staffAttributeRepo.(staffattributepb.StaffAttributeDomainServiceServer),
-		User:              userRepo.(userpb.UserDomainServiceServer),
-		Workspace:         workspaceRepo.(workspacepb.WorkspaceDomainServiceServer),
-		WorkspaceUser:     workspaceUserRepo.(workspaceuserpb.WorkspaceUserDomainServiceServer),
-		WorkspaceUserRole: workspaceUserRoleRepo.(workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer),
-		Attribute:         attributeRepo.(attributepb.AttributeDomainServiceServer),
-	}, nil
+	if len(skipped) > 0 {
+		fmt.Printf("⚠️  Entity repos skipped (no adapter registered): %v\n", skipped)
+	}
+
+	return repos, nil
 }

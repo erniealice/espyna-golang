@@ -265,9 +265,7 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 				r.product_id,
 				r.active,
 				r.date_created,
-				r.date_created_string,
-				r.date_modified,
-				r.date_modified_string
+				r.date_modified
 			FROM resource r
 			WHERE r.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -302,10 +300,8 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 			description        *string
 			productId          string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			total              int64
 		)
 
@@ -316,9 +312,7 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 			&productId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&total,
 		)
 		if err != nil {
@@ -339,24 +333,20 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			resource.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			resource.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := parseResourceTimestamp(*dateCreated); err == nil {
-				resource.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := parseResourceTimestamp(*dateModified); err == nil {
-				resource.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		resource.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		resource.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		resource.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		resource.DateModifiedString = &dmStr
+	}
 
 		resources = append(resources, resource)
 	}
@@ -408,9 +398,7 @@ func (r *PostgresResourceRepository) GetResourceItemPageData(
 			r.product_id,
 			r.active,
 			r.date_created,
-			r.date_created_string,
-			r.date_modified,
-			r.date_modified_string
+			r.date_modified
 		FROM resource r
 		WHERE r.id = $1 AND r.active = true
 		LIMIT 1;
@@ -424,10 +412,8 @@ func (r *PostgresResourceRepository) GetResourceItemPageData(
 		description        *string
 		productId          string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 	)
 
 	err := row.Scan(
@@ -437,9 +423,7 @@ func (r *PostgresResourceRepository) GetResourceItemPageData(
 		&productId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("resource with ID '%s' not found", req.ResourceId)
@@ -460,23 +444,19 @@ func (r *PostgresResourceRepository) GetResourceItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		resource.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		resource.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := parseResourceTimestamp(*dateCreated); err == nil {
-			resource.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		resource.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		resource.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := parseResourceTimestamp(*dateModified); err == nil {
-			resource.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		resource.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		resource.DateModifiedString = &dmStr
 	}
 
 	return &resourcepb.GetResourceItemPageDataResponse{

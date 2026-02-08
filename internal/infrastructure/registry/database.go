@@ -107,6 +107,8 @@ type DatabaseTableConfig struct {
 	Record string
 	// Workflow
 	Workflow, WorkflowTemplate, Stage, Activity, StageTemplate, ActivityTemplate string
+	// Session
+	Session string
 	// Subscription
 	Plan, PlanAttribute, PlanLocation, PlanSettings      string
 	Balance, BalanceAttribute, Invoice, InvoiceAttribute string
@@ -193,6 +195,8 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		Workflow: "workflow", WorkflowTemplate: "workflow_template",
 		Stage: "stage", Activity: "activity",
 		StageTemplate: "stage_template", ActivityTemplate: "activity_template",
+		// Session
+		Session: "session",
 		// Subscription
 		Plan: "plan", PlanAttribute: "plan_attribute", PlanLocation: "plan_location", PlanSettings: "plan_settings",
 		Balance: "balance", BalanceAttribute: "balance_attribute",

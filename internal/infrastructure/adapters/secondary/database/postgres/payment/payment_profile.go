@@ -288,9 +288,7 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileListPageData(
 						'name', pm.name,
 						'active', pm.active,
 						'date_created', pm.date_created,
-						'date_created_string', pm.date_created_string,
 						'date_modified', pm.date_modified,
-						'date_modified_string', pm.date_modified_string,
 						'provider_name', pm.provider_name
 					) ORDER BY pm.name
 				) as payment_methods
@@ -306,9 +304,7 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileListPageData(
 				pp.payment_method_id,
 				pp.active,
 				pp.date_created,
-				pp.date_created_string,
-				pp.date_modified,
-				pp.date_modified_string,
+				pp.date_modified
 				COALESCE(pma.payment_methods, '[]'::jsonb) as payment_methods
 			FROM payment_profile pp
 			LEFT JOIN payment_methods_agg pma ON pp.id = pma.payment_profile_id
@@ -340,10 +336,8 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileListPageData(
 			clientId           string
 			paymentMethodId    string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			paymentMethodsJSON []byte
 			total              int64
 		)
@@ -354,9 +348,7 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileListPageData(
 			&paymentMethodId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&paymentMethodsJSON,
 			&total,
 		)
@@ -374,24 +366,20 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileListPageData(
 		}
 
 		// Handle nullable timestamp fields
-		if dateCreatedString != nil {
-			paymentProfile.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			paymentProfile.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := parsePaymentProfileTimestamp(*dateCreated); err == nil {
-				paymentProfile.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := parsePaymentProfileTimestamp(*dateModified); err == nil {
-				paymentProfile.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		paymentProfile.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		paymentProfile.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		paymentProfile.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		paymentProfile.DateModifiedString = &dmStr
+	}
 
 		// Parse payment methods JSON array
 		// Note: In the full implementation, you would parse this into repeated PaymentMethod fields
@@ -449,9 +437,7 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileItemPageData(
 						'name', pm.name,
 						'active', pm.active,
 						'date_created', pm.date_created,
-						'date_created_string', pm.date_created_string,
 						'date_modified', pm.date_modified,
-						'date_modified_string', pm.date_modified_string,
 						'provider_name', pm.provider_name
 					) ORDER BY pm.name
 				) as payment_methods
@@ -467,9 +453,7 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileItemPageData(
 				pp.payment_method_id,
 				pp.active,
 				pp.date_created,
-				pp.date_created_string,
-				pp.date_modified,
-				pp.date_modified_string,
+				pp.date_modified
 				COALESCE(pma.payment_methods, '[]'::jsonb) as payment_methods
 			FROM payment_profile pp
 			LEFT JOIN payment_methods_agg pma ON pp.id = pma.payment_profile_id
@@ -485,10 +469,8 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileItemPageData(
 		clientId           string
 		paymentMethodId    string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 		paymentMethodsJSON []byte
 	)
 
@@ -498,9 +480,7 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileItemPageData(
 		&paymentMethodId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&paymentMethodsJSON,
 	)
 	if err != nil {
@@ -524,23 +504,19 @@ func (r *PostgresPaymentProfileRepository) GetPaymentProfileItemPageData(
 	}
 
 	// Handle nullable timestamp fields
-	if dateCreatedString != nil {
-		paymentProfile.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		paymentProfile.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := parsePaymentProfileTimestamp(*dateCreated); err == nil {
-			paymentProfile.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		paymentProfile.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		paymentProfile.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := parsePaymentProfileTimestamp(*dateModified); err == nil {
-			paymentProfile.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		paymentProfile.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		paymentProfile.DateModifiedString = &dmStr
 	}
 
 	// Parse payment methods JSON array

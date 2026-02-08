@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +11,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/interface"
-	"leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/common/operations"
 	postgresCore "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"leapfor.xyz/espyna/internal/infrastructure/registry"
 	commonpb "leapfor.xyz/esqyma/golang/v1/domain/common"
@@ -267,18 +267,14 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 				s.user_id,
 				s.active,
 				s.date_created,
-				s.date_created_string,
 				s.date_modified,
-				s.date_modified_string,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.date_created as user_date_created,
-				u.date_created_string as user_date_created_string,
 				u.date_modified as user_date_modified,
-				u.date_modified_string as user_date_modified_string,
 				u.active as user_active
 			FROM staff s
 			LEFT JOIN "user" u ON s.user_id = u.id AND u.active = true
@@ -313,19 +309,15 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 			id                 string
 			userId             string
 			active             bool
-			dateCreated        *string
-			dateCreatedString  *string
-			dateModified       *string
-			dateModifiedString *string
+			dateCreated        time.Time
+			dateModified       time.Time
 			// User fields
 			userIdValue            *string
 			userFirstName          *string
 			userLastName           *string
 			userEmailAddress       *string
-			userDateCreated        *string
-			userDateCreatedString  *string
-			userDateModified       *string
-			userDateModifiedString *string
+			userDateCreated        time.Time
+			userDateModified       time.Time
 			userActive             *bool
 			total                  int64
 		)
@@ -335,17 +327,13 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 			&userId,
 			&active,
 			&dateCreated,
-			&dateCreatedString,
 			&dateModified,
-			&dateModifiedString,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
 			&userEmailAddress,
 			&userDateCreated,
-			&userDateCreatedString,
 			&userDateModified,
-			&userDateModifiedString,
 			&userActive,
 			&total,
 		)
@@ -362,24 +350,20 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 		}
 
 		// Handle nullable timestamp fields for staff
-		if dateCreatedString != nil {
-			staff.DateCreatedString = dateCreatedString
-		}
-		if dateModifiedString != nil {
-			staff.DateModifiedString = dateModifiedString
-		}
 
 		// Parse timestamps if provided
-		if dateCreated != nil && *dateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-				staff.DateCreated = &ts
-			}
-		}
-		if dateModified != nil && *dateModified != "" {
-			if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-				staff.DateModified = &ts
-			}
-		}
+		if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		staff.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		staff.DateCreatedString = &dcStr
+	}
+		if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		staff.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		staff.DateModifiedString = &dmStr
+	}
 
 		// Populate user data if available
 		if userIdValue != nil {
@@ -397,24 +381,20 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 			if userEmailAddress != nil {
 				user.EmailAddress = *userEmailAddress
 			}
-			if userDateCreatedString != nil {
-				user.DateCreatedString = userDateCreatedString
-			}
-			if userDateModifiedString != nil {
-				user.DateModifiedString = userDateModifiedString
-			}
 
 			// Parse user timestamps
-			if userDateCreated != nil && *userDateCreated != "" {
-				if ts, err := operations.ParseTimestamp(*userDateCreated); err == nil {
-					user.DateCreated = &ts
-				}
-			}
-			if userDateModified != nil && *userDateModified != "" {
-				if ts, err := operations.ParseTimestamp(*userDateModified); err == nil {
-					user.DateModified = &ts
-				}
-			}
+			if !userDateCreated.IsZero() {
+			ts := userDateCreated.UnixMilli()
+			user.DateCreated = &ts
+			udcStr := userDateCreated.Format(time.RFC3339)
+			user.DateCreatedString = &udcStr
+		}
+			if !userDateModified.IsZero() {
+			ts := userDateModified.UnixMilli()
+			user.DateModified = &ts
+			udmStr := userDateModified.Format(time.RFC3339)
+			user.DateModifiedString = &udmStr
+		}
 
 			staff.User = user
 		}
@@ -468,18 +448,14 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 				s.user_id,
 				s.active,
 				s.date_created,
-				s.date_created_string,
 				s.date_modified,
-				s.date_modified_string,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.date_created as user_date_created,
-				u.date_created_string as user_date_created_string,
 				u.date_modified as user_date_modified,
-				u.date_modified_string as user_date_modified_string,
 				u.active as user_active
 			FROM staff s
 			LEFT JOIN "user" u ON s.user_id = u.id AND u.active = true
@@ -494,19 +470,15 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 		id                 string
 		userId             string
 		active             bool
-		dateCreated        *string
-		dateCreatedString  *string
-		dateModified       *string
-		dateModifiedString *string
+		dateCreated        time.Time
+		dateModified       time.Time
 		// User fields
 		userIdValue            *string
 		userFirstName          *string
 		userLastName           *string
 		userEmailAddress       *string
-		userDateCreated        *string
-		userDateCreatedString  *string
-		userDateModified       *string
-		userDateModifiedString *string
+		userDateCreated        time.Time
+		userDateModified       time.Time
 		userActive             *bool
 	)
 
@@ -515,17 +487,13 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 		&userId,
 		&active,
 		&dateCreated,
-		&dateCreatedString,
 		&dateModified,
-		&dateModifiedString,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
 		&userEmailAddress,
 		&userDateCreated,
-		&userDateCreatedString,
 		&userDateModified,
-		&userDateModifiedString,
 		&userActive,
 	)
 	if err == sql.ErrNoRows {
@@ -542,23 +510,19 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 	}
 
 	// Handle nullable timestamp fields for staff
-	if dateCreatedString != nil {
-		staff.DateCreatedString = dateCreatedString
-	}
-	if dateModifiedString != nil {
-		staff.DateModifiedString = dateModifiedString
-	}
 
 	// Parse timestamps if provided
-	if dateCreated != nil && *dateCreated != "" {
-		if ts, err := operations.ParseTimestamp(*dateCreated); err == nil {
-			staff.DateCreated = &ts
-		}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		staff.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		staff.DateCreatedString = &dcStr
 	}
-	if dateModified != nil && *dateModified != "" {
-		if ts, err := operations.ParseTimestamp(*dateModified); err == nil {
-			staff.DateModified = &ts
-		}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		staff.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		staff.DateModifiedString = &dmStr
 	}
 
 	// Populate user data if available
@@ -577,23 +541,19 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 		if userEmailAddress != nil {
 			user.EmailAddress = *userEmailAddress
 		}
-		if userDateCreatedString != nil {
-			user.DateCreatedString = userDateCreatedString
-		}
-		if userDateModifiedString != nil {
-			user.DateModifiedString = userDateModifiedString
-		}
 
 		// Parse user timestamps
-		if userDateCreated != nil && *userDateCreated != "" {
-			if ts, err := operations.ParseTimestamp(*userDateCreated); err == nil {
-				user.DateCreated = &ts
-			}
+		if !userDateCreated.IsZero() {
+			ts := userDateCreated.UnixMilli()
+			user.DateCreated = &ts
+			udcStr := userDateCreated.Format(time.RFC3339)
+			user.DateCreatedString = &udcStr
 		}
-		if userDateModified != nil && *userDateModified != "" {
-			if ts, err := operations.ParseTimestamp(*userDateModified); err == nil {
-				user.DateModified = &ts
-			}
+		if !userDateModified.IsZero() {
+			ts := userDateModified.UnixMilli()
+			user.DateModified = &ts
+			udmStr := userDateModified.Format(time.RFC3339)
+			user.DateModifiedString = &udmStr
 		}
 
 		staff.User = user

@@ -61,6 +61,12 @@ func NewUpdateDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 
 // Execute performs the update delegate operation
 func (uc *UpdateDelegateUseCase) Execute(ctx context.Context, req *delegatepb.UpdateDelegateRequest) (*delegatepb.UpdateDelegateResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegate, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -92,12 +98,6 @@ func (uc *UpdateDelegateUseCase) executeWithTransaction(ctx context.Context, req
 
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *UpdateDelegateUseCase) executeCore(ctx context.Context, req *delegatepb.UpdateDelegateRequest) (*delegatepb.UpdateDelegateResponse, error) {
-	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
-		ports.EntityDelegate, ports.ActionUpdate); err != nil {
-		return nil, err
-	}
-
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.request_required", "Request is required for delegates [DEFAULT]"))

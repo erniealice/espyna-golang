@@ -73,6 +73,12 @@ func NewCreateLocationAttributeUseCaseUngrouped(
 }
 
 func (uc *CreateLocationAttributeUseCase) Execute(ctx context.Context, req *locationattributepb.CreateLocationAttributeRequest) (*locationattributepb.CreateLocationAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLocationAttribute, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -106,12 +112,6 @@ func (uc *CreateLocationAttributeUseCase) executeWithTransaction(ctx context.Con
 func (uc *CreateLocationAttributeUseCase) executeCore(ctx context.Context, req *locationattributepb.CreateLocationAttributeRequest) (*locationattributepb.CreateLocationAttributeResponse, error) {
 	// Input validation (must be done first to avoid nil pointer access)
 	if err := uc.validateInput(ctx, req); err != nil {
-		return nil, err
-	}
-
-	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
-		ports.EntityLocationAttribute, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 

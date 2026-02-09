@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 )
@@ -16,8 +17,9 @@ type GetClientCategoryItemPageDataRepositories struct {
 
 // GetClientCategoryItemPageDataServices groups all business service dependencies
 type GetClientCategoryItemPageDataServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetClientCategoryItemPageDataUseCase handles the business logic for getting client category item page data
@@ -45,14 +47,21 @@ func NewGetClientCategoryItemPageDataUseCaseUngrouped(clientCategoryRepo clientc
 	}
 
 	services := GetClientCategoryItemPageDataServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewGetClientCategoryItemPageDataUseCase(repositories, services)
 }
 
 func (uc *GetClientCategoryItemPageDataUseCase) Execute(ctx context.Context, req *clientcategorypb.GetClientCategoryItemPageDataRequest) (*clientcategorypb.GetClientCategoryItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"client_category", ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
 	}

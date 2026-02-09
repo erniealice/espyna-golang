@@ -63,6 +63,12 @@ func NewCreateStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) 
 
 // Execute performs the create staff operation
 func (uc *CreateStaffUseCase) Execute(ctx context.Context, req *staffpb.CreateStaffRequest) (*staffpb.CreateStaffResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaff, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -94,12 +100,6 @@ func (uc *CreateStaffUseCase) executeWithTransaction(ctx context.Context, req *s
 
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateStaffUseCase) executeCore(ctx context.Context, req *staffpb.CreateStaffRequest) (*staffpb.CreateStaffResponse, error) {
-	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
-		ports.EntityStaff, ports.ActionCreate); err != nil {
-		return nil, err
-	}
-
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

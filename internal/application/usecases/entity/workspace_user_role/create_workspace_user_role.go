@@ -50,6 +50,12 @@ func NewCreateWorkspaceUserRoleUseCase(
 
 // Execute performs the create workspace user role operation
 func (uc *CreateWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *workspaceuserrolepb.CreateWorkspaceUserRoleRequest) (*workspaceuserrolepb.CreateWorkspaceUserRoleResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUserRole, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -81,12 +87,6 @@ func (uc *CreateWorkspaceUserRoleUseCase) executeWithTransaction(ctx context.Con
 
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *workspaceuserrolepb.CreateWorkspaceUserRoleRequest) (*workspaceuserrolepb.CreateWorkspaceUserRoleResponse, error) {
-	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
-		ports.EntityWorkspaceUserRole, ports.ActionCreate); err != nil {
-		return nil, err
-	}
-
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

@@ -63,6 +63,12 @@ func NewCreateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer, auth
 
 // Execute performs the create user operation
 func (uc *CreateUserUseCase) Execute(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityUser, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -94,13 +100,6 @@ func (uc *CreateUserUseCase) executeWithTransaction(ctx context.Context, req *us
 
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateUserUseCase) executeCore(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
-
-	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
-		ports.EntityUser, ports.ActionCreate); err != nil {
-		return nil, err
-	}
-
 	// Business validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
 		return nil, err

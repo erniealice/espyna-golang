@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 )
@@ -55,6 +56,12 @@ func NewListClientCategoriesUseCaseUngrouped(clientCategoryRepo clientcategorypb
 }
 
 func (uc *ListClientCategoriesUseCase) Execute(ctx context.Context, req *clientcategorypb.ListClientCategoriesRequest) (*clientcategorypb.ListClientCategoriesResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"client_category", ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
 	}

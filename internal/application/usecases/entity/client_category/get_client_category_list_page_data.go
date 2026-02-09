@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
@@ -18,8 +19,9 @@ type GetClientCategoryListPageDataRepositories struct {
 
 // GetClientCategoryListPageDataServices groups all business service dependencies
 type GetClientCategoryListPageDataServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetClientCategoryListPageDataUseCase handles the business logic for getting client category list page data
@@ -47,14 +49,21 @@ func NewGetClientCategoryListPageDataUseCaseUngrouped(clientCategoryRepo clientc
 	}
 
 	services := GetClientCategoryListPageDataServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewGetClientCategoryListPageDataUseCase(repositories, services)
 }
 
 func (uc *GetClientCategoryListPageDataUseCase) Execute(ctx context.Context, req *clientcategorypb.GetClientCategoryListPageDataRequest) (*clientcategorypb.GetClientCategoryListPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"client_category", ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)

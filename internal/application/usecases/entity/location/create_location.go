@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 )
@@ -61,6 +62,12 @@ func NewCreateLocationUseCaseUngrouped(locationRepo locationpb.LocationDomainSer
 
 // Execute performs the create location operation
 func (uc *CreateLocationUseCase) Execute(ctx context.Context, req *locationpb.CreateLocationRequest) (*locationpb.CreateLocationResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLocation, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

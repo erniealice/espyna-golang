@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
@@ -44,6 +45,12 @@ func NewCreateProductUseCase(
 
 // Execute performs the create product operation
 func (uc *CreateProductUseCase) Execute(ctx context.Context, req *productpb.CreateProductRequest) (*productpb.CreateProductResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityProduct, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

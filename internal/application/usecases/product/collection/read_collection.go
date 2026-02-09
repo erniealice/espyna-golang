@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 )
 
@@ -41,25 +42,12 @@ func NewReadCollectionUseCase(
 
 // Execute performs the read collection operation
 func (uc *ReadCollectionUseCase) Execute(ctx context.Context, req *collectionpb.ReadCollectionRequest) (*collectionpb.ReadCollectionResponse, error) {
-	// Authorization check - conditional based on service availability
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		userID, err := contextutil.RequireUserIDFromContext(ctx)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for course collections [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-
-		permission := ports.EntityPermission(ports.EntityCollection, ports.ActionRead)
-		hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for course collections [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-		if !hasPerm {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for course collections [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityCollection, ports.ActionRead); err != nil {
+		return nil, err
 	}
+
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

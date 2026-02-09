@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
 
@@ -45,21 +46,9 @@ func NewCreateAdminUseCase(
 // Execute performs the create admin operation
 func (uc *CreateAdminUseCase) Execute(ctx context.Context, req *adminpb.CreateAdminRequest) (*adminpb.CreateAdminResponse, error) {
 	// Authorization check
-	userID, err := contextutil.RequireUserIDFromContext(ctx)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.authorization_failed", "")
-		return nil, errors.New(translatedError)
-	}
-
-	permission := ports.EntityPermission(ports.EntityAdmin, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.authorization_failed", "")
-		return nil, errors.New(translatedError)
-	}
-	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.authorization_failed", "")
-		return nil, errors.New(translatedError)
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityAdmin, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Input validation

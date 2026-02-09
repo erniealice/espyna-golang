@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
@@ -16,6 +17,7 @@ type GetSubscriptionAttributeListPageDataRepositories struct {
 
 // GetSubscriptionAttributeListPageDataServices groups all business service dependencies
 type GetSubscriptionAttributeListPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -39,6 +41,12 @@ func NewGetSubscriptionAttributeListPageDataUseCase(
 
 // Execute performs the get subscription attribute list page data operation
 func (uc *GetSubscriptionAttributeListPageDataUseCase) Execute(ctx context.Context, req *subscriptionattributepb.GetSubscriptionAttributeListPageDataRequest) (*subscriptionattributepb.GetSubscriptionAttributeListPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntitySubscriptionAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

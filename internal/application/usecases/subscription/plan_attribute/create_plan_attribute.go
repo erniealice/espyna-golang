@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
@@ -48,29 +49,17 @@ func NewCreatePlanAttributeUseCase(
 
 // Execute performs the create plan attribute operation
 func (uc *CreatePlanAttributeUseCase) Execute(ctx context.Context, req *planattributepb.CreatePlanAttributeRequest) (*planattributepb.CreatePlanAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPlanAttribute, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Input validation (must be done first to avoid nil pointer access)
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
 	}
 
-	// TODO: Re-enable workspace-scoped authorization check once Plan.WorkspaceId is available
-	// if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-	// 	userID := contextutil.ExtractUserIDFromContext(ctx)
-	// 	if userID == "" {
-	// 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-	// 	}
-	//
-	// 	permission := ports.EntityPermission(ports.EntityPlanAttribute, ports.ActionCreate)
-	// 	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	// 	if err != nil {
-	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
-	// 		return nil, fmt.Errorf("%s: %w", translatedError, err)
-	// 	}
-	// 	if !hasPerm {
-	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
-	// 		return nil, errors.New(translatedError)
-	// 	}
-	// }
 
 	// Business logic and enrichment
 	if err := uc.enrichPlanAttributeData(req.Data); err != nil {

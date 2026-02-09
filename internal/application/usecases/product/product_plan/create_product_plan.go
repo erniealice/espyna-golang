@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 )
@@ -45,6 +46,12 @@ func NewCreateProductPlanUseCase(
 
 // Execute performs the create product plan operation
 func (uc *CreateProductPlanUseCase) Execute(ctx context.Context, req *productplanpb.CreateProductPlanRequest) (*productplanpb.CreateProductPlanResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityProductPlan, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

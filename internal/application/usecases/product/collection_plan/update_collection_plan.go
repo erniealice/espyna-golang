@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -47,6 +48,12 @@ func NewUpdateCollectionPlanUseCase(
 
 // Execute performs the update collection plan operation
 func (uc *UpdateCollectionPlanUseCase) Execute(ctx context.Context, req *collectionplanpb.UpdateCollectionPlanRequest) (*collectionplanpb.UpdateCollectionPlanResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityCollectionPlan, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

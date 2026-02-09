@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 )
@@ -57,6 +58,12 @@ func NewGetPermissionItemPageDataUseCaseUngrouped(permissionRepo permissionpb.Pe
 
 // Execute performs the get permission item page data operation
 func (uc *GetPermissionItemPageDataUseCase) Execute(ctx context.Context, req *permissionpb.GetPermissionItemPageDataRequest) (*permissionpb.GetPermissionItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPermissions, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		return nil, fmt.Errorf("request cannot be nil")
@@ -65,27 +72,6 @@ func (uc *GetPermissionItemPageDataUseCase) Execute(ctx context.Context, req *pe
 	if req.PermissionId == "" {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.errors.id_required", "Permission ID is required [DEFAULT]")
 		return nil, fmt.Errorf("%s", translatedError)
-	}
-
-	// Authorization check (if authorization service is available)
-	if uc.services.AuthorizationService != nil {
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "auth.errors.user_not_authenticated", "User not authenticated [DEFAULT]")
-			return nil, fmt.Errorf("%s", translatedError)
-		}
-
-		// Check if user has permission to read permissions
-		isAuthorized, err := uc.services.AuthorizationService.HasPermission(ctx, userID, "permission.read")
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "auth.errors.authorization_check_failed", "Authorization check failed [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !isAuthorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "auth.errors.insufficient_permissions", "Insufficient permissions [DEFAULT]")
-			return nil, fmt.Errorf("%s", translatedError)
-		}
 	}
 
 	// Call repository

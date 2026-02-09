@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
@@ -40,6 +41,12 @@ func NewListPlanSettingsUseCase(
 
 // Execute performs the list plan_settings operation
 func (uc *ListPlanSettingsUseCase) Execute(ctx context.Context, req *plansettingspb.ListPlanSettingsRequest) (*plansettingspb.ListPlanSettingsResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPlanSettings, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	businessType := uc.getBusinessTypeFromContext(ctx)
 
 	// Input validation

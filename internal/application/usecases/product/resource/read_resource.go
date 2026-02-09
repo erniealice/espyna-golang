@@ -3,11 +3,11 @@ package resource
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 )
 
@@ -44,23 +44,9 @@ func NewReadResourceUseCase(
 // Execute performs the read resource operation
 func (uc *ReadResourceUseCase) Execute(ctx context.Context, req *resourcepb.ReadResourceRequest) (*resourcepb.ReadResourceResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.errors.user_not_authenticated", "User not authenticated"))
-		}
-
-		permission := ports.EntityPermission(ports.EntityResource, ports.ActionRead)
-		authorized, err := uc.services.AuthorizationService.HasGlobalPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.errors.authorization_check_failed", "Authorization check failed")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.errors.authorization_failed", "Access denied")
-			return nil, errors.New(translatedError)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityResource, ports.ActionRead); err != nil {
+		return nil, err
 	}
 
 	// Input validation

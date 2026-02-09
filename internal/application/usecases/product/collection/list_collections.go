@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 )
 
@@ -41,6 +42,12 @@ func NewListCollectionsUseCase(
 
 // Execute performs the list collections operation
 func (uc *ListCollectionsUseCase) Execute(ctx context.Context, req *collectionpb.ListCollectionsRequest) (*collectionpb.ListCollectionsResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityCollection, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

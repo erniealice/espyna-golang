@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 )
 
@@ -42,6 +43,12 @@ func NewReadPriceListUseCase(
 
 // Execute performs the read price list operation
 func (uc *ReadPriceListUseCase) Execute(ctx context.Context, req *pricelistpb.ReadPriceListRequest) (*pricelistpb.ReadPriceListResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPriceList, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

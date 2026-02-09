@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 )
@@ -17,8 +18,9 @@ type ReadClientAttributeRepositories struct {
 
 // ReadClientAttributeServices groups all business service dependencies
 type ReadClientAttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadClientAttributeUseCase handles the business logic for reading client attributes
@@ -47,8 +49,9 @@ func NewReadClientAttributeUseCaseUngrouped(clientAttributeRepo clientattributep
 	}
 
 	services := ReadClientAttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewReadClientAttributeUseCase(repositories, services)
@@ -56,6 +59,12 @@ func NewReadClientAttributeUseCaseUngrouped(clientAttributeRepo clientattributep
 
 // Execute performs the read client attribute operation
 func (uc *ReadClientAttributeUseCase) Execute(ctx context.Context, req *clientattributepb.ReadClientAttributeRequest) (*clientattributepb.ReadClientAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClientAttribute, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

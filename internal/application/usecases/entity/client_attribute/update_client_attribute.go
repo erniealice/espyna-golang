@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -24,8 +25,9 @@ type UpdateClientAttributeRepositories struct {
 
 // UpdateClientAttributeServices groups all business service dependencies
 type UpdateClientAttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdateClientAttributeUseCase handles the business logic for updating client attributes
@@ -60,8 +62,9 @@ func NewUpdateClientAttributeUseCaseUngrouped(
 	}
 
 	services := UpdateClientAttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewUpdateClientAttributeUseCase(repositories, services)
@@ -69,6 +72,12 @@ func NewUpdateClientAttributeUseCaseUngrouped(
 
 // Execute performs the update client attribute operation
 func (uc *UpdateClientAttributeUseCase) Execute(ctx context.Context, req *clientattributepb.UpdateClientAttributeRequest) (*clientattributepb.UpdateClientAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClientAttribute, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

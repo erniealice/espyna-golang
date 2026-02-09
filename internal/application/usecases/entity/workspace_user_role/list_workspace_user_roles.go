@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -46,25 +47,9 @@ func NewListWorkspaceUserRolesUseCase(
 // Execute performs the list workspace user roles operation
 func (uc *ListWorkspaceUserRolesUseCase) Execute(ctx context.Context, req *workspaceuserrolepb.ListWorkspaceUserRolesRequest) (*workspaceuserrolepb.ListWorkspaceUserRolesResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.user_not_authenticated", "User not authenticated "))
-		}
-
-		// Check permission to list workspace user roles
-		permission := ports.EntityPermission(ports.EntityWorkspaceUserRole, ports.ActionRead)
-		authorized, err := uc.services.AuthorizationService.HasGlobalPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.authorization_check_failed", "Authorization check failed ")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.access_denied", "Access denied ")
-			return nil, errors.New(translatedError)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUserRole, ports.ActionList); err != nil {
+		return nil, err
 	}
 
 	// Input validation

@@ -102,6 +102,15 @@ func buildPgTableConfig() *registry.DatabaseTableConfig {
 		ActivityTemplate: prefix + getPostgresTableEnv("ACTIVITY_TEMPLATE", "activity_template"),
 		// Session
 		Session: prefix + getPostgresTableEnv("SESSION", "session"),
+		// Revenue domain
+		Revenue:          prefix + getPostgresTableEnv("REVENUE", "revenue"),
+		RevenueAttribute: prefix + getPostgresTableEnv("REVENUE_ATTRIBUTE", "revenue_attribute"),
+		RevenueLineItem:  prefix + getPostgresTableEnv("REVENUE_LINE_ITEM", "revenue_line_item"),
+		RevenueCategory:  prefix + getPostgresTableEnv("REVENUE_CATEGORY", "revenue_category"),
+		// Inventory domain
+		InventoryItem:        prefix + getPostgresTableEnv("INVENTORY_ITEM", "inventory_item"),
+		InventoryAttribute:   prefix + getPostgresTableEnv("INVENTORY_ATTRIBUTE", "inventory_attribute"),
+		InventoryTransaction: prefix + getPostgresTableEnv("INVENTORY_TRANSACTION", "inventory_transaction"),
 		// Subscription
 		Plan:                  prefix + getPostgresTableEnv("PLAN", "plan"),
 		PlanAttribute:         prefix + getPostgresTableEnv("PLAN_ATTRIBUTE", "plan_attribute"),

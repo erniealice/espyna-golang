@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
@@ -18,6 +19,7 @@ type DeleteDelegateAttributeRepositories struct {
 
 // DeleteDelegateAttributeServices groups all business service dependencies
 type DeleteDelegateAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -48,6 +50,7 @@ func NewDeleteDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateat
 	}
 
 	services := DeleteDelegateAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -57,6 +60,12 @@ func NewDeleteDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateat
 
 // Execute performs the delete delegate attribute operation
 func (uc *DeleteDelegateAttributeUseCase) Execute(ctx context.Context, req *delegateattributepb.DeleteDelegateAttributeRequest) (*delegateattributepb.DeleteDelegateAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegateAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

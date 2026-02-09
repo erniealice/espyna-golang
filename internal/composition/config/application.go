@@ -71,6 +71,17 @@ type DatabaseTableConfig struct {
 	StageTemplate    string
 	ActivityTemplate string
 
+	// Revenue tables - Revenue management
+	Revenue          string
+	RevenueAttribute string
+	RevenueLineItem  string
+	RevenueCategory  string
+
+	// Inventory tables - Inventory management
+	InventoryItem        string
+	InventoryAttribute   string
+	InventoryTransaction string
+
 	// Subscription tables - Billing and subscription management
 	Plan                  string
 	PlanLocation          string
@@ -156,6 +167,17 @@ func DefaultDatabaseTableConfig() DatabaseTableConfig {
 		Activity:         "activity",
 		StageTemplate:    "stage_template",
 		ActivityTemplate: "activity_template",
+
+		// Revenue tables
+		Revenue:          "revenue",
+		RevenueAttribute: "revenue_attribute",
+		RevenueLineItem:  "revenue_line_item",
+		RevenueCategory:  "revenue_category",
+
+		// Inventory tables
+		InventoryItem:        "inventory_item",
+		InventoryAttribute:   "inventory_attribute",
+		InventoryTransaction: "inventory_transaction",
 
 		// Subscription tables
 		Plan:                  "plan",

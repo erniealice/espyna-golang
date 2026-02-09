@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 )
 
@@ -42,14 +43,11 @@ func NewGetInvoiceItemPageDataUseCase(
 // Execute performs the get invoice item page data operation
 func (uc *GetInvoiceItemPageDataUseCase) Execute(ctx context.Context, req *invoicepb.GetInvoiceItemPageDataRequest) (*invoicepb.GetInvoiceItemPageDataResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil {
-		if enabled, ok := uc.services.AuthorizationService.(interface{ IsEnabled() bool }); ok && enabled.IsEnabled() {
-			uid, _ := ctx.Value("uid").(string)
-			if authorized, err := uc.services.AuthorizationService.HasPermission(ctx, uid, ports.EntityPermission(ports.EntityInvoice, ports.ActionRead)); err != nil || !authorized {
-				return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.authorization_failed", ""))
-			}
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityInvoice, ports.ActionList); err != nil {
+		return nil, err
 	}
+
 
 	// Input validation
 	if req == nil {

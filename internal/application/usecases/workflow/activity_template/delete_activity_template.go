@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 )
 
@@ -58,6 +59,12 @@ func NewDeleteActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTemp
 
 // Execute performs the delete activity template operation
 func (uc *DeleteActivityTemplateUseCase) Execute(ctx context.Context, req *activityTemplatepb.DeleteActivityTemplateRequest) (*activityTemplatepb.DeleteActivityTemplateResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"activity_template", ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.request_required", "Request is required for activity templates [DEFAULT]"))

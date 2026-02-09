@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
@@ -48,29 +49,17 @@ func NewCreateInvoiceAttributeUseCase(
 
 // Execute performs the create invoice attribute operation
 func (uc *CreateInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoiceattributepb.CreateInvoiceAttributeRequest) (*invoiceattributepb.CreateInvoiceAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityInvoiceAttribute, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Input validation (must be done first to avoid nil pointer access)
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
 	}
 
-	// TODO: Re-enable workspace-scoped authorization check once Invoice.WorkspaceId is available
-	// if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-	// 	userID := contextutil.ExtractUserIDFromContext(ctx)
-	// 	if userID == "" {
-	// 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-	// 	}
-	//
-	// 	permission := ports.EntityPermission(ports.EntityInvoiceAttribute, ports.ActionCreate)
-	// 	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	// 	if err != nil {
-	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
-	// 		return nil, fmt.Errorf("%s: %w", translatedError, err)
-	// 	}
-	// 	if !hasPerm {
-	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
-	// 		return nil, errors.New(translatedError)
-	// 	}
-	// }
 
 	// Business logic and enrichment
 	if err := uc.enrichInvoiceAttributeData(req.Data); err != nil {

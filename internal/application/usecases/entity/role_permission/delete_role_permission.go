@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
@@ -68,26 +70,10 @@ func NewDeleteRolePermissionUseCaseUngrouped(
 // Execute performs the delete role permission operation
 func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, req *rolepermissionpb.DeleteRolePermissionRequest) (*rolepermissionpb.DeleteRolePermissionResponse, error) {
 
-	// Authorization check - CRITICAL: This manages role permissions (high security)
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.user_not_authenticated", "User not authenticated"))
-		}
-
-		// This is a highly sensitive operation - require admin-level permission
-		permission := ports.EntityPermission(ports.EntityRolePermission, ports.ActionDelete)
-		authorized, err := uc.services.AuthorizationService.HasGlobalPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.authorization_check_failed", "Authorization check failed")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.access_denied", "Access denied")
-			return nil, errors.New(translatedError)
-		}
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityRolePermission, ports.ActionDelete); err != nil {
+		return nil, err
 	}
 
 	// Input validation
@@ -108,6 +94,8 @@ func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.deletion_failed", "Role-Permission deletion failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
+
+	log.Printf("AUTHZ_CHANGE | action=revoke | role_permission_id=%s", req.Data.Id)
 
 	return resp, nil
 }

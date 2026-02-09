@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
@@ -17,6 +18,7 @@ type ReadGroupAttributeRepositories struct {
 
 // ReadGroupAttributeServices groups all business service dependencies
 type ReadGroupAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -47,6 +49,7 @@ func NewReadGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb.G
 	}
 
 	services := ReadGroupAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -56,6 +59,12 @@ func NewReadGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb.G
 
 // Execute performs the read group attribute operation
 func (uc *ReadGroupAttributeUseCase) Execute(ctx context.Context, req *groupattributepb.ReadGroupAttributeRequest) (*groupattributepb.ReadGroupAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityGroupAttribute, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

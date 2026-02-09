@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
@@ -17,8 +18,9 @@ type GetEventListPageDataRepositories struct {
 }
 
 type GetEventListPageDataServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetEventListPageDataUseCase handles the business logic for getting event list page data
@@ -46,6 +48,12 @@ func (uc *GetEventListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *eventpb.GetEventListPageDataRequest,
 ) (*eventpb.GetEventListPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEvent, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

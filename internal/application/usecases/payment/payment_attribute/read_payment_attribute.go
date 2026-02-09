@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
 )
 
@@ -43,6 +44,12 @@ func NewReadPaymentAttributeUseCase(
 
 // Execute performs the read payment attribute operation
 func (uc *ReadPaymentAttributeUseCase) Execute(ctx context.Context, req *paymentattributepb.ReadPaymentAttributeRequest) (*paymentattributepb.ReadPaymentAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPaymentAttribute, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

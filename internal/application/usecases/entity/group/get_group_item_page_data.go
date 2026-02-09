@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
@@ -19,6 +20,7 @@ type GetGroupItemPageDataRepositories struct {
 
 // GetGroupItemPageDataServices groups all business service dependencies
 type GetGroupItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -49,6 +51,7 @@ func NewGetGroupItemPageDataUseCaseUngrouped(groupRepo grouppb.GroupDomainServic
 	}
 
 	services := GetGroupItemPageDataServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -58,6 +61,12 @@ func NewGetGroupItemPageDataUseCaseUngrouped(groupRepo grouppb.GroupDomainServic
 
 // Execute performs the get group item page data operation
 func (uc *GetGroupItemPageDataUseCase) Execute(ctx context.Context, req *grouppb.GetGroupItemPageDataRequest) (*grouppb.GetGroupItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityGroup, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.input_validation_failed", "Input validation failed [DEFAULT]")

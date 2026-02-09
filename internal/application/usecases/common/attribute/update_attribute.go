@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -19,8 +20,9 @@ type UpdateAttributeRepositories struct {
 
 // UpdateAttributeServices groups all business service dependencies
 type UpdateAttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdateAttributeUseCase handles the business logic for updating attributes
@@ -58,7 +60,13 @@ func NewUpdateAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 
 // Execute performs the update attribute operation
 func (uc *UpdateAttributeUseCase) Execute(ctx context.Context, req *attributepb.UpdateAttributeRequest) (*attributepb.UpdateAttributeResponse, error) {
-	// Check if transaction service is available and supports transactions
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"attribute", ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
+		// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}

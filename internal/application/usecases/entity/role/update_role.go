@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 )
@@ -60,6 +61,12 @@ func NewUpdateRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *Upd
 
 // Execute performs the update role operation
 func (uc *UpdateRoleUseCase) Execute(ctx context.Context, req *rolepb.UpdateRoleRequest) (*rolepb.UpdateRoleResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityRole, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

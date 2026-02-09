@@ -232,7 +232,7 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 			sortOrder = "ASC"
 		}
 	}
-	query := `WITH enriched AS (SELECT id, first_name, last_name, email_address, active, date_created, date_modified FROM "user" WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR first_name ILIKE $1 OR last_name ILIKE $1 OR email_address ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, first_name, last_name, email_address, active, date_created, date_modified FROM "user" WHERE ($1::text IS NULL OR $1::text = '' OR first_name ILIKE $1 OR last_name ILIKE $1 OR email_address ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -272,7 +272,7 @@ func (r *PostgresUserRepository) GetUserItemPageData(ctx context.Context, req *u
 	if req == nil || req.UserId == "" {
 		return nil, fmt.Errorf("user ID required")
 	}
-	query := `SELECT id, first_name, last_name, email_address, active, date_created, date_modified FROM "user" WHERE id = $1 AND active = true`
+	query := `SELECT id, first_name, last_name, email_address, active, date_created, date_modified FROM "user" WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, req.UserId)
 	var id, firstName, lastName, emailAddress string
 	var active bool

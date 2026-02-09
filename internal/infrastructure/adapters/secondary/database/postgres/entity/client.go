@@ -348,9 +348,8 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				u.email_address as user_email_address,
 				u.mobile_number as user_phone_number
 			FROM client c
-			LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
-			WHERE c.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
+			LEFT JOIN "user" u ON c.user_id = u.id
+			WHERE ($1::text IS NULL OR $1::text = '' OR
 				   u.first_name ILIKE $1 OR
 				   u.last_name ILIKE $1 OR
 				   u.email_address ILIKE $1 OR
@@ -505,8 +504,8 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 				u.email_address as user_email_address,
 				u.mobile_number as user_phone_number
 			FROM client c
-			LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
-			WHERE c.id = $1 AND c.active = true
+			LEFT JOIN "user" u ON c.user_id = u.id
+			WHERE c.id = $1
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`

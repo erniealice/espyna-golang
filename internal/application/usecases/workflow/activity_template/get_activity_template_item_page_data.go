@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 )
@@ -17,6 +18,7 @@ type GetActivityTemplateItemPageDataRepositories struct {
 }
 
 type GetActivityTemplateItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -43,6 +45,12 @@ func (uc *GetActivityTemplateItemPageDataUseCase) Execute(
 	ctx context.Context,
 	req *activityTemplatepb.GetActivityTemplateItemPageDataRequest,
 ) (*activityTemplatepb.GetActivityTemplateItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"activity_template", ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

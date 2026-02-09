@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
@@ -19,6 +20,7 @@ type GetStaffAttributeListPageDataRepositories struct {
 
 // GetStaffAttributeListPageDataServices groups all business service dependencies
 type GetStaffAttributeListPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -49,6 +51,7 @@ func NewGetStaffAttributeListPageDataUseCaseUngrouped(staffAttributeRepo staffat
 	}
 
 	services := GetStaffAttributeListPageDataServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -58,6 +61,12 @@ func NewGetStaffAttributeListPageDataUseCaseUngrouped(staffAttributeRepo staffat
 
 // Execute performs the get staff attribute list page data operation
 func (uc *GetStaffAttributeListPageDataUseCase) Execute(ctx context.Context, req *staffattributepb.GetStaffAttributeListPageDataRequest) (*staffattributepb.GetStaffAttributeListPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaffAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

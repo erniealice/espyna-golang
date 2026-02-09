@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -81,41 +82,10 @@ func (uc *CreateClientAttributeUseCase) Execute(ctx context.Context, req *client
 		return nil, err
 	}
 
-	// Authorization check (after input validation)
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-		}
-
-		// Note: For client attributes, we need to get workspace from client
-		client, err := uc.repositories.Client.ReadClient(ctx, &clientpb.ReadClientRequest{
-			Data: &clientpb.Client{Id: req.Data.ClientId},
-		})
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.client_fetch_failed_auth", "Failed to get client for authorization [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-		if client == nil || client.Data == nil || len(client.Data) == 0 {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.client_not_found", ""))
-		}
-
-		// TODO: Re-enable workspace-scoped authorization check once Client.WorkspaceId is available
-		// workspaceID := client.Data[0].WorkspaceId
-		// if workspaceID == "" {
-		// 	return nil, fmt.Errorf("workspace ID is required for authorization check")
-		// }
-
-		// permission := ports.EntityPermission(ports.EntityClientAttribute, ports.ActionCreate)
-		// authorized, err := uc.services.AuthorizationService.HasPermissionInWorkspace(ctx, userID, workspaceID, permission)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("authorization check failed: %w", err)
-		// }
-
-		// if !authorized {
-		// 	return nil, ports.ErrWorkspaceAccessDenied(userID, workspaceID).WithDetails("permission", permission)
-		// }
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClientAttribute, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Business logic and enrichment

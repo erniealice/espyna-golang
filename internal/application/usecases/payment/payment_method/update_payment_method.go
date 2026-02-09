@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
 )
 
@@ -44,14 +45,11 @@ func NewUpdatePaymentMethodUseCase(
 // Execute performs the update payment method operation
 func (uc *UpdatePaymentMethodUseCase) Execute(ctx context.Context, req *paymentmethodpb.UpdatePaymentMethodRequest) (*paymentmethodpb.UpdatePaymentMethodResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil {
-		if enabled, ok := uc.services.AuthorizationService.(interface{ IsEnabled() bool }); ok && enabled.IsEnabled() {
-			uid, _ := ctx.Value("uid").(string)
-			if authorized, err := uc.services.AuthorizationService.HasPermission(ctx, uid, ports.EntityPermission(ports.EntityPaymentMethod, ports.ActionUpdate)); err != nil || !authorized {
-				return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_method.errors.authorization_failed", ""))
-			}
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPaymentMethod, ports.ActionUpdate); err != nil {
+		return nil, err
 	}
+
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

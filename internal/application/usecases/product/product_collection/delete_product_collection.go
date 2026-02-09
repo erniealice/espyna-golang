@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 )
 
@@ -42,6 +43,12 @@ func NewDeleteProductCollectionUseCase(
 
 // Execute performs the delete product collection operation
 func (uc *DeleteProductCollectionUseCase) Execute(ctx context.Context, req *productcollectionpb.DeleteProductCollectionRequest) (*productcollectionpb.DeleteProductCollectionResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityProductCollection, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Use transaction service if available
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

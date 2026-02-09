@@ -280,10 +280,13 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 						'permission', jsonb_build_object(
 							'id', p.id,
 							'name', p.name,
+							'permission_code', p.permission_code,
+							'permission_type', p.permission_type,
 							'description', p.description,
 							'active', p.active
 						),
-						'active', rp.active
+						'active', rp.active,
+						'date_created', rp.date_created
 					) ORDER BY p.name
 				) FILTER (WHERE rp.id IS NOT NULL) as permissions
 			FROM role_permission rp
@@ -300,12 +303,11 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 				r.color,
 				r.active,
 				r.date_created,
-				r.date_modified
+				r.date_modified,
 				COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions
 			FROM role r
 			LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
-			WHERE r.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
+			WHERE ($1::text IS NULL OR $1::text = '' OR
 				   r.name ILIKE $1 OR
 				   r.description ILIKE $1)
 		),
@@ -461,10 +463,13 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 						'permission', jsonb_build_object(
 							'id', p.id,
 							'name', p.name,
+							'permission_code', p.permission_code,
+							'permission_type', p.permission_type,
 							'description', p.description,
 							'active', p.active
 						),
-						'active', rp.active
+						'active', rp.active,
+						'date_created', rp.date_created
 					) ORDER BY p.name
 				) FILTER (WHERE rp.id IS NOT NULL) as permissions
 			FROM role_permission rp
@@ -480,11 +485,11 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 			r.color,
 			r.active,
 			r.date_created,
-			r.date_modified
+			r.date_modified,
 			COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions
 		FROM role r
 		LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
-		WHERE r.id = $1 AND r.active = true
+		WHERE r.id = $1
 		LIMIT 1;
 	`
 

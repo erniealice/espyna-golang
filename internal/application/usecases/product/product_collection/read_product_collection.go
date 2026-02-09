@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 )
 
@@ -42,6 +43,12 @@ func NewReadProductCollectionUseCase(
 
 // Execute performs the read product collection operation
 func (uc *ReadProductCollectionUseCase) Execute(ctx context.Context, req *productcollectionpb.ReadProductCollectionRequest) (*productcollectionpb.ReadProductCollectionResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityProductCollection, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
@@ -59,7 +60,13 @@ func NewUpdateWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomai
 
 // Execute performs the update workspace operation
 func (uc *UpdateWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.UpdateWorkspaceRequest) (*workspacepb.UpdateWorkspaceResponse, error) {
-	if req == nil || req.Data == nil {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspace, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
+		if req == nil || req.Data == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
 	}
 

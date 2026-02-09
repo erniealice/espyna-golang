@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 )
@@ -15,6 +16,7 @@ type GetWorkspaceUserItemPageDataRepositories struct {
 }
 
 type GetWorkspaceUserItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -41,6 +43,12 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) Execute(
 	ctx context.Context,
 	req *workspaceuserpb.GetWorkspaceUserItemPageDataRequest,
 ) (*workspaceuserpb.GetWorkspaceUserItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUser, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
@@ -87,62 +95,14 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) executeWithTransaction(
 	return result, nil
 }
 
-// executeCore contains the core business logic for getting workspace user item page data
+// executeCore contains the core business logic for getting workspace user item page data.
+// Delegates to the repository's GetWorkspaceUserItemPageData which uses a CTE query
+// to load the workspace_user with its workspace_user_roles and nested role data.
 func (uc *GetWorkspaceUserItemPageDataUseCase) executeCore(
 	ctx context.Context,
 	req *workspaceuserpb.GetWorkspaceUserItemPageDataRequest,
 ) (*workspaceuserpb.GetWorkspaceUserItemPageDataResponse, error) {
-	// Create read request for the workspace user
-	readReq := &workspaceuserpb.ReadWorkspaceUserRequest{
-		Data: &workspaceuserpb.WorkspaceUser{
-			Id: req.WorkspaceUserId,
-		},
-	}
-
-	// Retrieve the workspace user
-	readResp, err := uc.repositories.WorkspaceUser.ReadWorkspaceUser(ctx, readReq)
-	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
-			ctx,
-			uc.services.TranslationService,
-			"workspace_user.errors.read_failed",
-			"failed to retrieve workspace user: %w",
-		), err)
-	}
-
-	if readResp == nil || len(readResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx,
-			uc.services.TranslationService,
-			"workspace_user.errors.not_found",
-			"workspace user not found",
-		))
-	}
-
-	// Get the workspace user (should be only one)
-	workspaceUser := readResp.Data[0]
-
-	// Validate that we got the expected workspace user
-	if workspaceUser.Id != req.WorkspaceUserId {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx,
-			uc.services.TranslationService,
-			"workspace_user.errors.id_mismatch",
-			"retrieved workspace user ID does not match requested ID",
-		))
-	}
-
-	// TODO: In a real implementation, you might want to:
-	// 1. Load related data (workspace details, user details, etc.) if not already populated
-	// 2. Apply business rules for data visibility/access control
-	// 3. Format data for optimal frontend consumption
-	// 4. Add audit logging for item access
-
-	// For now, return the workspace user as-is
-	return &workspaceuserpb.GetWorkspaceUserItemPageDataResponse{
-		WorkspaceUser: workspaceUser,
-		Success:       true,
-	}, nil
+	return uc.repositories.WorkspaceUser.GetWorkspaceUserItemPageData(ctx, req)
 }
 
 // validateInput validates the input request

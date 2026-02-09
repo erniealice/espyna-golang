@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
@@ -18,6 +19,7 @@ type GetSubscriptionAttributeItemPageDataRepositories struct {
 
 // GetSubscriptionAttributeItemPageDataServices groups all business service dependencies
 type GetSubscriptionAttributeItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -41,6 +43,12 @@ func NewGetSubscriptionAttributeItemPageDataUseCase(
 
 // Execute performs the get subscription attribute item page data operation
 func (uc *GetSubscriptionAttributeItemPageDataUseCase) Execute(ctx context.Context, req *subscriptionattributepb.GetSubscriptionAttributeItemPageDataRequest) (*subscriptionattributepb.GetSubscriptionAttributeItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntitySubscriptionAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

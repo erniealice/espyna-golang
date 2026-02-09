@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 )
 
@@ -18,6 +19,7 @@ type GetPlanAttributeItemPageDataRepositories struct {
 
 // GetPlanAttributeItemPageDataServices groups all business service dependencies
 type GetPlanAttributeItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -41,6 +43,12 @@ func NewGetPlanAttributeItemPageDataUseCase(
 
 // Execute performs the get plan attribute item page data operation
 func (uc *GetPlanAttributeItemPageDataUseCase) Execute(ctx context.Context, req *planattributepb.GetPlanAttributeItemPageDataRequest) (*planattributepb.GetPlanAttributeItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPlanAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

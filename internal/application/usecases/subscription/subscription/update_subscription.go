@@ -11,6 +11,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 )
 
 type UpdateSubscriptionRepositories struct {
@@ -20,6 +21,7 @@ type UpdateSubscriptionRepositories struct {
 }
 
 type UpdateSubscriptionServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -43,6 +45,12 @@ func NewUpdateSubscriptionUseCase(
 
 // Execute performs the update subscription operation
 func (uc *UpdateSubscriptionUseCase) Execute(ctx context.Context, req *subscriptionpb.UpdateSubscriptionRequest) (*subscriptionpb.UpdateSubscriptionResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntitySubscription, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

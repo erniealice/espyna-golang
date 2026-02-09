@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -16,8 +17,9 @@ type ReadAttributeRepositories struct {
 
 // ReadAttributeServices groups all business service dependencies
 type ReadAttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadAttributeUseCase handles the business logic for reading attributes
@@ -54,7 +56,13 @@ func NewReadAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomainS
 
 // Execute performs the read attribute operation
 func (uc *ReadAttributeUseCase) Execute(ctx context.Context, req *attributepb.ReadAttributeRequest) (*attributepb.ReadAttributeResponse, error) {
-	// Input validation
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"attribute", ports.ActionRead); err != nil {
+		return nil, err
+	}
+
+		// Input validation
 	if err := uc.validateInput(req); err != nil {
 		return nil, err
 	}

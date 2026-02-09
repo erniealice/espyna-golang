@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 )
 
@@ -17,6 +18,7 @@ type DeleteBalanceAttributeRepositories struct {
 
 // DeleteBalanceAttributeServices groups all business service dependencies
 type DeleteBalanceAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -40,6 +42,12 @@ func NewDeleteBalanceAttributeUseCase(
 
 // Execute performs the delete balance attribute operation
 func (uc *DeleteBalanceAttributeUseCase) Execute(ctx context.Context, req *balanceattributepb.DeleteBalanceAttributeRequest) (*balanceattributepb.DeleteBalanceAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityBalanceAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

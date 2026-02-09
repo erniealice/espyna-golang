@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
 
@@ -42,12 +43,12 @@ func (uc *GetAdminListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *adminpb.GetAdminListPageDataRequest,
 ) (*adminpb.GetAdminListPageDataResponse, error) {
-	// For now, delegate to the repository layer
-	// In the future, this could include business logic like:
-	// - Permission checking
-	// - Data transformation
-	// - Caching
-	// - Metrics/logging
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityAdmin, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	return uc.repos.Admin.GetAdminListPageData(ctx, req)
 }
 

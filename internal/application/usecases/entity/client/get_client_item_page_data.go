@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )
 
@@ -42,6 +43,12 @@ func (uc *GetClientItemPageDataUseCase) Execute(
 	ctx context.Context,
 	req *clientpb.GetClientItemPageDataRequest,
 ) (*clientpb.GetClientItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClient, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// For now, delegate to the repository layer
 	// In the future, this could include business logic like:
 	// - Permission checking

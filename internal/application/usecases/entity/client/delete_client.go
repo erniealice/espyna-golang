@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )
@@ -58,6 +59,12 @@ func NewDeleteClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 
 // Execute performs the delete client operation
 func (uc *DeleteClientUseCase) Execute(ctx context.Context, req *clientpb.DeleteClientRequest) (*clientpb.DeleteClientResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClient, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil || req.Data == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required for clients [DEFAULT]"))

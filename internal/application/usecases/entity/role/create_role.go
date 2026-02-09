@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 )
@@ -62,6 +63,12 @@ func NewCreateRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *Cre
 
 // Execute performs the create role operation
 func (uc *CreateRoleUseCase) Execute(ctx context.Context, req *rolepb.CreateRoleRequest) (*rolepb.CreateRoleResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityRole, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

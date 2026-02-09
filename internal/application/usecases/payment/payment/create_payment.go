@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
@@ -46,11 +47,9 @@ func NewCreatePaymentUseCase(
 // Execute performs the create payment operation
 func (uc *CreatePaymentUseCase) Execute(ctx context.Context, req *paymentpb.CreatePaymentRequest) (*paymentpb.CreatePaymentResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		uid, _ := ctx.Value("uid").(string)
-		if authorized, err := uc.services.AuthorizationService.HasPermission(ctx, uid, ports.EntityPermission(ports.EntityPayment, ports.ActionCreate)); err != nil || !authorized {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment.errors.authorization_failed", ""))
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPayment, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Input validation

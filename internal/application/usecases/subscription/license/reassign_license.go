@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
@@ -51,6 +52,12 @@ func NewReassignLicenseUseCase(
 
 // Execute performs the reassign license operation
 func (uc *ReassignLicenseUseCase) Execute(ctx context.Context, req *licensepb.ReassignLicenseRequest) (*licensepb.ReassignLicenseResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLicense, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Check for transaction support and route accordingly
 	if uc.services.TransactionService != nil {
 		return uc.executeWithTransaction(ctx, req)
@@ -78,25 +85,6 @@ func (uc *ReassignLicenseUseCase) executeWithTransaction(ctx context.Context, re
 
 // executeCore performs the core reassign license operation
 func (uc *ReassignLicenseUseCase) executeCore(ctx context.Context, req *licensepb.ReassignLicenseRequest) (*licensepb.ReassignLicenseResponse, error) {
-	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		userID, err := contextutil.RequireUserIDFromContext(ctx)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-
-		permission := ports.EntityPermission(ports.EntityLicense, ports.ActionUpdate)
-		hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-		if !hasPerm {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

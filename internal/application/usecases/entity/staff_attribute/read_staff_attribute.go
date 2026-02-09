@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
@@ -17,6 +18,7 @@ type ReadStaffAttributeRepositories struct {
 
 // ReadStaffAttributeServices groups all business service dependencies
 type ReadStaffAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -47,6 +49,7 @@ func NewReadStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb.S
 	}
 
 	services := ReadStaffAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -56,6 +59,12 @@ func NewReadStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb.S
 
 // Execute performs the read staff attribute operation
 func (uc *ReadStaffAttributeUseCase) Execute(ctx context.Context, req *staffattributepb.ReadStaffAttributeRequest) (*staffattributepb.ReadStaffAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaffAttribute, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

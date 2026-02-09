@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
 )
@@ -60,6 +61,12 @@ func NewGetRolePermissionItemPageDataUseCaseUngrouped(rolePermissionRepo roleper
 
 // Execute performs the get role permission item page data operation
 func (uc *GetRolePermissionItemPageDataUseCase) Execute(ctx context.Context, req *rolepermissionpb.GetRolePermissionItemPageDataRequest) (*rolepermissionpb.GetRolePermissionItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityRolePermission, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -96,11 +103,6 @@ func (uc *GetRolePermissionItemPageDataUseCase) executeCore(ctx context.Context,
 		return nil, err
 	}
 
-	// Authorization check
-	if err := uc.checkPermissions(ctx, req); err != nil {
-		return nil, err
-	}
-
 	// Call repository
 	return uc.repositories.RolePermission.GetRolePermissionItemPageData(ctx, req)
 }
@@ -118,23 +120,3 @@ func (uc *GetRolePermissionItemPageDataUseCase) validateInput(ctx context.Contex
 	return nil
 }
 
-// checkPermissions verifies user authorization for role permission item access
-func (uc *GetRolePermissionItemPageDataUseCase) checkPermissions(ctx context.Context, req *rolepermissionpb.GetRolePermissionItemPageDataRequest) error {
-	if uc.services.AuthorizationService == nil {
-		// No authorization service configured, allow access
-		return nil
-	}
-
-	// Check if user has permission to read role permissions
-	userID := contextutil.ExtractUserIDFromContext(ctx)
-	hasPermission, err := uc.services.AuthorizationService.HasPermission(ctx, userID, "role_permission.read")
-	if err != nil {
-		return fmt.Errorf("authorization check failed: %w", err)
-	}
-
-	if !hasPermission {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.insufficient_permissions", "Insufficient permissions to access role permission details [DEFAULT]"))
-	}
-
-	return nil
-}

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 )
@@ -58,21 +59,9 @@ func NewListDelegatesUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainServ
 // Execute performs the list delegates operation
 func (uc *ListDelegatesUseCase) Execute(ctx context.Context, req *delegatepb.ListDelegatesRequest) (*delegatepb.ListDelegatesResponse, error) {
 	// Authorization check
-	userID, err := contextutil.RequireUserIDFromContext(ctx)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.authorization_failed", "Authorization failed for Parent/Guardians")
-		return nil, errors.New(translatedError)
-	}
-
-	permission := ports.EntityPermission(ports.EntityDelegate, ports.ActionList)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.authorization_failed", "Authorization failed for Parent/Guardians")
-		return nil, errors.New(translatedError)
-	}
-	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.authorization_failed", "Authorization failed for Parent/Guardians")
-		return nil, errors.New(translatedError)
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegate, ports.ActionList); err != nil {
+		return nil, err
 	}
 
 	// Input validation

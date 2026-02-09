@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 )
 
@@ -43,6 +44,12 @@ func NewCreateBalanceUseCase(
 
 // Execute performs the create balance operation
 func (uc *CreateBalanceUseCase) Execute(ctx context.Context, req *balancepb.CreateBalanceRequest) (*balancepb.CreateBalanceResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityBalance, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check for transaction support and route accordingly
 	if uc.services.TransactionService != nil {
 		return uc.executeWithTransaction(ctx, req)

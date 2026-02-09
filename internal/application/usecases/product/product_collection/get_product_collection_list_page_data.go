@@ -8,6 +8,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 )
@@ -17,6 +18,7 @@ type GetProductCollectionListPageDataRepositories struct {
 }
 
 type GetProductCollectionListPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -45,6 +47,12 @@ func (uc *GetProductCollectionListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *productcollectionpb.GetProductCollectionListPageDataRequest,
 ) (*productcollectionpb.GetProductCollectionListPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityProductCollection, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

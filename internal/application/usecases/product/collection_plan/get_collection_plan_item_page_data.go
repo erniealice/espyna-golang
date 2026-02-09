@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
 )
 
@@ -15,6 +16,7 @@ type GetCollectionPlanItemPageDataRepositories struct {
 }
 
 type GetCollectionPlanItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -41,6 +43,12 @@ func (uc *GetCollectionPlanItemPageDataUseCase) Execute(
 	ctx context.Context,
 	req *collectionplanpb.GetCollectionPlanItemPageDataRequest,
 ) (*collectionplanpb.GetCollectionPlanItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityCollectionPlan, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

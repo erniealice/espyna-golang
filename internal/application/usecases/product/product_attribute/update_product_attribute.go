@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
@@ -47,6 +48,12 @@ func NewUpdateProductAttributeUseCase(
 
 // Execute performs the update product attribute operation
 func (uc *UpdateProductAttributeUseCase) Execute(ctx context.Context, req *productattributepb.UpdateProductAttributeRequest) (*productattributepb.UpdateProductAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityProductAttribute, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

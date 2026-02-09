@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 )
 
@@ -15,6 +16,7 @@ type GetPriceProductItemPageDataRepositories struct {
 }
 
 type GetPriceProductItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -41,6 +43,12 @@ func (uc *GetPriceProductItemPageDataUseCase) Execute(
 	ctx context.Context,
 	req *priceproductpb.GetPriceProductItemPageDataRequest,
 ) (*priceproductpb.GetPriceProductItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPriceProduct, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

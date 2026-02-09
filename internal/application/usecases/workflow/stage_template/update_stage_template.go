@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
@@ -62,6 +63,12 @@ func NewUpdateStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.St
 
 // Execute performs the update stage template operation
 func (uc *UpdateStageTemplateUseCase) Execute(ctx context.Context, req *stageTemplatepb.UpdateStageTemplateRequest) (*stageTemplatepb.UpdateStageTemplateResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"stage_template", ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.request_required", "Request is required for stage templates [DEFAULT]"))

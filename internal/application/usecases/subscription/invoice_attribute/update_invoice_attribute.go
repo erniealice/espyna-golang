@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
@@ -23,6 +24,7 @@ type UpdateInvoiceAttributeRepositories struct {
 
 // UpdateInvoiceAttributeServices groups all business service dependencies
 type UpdateInvoiceAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -46,6 +48,12 @@ func NewUpdateInvoiceAttributeUseCase(
 
 // Execute performs the update invoice attribute operation
 func (uc *UpdateInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoiceattributepb.UpdateInvoiceAttributeRequest) (*invoiceattributepb.UpdateInvoiceAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityInvoiceAttribute, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

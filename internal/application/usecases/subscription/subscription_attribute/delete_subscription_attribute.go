@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
@@ -17,6 +18,7 @@ type DeleteSubscriptionAttributeRepositories struct {
 
 // DeleteSubscriptionAttributeServices groups all business service dependencies
 type DeleteSubscriptionAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -40,6 +42,12 @@ func NewDeleteSubscriptionAttributeUseCase(
 
 // Execute performs the delete subscription attribute operation
 func (uc *DeleteSubscriptionAttributeUseCase) Execute(ctx context.Context, req *subscriptionattributepb.DeleteSubscriptionAttributeRequest) (*subscriptionattributepb.DeleteSubscriptionAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntitySubscriptionAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

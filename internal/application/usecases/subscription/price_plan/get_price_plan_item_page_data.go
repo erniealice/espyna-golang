@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 )
 
@@ -42,14 +43,11 @@ func NewGetPricePlanItemPageDataUseCase(
 // Execute performs the get price plan item page data operation
 func (uc *GetPricePlanItemPageDataUseCase) Execute(ctx context.Context, req *priceplanpb.GetPricePlanItemPageDataRequest) (*priceplanpb.GetPricePlanItemPageDataResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil {
-		if enabled, ok := uc.services.AuthorizationService.(interface{ IsEnabled() bool }); ok && enabled.IsEnabled() {
-			uid, _ := ctx.Value("uid").(string)
-			if authorized, err := uc.services.AuthorizationService.HasPermission(ctx, uid, ports.EntityPermission(ports.EntityPricePlan, ports.ActionRead)); err != nil || !authorized {
-				return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.authorization_failed", ""))
-			}
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPricePlan, ports.ActionList); err != nil {
+		return nil, err
 	}
+
 
 	// Input validation
 	if req == nil {

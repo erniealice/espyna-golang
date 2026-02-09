@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -15,8 +16,9 @@ type ListAttributesRepositories struct {
 
 // ListAttributesServices groups all business service dependencies
 type ListAttributesServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListAttributesUseCase handles the business logic for listing attributes
@@ -54,6 +56,12 @@ func NewListAttributesUseCaseUngrouped(attributeRepo attributepb.AttributeDomain
 
 // Execute performs the list attributes operation
 func (uc *ListAttributesUseCase) Execute(ctx context.Context, req *attributepb.ListAttributesRequest) (*attributepb.ListAttributesResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"attribute", ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Initialize request if nil
 	if req == nil {
 		req = &attributepb.ListAttributesRequest{}

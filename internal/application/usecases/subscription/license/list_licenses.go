@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 )
 
@@ -41,24 +42,11 @@ func NewListLicensesUseCase(
 // Execute performs the list licenses operation
 func (uc *ListLicensesUseCase) Execute(ctx context.Context, req *licensepb.ListLicensesRequest) (*licensepb.ListLicensesResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		userID, err := contextutil.RequireUserIDFromContext(ctx)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-
-		permission := ports.EntityPermission(ports.EntityLicense, ports.ActionRead)
-		hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-		if !hasPerm {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLicense, ports.ActionList); err != nil {
+		return nil, err
 	}
+
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

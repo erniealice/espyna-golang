@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
@@ -24,6 +25,7 @@ type UpdateDelegateAttributeRepositories struct {
 
 // UpdateDelegateAttributeServices groups all business service dependencies
 type UpdateDelegateAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -60,6 +62,7 @@ func NewUpdateDelegateAttributeUseCaseUngrouped(
 	}
 
 	services := UpdateDelegateAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -69,6 +72,12 @@ func NewUpdateDelegateAttributeUseCaseUngrouped(
 
 // Execute performs the update delegate attribute operation
 func (uc *UpdateDelegateAttributeUseCase) Execute(ctx context.Context, req *delegateattributepb.UpdateDelegateAttributeRequest) (*delegateattributepb.UpdateDelegateAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegateAttribute, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

@@ -267,14 +267,16 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 				p.id,
 				p.name,
 				p.description,
+				p.permission_code,
+				p.permission_type,
 				p.active,
 				p.date_created,
 				p.date_modified
 			FROM permission p
-			WHERE p.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
+			WHERE ($1::text IS NULL OR $1::text = '' OR
 				   p.name ILIKE $1 OR
-				   p.description ILIKE $1)
+				   p.description ILIKE $1 OR
+				   p.permission_code ILIKE $1)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -298,19 +300,23 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			name               string
-			description        *string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
-			total              int64
+			id               string
+			name             string
+			description      *string
+			permissionCode   *string
+			permissionType   *string
+			active           bool
+			dateCreated      time.Time
+			dateModified     time.Time
+			total            int64
 		)
 
 		err := rows.Scan(
 			&id,
 			&name,
 			&description,
+			&permissionCode,
+			&permissionType,
 			&active,
 			&dateCreated,
 			&dateModified,
@@ -323,28 +329,33 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 		totalCount = total
 
 		permission := &permissionpb.Permission{
-			Id:       id,
-			Active:   active,
+			Id:     id,
+			Name:   name,
+			Active: active,
 		}
 
-		// Note: Permission protobuf doesn't have Name/Description fields
-		// It has permission_code instead. If needed, map name to permission_code
+		if description != nil {
+			permission.Description = *description
+		}
+		if permissionCode != nil {
+			permission.PermissionCode = *permissionCode
+		}
+		if permissionType != nil {
+			permission.PermissionType = parsePermissionType(*permissionType)
+		}
 
-		// Handle nullable timestamp fields
-
-		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		permission.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		permission.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			permission.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			permission.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		permission.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		permission.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			permission.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			permission.DateModifiedString = &dmStr
+		}
 
 		permissions = append(permissions, permission)
 	}
@@ -393,29 +404,35 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 			p.id,
 			p.name,
 			p.description,
+			p.permission_code,
+			p.permission_type,
 			p.active,
 			p.date_created,
 			p.date_modified
 		FROM permission p
-		WHERE p.id = $1 AND p.active = true
+		WHERE p.id = $1
 		LIMIT 1;
 	`
 
 	row := r.db.QueryRowContext(ctx, query, req.PermissionId)
 
 	var (
-		id                 string
-		name               string
-		description        *string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id             string
+		name           string
+		description    *string
+		permissionCode *string
+		permissionType *string
+		active         bool
+		dateCreated    time.Time
+		dateModified   time.Time
 	)
 
 	err := row.Scan(
 		&id,
 		&name,
 		&description,
+		&permissionCode,
+		&permissionType,
 		&active,
 		&dateCreated,
 		&dateModified,
@@ -429,15 +446,20 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 
 	permission := &permissionpb.Permission{
 		Id:     id,
+		Name:   name,
 		Active: active,
 	}
 
-	// Note: Permission protobuf doesn't have Name/Description fields
-	// It has permission_code instead. Consider mapping name to permission_code if needed
+	if description != nil {
+		permission.Description = *description
+	}
+	if permissionCode != nil {
+		permission.PermissionCode = *permissionCode
+	}
+	if permissionType != nil {
+		permission.PermissionType = parsePermissionType(*permissionType)
+	}
 
-	// Handle nullable timestamp fields
-
-	// Parse timestamps if provided
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		permission.DateCreated = &ts
@@ -455,6 +477,16 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 		Permission: permission,
 		Success:    true,
 	}, nil
+}
+
+// parsePermissionType converts a database permission_type string to the protobuf enum.
+func parsePermissionType(s string) permissionpb.PermissionType {
+	switch s {
+	case "PERMISSION_TYPE_DENY":
+		return permissionpb.PermissionType_PERMISSION_TYPE_DENY
+	default:
+		return permissionpb.PermissionType_PERMISSION_TYPE_ALLOW
+	}
 }
 
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 )
 
@@ -42,6 +43,12 @@ func NewDeleteEventAttributeUseCase(
 
 // Execute performs the delete event attribute operation
 func (uc *DeleteEventAttributeUseCase) Execute(ctx context.Context, req *eventattributepb.DeleteEventAttributeRequest) (*eventattributepb.DeleteEventAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEventAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Use transaction service if available
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

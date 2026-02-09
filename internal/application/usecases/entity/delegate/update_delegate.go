@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 )
@@ -92,21 +93,9 @@ func (uc *UpdateDelegateUseCase) executeWithTransaction(ctx context.Context, req
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *UpdateDelegateUseCase) executeCore(ctx context.Context, req *delegatepb.UpdateDelegateRequest) (*delegatepb.UpdateDelegateResponse, error) {
 	// Authorization check
-	userID, err := contextutil.RequireUserIDFromContext(ctx)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.authorization_failed", "Authorization failed for Parent/Guardians")
-		return nil, errors.New(translatedError)
-	}
-
-	permission := ports.EntityPermission(ports.EntityDelegate, ports.ActionUpdate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.authorization_failed", "Authorization failed for Parent/Guardians")
-		return nil, errors.New(translatedError)
-	}
-	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.authorization_failed", "Authorization failed for Parent/Guardians")
-		return nil, errors.New(translatedError)
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegate, ports.ActionUpdate); err != nil {
+		return nil, err
 	}
 
 	// Input validation

@@ -109,6 +109,10 @@ type DatabaseTableConfig struct {
 	Workflow, WorkflowTemplate, Stage, Activity, StageTemplate, ActivityTemplate string
 	// Session
 	Session string
+	// Revenue domain
+	Revenue, RevenueAttribute, RevenueLineItem, RevenueCategory string
+	// Inventory domain
+	InventoryItem, InventoryAttribute, InventoryTransaction string
 	// Subscription
 	Plan, PlanAttribute, PlanLocation, PlanSettings      string
 	Balance, BalanceAttribute, Invoice, InvoiceAttribute string
@@ -197,6 +201,12 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		StageTemplate: "stage_template", ActivityTemplate: "activity_template",
 		// Session
 		Session: "session",
+		// Revenue domain
+		Revenue: "revenue", RevenueAttribute: "revenue_attribute",
+		RevenueLineItem: "revenue_line_item", RevenueCategory: "revenue_category",
+		// Inventory domain
+		InventoryItem: "inventory_item", InventoryAttribute: "inventory_attribute",
+		InventoryTransaction: "inventory_transaction",
 		// Subscription
 		Plan: "plan", PlanAttribute: "plan_attribute", PlanLocation: "plan_location", PlanSettings: "plan_settings",
 		Balance: "balance", BalanceAttribute: "balance_attribute",

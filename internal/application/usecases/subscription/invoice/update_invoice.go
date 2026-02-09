@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 )
 
@@ -42,6 +43,12 @@ func NewUpdateInvoiceUseCase(
 
 // Execute performs the update invoice operation
 func (uc *UpdateInvoiceUseCase) Execute(ctx context.Context, req *invoicepb.UpdateInvoiceRequest) (*invoicepb.UpdateInvoiceResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityInvoice, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

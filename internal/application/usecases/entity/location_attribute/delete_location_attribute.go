@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt" // Add fmt import
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
@@ -16,6 +17,7 @@ type DeleteLocationAttributeRepositories struct {
 
 // DeleteLocationAttributeServices groups all business service dependencies
 type DeleteLocationAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -50,6 +52,7 @@ func NewDeleteLocationAttributeUseCaseUngrouped(
 	}
 
 	services := DeleteLocationAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -58,6 +61,12 @@ func NewDeleteLocationAttributeUseCaseUngrouped(
 }
 
 func (uc *DeleteLocationAttributeUseCase) Execute(ctx context.Context, req *locationattributepb.DeleteLocationAttributeRequest) (*locationattributepb.DeleteLocationAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLocationAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

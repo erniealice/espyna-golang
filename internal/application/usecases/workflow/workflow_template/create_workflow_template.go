@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
@@ -64,6 +65,12 @@ func NewCreateWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 
 // Execute performs the create workflow template operation
 func (uc *CreateWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.CreateWorkflowTemplateRequest) (*workflow_templatepb.CreateWorkflowTemplateResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"workflow_template", ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.request_required", "Request is required for workflow templates [DEFAULT]"))

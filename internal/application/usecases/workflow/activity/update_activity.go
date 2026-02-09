@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
 )
 
@@ -59,6 +60,12 @@ func NewUpdateActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 
 // Execute performs the update activity operation
 func (uc *UpdateActivityUseCase) Execute(ctx context.Context, req *activitypb.UpdateActivityRequest) (*activitypb.UpdateActivityResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"activity", ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))

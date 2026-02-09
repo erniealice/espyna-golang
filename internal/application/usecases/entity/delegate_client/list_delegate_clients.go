@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
@@ -68,25 +69,9 @@ func NewListDelegateClientsUseCaseUngrouped(
 // Execute performs the list delegate clients operation
 func (uc *ListDelegateClientsUseCase) Execute(ctx context.Context, req *delegateclientpb.ListDelegateClientsRequest) (*delegateclientpb.ListDelegateClientsResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-		}
-
-		// Check permission to list delegate-client relationships
-		permission := ports.EntityPermission(ports.EntityDelegateClient, ports.ActionRead)
-		authorized, err := uc.services.AuthorizationService.HasGlobalPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.authorization_check_failed", "Authorization check failed [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.access_denied", "Access denied [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegateClient, ports.ActionList); err != nil {
+		return nil, err
 	}
 
 	// Input validation

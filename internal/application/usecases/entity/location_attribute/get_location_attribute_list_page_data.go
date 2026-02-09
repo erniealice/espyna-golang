@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -17,6 +18,7 @@ type GetLocationAttributeListPageDataRepositories struct {
 }
 
 type GetLocationAttributeListPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -45,6 +47,12 @@ func (uc *GetLocationAttributeListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *locationattributepb.GetLocationAttributeListPageDataRequest,
 ) (*locationattributepb.GetLocationAttributeListPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLocationAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

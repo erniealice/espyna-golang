@@ -11,6 +11,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -54,6 +55,12 @@ func NewCreateLicensesFromPlanUseCase(
 
 // Execute performs the create licenses from plan operation
 func (uc *CreateLicensesFromPlanUseCase) Execute(ctx context.Context, req *licensepb.CreateLicensesFromPlanRequest) (*licensepb.CreateLicensesFromPlanResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLicense, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check for transaction support and route accordingly
 	if uc.services.TransactionService != nil {
 		return uc.executeWithTransaction(ctx, req)
@@ -81,25 +88,6 @@ func (uc *CreateLicensesFromPlanUseCase) executeWithTransaction(ctx context.Cont
 
 // executeCore performs the core bulk license creation operation
 func (uc *CreateLicensesFromPlanUseCase) executeCore(ctx context.Context, req *licensepb.CreateLicensesFromPlanRequest) (*licensepb.CreateLicensesFromPlanResponse, error) {
-	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		userID, err := contextutil.RequireUserIDFromContext(ctx)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-
-		permission := ports.EntityPermission(ports.EntityLicense, ports.ActionCreate)
-		hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-		if !hasPerm {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.authorization_failed", "Authorization failed for license [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

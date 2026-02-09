@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
@@ -81,41 +82,10 @@ func (uc *CreateDelegateAttributeUseCase) Execute(ctx context.Context, req *dele
 		return nil, err
 	}
 
-	// Authorization check (after input validation)
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-		}
-
-		// Note: For delegate attributes, we need to get workspace from delegate
-		delegate, err := uc.repositories.Delegate.ReadDelegate(ctx, &delegatepb.ReadDelegateRequest{
-			Data: &delegatepb.Delegate{Id: req.Data.DelegateId},
-		})
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.delegate_fetch_failed_auth", "Failed to get delegate for authorization [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-		if delegate == nil || delegate.Data == nil || len(delegate.Data) == 0 {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.delegate_not_found", ""))
-		}
-
-		// TODO: Re-enable workspace-scoped authorization check once Delegate.WorkspaceId is available
-		// workspaceID := delegate.Data[0].WorkspaceId
-		// if workspaceID == "" {
-		// 	return nil, fmt.Errorf("workspace ID is required for authorization check")
-		// }
-
-		// permission := ports.EntityPermission(ports.EntityDelegateAttribute, ports.ActionCreate)
-		// authorized, err := uc.services.AuthorizationService.HasPermissionInWorkspace(ctx, userID, workspaceID, permission)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("authorization check failed: %w", err)
-		// }
-
-		// if !authorized {
-		// 	return nil, ports.ErrWorkspaceAccessDenied(userID, workspaceID).WithDetails("permission", permission)
-		// }
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegateAttribute, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Business logic and enrichment

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 )
@@ -19,8 +20,9 @@ type GetClientAttributeItemPageDataRepositories struct {
 
 // GetClientAttributeItemPageDataServices groups all business service dependencies
 type GetClientAttributeItemPageDataServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetClientAttributeItemPageDataUseCase handles the business logic for getting client attribute item page data
@@ -49,8 +51,9 @@ func NewGetClientAttributeItemPageDataUseCaseUngrouped(clientAttributeRepo clien
 	}
 
 	services := GetClientAttributeItemPageDataServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewGetClientAttributeItemPageDataUseCase(repositories, services)
@@ -58,6 +61,12 @@ func NewGetClientAttributeItemPageDataUseCaseUngrouped(clientAttributeRepo clien
 
 // Execute performs the get client attribute item page data operation
 func (uc *GetClientAttributeItemPageDataUseCase) Execute(ctx context.Context, req *clientattributepb.GetClientAttributeItemPageDataRequest) (*clientattributepb.GetClientAttributeItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClientAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

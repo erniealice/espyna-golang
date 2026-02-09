@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -19,9 +20,10 @@ type CreateAttributeRepositories struct {
 
 // CreateAttributeServices groups all business service dependencies
 type CreateAttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
-	IDService          ports.IDService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
+	IDService            ports.IDService
 }
 
 // CreateAttributeUseCase handles the business logic for creating attributes
@@ -60,7 +62,13 @@ func NewCreateAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 
 // Execute performs the create attribute operation
 func (uc *CreateAttributeUseCase) Execute(ctx context.Context, req *attributepb.CreateAttributeRequest) (*attributepb.CreateAttributeResponse, error) {
-	// Check if transaction service is available and supports transactions
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"attribute", ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
+		// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}

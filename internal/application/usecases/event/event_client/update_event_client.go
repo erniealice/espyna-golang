@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
@@ -68,6 +69,12 @@ func NewUpdateEventClientUseCaseUngrouped(eventClientRepo eventclientpb.EventCli
 
 // Execute performs the update event client operation
 func (uc *UpdateEventClientUseCase) Execute(ctx context.Context, req *eventclientpb.UpdateEventClientRequest) (*eventclientpb.UpdateEventClientResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEventClient, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

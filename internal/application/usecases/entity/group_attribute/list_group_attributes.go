@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
@@ -18,6 +19,7 @@ type ListGroupAttributesRepositories struct {
 
 // ListGroupAttributesServices groups all business service dependencies
 type ListGroupAttributesServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -48,6 +50,7 @@ func NewListGroupAttributesUseCaseUngrouped(groupAttributeRepo groupattributepb.
 	}
 
 	services := ListGroupAttributesServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -57,6 +60,12 @@ func NewListGroupAttributesUseCaseUngrouped(groupAttributeRepo groupattributepb.
 
 // Execute performs the list group attributes operation
 func (uc *ListGroupAttributesUseCase) Execute(ctx context.Context, req *groupattributepb.ListGroupAttributesRequest) (*groupattributepb.ListGroupAttributesResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityGroupAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

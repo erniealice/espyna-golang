@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
@@ -59,6 +60,12 @@ func NewReadUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *ReadU
 
 // Execute performs the read user operation
 func (uc *ReadUserUseCase) Execute(ctx context.Context, req *userpb.ReadUserRequest) (*userpb.ReadUserResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityUser, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

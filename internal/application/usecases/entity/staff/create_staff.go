@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 )
@@ -94,21 +95,9 @@ func (uc *CreateStaffUseCase) executeWithTransaction(ctx context.Context, req *s
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateStaffUseCase) executeCore(ctx context.Context, req *staffpb.CreateStaffRequest) (*staffpb.CreateStaffResponse, error) {
 	// Authorization check
-	userID, err := contextutil.RequireUserIDFromContext(ctx)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.errors.authorization_failed", "")
-		return nil, errors.New(translatedError)
-	}
-
-	permission := ports.EntityPermission(ports.EntityStaff, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.errors.authorization_failed", "")
-		return nil, errors.New(translatedError)
-	}
-	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.errors.authorization_failed", "")
-		return nil, errors.New(translatedError)
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaff, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Input validation

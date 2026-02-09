@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 )
 
@@ -43,6 +44,12 @@ func NewUpdateCollectionUseCase(
 
 // Execute performs the update collection operation
 func (uc *UpdateCollectionUseCase) Execute(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityCollection, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Use transaction service if available, otherwise execute directly.
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -73,25 +80,6 @@ func (uc *UpdateCollectionUseCase) executeWithTransaction(ctx context.Context, r
 
 // executeCore contains the core business logic for updating a collection.
 func (uc *UpdateCollectionUseCase) executeCore(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
-	// Authorization check - conditional based on service availability
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		userID, err := contextutil.RequireUserIDFromContext(ctx)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for course collections [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-
-		permission := ports.EntityPermission(ports.EntityCollection, ports.ActionUpdate)
-		hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for course collections [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-		if !hasPerm {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for course collections [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
-	}
 
 	// 1. First, perform basic input validation.
 	if err := uc.validateInput(ctx, req); err != nil {

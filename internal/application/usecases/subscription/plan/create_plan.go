@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 )
 
@@ -44,6 +45,12 @@ func NewCreatePlanUseCase(
 
 // Execute performs the create plan operation
 func (uc *CreatePlanUseCase) Execute(ctx context.Context, req *planpb.CreatePlanRequest) (*planpb.CreatePlanResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPlan, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check for transaction support and route accordingly
 	if uc.services.TransactionService != nil {
 		return uc.executeWithTransaction(ctx, req)

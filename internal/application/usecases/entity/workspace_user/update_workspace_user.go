@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
@@ -75,30 +76,10 @@ func (uc *UpdateWorkspaceUserUseCase) Execute(ctx context.Context, req *workspac
 		return nil, err
 	}
 
-	// Authorization check - now safe to access req.Data.WorkspaceId
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, ports.ErrUserNotAuthenticated()
-		}
-
-		// Check workspace-scoped permission to update workspace users
-		// Extract workspace ID from the request data (now validated to be non-nil)
-		workspaceID := req.Data.WorkspaceId
-		if workspaceID == "" {
-			return nil, fmt.Errorf("workspace ID is required for authorization check")
-		}
-
-		permission := ports.EntityPermission(ports.EntityWorkspaceUser, ports.ActionUpdate)
-		authorized, err := uc.services.AuthorizationService.HasPermissionInWorkspace(ctx, userID, workspaceID, permission)
-		if err != nil {
-			return nil, fmt.Errorf("authorization check failed: %w", err)
-		}
-
-		if !authorized {
-			return nil, ports.ErrWorkspaceAccessDenied(userID, workspaceID).WithDetails("permission", permission)
-		}
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUser, ports.ActionUpdate); err != nil {
+		return nil, err
 	}
 
 	// Business logic and enrichment

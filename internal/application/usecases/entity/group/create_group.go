@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
@@ -61,6 +62,12 @@ func NewCreateGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) 
 
 // Execute performs the create group operation
 func (uc *CreateGroupUseCase) Execute(ctx context.Context, req *grouppb.CreateGroupRequest) (*grouppb.CreateGroupResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityGroup, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

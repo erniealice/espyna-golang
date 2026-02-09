@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
@@ -23,6 +24,7 @@ type UpdatePlanAttributeRepositories struct {
 
 // UpdatePlanAttributeServices groups all business service dependencies
 type UpdatePlanAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -46,6 +48,12 @@ func NewUpdatePlanAttributeUseCase(
 
 // Execute performs the update plan attribute operation
 func (uc *UpdatePlanAttributeUseCase) Execute(ctx context.Context, req *planattributepb.UpdatePlanAttributeRequest) (*planattributepb.UpdatePlanAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPlanAttribute, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

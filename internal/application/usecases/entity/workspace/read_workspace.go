@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
@@ -57,7 +58,13 @@ func NewReadWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomainS
 
 // Execute performs the read workspace operation
 func (uc *ReadWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.ReadWorkspaceRequest) (*workspacepb.ReadWorkspaceResponse, error) {
-	if err := uc.validateInput(ctx, req); err != nil {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspace, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
+		if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
 	}
 

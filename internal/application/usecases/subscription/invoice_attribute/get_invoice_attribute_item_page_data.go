@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
 )
 
@@ -18,6 +19,7 @@ type GetInvoiceAttributeItemPageDataRepositories struct {
 
 // GetInvoiceAttributeItemPageDataServices groups all business service dependencies
 type GetInvoiceAttributeItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -41,6 +43,12 @@ func NewGetInvoiceAttributeItemPageDataUseCase(
 
 // Execute performs the get invoice attribute item page data operation
 func (uc *GetInvoiceAttributeItemPageDataUseCase) Execute(ctx context.Context, req *invoiceattributepb.GetInvoiceAttributeItemPageDataRequest) (*invoiceattributepb.GetInvoiceAttributeItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityInvoiceAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

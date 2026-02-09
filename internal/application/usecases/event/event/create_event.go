@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 
@@ -64,6 +65,12 @@ func NewCreateEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 
 // Execute performs the create event operation
 func (uc *CreateEventUseCase) Execute(ctx context.Context, req *eventpb.CreateEventRequest) (*eventpb.CreateEventResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEvent, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -101,16 +108,6 @@ func (uc *CreateEventUseCase) executeCore(ctx context.Context, req *eventpb.Crea
 	}
 	if req.Data == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
-	}
-
-	// Authorization check
-	if uc.services.AuthorizationService != nil {
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		authorized, err := uc.services.AuthorizationService.HasPermission(ctx, userID, "event_create")
-		if err != nil || !authorized {
-			authError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.errors.authorization_failed", "Authorization failed for academic events [DEFAULT]")
-			return nil, errors.New(authError)
-		}
 	}
 
 	// Business enrichment (must happen before validation to auto-generate timestamps)

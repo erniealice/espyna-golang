@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
@@ -17,6 +18,7 @@ type ReadDelegateAttributeRepositories struct {
 
 // ReadDelegateAttributeServices groups all business service dependencies
 type ReadDelegateAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -47,6 +49,7 @@ func NewReadDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateattr
 	}
 
 	services := ReadDelegateAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -56,6 +59,12 @@ func NewReadDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateattr
 
 // Execute performs the read delegate attribute operation
 func (uc *ReadDelegateAttributeUseCase) Execute(ctx context.Context, req *delegateattributepb.ReadDelegateAttributeRequest) (*delegateattributepb.ReadDelegateAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegateAttribute, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
@@ -72,28 +74,13 @@ func NewCreateRolePermissionUseCaseUngrouped(
 }
 
 func (uc *CreateRolePermissionUseCase) Execute(ctx context.Context, req *rolepermissionpb.CreateRolePermissionRequest) (*rolepermissionpb.CreateRolePermissionResponse, error) {
-	// Authorization check - CRITICAL: This manages role permissions (high security)
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.user_not_authenticated", "User not authenticated"))
-		}
-
-		// For role-permission relationships, we need global permission to manage role permissions
-		// This is a highly sensitive operation that affects system security
-		permission := ports.EntityPermission(ports.EntityRolePermission, ports.ActionCreate)
-		authorized, err := uc.services.AuthorizationService.HasGlobalPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.authorization_check_failed", "Authorization check failed")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.access_denied", "Access denied")
-			return nil, errors.New(translatedError)
-		}
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityRolePermission, ports.ActionCreate); err != nil {
+		return nil, err
 	}
+
+	
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
@@ -125,6 +112,8 @@ func (uc *CreateRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.creation_failed", "Role-Permission creation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
+
+	log.Printf("AUTHZ_CHANGE | action=grant | role_permission_id=%s", req.Data.Id)
 
 	return resp, nil
 }

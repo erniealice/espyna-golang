@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
@@ -95,25 +96,9 @@ func (uc *CreateUserUseCase) executeWithTransaction(ctx context.Context, req *us
 func (uc *CreateUserUseCase) executeCore(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
 
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-		}
-
-		// Check permission to create users
-		permission := ports.EntityPermission(ports.EntityUser, ports.ActionCreate)
-		authorized, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.errors.authorization_check_failed", "Authorization check failed [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.errors.permission_denied", "Permission denied [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityUser, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Business validation

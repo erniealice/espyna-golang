@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
@@ -76,16 +76,9 @@ func NewCreateEventClientUseCaseUngrouped(
 // Execute performs the create event client operation
 func (uc *CreateEventClientUseCase) Execute(ctx context.Context, req *eventclientpb.CreateEventClientRequest) (*eventclientpb.CreateEventClientResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, ports.ErrUserNotAuthenticated()
-		}
-
-		// TODO: Implement workspace-scoped permission check for event client creation
-		// permission := ports.EntityPermission(ports.EntityEventClient, ports.ActionCreate)
-		// authorized, err := uc.services.AuthorizationService.HasPermissionInWorkspace(ctx, userID, workspaceID, permission)
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEventClient, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Input validation

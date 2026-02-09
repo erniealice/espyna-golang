@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 )
 
@@ -43,6 +44,12 @@ func NewCreateLicenseHistoryUseCase(
 
 // Execute performs the create license history operation
 func (uc *CreateLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehistorypb.CreateLicenseHistoryRequest) (*licensehistorypb.CreateLicenseHistoryResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLicenseHistory, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check for transaction support and route accordingly
 	if uc.services.TransactionService != nil {
 		return uc.executeWithTransaction(ctx, req)

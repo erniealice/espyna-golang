@@ -10,6 +10,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 )
@@ -65,6 +66,12 @@ func NewCreateActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTemp
 
 // Execute performs the create activity template operation
 func (uc *CreateActivityTemplateUseCase) Execute(ctx context.Context, req *activityTemplatepb.CreateActivityTemplateRequest) (*activityTemplatepb.CreateActivityTemplateResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"activity_template", ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.request_required", "Request is required for activity templates [DEFAULT]"))

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
@@ -78,19 +79,9 @@ func (uc *ReadWorkspaceUserUseCase) Execute(ctx context.Context, req *workspaceu
 	}
 
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, ports.ErrUserNotAuthenticated()
-		}
-
-		// For read operations, we might need to read the entity first to get workspace context
-		// Or we can require workspace ID to be passed in the request
-		// For simplicity, we'll check if user has read permission (workspace context would be determined by the repository)
-
-		// TODO: Implement more sophisticated authorization for read operations
-		// This might involve reading the entity first to get workspace context
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUser, ports.ActionRead); err != nil {
+		return nil, err
 	}
 
 	// Call repository with intelligent error handling

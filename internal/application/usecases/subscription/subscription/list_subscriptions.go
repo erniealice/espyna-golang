@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -15,6 +16,7 @@ type ListSubscriptionsRepositories struct {
 }
 
 type ListSubscriptionsServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -38,6 +40,12 @@ func NewListSubscriptionsUseCase(
 
 // Execute performs the list subscriptions operation
 func (uc *ListSubscriptionsUseCase) Execute(ctx context.Context, req *subscriptionpb.ListSubscriptionsRequest) (*subscriptionpb.ListSubscriptionsResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntitySubscription, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Extract business type at start
 	// businessType := uc.getBusinessTypeFromContext(ctx)
 

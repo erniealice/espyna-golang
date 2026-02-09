@@ -3,10 +3,10 @@ package workspace_user
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
@@ -79,43 +79,9 @@ func (uc *DeleteWorkspaceUserUseCase) Execute(ctx context.Context, req *workspac
 	}
 
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, ports.ErrUserNotAuthenticated()
-		}
-
-		// For delete operations, we need to read the existing entity first to get workspace context
-		existingEntity, err := uc.repositories.WorkspaceUser.ReadWorkspaceUser(ctx, &workspaceuserpb.ReadWorkspaceUserRequest{
-			Data: &workspaceuserpb.WorkspaceUser{Id: req.Data.Id},
-		})
-		if err != nil {
-			// If we can't read the workspace user for authorization, return authorization failed
-			// This covers both "not found" errors and other read errors
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.errors.authorization_failed", "Authorization failed for workspace users")
-			return nil, errors.New(translatedError)
-		}
-		if existingEntity == nil || existingEntity.Data == nil || len(existingEntity.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.errors.authorization_failed", "Authorization failed for workspace users")
-			return nil, errors.New(translatedError)
-		}
-
-		workspaceID := existingEntity.Data[0].WorkspaceId
-		if workspaceID == "" {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.validation.workspace_id_required", "Workspace ID is required for authorization check")
-			return nil, errors.New(translatedError)
-		}
-
-		permission := ports.EntityPermission(ports.EntityWorkspaceUser, ports.ActionDelete)
-		authorized, err := uc.services.AuthorizationService.HasPermissionInWorkspace(ctx, userID, workspaceID, permission)
-		if err != nil {
-			return nil, fmt.Errorf("authorization check failed: %w", err)
-		}
-
-		if !authorized {
-			return nil, ports.ErrWorkspaceAccessDenied(userID, workspaceID).WithDetails("permission", permission)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUser, ports.ActionDelete); err != nil {
+		return nil, err
 	}
 
 	// Call repository with intelligent error handling

@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 
@@ -60,19 +61,15 @@ func NewListEventsUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) *
 
 // Execute performs the list events operation
 func (uc *ListEventsUseCase) Execute(ctx context.Context, req *eventpb.ListEventsRequest) (*eventpb.ListEventsResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEvent, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		req = &eventpb.ListEventsRequest{}
-	}
-
-	// Authorization check
-	if uc.services.AuthorizationService != nil {
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		authorized, err := uc.services.AuthorizationService.HasPermission(ctx, userID, "event_list")
-		if err != nil || !authorized {
-			authError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.errors.authorization_failed", "Authorization failed for academic events [DEFAULT]")
-			return nil, errors.New(authError)
-		}
 	}
 
 	// Call repository

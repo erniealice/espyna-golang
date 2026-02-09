@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
@@ -81,41 +82,10 @@ func (uc *CreateStaffAttributeUseCase) Execute(ctx context.Context, req *staffat
 		return nil, err
 	}
 
-	// Authorization check (after input validation)
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-		}
-
-		// Note: For staff attributes, we need to get workspace from staff
-		staff, err := uc.repositories.Staff.ReadStaff(ctx, &staffpb.ReadStaffRequest{
-			Data: &staffpb.Staff{Id: req.Data.StaffId},
-		})
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.staff_fetch_failed_auth", "Failed to get staff for authorization [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-		if staff == nil || staff.Data == nil || len(staff.Data) == 0 {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.staff_not_found", ""))
-		}
-
-		// TODO: Re-enable workspace-scoped authorization check once Staff.WorkspaceId is available
-		// workspaceID := staff.Data[0].WorkspaceId
-		// if workspaceID == "" {
-		// 	return nil, fmt.Errorf("workspace ID is required for authorization check")
-		// }
-
-		// permission := ports.EntityPermission(ports.EntityStaffAttribute, ports.ActionCreate)
-		// authorized, err := uc.services.AuthorizationService.HasPermissionInWorkspace(ctx, userID, workspaceID, permission)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("authorization check failed: %w", err)
-		// }
-
-		// if !authorized {
-		// 	return nil, ports.ErrWorkspaceAccessDenied(userID, workspaceID).WithDetails("permission", permission)
-		// }
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaffAttribute, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Business logic and enrichment

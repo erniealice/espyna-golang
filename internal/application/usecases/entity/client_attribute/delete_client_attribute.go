@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 )
@@ -18,8 +19,9 @@ type DeleteClientAttributeRepositories struct {
 
 // DeleteClientAttributeServices groups all business service dependencies
 type DeleteClientAttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteClientAttributeUseCase handles the business logic for deleting client attributes
@@ -48,8 +50,9 @@ func NewDeleteClientAttributeUseCaseUngrouped(clientAttributeRepo clientattribut
 	}
 
 	services := DeleteClientAttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewDeleteClientAttributeUseCase(repositories, services)
@@ -57,6 +60,12 @@ func NewDeleteClientAttributeUseCaseUngrouped(clientAttributeRepo clientattribut
 
 // Execute performs the delete client attribute operation
 func (uc *DeleteClientAttributeUseCase) Execute(ctx context.Context, req *clientattributepb.DeleteClientAttributeRequest) (*clientattributepb.DeleteClientAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClientAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

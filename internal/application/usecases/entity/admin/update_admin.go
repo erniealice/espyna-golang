@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
 
@@ -42,21 +43,10 @@ func NewUpdateAdminUseCase(
 
 // Execute performs the update admin operation
 func (uc *UpdateAdminUseCase) Execute(ctx context.Context, req *adminpb.UpdateAdminRequest) (*adminpb.UpdateAdminResponse, error) {
-	// Authorization check (skip if authorization service is nil or disabled)
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		userID, err := contextutil.RequireUserIDFromContext(ctx)
-		if err != nil {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.authorization_failed", ""))
-		}
-
-		permission := ports.EntityPermission(ports.EntityAdmin, ports.ActionUpdate)
-		hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.authorization_failed", ""))
-		}
-		if !hasPerm {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.authorization_failed", ""))
-		}
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityAdmin, ports.ActionUpdate); err != nil {
+		return nil, err
 	}
 
 	// Input validation

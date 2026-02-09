@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 )
 
@@ -43,6 +44,12 @@ func NewReadEventAttributeUseCase(
 
 // Execute performs the read event attribute operation
 func (uc *ReadEventAttributeUseCase) Execute(ctx context.Context, req *eventattributepb.ReadEventAttributeRequest) (*eventattributepb.ReadEventAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEventAttribute, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {

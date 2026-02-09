@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
@@ -16,6 +17,7 @@ type ReadLocationAttributeRepositories struct {
 
 // ReadLocationAttributeServices groups all business service dependencies
 type ReadLocationAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService // Current: Database transactions
 	TranslationService ports.TranslationService
 }
@@ -48,6 +50,7 @@ func NewReadLocationAttributeUseCaseUngrouped(
 	}
 
 	services := ReadLocationAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -56,6 +59,12 @@ func NewReadLocationAttributeUseCaseUngrouped(
 }
 
 func (uc *ReadLocationAttributeUseCase) Execute(ctx context.Context, req *locationattributepb.ReadLocationAttributeRequest) (*locationattributepb.ReadLocationAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLocationAttribute, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

@@ -333,10 +333,12 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 						'role', jsonb_build_object(
 							'id', r.id,
 							'name', r.name,
-							'permissions', r.permissions,
+							'description', r.description,
+							'color', r.color,
 							'active', r.active
 						),
 						'date_created', EXTRACT(EPOCH FROM wur.date_created) * 1000,
+						'date_created_string', TO_CHAR(wur.date_created, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 						'date_modified', EXTRACT(EPOCH FROM wur.date_modified) * 1000,
 						'active', wur.active
 					)
@@ -359,7 +361,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
-				u.phone_number as user_phone_number,
+				u.mobile_number as user_phone_number,
 				u.active as user_active,
 				-- Workspace user roles (many-to-many via junction table)
 				COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles
@@ -536,10 +538,12 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 						'role', jsonb_build_object(
 							'id', r.id,
 							'name', r.name,
-							'permissions', r.permissions,
+							'description', r.description,
+							'color', r.color,
 							'active', r.active
 						),
 						'date_created', EXTRACT(EPOCH FROM wur.date_created) * 1000,
+						'date_created_string', TO_CHAR(wur.date_created, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 						'date_modified', EXTRACT(EPOCH FROM wur.date_modified) * 1000,
 						'active', wur.active
 					)
@@ -562,7 +566,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
-				u.phone_number as user_phone_number,
+				u.mobile_number as user_phone_number,
 				u.active as user_active,
 				-- Workspace user roles (many-to-many via junction table)
 				COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles

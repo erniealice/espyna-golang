@@ -263,12 +263,13 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 				w.id,
 				w.name,
 				w.description,
+				w.private,
+				w.workflow_template_id,
 				w.active,
 				w.date_created,
 				w.date_modified
 			FROM workspace w
-			WHERE w.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
+			WHERE ($1::text IS NULL OR $1::text = '' OR
 				   w.name ILIKE $1 OR
 				   w.description ILIKE $1)
 		),
@@ -297,6 +298,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 			id                 string
 			name               string
 			description        *string
+			private            bool
+			workflowTemplateID *string
 			active             bool
 			dateCreated        time.Time
 			dateModified       time.Time
@@ -307,6 +310,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 			&id,
 			&name,
 			&description,
+			&private,
+			&workflowTemplateID,
 			&active,
 			&dateCreated,
 			&dateModified,
@@ -319,30 +324,31 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 		totalCount = total
 
 		workspace := &workspacepb.Workspace{
-			Id:     id,
-			Name:   name,
-			Active: active,
+			Id:      id,
+			Name:    name,
+			Private: private,
+			Active:  active,
 		}
 
 		if description != nil {
 			workspace.Description = *description
 		}
+		if workflowTemplateID != nil {
+			workspace.WorkflowTemplateId = workflowTemplateID
+		}
 
-		// Handle nullable timestamp fields
-
-		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		workspace.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		workspace.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			workspace.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			workspace.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		workspace.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		workspace.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			workspace.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			workspace.DateModifiedString = &dmStr
+		}
 
 		workspaces = append(workspaces, workspace)
 	}
@@ -391,11 +397,13 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 			w.id,
 			w.name,
 			w.description,
+			w.private,
+			w.workflow_template_id,
 			w.active,
 			w.date_created,
 			w.date_modified
 		FROM workspace w
-		WHERE w.id = $1 AND w.active = true
+		WHERE w.id = $1
 		LIMIT 1;
 	`
 
@@ -405,6 +413,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 		id                 string
 		name               string
 		description        *string
+		private            bool
+		workflowTemplateID *string
 		active             bool
 		dateCreated        time.Time
 		dateModified       time.Time
@@ -414,6 +424,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 		&id,
 		&name,
 		&description,
+		&private,
+		&workflowTemplateID,
 		&active,
 		&dateCreated,
 		&dateModified,
@@ -426,18 +438,19 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 	}
 
 	workspace := &workspacepb.Workspace{
-		Id:     id,
-		Name:   name,
-		Active: active,
+		Id:      id,
+		Name:    name,
+		Private: private,
+		Active:  active,
 	}
 
 	if description != nil {
 		workspace.Description = *description
 	}
+	if workflowTemplateID != nil {
+		workspace.WorkflowTemplateId = workflowTemplateID
+	}
 
-	// Handle nullable timestamp fields
-
-	// Parse timestamps if provided
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		workspace.DateCreated = &ts

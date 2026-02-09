@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
@@ -49,6 +50,12 @@ func NewCreateCollectionAttributeUseCase(
 
 // Execute performs the create collection attribute operation
 func (uc *CreateCollectionAttributeUseCase) Execute(ctx context.Context, req *collectionattributepb.CreateCollectionAttributeRequest) (*collectionattributepb.CreateCollectionAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityCollectionAttribute, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -79,12 +86,6 @@ func (uc *CreateCollectionAttributeUseCase) executeWithTransaction(ctx context.C
 
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateCollectionAttributeUseCase) executeCore(ctx context.Context, req *collectionattributepb.CreateCollectionAttributeRequest) (*collectionattributepb.CreateCollectionAttributeResponse, error) {
-	// TODO: Re-enable workspace-scoped authorization check once WorkspaceId is available
-	// userID, err := contextutil.RequireUserIDFromContext(ctx)
-	// if err != nil {
-	// 	translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.authorization_failed", "Authorization failed for collection attributes [DEFAULT]")
-	// 	return nil, errors.New(translatedError)
-	// }
 	// permission := ports.EntityPermission(ports.EntityCollectionAttribute, ports.ActionCreate)
 	// hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
 	// if err != nil {

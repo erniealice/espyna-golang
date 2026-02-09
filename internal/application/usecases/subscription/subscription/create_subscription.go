@@ -11,6 +11,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 )
 
 type CreateSubscriptionRepositories struct {
@@ -20,6 +21,7 @@ type CreateSubscriptionRepositories struct {
 }
 
 type CreateSubscriptionServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 	IDService          ports.IDService
@@ -44,6 +46,12 @@ func NewCreateSubscriptionUseCase(
 
 // Execute performs the create subscription operation
 func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscriptionpb.CreateSubscriptionRequest) (*subscriptionpb.CreateSubscriptionResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntitySubscription, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.data_required", ""))
 	}

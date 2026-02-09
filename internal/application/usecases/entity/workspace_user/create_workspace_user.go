@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
@@ -82,32 +83,10 @@ func (uc *CreateWorkspaceUserUseCase) Execute(ctx context.Context, req *workspac
 		return nil, err
 	}
 
-	// Authorization check - now safe to access req.Data.WorkspaceId
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-		}
-
-		// Check workspace-scoped permission to create workspace users
-		// Extract workspace ID from the request data (now validated to be non-nil)
-		workspaceID := req.Data.WorkspaceId
-		if workspaceID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.errors.workspace_id_required_auth", "Workspace ID is required for authorization check [DEFAULT]"))
-		}
-
-		permission := ports.EntityPermission(ports.EntityWorkspaceUser, ports.ActionCreate)
-		authorized, err := uc.services.AuthorizationService.HasPermissionInWorkspace(ctx, userID, workspaceID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.errors.authorization_check_failed", "Authorization check failed [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.errors.access_denied", "Access denied [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUser, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Business logic and enrichment

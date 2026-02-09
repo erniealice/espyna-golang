@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -80,25 +82,9 @@ func (uc *CreateWorkspaceUserRoleUseCase) executeWithTransaction(ctx context.Con
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *workspaceuserrolepb.CreateWorkspaceUserRoleRequest) (*workspaceuserrolepb.CreateWorkspaceUserRoleResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.user_not_authenticated", "User not authenticated "))
-		}
-
-		// Check permission to create workspace user roles
-		permission := ports.EntityPermission(ports.EntityWorkspaceUserRole, ports.ActionCreate)
-		authorized, err := uc.services.AuthorizationService.HasGlobalPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.authorization_check_failed", "Authorization check failed ")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.access_denied", "Access denied ")
-			return nil, errors.New(translatedError)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityWorkspaceUserRole, ports.ActionCreate); err != nil {
+		return nil, err
 	}
 
 	// Input validation
@@ -131,6 +117,8 @@ func (uc *CreateWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.creation_failed", "Workspace-User-Role creation failed ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
+
+	log.Printf("AUTHZ_CHANGE | action=assign_role | workspace_user_role_id=%s", req.Data.Id)
 
 	return resp, nil
 }

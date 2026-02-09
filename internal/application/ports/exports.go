@@ -195,6 +195,9 @@ type TranslationService = domain.TranslationService
 // NewNoOpTranslationService creates a non-operational fallback
 var NewNoOpTranslationService = domain.NewNoOpTranslationService
 
+// Ledger types
+type LedgerReportingService = domain.LedgerReportingService
+
 // =============================================================================
 // SECURITY PORTS (Authorization)
 // =============================================================================

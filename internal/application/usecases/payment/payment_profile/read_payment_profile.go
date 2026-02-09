@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	paymentprofilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
 )
 
@@ -43,14 +44,11 @@ func NewReadPaymentProfileUseCase(
 // Execute performs the read payment profile operation
 func (uc *ReadPaymentProfileUseCase) Execute(ctx context.Context, req *paymentprofilepb.ReadPaymentProfileRequest) (*paymentprofilepb.ReadPaymentProfileResponse, error) {
 	// Authorization check
-	if uc.services.AuthorizationService != nil {
-		if enabled, ok := uc.services.AuthorizationService.(interface{ IsEnabled() bool }); ok && enabled.IsEnabled() {
-			uid, _ := ctx.Value("uid").(string)
-			if authorized, err := uc.services.AuthorizationService.HasPermission(ctx, uid, ports.EntityPermission(ports.EntityPaymentProfile, ports.ActionRead)); err != nil || !authorized {
-				return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_profile.errors.authorization_failed", ""))
-			}
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPaymentProfile, ports.ActionRead); err != nil {
+		return nil, err
 	}
+
 
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 )
@@ -18,8 +19,9 @@ type ListClientAttributesRepositories struct {
 
 // ListClientAttributesServices groups all business service dependencies
 type ListClientAttributesServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListClientAttributesUseCase handles the business logic for listing client attributes
@@ -48,8 +50,9 @@ func NewListClientAttributesUseCaseUngrouped(clientAttributeRepo clientattribute
 	}
 
 	services := ListClientAttributesServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewListClientAttributesUseCase(repositories, services)
@@ -57,6 +60,12 @@ func NewListClientAttributesUseCaseUngrouped(clientAttributeRepo clientattribute
 
 // Execute performs the list client attributes operation
 func (uc *ListClientAttributesUseCase) Execute(ctx context.Context, req *clientattributepb.ListClientAttributesRequest) (*clientattributepb.ListClientAttributesResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClientAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

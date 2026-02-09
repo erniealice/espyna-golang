@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 
@@ -62,6 +63,12 @@ func NewDeleteEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 
 // Execute performs the delete event operation
 func (uc *DeleteEventUseCase) Execute(ctx context.Context, req *eventpb.DeleteEventRequest) (*eventpb.DeleteEventResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEvent, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -96,16 +103,6 @@ func (uc *DeleteEventUseCase) executeCore(ctx context.Context, req *eventpb.Dele
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
-	}
-
-	// Authorization check
-	if uc.services.AuthorizationService != nil {
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		authorized, err := uc.services.AuthorizationService.HasPermission(ctx, userID, "event_delete")
-		if err != nil || !authorized {
-			authError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.errors.authorization_failed", "Authorization failed for academic events [DEFAULT]")
-			return nil, errors.New(authError)
-		}
 	}
 
 	// Check if event exists and validate deletion rules

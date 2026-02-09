@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 )
@@ -58,6 +59,12 @@ func NewGetRoleItemPageDataUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceSer
 
 // Execute performs the get role item page data operation
 func (uc *GetRoleItemPageDataUseCase) Execute(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) (*rolepb.GetRoleItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityRole, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -94,11 +101,6 @@ func (uc *GetRoleItemPageDataUseCase) executeCore(ctx context.Context, req *role
 		return nil, err
 	}
 
-	// Authorization check
-	if err := uc.checkPermissions(ctx, req); err != nil {
-		return nil, err
-	}
-
 	// Call repository
 	return uc.repositories.Role.GetRoleItemPageData(ctx, req)
 }
@@ -116,22 +118,3 @@ func (uc *GetRoleItemPageDataUseCase) validateInput(ctx context.Context, req *ro
 	return nil
 }
 
-// checkPermissions verifies user authorization for role item access
-func (uc *GetRoleItemPageDataUseCase) checkPermissions(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) error {
-	if uc.services.AuthorizationService == nil {
-		// No authorization service configured, allow access
-		return nil
-	}
-
-	// Check if user has permission to read roles
-	hasPermission, err := uc.services.AuthorizationService.HasPermission(ctx, "", "role.read")
-	if err != nil {
-		return fmt.Errorf("authorization check failed: %w", err)
-	}
-
-	if !hasPermission {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.errors.insufficient_permissions", "Insufficient permissions to access role details [DEFAULT]"))
-	}
-
-	return nil
-}

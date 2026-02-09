@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 )
@@ -56,6 +57,12 @@ func NewListStaffsUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) *
 }
 
 func (uc *ListStaffsUseCase) Execute(ctx context.Context, req *staffpb.ListStaffsRequest) (*staffpb.ListStaffsResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaff, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		req = &staffpb.ListStaffsRequest{}

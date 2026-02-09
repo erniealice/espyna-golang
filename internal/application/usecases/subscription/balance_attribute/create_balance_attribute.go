@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
@@ -48,29 +49,17 @@ func NewCreateBalanceAttributeUseCase(
 
 // Execute performs the create balance attribute operation
 func (uc *CreateBalanceAttributeUseCase) Execute(ctx context.Context, req *balanceattributepb.CreateBalanceAttributeRequest) (*balanceattributepb.CreateBalanceAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityBalanceAttribute, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Input validation (must be done first to avoid nil pointer access)
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
 	}
 
-	// TODO: Re-enable workspace-scoped authorization check once Balance.WorkspaceId is available
-	// if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-	// 	userID := contextutil.ExtractUserIDFromContext(ctx)
-	// 	if userID == "" {
-	// 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-	// 	}
-	//
-	// 	permission := ports.EntityPermission(ports.EntityBalanceAttribute, ports.ActionCreate)
-	// 	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	// 	if err != nil {
-	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
-	// 		return nil, fmt.Errorf("%s: %w", translatedError, err)
-	// 	}
-	// 	if !hasPerm {
-	// 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.authorization_failed", "Authorization failed [DEFAULT]")
-	// 		return nil, errors.New(translatedError)
-	// 	}
-	// }
 
 	// Business logic and enrichment
 	if err := uc.enrichBalanceAttributeData(req.Data); err != nil {

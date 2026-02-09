@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
@@ -49,6 +50,12 @@ func NewCreateEventAttributeUseCase(
 
 // Execute performs the create event attribute operation
 func (uc *CreateEventAttributeUseCase) Execute(ctx context.Context, req *eventattributepb.CreateEventAttributeRequest) (*eventattributepb.CreateEventAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEventAttribute, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
@@ -79,22 +86,6 @@ func (uc *CreateEventAttributeUseCase) executeWithTransaction(ctx context.Contex
 
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateEventAttributeUseCase) executeCore(ctx context.Context, req *eventattributepb.CreateEventAttributeRequest) (*eventattributepb.CreateEventAttributeResponse, error) {
-	// TODO: Re-enable workspace-scoped authorization check once WorkspaceId is available
-	// userID, err := contextutil.RequireUserIDFromContext(ctx)
-	// if err != nil {
-	// 	translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
-	// 	return nil, errors.New(translatedError)
-	// }
-	// permission := ports.EntityPermission(ports.EntityEventAttribute, ports.ActionCreate)
-	// hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-	// if err != nil {
-	// 	translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
-	// 	return nil, errors.New(translatedError)
-	// }
-	// if !hasPerm {
-	// 	translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
-	// 	return nil, errors.New(translatedError)
-	// }
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

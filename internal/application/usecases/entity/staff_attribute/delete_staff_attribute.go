@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
@@ -18,6 +19,7 @@ type DeleteStaffAttributeRepositories struct {
 
 // DeleteStaffAttributeServices groups all business service dependencies
 type DeleteStaffAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -48,6 +50,7 @@ func NewDeleteStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb
 	}
 
 	services := DeleteStaffAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -57,6 +60,12 @@ func NewDeleteStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb
 
 // Execute performs the delete staff attribute operation
 func (uc *DeleteStaffAttributeUseCase) Execute(ctx context.Context, req *staffattributepb.DeleteStaffAttributeRequest) (*staffattributepb.DeleteStaffAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaffAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

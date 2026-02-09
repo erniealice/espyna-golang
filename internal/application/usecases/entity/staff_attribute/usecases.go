@@ -44,6 +44,7 @@ func NewUseCases(
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
+		IDService:            services.IDService,
 	}
 
 	readRepos := ReadStaffAttributeRepositories{

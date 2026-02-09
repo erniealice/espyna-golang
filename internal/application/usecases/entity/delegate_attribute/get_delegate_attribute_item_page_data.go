@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
@@ -19,6 +20,7 @@ type GetDelegateAttributeItemPageDataRepositories struct {
 
 // GetDelegateAttributeItemPageDataServices groups all business service dependencies
 type GetDelegateAttributeItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -49,6 +51,7 @@ func NewGetDelegateAttributeItemPageDataUseCaseUngrouped(delegateAttributeRepo d
 	}
 
 	services := GetDelegateAttributeItemPageDataServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -58,6 +61,12 @@ func NewGetDelegateAttributeItemPageDataUseCaseUngrouped(delegateAttributeRepo d
 
 // Execute performs the get delegate attribute item page data operation
 func (uc *GetDelegateAttributeItemPageDataUseCase) Execute(ctx context.Context, req *delegateattributepb.GetDelegateAttributeItemPageDataRequest) (*delegateattributepb.GetDelegateAttributeItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegateAttribute, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")

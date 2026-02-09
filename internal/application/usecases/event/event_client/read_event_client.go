@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
@@ -68,6 +69,12 @@ func NewReadEventClientUseCaseUngrouped(
 
 // Execute performs the read event client operation
 func (uc *ReadEventClientUseCase) Execute(ctx context.Context, req *eventclientpb.ReadEventClientRequest) (*eventclientpb.ReadEventClientResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityEventClient, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_client.validation.request_required", ""))

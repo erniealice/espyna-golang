@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
@@ -76,26 +77,9 @@ func (uc *DeleteDelegateClientUseCase) Execute(ctx context.Context, req *delegat
 	}
 
 	// Authorization check
-	if uc.services.AuthorizationService != nil && uc.services.AuthorizationService.IsEnabled() {
-		// Extract user ID from context (should be set by authentication middleware)
-		userID := contextutil.ExtractUserIDFromContext(ctx)
-		if userID == "" {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.user_not_authenticated", "User not authenticated [DEFAULT]"))
-		}
-
-		// For delete operations, we may need to read the existing entity first for workspace context
-		// Currently using basic entity-level permission
-		permission := ports.EntityPermission(ports.EntityDelegateClient, ports.ActionDelete)
-		authorized, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
-		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.authorization_check_failed", "Authorization check failed [DEFAULT]")
-			return nil, fmt.Errorf("%s: %w", translatedError, err)
-		}
-
-		if !authorized {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.access_denied", "Access denied [DEFAULT]")
-			return nil, errors.New(translatedError)
-		}
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityDelegateClient, ports.ActionDelete); err != nil {
+		return nil, err
 	}
 
 	// Business logic pre-processing

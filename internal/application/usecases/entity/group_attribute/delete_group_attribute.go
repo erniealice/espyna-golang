@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
@@ -18,6 +19,7 @@ type DeleteGroupAttributeRepositories struct {
 
 // DeleteGroupAttributeServices groups all business service dependencies
 type DeleteGroupAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -48,6 +50,7 @@ func NewDeleteGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb
 	}
 
 	services := DeleteGroupAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -57,6 +60,12 @@ func NewDeleteGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb
 
 // Execute performs the delete group attribute operation
 func (uc *DeleteGroupAttributeUseCase) Execute(ctx context.Context, req *groupattributepb.DeleteGroupAttributeRequest) (*groupattributepb.DeleteGroupAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityGroupAttribute, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

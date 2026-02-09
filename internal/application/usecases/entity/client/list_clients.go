@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )
@@ -57,6 +58,12 @@ func NewListClientsUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServe
 
 // Execute performs the list clients operation
 func (uc *ListClientsUseCase) Execute(ctx context.Context, req *clientpb.ListClientsRequest) (*clientpb.ListClientsResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClient, ports.ActionList); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil {
 		req = &clientpb.ListClientsRequest{}

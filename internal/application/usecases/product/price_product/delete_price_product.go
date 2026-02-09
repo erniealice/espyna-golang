@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 )
 
@@ -42,6 +43,12 @@ func NewDeletePriceProductUseCase(
 
 // Execute performs the delete price product operation
 func (uc *DeletePriceProductUseCase) Execute(ctx context.Context, req *priceproductpb.DeletePriceProductRequest) (*priceproductpb.DeletePriceProductResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityPriceProduct, ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
 	// Use transaction service if available
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)

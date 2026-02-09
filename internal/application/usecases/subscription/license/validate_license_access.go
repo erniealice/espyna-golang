@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 )
 
@@ -18,6 +19,7 @@ type ValidateLicenseAccessRepositories struct {
 
 // ValidateLicenseAccessServices groups all business service dependencies
 type ValidateLicenseAccessServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService // Database transactions
 	TranslationService ports.TranslationService // i18n error messages
 }
@@ -41,6 +43,12 @@ func NewValidateLicenseAccessUseCase(
 
 // Execute performs the validate license access operation
 func (uc *ValidateLicenseAccessUseCase) Execute(ctx context.Context, req *licensepb.ValidateLicenseAccessRequest) (*licensepb.ValidateLicenseAccessResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityLicense, ports.ActionRead); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

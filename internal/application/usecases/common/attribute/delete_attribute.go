@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -16,8 +17,9 @@ type DeleteAttributeRepositories struct {
 
 // DeleteAttributeServices groups all business service dependencies
 type DeleteAttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteAttributeUseCase handles the business logic for deleting attributes
@@ -55,7 +57,13 @@ func NewDeleteAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 
 // Execute performs the delete attribute operation
 func (uc *DeleteAttributeUseCase) Execute(ctx context.Context, req *attributepb.DeleteAttributeRequest) (*attributepb.DeleteAttributeResponse, error) {
-	// Input validation
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		"attribute", ports.ActionDelete); err != nil {
+		return nil, err
+	}
+
+		// Input validation
 	if err := uc.validateInput(req); err != nil {
 		return nil, err
 	}

@@ -85,8 +85,9 @@ func NewUseCases(
 		ProductPlan: repositories.ProductPlan,
 	}
 	readServices := ReadProductPlanServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	updateRepos := UpdateProductPlanRepositories(repositories)
@@ -100,32 +101,36 @@ func NewUseCases(
 		ProductPlan: repositories.ProductPlan,
 	}
 	deleteServices := DeleteProductPlanServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listRepos := ListProductPlansRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	listServices := ListProductPlansServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listPageDataRepos := GetProductPlanListPageDataRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	listPageDataServices := GetProductPlanListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	itemPageDataRepos := GetProductPlanItemPageDataRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	itemPageDataServices := GetProductPlanItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	return &UseCases{

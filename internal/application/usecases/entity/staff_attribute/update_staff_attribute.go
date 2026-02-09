@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
@@ -24,6 +25,7 @@ type UpdateStaffAttributeRepositories struct {
 
 // UpdateStaffAttributeServices groups all business service dependencies
 type UpdateStaffAttributeServices struct {
+	AuthorizationService ports.AuthorizationService
 	TransactionService ports.TransactionService
 	TranslationService ports.TranslationService
 }
@@ -60,6 +62,7 @@ func NewUpdateStaffAttributeUseCaseUngrouped(
 	}
 
 	services := UpdateStaffAttributeServices{
+		AuthorizationService: nil,
 		TransactionService: ports.NewNoOpTransactionService(),
 		TranslationService: ports.NewNoOpTranslationService(),
 	}
@@ -69,6 +72,12 @@ func NewUpdateStaffAttributeUseCaseUngrouped(
 
 // Execute performs the update staff attribute operation
 func (uc *UpdateStaffAttributeUseCase) Execute(ctx context.Context, req *staffattributepb.UpdateStaffAttributeRequest) (*staffattributepb.UpdateStaffAttributeResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityStaffAttribute, ports.ActionUpdate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -77,6 +78,12 @@ func NewFindOrCreateClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServi
 // 4. If client found, returns it in ListClientsResponse
 // 5. If no user found, delegates to CreateClient use case which handles User+Client creation
 func (uc *FindOrCreateClientUseCase) Execute(ctx context.Context, req *clientpb.CreateClientRequest) (*clientpb.ListClientsResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityClient, ports.ActionCreate); err != nil {
+		return nil, err
+	}
+
 	// Input validation
 	if req == nil || req.Data == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required [DEFAULT]"))

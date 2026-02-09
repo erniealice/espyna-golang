@@ -272,8 +272,7 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 				COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 			FROM location l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-			WHERE l.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
+			WHERE ($1::text IS NULL OR $1::text = '' OR
 				   l.name ILIKE $1 OR
 				   l.address ILIKE $1)
 		),
@@ -425,7 +424,7 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 			COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 		FROM location l
 		LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-		WHERE l.id = $1 AND l.active = true
+		WHERE l.id = $1
 	`
 
 	row := r.db.QueryRowContext(ctx, query, req.LocationId)

@@ -197,6 +197,32 @@ func (m *MockAuthorizationService) GetUserWorkspaces(ctx context.Context, userID
 	return m.defaultWorkspaces, nil
 }
 
+func (m *MockAuthorizationService) GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error) {
+	if !m.enabled {
+		return nil, fmt.Errorf("authorization service is disabled")
+	}
+
+	// If allowAll, return all configured allowed permissions
+	if m.allowAll {
+		codes := make([]string, 0, len(m.allowedPermissions))
+		for perm := range m.allowedPermissions {
+			codes = append(codes, perm)
+		}
+		return codes, nil
+	}
+
+	if m.denyAll {
+		return []string{}, nil
+	}
+
+	// Return specifically allowed permissions
+	codes := make([]string, 0, len(m.allowedPermissions))
+	for perm := range m.allowedPermissions {
+		codes = append(codes, perm)
+	}
+	return codes, nil
+}
+
 func (m *MockAuthorizationService) IsEnabled() bool {
 	return m.enabled
 }

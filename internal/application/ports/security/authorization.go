@@ -24,6 +24,10 @@ type AuthorizationService interface {
 	// GetUserWorkspaces returns all workspaces a user has access to
 	GetUserWorkspaces(ctx context.Context, userID string) ([]string, error)
 
+	// GetUserPermissionCodes returns all effective permission codes for a user (for UI adaptation).
+	// Returns only ALLOW'd codes that are not overridden by a DENY.
+	GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error)
+
 	// IsEnabled returns whether authorization is enabled
 	IsEnabled() bool
 }
@@ -47,6 +51,9 @@ func (s *noOpAuthorizationService) GetUserRolesInWorkspace(ctx context.Context, 
 	return []string{}, nil
 }
 func (s *noOpAuthorizationService) GetUserWorkspaces(ctx context.Context, userID string) ([]string, error) {
+	return []string{}, nil
+}
+func (s *noOpAuthorizationService) GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error) {
 	return []string{}, nil
 }
 func (s *noOpAuthorizationService) IsEnabled() bool {
@@ -79,6 +86,9 @@ type AuthorizationProvider interface {
 
 	// GetUserWorkspaces retrieves accessible workspaces
 	GetUserWorkspaces(ctx context.Context, userID string) ([]string, error)
+
+	// GetUserPermissionCodes returns all effective permission codes for a user
+	GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error)
 
 	// IsEnabled returns whether this provider is enabled
 	IsEnabled() bool

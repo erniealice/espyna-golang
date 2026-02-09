@@ -41,6 +41,10 @@ func (a *AllowAllAuthService) GetUserWorkspaces(ctx context.Context, userID stri
 	return []string{"default"}, nil
 }
 
+func (a *AllowAllAuthService) GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error) {
+	return []string{}, nil
+}
+
 func (a *AllowAllAuthService) IsEnabled() bool {
 	return true
 }

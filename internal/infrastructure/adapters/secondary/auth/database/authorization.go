@@ -153,6 +153,45 @@ func (s *DatabaseAuthorizationService) GetUserWorkspaces(ctx context.Context, us
 	return workspaces, rows.Err()
 }
 
+// GetUserPermissionCodes returns all effective permission codes for a user.
+// Returns ALLOW'd codes minus any DENY'd codes (DENY-wins).
+func (s *DatabaseAuthorizationService) GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error) {
+	query := `
+		SELECT DISTINCT p.permission_code
+		FROM workspace_user wu
+		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id AND wur.active = true
+		JOIN role_permission rp ON rp.role_id = wur.role_id AND rp.active = true
+			AND rp.permission_type = 'PERMISSION_TYPE_ALLOW'
+		JOIN permission p ON p.id = rp.permission_id AND p.active = true
+		WHERE wu.user_id = $1 AND wu.active = true
+			AND p.permission_code NOT IN (
+				SELECT p2.permission_code
+				FROM workspace_user wu2
+				JOIN workspace_user_role wur2 ON wur2.workspace_user_id = wu2.id AND wur2.active = true
+				JOIN role_permission rp2 ON rp2.role_id = wur2.role_id AND rp2.active = true
+					AND rp2.permission_type = 'PERMISSION_TYPE_DENY'
+				JOIN permission p2 ON p2.id = rp2.permission_id AND p2.active = true
+				WHERE wu2.user_id = $1 AND wu2.active = true
+			)`
+
+	rows, err := s.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var codes []string
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		codes = append(codes, code)
+	}
+
+	return codes, rows.Err()
+}
+
 // IsEnabled returns whether authorization is enabled (always true for database impl).
 func (s *DatabaseAuthorizationService) IsEnabled() bool {
 	return s.enabled

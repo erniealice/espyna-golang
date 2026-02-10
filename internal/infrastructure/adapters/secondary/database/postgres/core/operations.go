@@ -176,10 +176,20 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 		validColumns[col] = true
 	}
 
-	// Check if record exists
-	existing, err := p.Read(ctx, tableName, id)
+	// Check if record exists (query without active filter so we can update
+	// inactive records too, e.g. re-activating a soft-deleted record).
+	existQuery := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
+	existRow := p.db.QueryRowContext(ctx, existQuery, id)
+	existing, err := p.scanRowToMap(existRow, resultColumns)
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
+		}
+		return nil, model.NewDatabaseError(
+			fmt.Sprintf("failed to read record for update: %v", err),
+			"POSTGRES_READ_FAILED",
+			500,
+		)
 	}
 
 	// Set update properties
@@ -212,8 +222,9 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	}
 	values = append(values, id) // Add ID as last parameter
 
+	// No active filter — allows re-activating soft-deleted records.
 	query := fmt.Sprintf(
-		"UPDATE \"%s\" SET %s WHERE id = $%d AND active = true RETURNING *",
+		"UPDATE \"%s\" SET %s WHERE id = $%d RETURNING *",
 		tableName,
 		strings.Join(setParts, ", "),
 		i,

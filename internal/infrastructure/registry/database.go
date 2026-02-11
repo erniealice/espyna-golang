@@ -83,7 +83,7 @@ func RegisterDatabaseProvider(name string, factory func() ports.DatabaseProvider
 // This is defined here to avoid circular imports with composition/config.
 type DatabaseTableConfig struct {
 	// Common
-	Attribute, Category string
+	Attribute, AttributeValue, Category string
 	// Entity
 	Client, ClientAttribute, ClientCategory                            string
 	Admin, Manager, Staff, StaffAttribute                              string
@@ -101,8 +101,8 @@ type DatabaseTableConfig struct {
 	// Integration
 	IntegrationPayment string
 	// Product
-	Product, Collection, CollectionAttribute, CollectionParent, CollectionPlan string
-	PriceProduct, ProductAttribute, ProductCollection, ProductPlan, Resource   string
+	Product, ProductVariant, Collection, CollectionAttribute, CollectionParent, CollectionPlan string
+	PriceProduct, ProductAttribute, ProductCollection, ProductPlan, Resource                   string
 	// Record
 	Record string
 	// Workflow
@@ -113,6 +113,7 @@ type DatabaseTableConfig struct {
 	Revenue, RevenueAttribute, RevenueLineItem, RevenueCategory string
 	// Inventory domain
 	InventoryItem, InventoryAttribute, InventoryTransaction string
+	InventorySerial, InventoryDepreciation                  string
 	// Subscription
 	Plan, PlanAttribute, PlanLocation, PlanSettings      string
 	Balance, BalanceAttribute, Invoice, InvoiceAttribute string
@@ -165,8 +166,9 @@ func BuildDatabaseTableConfig(providerName string) (*DatabaseTableConfig, error)
 func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 	return &DatabaseTableConfig{
 		// Common
-		Attribute: "attribute",
-		Category:  "category",
+		Attribute:      "attribute",
+		AttributeValue: "attribute_value",
+		Category:       "category",
 		// Entity
 		Client: "client", ClientAttribute: "client_attribute", ClientCategory: "client_category",
 		Admin: "admin", Manager: "manager",
@@ -189,7 +191,8 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		// Integration
 		IntegrationPayment: "integration_payment",
 		// Product
-		Product: "product", Collection: "collection", CollectionAttribute: "collection_attribute",
+		Product: "product", ProductVariant: "product_variant",
+		Collection: "collection", CollectionAttribute: "collection_attribute",
 		CollectionParent: "collection_parent", CollectionPlan: "collection_plan",
 		PriceProduct: "price_product", ProductAttribute: "product_attribute",
 		ProductCollection: "product_collection", ProductPlan: "product_plan", Resource: "resource",
@@ -207,6 +210,7 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		// Inventory domain
 		InventoryItem: "inventory_item", InventoryAttribute: "inventory_attribute",
 		InventoryTransaction: "inventory_transaction",
+		InventorySerial: "inventory_serial", InventoryDepreciation: "inventory_depreciation",
 		// Subscription
 		Plan: "plan", PlanAttribute: "plan_attribute", PlanLocation: "plan_location", PlanSettings: "plan_settings",
 		Balance: "balance", BalanceAttribute: "balance_attribute",

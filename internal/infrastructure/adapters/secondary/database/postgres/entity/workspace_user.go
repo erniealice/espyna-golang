@@ -14,6 +14,7 @@ import (
 	postgresCore "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/core"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
@@ -220,34 +221,97 @@ func (r *PostgresWorkspaceUserRepository) DeleteWorkspaceUser(ctx context.Contex
 	}, nil
 }
 
-// ListWorkspaceUsers lists workspace users using common PostgreSQL operations
+// ListWorkspaceUsers lists workspace users with joined user data
 func (r *PostgresWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Context, req *workspaceuserpb.ListWorkspaceUsersRequest) (*workspaceuserpb.ListWorkspaceUsersResponse, error) {
-	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	query := `
+		SELECT
+			wu.id, wu.workspace_id, wu.user_id, wu.active,
+			wu.date_created, wu.date_modified,
+			u.id, u.first_name, u.last_name, u.email_address, u.mobile_number, u.active
+		FROM workspace_user wu
+		LEFT JOIN "user" u ON wu.user_id = u.id
+		WHERE wu.active = true
+		ORDER BY wu.date_created DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workspace users: %w", err)
 	}
+	defer rows.Close()
 
-	// Convert results to protobuf slice using protojson
 	var workspaceUsers []*workspaceuserpb.WorkspaceUser
-	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			// Log error and continue with next item
+	for rows.Next() {
+		var (
+			id, workspaceId, userId string
+			active                  bool
+			dateCreated             time.Time
+			dateModified            time.Time
+			userIdValue             *string
+			userFirstName           *string
+			userLastName            *string
+			userEmailAddress        *string
+			userPhoneNumber         *string
+			userActive              *bool
+		)
+
+		if err := rows.Scan(
+			&id, &workspaceId, &userId, &active,
+			&dateCreated, &dateModified,
+			&userIdValue, &userFirstName, &userLastName, &userEmailAddress, &userPhoneNumber, &userActive,
+		); err != nil {
 			continue
 		}
 
-		workspaceUser := &workspaceuserpb.WorkspaceUser{}
-		if err := protojson.Unmarshal(resultJSON, workspaceUser); err != nil {
-			// Log error and continue with next item
-			continue
+		workspaceUser := &workspaceuserpb.WorkspaceUser{
+			Id:          id,
+			WorkspaceId: workspaceId,
+			UserId:      userId,
+			Active:      active,
 		}
+
+		if !dateCreated.IsZero() {
+			ts := dateCreated.UnixMilli()
+			workspaceUser.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			workspaceUser.DateCreatedString = &dcStr
+		}
+		if !dateModified.IsZero() {
+			ts := dateModified.UnixMilli()
+			workspaceUser.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			workspaceUser.DateModifiedString = &dmStr
+		}
+
+		if userIdValue != nil {
+			workspaceUser.User = &userpb.User{
+				Id:           *userIdValue,
+				FirstName:    derefStr(userFirstName),
+				LastName:     derefStr(userLastName),
+				EmailAddress: derefStr(userEmailAddress),
+				MobileNumber: derefStr(userPhoneNumber),
+				Active:       userActive != nil && *userActive,
+			}
+		}
+
 		workspaceUsers = append(workspaceUsers, workspaceUser)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating workspace user rows: %w", err)
 	}
 
 	return &workspaceuserpb.ListWorkspaceUsersResponse{
 		Data: workspaceUsers,
 	}, nil
+}
+
+// derefStr safely dereferences a string pointer, returning "" if nil
+func derefStr(s *string) string {
+	if s != nil {
+		return *s
+	}
+	return ""
 }
 
 // GetWorkspaceUserListPageData retrieves workspace users with advanced filtering, sorting, searching, and pagination using CTE
@@ -444,21 +508,31 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			Active:      active,
 		}
 
-		// Handle nullable timestamp fields
+		// Populate nested User from joined fields
+		if userIdValue != nil {
+			workspaceUser.User = &userpb.User{
+				Id:           *userIdValue,
+				FirstName:    derefStr(userFirstName),
+				LastName:     derefStr(userLastName),
+				EmailAddress: derefStr(userEmailAddress),
+				MobileNumber: derefStr(userPhoneNumber),
+				Active:       userActive != nil && *userActive,
+			}
+		}
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		workspaceUser.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		workspaceUser.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			workspaceUser.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			workspaceUser.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		workspaceUser.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		workspaceUser.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			workspaceUser.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			workspaceUser.DateModifiedString = &dmStr
+		}
 
 		// Parse workspace_user_roles JSONB array
 		if len(workspaceUserRolesJSON) > 0 {

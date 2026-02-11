@@ -30,21 +30,28 @@ func NewCommonRepositories(dbProvider contracts.Provider, dbTableConfig *registr
 
 	conn := repoCreator.GetConnection()
 
-	// Create attribute repository using configured table name from dbTableConfig
+	repos := &CommonRepositories{}
+
+	// Create attribute repository (optional — may not have a factory registered)
 	attributeRepo, err := repoCreator.CreateRepository("attribute", conn, dbTableConfig.Attribute)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create attribute repository: %w", err)
+		fmt.Printf("⚠️  Attribute repository not available: %v\n", err)
+	} else {
+		repos.Attribute = attributeRepo.(attributepb.AttributeDomainServiceServer)
 	}
 
 	// Create category repository using configured table name from dbTableConfig
 	categoryRepo, err := repoCreator.CreateRepository("category", conn, dbTableConfig.Category)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create category repository: %w", err)
+		fmt.Printf("⚠️  Category repository not available: %v\n", err)
+	} else {
+		repos.Category = categoryRepo.(categorypb.CategoryDomainServiceServer)
 	}
 
-	// Type assert repositories to their interfaces
-	return &CommonRepositories{
-		Attribute: attributeRepo.(attributepb.AttributeDomainServiceServer),
-		Category:  categoryRepo.(categorypb.CategoryDomainServiceServer),
-	}, nil
+	// Return error only if no repositories were created at all
+	if repos.Attribute == nil && repos.Category == nil {
+		return nil, fmt.Errorf("no common repositories could be created")
+	}
+
+	return repos, nil
 }

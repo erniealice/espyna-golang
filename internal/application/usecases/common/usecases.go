@@ -21,28 +21,33 @@ func NewCommonUseCases(
 	translationService ports.TranslationService,
 	idService ports.IDService,
 ) *CommonUseCases {
-	// Build grouped parameters for attribute use cases
-	attributeRepositories := attributeUseCases.AttributeRepositories{
-		Attribute: attributeRepo,
-	}
-	attributeServices := attributeUseCases.AttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: translationService,
-		IDService:          idService,
+	uc := &CommonUseCases{}
+
+	// Initialize attribute use cases only if repo is available
+	if attributeRepo != nil {
+		attributeRepositories := attributeUseCases.AttributeRepositories{
+			Attribute: attributeRepo,
+		}
+		attributeServices := attributeUseCases.AttributeServices{
+			TransactionService: ports.NewNoOpTransactionService(),
+			TranslationService: translationService,
+			IDService:          idService,
+		}
+		uc.Attribute = attributeUseCases.NewUseCases(attributeRepositories, attributeServices)
 	}
 
-	// Build grouped parameters for category use cases
-	categoryRepositories := categoryUseCases.CategoryRepositories{
-		Category: categoryRepo,
-	}
-	categoryServices := categoryUseCases.CategoryServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: translationService,
-		IDService:          idService,
+	// Initialize category use cases only if repo is available
+	if categoryRepo != nil {
+		categoryRepositories := categoryUseCases.CategoryRepositories{
+			Category: categoryRepo,
+		}
+		categoryServices := categoryUseCases.CategoryServices{
+			TransactionService: ports.NewNoOpTransactionService(),
+			TranslationService: translationService,
+			IDService:          idService,
+		}
+		uc.Category = categoryUseCases.NewUseCases(categoryRepositories, categoryServices)
 	}
 
-	return &CommonUseCases{
-		Attribute: attributeUseCases.NewUseCases(attributeRepositories, attributeServices),
-		Category:  categoryUseCases.NewUseCases(categoryRepositories, categoryServices),
-	}
+	return uc
 }

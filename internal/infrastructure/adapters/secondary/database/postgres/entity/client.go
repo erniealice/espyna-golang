@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
@@ -126,27 +127,136 @@ func (r *PostgresClientRepository) CreateClient(ctx context.Context, req *client
 	}, nil
 }
 
-// ReadClient retrieves a client using common PostgreSQL operations
+// ReadClient retrieves a client with joined user data using a custom SQL query
 func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb.ReadClientRequest) (*clientpb.ReadClientResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("client ID is required")
 	}
 
-	// Read document using common operations
-	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
+	// Custom query that JOINs with user table to populate nested User field
+	query := `
+		SELECT
+			c.id,
+			c.user_id,
+			c.active,
+			c.internal_id,
+			c.date_created,
+			c.date_modified,
+			c.company_name,
+			c.customer_type,
+			c.date_of_birth,
+			c.street_address,
+			c.city,
+			c.province,
+			c.postal_code,
+			c.notes,
+			c.category_id,
+			u.id as user_id_value,
+			u.first_name as user_first_name,
+			u.last_name as user_last_name,
+			u.email_address as user_email_address,
+			u.mobile_number as user_phone_number
+		FROM client c
+		LEFT JOIN "user" u ON c.user_id = u.id
+		WHERE c.id = $1 AND c.active = true
+	`
+
+	row := r.db.QueryRowContext(ctx, query, req.Data.Id)
+
+	var (
+		id               string
+		userId           string
+		active           bool
+		internalId       *string
+		dateCreated      time.Time
+		dateModified     time.Time
+		companyName      *string
+		customerType     *string
+		dateOfBirth      *string
+		streetAddress    *string
+		city             *string
+		province         *string
+		postalCode       *string
+		notes            *string
+		categoryId       *string
+		userIdValue      *string
+		userFirstName    *string
+		userLastName     *string
+		userEmailAddress *string
+		userPhoneNumber  *string
+	)
+
+	err := row.Scan(
+		&id,
+		&userId,
+		&active,
+		&internalId,
+		&dateCreated,
+		&dateModified,
+		&companyName,
+		&customerType,
+		&dateOfBirth,
+		&streetAddress,
+		&city,
+		&province,
+		&postalCode,
+		&notes,
+		&categoryId,
+		&userIdValue,
+		&userFirstName,
+		&userLastName,
+		&userEmailAddress,
+		&userPhoneNumber,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("client with ID '%s' not found", req.Data.Id)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read client: %w", err)
 	}
 
-	// Convert result to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	client := &clientpb.Client{
+		Id:     id,
+		UserId: userId,
+		Active: active,
 	}
 
-	client := &clientpb.Client{}
-	if err := protojson.Unmarshal(resultJSON, client); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	if internalId != nil {
+		client.InternalId = *internalId
+	}
+
+	// CRM fields
+	client.CompanyName = companyName
+	client.CustomerType = customerType
+	client.DateOfBirth = dateOfBirth
+	client.StreetAddress = streetAddress
+	client.City = city
+	client.Province = province
+	client.PostalCode = postalCode
+	client.Notes = notes
+	client.CategoryId = categoryId
+
+	// Populate joined user data
+	if userIdValue != nil {
+		client.User = &userpb.User{Id: deref(userIdValue)}
+		client.User.FirstName = deref(userFirstName)
+		client.User.LastName = deref(userLastName)
+		client.User.EmailAddress = deref(userEmailAddress)
+		client.User.MobileNumber = deref(userPhoneNumber)
+	}
+
+	// Parse timestamps
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		client.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		client.DateCreatedString = &dcStr
+	}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		client.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		client.DateModifiedString = &dmStr
 	}
 
 	return &clientpb.ReadClientResponse{
@@ -341,6 +451,15 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				c.internal_id,
 				c.date_created,
 				c.date_modified,
+				-- CRM fields
+				c.company_name,
+				c.customer_type,
+				c.date_of_birth,
+				c.street_address,
+				c.city,
+				c.province,
+				c.postal_code,
+				c.notes,
 				-- User fields (1:1 relationship) - NO JSONB in domain model, direct fields
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -383,6 +502,15 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			internalId         *string
 			dateCreated        time.Time
 			dateModified       time.Time
+			// CRM fields
+			companyName       *string
+			customerType      *string
+			dateOfBirth       *string
+			streetAddress     *string
+			city              *string
+			province          *string
+			postalCode        *string
+			notes             *string
 			// User fields
 			userIdValue       *string
 			userFirstName     *string
@@ -399,6 +527,14 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			&internalId,
 			&dateCreated,
 			&dateModified,
+			&companyName,
+			&customerType,
+			&dateOfBirth,
+			&streetAddress,
+			&city,
+			&province,
+			&postalCode,
+			&notes,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
@@ -422,6 +558,16 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		if internalId != nil {
 			client.InternalId = *internalId
 		}
+
+		// CRM fields
+		client.CompanyName = companyName
+		client.CustomerType = customerType
+		client.DateOfBirth = dateOfBirth
+		client.StreetAddress = streetAddress
+		client.City = city
+		client.Province = province
+		client.PostalCode = postalCode
+		client.Notes = notes
 
 		// Populate joined user data
 		if userIdValue != nil {
@@ -487,7 +633,7 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		return nil, fmt.Errorf("client ID is required")
 	}
 
-	// CTE Query - Single round-trip with enriched user data
+	// CTE Query - Single round-trip with enriched user data and CRM fields
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -497,7 +643,17 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 				c.internal_id,
 				c.date_created,
 				c.date_modified,
-				-- User fields (1:1 relationship) - NO JSONB in domain model, direct fields
+				-- CRM fields
+				c.company_name,
+				c.customer_type,
+				c.date_of_birth,
+				c.street_address,
+				c.city,
+				c.province,
+				c.postal_code,
+				c.notes,
+				c.category_id,
+				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
 				u.last_name as user_last_name,
@@ -519,6 +675,16 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		internalId         *string
 		dateCreated        time.Time
 		dateModified       time.Time
+		// CRM fields
+		companyName       *string
+		customerType      *string
+		dateOfBirth       *string
+		streetAddress     *string
+		city              *string
+		province          *string
+		postalCode        *string
+		notes             *string
+		categoryId        *string
 		// User fields
 		userIdValue       *string
 		userFirstName     *string
@@ -534,6 +700,15 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		&internalId,
 		&dateCreated,
 		&dateModified,
+		&companyName,
+		&customerType,
+		&dateOfBirth,
+		&streetAddress,
+		&city,
+		&province,
+		&postalCode,
+		&notes,
+		&categoryId,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -558,6 +733,17 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		client.InternalId = *internalId
 	}
 
+	// CRM fields
+	client.CompanyName = companyName
+	client.CustomerType = customerType
+	client.DateOfBirth = dateOfBirth
+	client.StreetAddress = streetAddress
+	client.City = city
+	client.Province = province
+	client.PostalCode = postalCode
+	client.Notes = notes
+	client.CategoryId = categoryId
+
 	// Populate joined user data
 	if userIdValue != nil {
 		client.User = &userpb.User{Id: deref(userIdValue)}
@@ -581,12 +767,76 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		client.DateModifiedString = &dmStr
 	}
 
+	// Load categories (tags) for this client via separate query
+	categories, err := r.loadClientCategories(ctx, id)
+	if err == nil && len(categories) > 0 {
+		client.Categories = categories
+	}
+
 	return &clientpb.GetClientItemPageDataResponse{
 		Client:  client,
 		Success: true,
 	}, nil
 }
 
+
+// loadClientCategories loads the category tags for a client via JOIN through client_category to category
+func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, clientId string) ([]*clientcategorypb.ClientCategory, error) {
+	query := `
+		SELECT
+			cc.id,
+			cc.client_id,
+			cc.category_id,
+			cat.name,
+			cat.description
+		FROM client_category cc
+		INNER JOIN category cat ON cc.category_id = cat.id
+		WHERE cc.client_id = $1 AND cc.active = true AND cat.active = true
+		ORDER BY cat.name ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, clientId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load client categories: %w", err)
+	}
+	defer rows.Close()
+
+	var categories []*clientcategorypb.ClientCategory
+	for rows.Next() {
+		var (
+			ccId        string
+			ccClientId  string
+			ccCatId     string
+			catName     string
+			catDesc     *string
+		)
+		if err := rows.Scan(&ccId, &ccClientId, &ccCatId, &catName, &catDesc); err != nil {
+			return nil, fmt.Errorf("failed to scan client category row: %w", err)
+		}
+
+		cat := &commonpb.Category{
+			Id:   ccCatId,
+			Name: catName,
+		}
+		if catDesc != nil {
+			cat.Description = *catDesc
+		}
+
+		categories = append(categories, &clientcategorypb.ClientCategory{
+			Id:         ccId,
+			ClientId:   ccClientId,
+			CategoryId: ccCatId,
+			Category:   cat,
+			Active:     true,
+		})
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating client category rows: %w", err)
+	}
+
+	return categories, nil
+}
 
 // deref safely dereferences a *string, returning "" if nil.
 func deref(s *string) string {

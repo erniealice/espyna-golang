@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package subscription
 
@@ -175,7 +175,11 @@ func (r *PostgresLicenseRepository) DeleteLicense(ctx context.Context, req *lice
 // ListLicenses lists licenses using common PostgreSQL operations
 func (r *PostgresLicenseRepository) ListLicenses(ctx context.Context, req *licensepb.ListLicensesRequest) (*licensepb.ListLicensesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list licenses: %w", err)
 	}
@@ -734,6 +738,7 @@ func (r *PostgresLicenseRepository) ValidateLicenseAccess(ctx context.Context, r
 	} else if req.LicenseKey != nil && *req.LicenseKey != "" {
 		// Search by license key - would need to implement a FindByField method
 		// For now, use list and filter
+		// Reviewed: ValidateLicenseAccess req has no Filters field, nil is correct here
 		listResult, listErr := r.dbOps.List(ctx, r.tableName, nil)
 		if listErr != nil {
 			return nil, fmt.Errorf("failed to search licenses: %w", listErr)

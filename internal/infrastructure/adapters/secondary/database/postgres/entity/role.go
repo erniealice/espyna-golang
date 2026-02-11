@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package entity
 
@@ -192,7 +192,11 @@ func (r *PostgresRoleRepository) DeleteRole(ctx context.Context, req *rolepb.Del
 // ListRoles lists roles using common PostgreSQL operations
 func (r *PostgresRoleRepository) ListRoles(ctx context.Context, req *rolepb.ListRolesRequest) (*rolepb.ListRolesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list roles: %w", err)
 	}

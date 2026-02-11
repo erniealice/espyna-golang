@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package entity
 
@@ -173,7 +173,11 @@ func (r *PostgresDelegateRepository) DeleteDelegate(ctx context.Context, req *de
 // ListDelegates lists delegates using common PostgreSQL operations
 func (r *PostgresDelegateRepository) ListDelegates(ctx context.Context, req *delegatepb.ListDelegatesRequest) (*delegatepb.ListDelegatesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list delegates: %w", err)
 	}

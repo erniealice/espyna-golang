@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package entity
 
@@ -322,8 +322,14 @@ func (r *PostgresClientRepository) DeleteClient(ctx context.Context, req *client
 
 // ListClients lists clients using common PostgreSQL operations
 func (r *PostgresClientRepository) ListClients(ctx context.Context, req *clientpb.ListClientsRequest) (*clientpb.ListClientsResponse, error) {
+	// Pass through filters from the request (e.g. user_id equality for FindOrCreateClient)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list clients: %w", err)
 	}

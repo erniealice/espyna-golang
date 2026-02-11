@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package attribute_value
 
@@ -187,7 +187,11 @@ func (r *PostgresAttributeValueRepository) DeleteAttributeValue(ctx context.Cont
 // ListAttributeValues lists attribute values using common PostgreSQL operations
 func (r *PostgresAttributeValueRepository) ListAttributeValues(ctx context.Context, req *commonpb.ListAttributeValuesRequest) (*commonpb.ListAttributeValuesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list attribute values: %w", err)
 	}

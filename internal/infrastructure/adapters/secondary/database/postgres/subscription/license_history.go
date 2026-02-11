@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package subscription
 
@@ -118,7 +118,11 @@ func (r *PostgresLicenseHistoryRepository) ReadLicenseHistory(ctx context.Contex
 // ListLicenseHistory lists license history records using common PostgreSQL operations
 func (r *PostgresLicenseHistoryRepository) ListLicenseHistory(ctx context.Context, req *licensehistorypb.ListLicenseHistoryRequest) (*licensehistorypb.ListLicenseHistoryResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list license history: %w", err)
 	}

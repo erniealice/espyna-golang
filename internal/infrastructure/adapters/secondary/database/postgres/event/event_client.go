@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package event
 
@@ -187,7 +187,11 @@ func (r *PostgresEventClientRepository) DeleteEventClient(ctx context.Context, r
 // ListEventClients lists event clients using common PostgreSQL operations
 func (r *PostgresEventClientRepository) ListEventClients(ctx context.Context, req *eventclientpb.ListEventClientsRequest) (*eventclientpb.ListEventClientsResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list event clients: %w", err)
 	}

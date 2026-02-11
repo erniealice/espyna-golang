@@ -263,7 +263,7 @@ func (uc *CreateClientUseCase) validateBusinessRules(ctx context.Context, client
 
 	// Business rule: Name length constraints
 	fullName := client.User.FirstName + " " + client.User.LastName
-	if len(fullName) <= 3 {
+	if len(fullName) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.full_name_too_short", "Client full name must be at least 3 characters long [DEFAULT]"))
 	}
 

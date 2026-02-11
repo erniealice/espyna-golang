@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package product
 
@@ -187,7 +187,11 @@ func (r *PostgresCollectionPlanRepository) DeleteCollectionPlan(ctx context.Cont
 // ListCollectionPlans lists collection plans using common PostgreSQL operations
 func (r *PostgresCollectionPlanRepository) ListCollectionPlans(ctx context.Context, req *collectionplanpb.ListCollectionPlansRequest) (*collectionplanpb.ListCollectionPlansResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list collection plans: %w", err)
 	}

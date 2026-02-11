@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package subscription
 
@@ -186,7 +186,11 @@ func (r *PostgresPlanSettingsRepository) DeletePlanSettings(ctx context.Context,
 // ListPlanSettings lists plan settings using common PostgreSQL operations
 func (r *PostgresPlanSettingsRepository) ListPlanSettings(ctx context.Context, req *plansettingspb.ListPlanSettingsRequest) (*plansettingspb.ListPlanSettingsResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list plan settings: %w", err)
 	}

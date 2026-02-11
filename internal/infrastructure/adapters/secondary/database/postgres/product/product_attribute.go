@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package product
 
@@ -188,7 +188,11 @@ func (r *PostgresProductAttributeRepository) DeleteProductAttribute(ctx context.
 // ListProductAttributes lists product attributes using common PostgreSQL operations
 func (r *PostgresProductAttributeRepository) ListProductAttributes(ctx context.Context, req *productattributepb.ListProductAttributesRequest) (*productattributepb.ListProductAttributesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list product attributes: %w", err)
 	}

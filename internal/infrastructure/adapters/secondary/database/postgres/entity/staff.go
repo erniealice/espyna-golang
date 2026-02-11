@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package entity
 
@@ -190,7 +190,11 @@ func (r *PostgresStaffRepository) DeleteStaff(ctx context.Context, req *staffpb.
 // ListStaffs lists staffs using common PostgreSQL operations
 func (r *PostgresStaffRepository) ListStaffs(ctx context.Context, req *staffpb.ListStaffsRequest) (*staffpb.ListStaffsResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staffs: %w", err)
 	}

@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package entity
 
@@ -187,7 +187,11 @@ func (r *PostgresWorkspaceRepository) DeleteWorkspace(ctx context.Context, req *
 // ListWorkspaces lists workspaces using common PostgreSQL operations
 func (r *PostgresWorkspaceRepository) ListWorkspaces(ctx context.Context, req *workspacepb.ListWorkspacesRequest) (*workspacepb.ListWorkspacesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workspaces: %w", err)
 	}

@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package subscription
 
@@ -172,7 +172,11 @@ func (r *PostgresBalanceRepository) DeleteBalance(ctx context.Context, req *bala
 // ListBalances lists balances using common PostgreSQL operations
 func (r *PostgresBalanceRepository) ListBalances(ctx context.Context, req *balancepb.ListBalancesRequest) (*balancepb.ListBalancesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list balances: %w", err)
 	}

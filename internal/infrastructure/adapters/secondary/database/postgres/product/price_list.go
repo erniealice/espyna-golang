@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package product
 
@@ -171,7 +171,11 @@ func (r *PostgresPriceListRepository) DeletePriceList(ctx context.Context, req *
 
 // ListPriceLists lists price lists using common PostgreSQL operations
 func (r *PostgresPriceListRepository) ListPriceLists(ctx context.Context, req *pricelistpb.ListPriceListsRequest) (*pricelistpb.ListPriceListsResponse, error) {
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list price lists: %w", err)
 	}

@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package event
 
@@ -181,7 +181,11 @@ func (r *PostgresEventRepository) DeleteEvent(ctx context.Context, req *eventpb.
 // ListEvents lists events using common PostgreSQL operations
 func (r *PostgresEventRepository) ListEvents(ctx context.Context, req *eventpb.ListEventsRequest) (*eventpb.ListEventsResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}

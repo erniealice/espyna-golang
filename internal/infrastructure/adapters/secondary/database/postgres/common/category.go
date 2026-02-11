@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package common
 
@@ -188,7 +188,11 @@ func (r *PostgresCategoryRepository) DeleteCategory(ctx context.Context, req *ca
 // ListCategories lists categories using common PostgreSQL operations
 func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, req *categorypb.ListCategoriesRequest) (*categorypb.ListCategoriesResponse, error) {
 	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, nil)
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list categories: %w", err)
 	}

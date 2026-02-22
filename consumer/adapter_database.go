@@ -133,6 +133,14 @@ func (a *DatabaseAdapter) Delete(ctx context.Context, collection string, id stri
 	return a.ops.Delete(ctx, collection, id)
 }
 
+// HardDelete permanently removes a document from the collection.
+func (a *DatabaseAdapter) HardDelete(ctx context.Context, collection string, id string) error {
+	if a.ops == nil {
+		return fmt.Errorf("database operations not initialized")
+	}
+	return a.ops.HardDelete(ctx, collection, id)
+}
+
 // List retrieves documents from the specified collection with optional parameters.
 // Supports filtering, sorting, and pagination via ListParams.
 // Automatically filters by active=true.

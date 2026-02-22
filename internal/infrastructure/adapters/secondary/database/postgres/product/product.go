@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -125,7 +126,7 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, req *prod
 	}
 
 	product := &productpb.Product{}
-	if err := protojson.Unmarshal(resultJSON, product); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, product); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -153,7 +154,7 @@ func (r *PostgresProductRepository) ReadProduct(ctx context.Context, req *produc
 	}
 
 	product := &productpb.Product{}
-	if err := protojson.Unmarshal(resultJSON, product); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, product); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -192,7 +193,7 @@ func (r *PostgresProductRepository) UpdateProduct(ctx context.Context, req *prod
 	}
 
 	product := &productpb.Product{}
-	if err := protojson.Unmarshal(resultJSON, product); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, product); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -235,13 +236,13 @@ func (r *PostgresProductRepository) ListProducts(ctx context.Context, req *produ
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			// Log error and continue with next item
+			log.Printf("WARN: json.Marshal product row: %v", err)
 			continue
 		}
 
 		product := &productpb.Product{}
-		if err := protojson.Unmarshal(resultJSON, product); err != nil {
-			// Log error and continue with next item
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, product); err != nil {
+			log.Printf("WARN: protojson unmarshal product: %v", err)
 			continue
 		}
 		products = append(products, product)
@@ -357,9 +358,9 @@ func (r *PostgresProductRepository) GetProductListPageData(
 				p.name,
 				p.description,
 				p.price,
-				p.currency
-				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes
-				COALESCE(pca.collections, '[]'::jsonb) as product_collections
+				p.currency,
+				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
+				COALESCE(pca.collections, '[]'::jsonb) as product_collections,
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
 			FROM product p
 			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
@@ -556,9 +557,9 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 				p.name,
 				p.description,
 				p.price,
-				p.currency
-				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes
-				COALESCE(pca.collections, '[]'::jsonb) as product_collections
+				p.currency,
+				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
+				COALESCE(pca.collections, '[]'::jsonb) as product_collections,
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
 			FROM product p
 			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id

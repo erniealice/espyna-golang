@@ -10,7 +10,12 @@ import (
 	productUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product"
 	productAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_attribute"
 	productCollectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_collection"
+	productOptionUC "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_option"
+	productOptionValueUC "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_option_value"
 	productPlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_plan"
+	productVariantUC "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_variant"
+	productVariantImageUC "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_variant_image"
+	productVariantOptionUC "github.com/erniealice/espyna-golang/internal/application/usecases/product/product_variant_option"
 	resourceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/resource"
 
 	// Application ports
@@ -25,7 +30,12 @@ import (
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
+	productoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option"
+	productoptionvaluepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option_value"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
+	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
+	productvariantoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_option"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 
 	// Cross-domain dependencies
@@ -42,7 +52,12 @@ type ProductRepositories struct {
 	Product             productpb.ProductDomainServiceServer
 	ProductAttribute    productattributepb.ProductAttributeDomainServiceServer
 	ProductCollection   productcollectionpb.ProductCollectionDomainServiceServer
+	ProductOption       productoptionpb.ProductOptionDomainServiceServer
+	ProductOptionValue  productoptionvaluepb.ProductOptionValueDomainServiceServer
 	ProductPlan         productplanpb.ProductPlanDomainServiceServer
+	ProductVariant      productvariantpb.ProductVariantDomainServiceServer
+	ProductVariantImage productvariantimagepb.ProductVariantImageDomainServiceServer
+	ProductVariantOption productvariantoptionpb.ProductVariantOptionDomainServiceServer
 	Resource            resourcepb.ResourceDomainServiceServer
 	// Cross-domain dependency
 	Attribute attributepb.AttributeDomainServiceServer
@@ -58,7 +73,12 @@ type ProductUseCases struct {
 	Product             *productUseCases.UseCases
 	ProductAttribute    *productAttributeUseCases.UseCases
 	ProductCollection   *productCollectionUseCases.UseCases
+	ProductOption       *productOptionUC.UseCases
+	ProductOptionValue  *productOptionValueUC.UseCases
 	ProductPlan         *productPlanUseCases.UseCases
+	ProductVariant      *productVariantUC.UseCases
+	ProductVariantImage *productVariantImageUC.UseCases
+	ProductVariantOption *productVariantOptionUC.UseCases
 	Resource            *resourceUseCases.UseCases
 }
 
@@ -170,11 +190,71 @@ func NewUseCases(
 		},
 	)
 
+	productOptionUseCases := productOptionUC.NewUseCases(
+		productOptionUC.ProductOptionRepositories{
+			ProductOption: repos.ProductOption,
+		},
+		productOptionUC.ProductOptionServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	productOptionValueUseCases := productOptionValueUC.NewUseCases(
+		productOptionValueUC.ProductOptionValueRepositories{
+			ProductOptionValue: repos.ProductOptionValue,
+		},
+		productOptionValueUC.ProductOptionValueServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
 	productPlanUC := productPlanUseCases.NewUseCases(
 		productPlanUseCases.ProductPlanRepositories{
 			ProductPlan: repos.ProductPlan,
 		},
 		productPlanUseCases.ProductPlanServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	productVariantUseCases := productVariantUC.NewUseCases(
+		productVariantUC.ProductVariantRepositories{
+			ProductVariant: repos.ProductVariant,
+		},
+		productVariantUC.ProductVariantServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	productVariantImageUseCases := productVariantImageUC.NewUseCases(
+		productVariantImageUC.ProductVariantImageRepositories{
+			ProductVariantImage: repos.ProductVariantImage,
+		},
+		productVariantImageUC.ProductVariantImageServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	productVariantOptionUseCases := productVariantOptionUC.NewUseCases(
+		productVariantOptionUC.ProductVariantOptionRepositories{
+			ProductVariantOption: repos.ProductVariantOption,
+		},
+		productVariantOptionUC.ProductVariantOptionServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,
 			TranslationService:   i18nSvc,
@@ -195,15 +275,20 @@ func NewUseCases(
 	)
 
 	return &ProductUseCases{
-		Collection:          collectionUC,
-		CollectionAttribute: collectionAttributeUC,
-		CollectionPlan:      collectionPlanUC,
-		PriceList:           priceListUC,
-		PriceProduct:        priceProductUC,
-		Product:             productUC,
-		ProductAttribute:    productAttributeUC,
-		ProductCollection:   productCollectionUC,
-		ProductPlan:         productPlanUC,
-		Resource:            resourceUC,
+		Collection:           collectionUC,
+		CollectionAttribute:  collectionAttributeUC,
+		CollectionPlan:       collectionPlanUC,
+		PriceList:            priceListUC,
+		PriceProduct:         priceProductUC,
+		Product:              productUC,
+		ProductAttribute:     productAttributeUC,
+		ProductCollection:    productCollectionUC,
+		ProductOption:        productOptionUseCases,
+		ProductOptionValue:   productOptionValueUseCases,
+		ProductPlan:          productPlanUC,
+		ProductVariant:       productVariantUseCases,
+		ProductVariantImage:  productVariantImageUseCases,
+		ProductVariantOption: productVariantOptionUseCases,
+		Resource:             resourceUC,
 	}
 }

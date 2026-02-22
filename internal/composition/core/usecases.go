@@ -19,6 +19,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -76,6 +77,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		productUC = &product.ProductUseCases{}
 	}
 
+	inventoryUC, err := uci.initializeInventoryUseCases(container)
+	if err != nil {
+		inventoryUC = &inventory.InventoryUseCases{}
+	}
+
 	subscriptionUC, err := uci.initializeSubscriptionUseCases(container)
 	if err != nil {
 		subscriptionUC = &subscription.SubscriptionUseCases{}
@@ -95,6 +101,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		commonUC,
 		entityUC,
 		eventUC,
+		inventoryUC,
 		paymentUC,
 		productUC,
 		subscriptionUC,
@@ -255,6 +262,36 @@ func (uci *UseCaseInitializer) initializeProductUseCases(container *Container) (
 	fmt.Printf("✅ Product domain initialized successfully: %v\n", productUseCases != nil)
 
 	return productUseCases, nil
+}
+
+// initializeInventoryUseCases initializes Inventory domain use cases (6 entities)
+func (uci *UseCaseInitializer) initializeInventoryUseCases(container *Container) (*inventory.InventoryUseCases, error) {
+	fmt.Printf("📦 Initializing Inventory use cases...\n")
+
+	repos, err := domain.NewInventoryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Inventory database provider not available: %v\n", err)
+		// Don't return error - return empty struct for graceful degradation
+		return &inventory.InventoryUseCases{}, nil
+	}
+	fmt.Printf("✅ Got inventory repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
+
+	// Use composition initializer to wire everything together
+	inventoryUseCases, err := initializers.InitializeInventory(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize inventory use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Inventory domain initialized successfully: %v\n", inventoryUseCases != nil)
+
+	return inventoryUseCases, nil
 }
 
 // initializeSubscriptionUseCases initializes Subscription domain use cases (6 entities)

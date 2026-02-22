@@ -6,6 +6,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -28,6 +29,7 @@ type Aggregate struct {
 	Common       *common.CommonUseCases
 	Entity       *entity.EntityUseCases
 	Event        *event.EventUseCases
+	Inventory    *inventory.InventoryUseCases
 	Payment      *payment.PaymentUseCases
 	Product      *product.ProductUseCases
 	Subscription *subscription.SubscriptionUseCases
@@ -44,6 +46,7 @@ func NewAggregate(
 	commonUC *common.CommonUseCases,
 	entityUC *entity.EntityUseCases,
 	eventUC *event.EventUseCases,
+	inventoryUC *inventory.InventoryUseCases,
 	paymentUC *payment.PaymentUseCases,
 	productUC *product.ProductUseCases,
 	subscriptionUC *subscription.SubscriptionUseCases,
@@ -54,6 +57,7 @@ func NewAggregate(
 		Common:       commonUC,
 		Entity:       entityUC,
 		Event:        eventUC,
+		Inventory:    inventoryUC,
 		Payment:      paymentUC,
 		Product:      productUC,
 		Subscription: subscriptionUC,
@@ -69,6 +73,7 @@ func NewEmptyAggregate() *Aggregate {
 		Common:       &common.CommonUseCases{},
 		Entity:       &entity.EntityUseCases{},
 		Event:        &event.EventUseCases{},
+		Inventory:    &inventory.InventoryUseCases{},
 		Payment:      &payment.PaymentUseCases{},
 		Product:      &product.ProductUseCases{},
 		Subscription: &subscription.SubscriptionUseCases{},

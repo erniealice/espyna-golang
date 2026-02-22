@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -91,7 +92,7 @@ func (r *PostgresProductVariantRepository) CreateProductVariant(ctx context.Cont
 	}
 
 	productVariant := &productvariantpb.ProductVariant{}
-	if err := protojson.Unmarshal(resultJSON, productVariant); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productVariant); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -119,7 +120,7 @@ func (r *PostgresProductVariantRepository) ReadProductVariant(ctx context.Contex
 	}
 
 	productVariant := &productvariantpb.ProductVariant{}
-	if err := protojson.Unmarshal(resultJSON, productVariant); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productVariant); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -158,7 +159,7 @@ func (r *PostgresProductVariantRepository) UpdateProductVariant(ctx context.Cont
 	}
 
 	productVariant := &productvariantpb.ProductVariant{}
-	if err := protojson.Unmarshal(resultJSON, productVariant); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productVariant); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -201,13 +202,13 @@ func (r *PostgresProductVariantRepository) ListProductVariants(ctx context.Conte
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			// Log error and continue with next item
+			log.Printf("WARN: json.Marshal product_variant row: %v", err)
 			continue
 		}
 
 		productVariant := &productvariantpb.ProductVariant{}
-		if err := protojson.Unmarshal(resultJSON, productVariant); err != nil {
-			// Log error and continue with next item
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productVariant); err != nil {
+			log.Printf("WARN: protojson unmarshal product_variant: %v", err)
 			continue
 		}
 		productVariants = append(productVariants, productVariant)
@@ -272,7 +273,6 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 				pv.product_id,
 				pv.sku,
 				pv.price_override,
-				pv.variant_attributes,
 				COALESCE(p.name, '') as product_name
 			FROM product_variant pv
 			LEFT JOIN product p ON pv.product_id = p.id AND p.active = true
@@ -303,16 +303,15 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 
 	for rows.Next() {
 		var (
-			id                string
-			dateCreated       time.Time
-			dateModified      time.Time
-			active            bool
-			productID         string
-			sku               string
-			priceOverride     float64
-			variantAttributes []byte // jsonb
-			productName       string
-			total             int64
+			id            string
+			dateCreated   time.Time
+			dateModified  time.Time
+			active        bool
+			productID     string
+			sku           string
+			priceOverride float64
+			productName   string
+			total         int64
 		)
 
 		err := rows.Scan(
@@ -323,7 +322,6 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 			&productID,
 			&sku,
 			&priceOverride,
-			&variantAttributes,
 			&productName,
 			&total,
 		)
@@ -355,9 +353,8 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 			productVariant.DateModifiedString = &dmStr
 		}
 
-		// Note: variantAttributes (jsonb) and productName are available but not mapped
-		// to the ProductVariant protobuf in this list view. The product reference
-		// could be populated if needed for frontend display.
+		// Note: productName is available but not mapped to the ProductVariant protobuf
+		// in this list view. The product reference could be populated if needed.
 
 		productVariants = append(productVariants, productVariant)
 	}
@@ -412,7 +409,6 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 				pv.product_id,
 				pv.sku,
 				pv.price_override,
-				pv.variant_attributes,
 				COALESCE(p.name, '') as product_name,
 				COALESCE(p.price, 0) as product_price,
 				COALESCE(p.currency, '') as product_currency
@@ -426,17 +422,16 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.ProductVariantId)
 
 	var (
-		id                string
-		dateCreated       time.Time
-		dateModified      time.Time
-		active            bool
-		productID         string
-		sku               string
-		priceOverride     float64
-		variantAttributes []byte // jsonb
-		productName       string
-		productPrice      float64
-		productCurrency   string
+		id              string
+		dateCreated     time.Time
+		dateModified    time.Time
+		active          bool
+		productID       string
+		sku             string
+		priceOverride   float64
+		productName     string
+		productPrice    float64
+		productCurrency string
 	)
 
 	err := row.Scan(
@@ -447,7 +442,6 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 		&productID,
 		&sku,
 		&priceOverride,
-		&variantAttributes,
 		&productName,
 		&productPrice,
 		&productCurrency,
@@ -481,10 +475,9 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 		productVariant.DateModifiedString = &dmStr
 	}
 
-	// Note: variantAttributes (jsonb), productName, productPrice, productCurrency
-	// are available for the product reference but not directly mapped to the
-	// ProductVariant protobuf. These could be returned via the Product field
-	// or processed separately for frontend consumption.
+	// Note: productName, productPrice, productCurrency are available for the
+	// product reference but not directly mapped to the ProductVariant protobuf.
+	// These could be returned via the Product field or processed separately.
 
 	return &productvariantpb.GetProductVariantItemPageDataResponse{
 		ProductVariant: productVariant,

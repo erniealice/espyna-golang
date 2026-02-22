@@ -78,9 +78,12 @@ type DatabaseTableConfig struct {
 	RevenueCategory  string
 
 	// Inventory tables - Inventory management
-	InventoryItem        string
-	InventoryAttribute   string
-	InventoryTransaction string
+	InventoryItem          string
+	InventoryAttribute     string
+	InventoryTransaction   string
+	InventorySerial        string
+	InventoryDepreciation  string
+	InventorySerialHistory string
 
 	// Subscription tables - Billing and subscription management
 	Plan                  string
@@ -175,9 +178,12 @@ func DefaultDatabaseTableConfig() DatabaseTableConfig {
 		RevenueCategory:  "revenue_category",
 
 		// Inventory tables
-		InventoryItem:        "inventory_item",
-		InventoryAttribute:   "inventory_attribute",
-		InventoryTransaction: "inventory_transaction",
+		InventoryItem:          "inventory_item",
+		InventoryAttribute:     "inventory_attribute",
+		InventoryTransaction:   "inventory_transaction",
+		InventorySerial:        "inventory_serial",
+		InventoryDepreciation:  "inventory_depreciation",
+		InventorySerialHistory: "inventory_serial_history",
 
 		// Subscription tables
 		Plan:                  "plan",

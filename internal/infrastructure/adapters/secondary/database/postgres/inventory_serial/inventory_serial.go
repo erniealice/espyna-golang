@@ -188,10 +188,28 @@ func (r *PostgresInventorySerialRepository) DeleteInventorySerial(ctx context.Co
 
 // ListInventorySerials lists inventory serials using common PostgreSQL operations
 func (r *PostgresInventorySerialRepository) ListInventorySerials(ctx context.Context, req *inventoryserialpb.ListInventorySerialsRequest) (*inventoryserialpb.ListInventorySerialsResponse, error) {
-	// List documents using common operations
+	// Build filter params, honoring entity-specific InventoryItemId field
 	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if req != nil {
+		filters := req.Filters
+		if itemID := req.GetInventoryItemId(); itemID != "" {
+			itemFilter := &commonpb.TypedFilter{
+				Field: "inventory_item_id",
+				FilterType: &commonpb.TypedFilter_StringFilter{
+					StringFilter: &commonpb.StringFilter{
+						Value:    itemID,
+						Operator: commonpb.StringOperator_STRING_EQUALS,
+					},
+				},
+			}
+			if filters == nil {
+				filters = &commonpb.FilterRequest{}
+			}
+			filters.Filters = append(filters.Filters, itemFilter)
+		}
+		if filters != nil {
+			params = &interfaces.ListParams{Filters: filters}
+		}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
@@ -279,7 +297,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 				is2.warranty_start,
 				is2.warranty_end,
 				is2.purchase_order,
-				is2.sold_reference,
 				is2.notes,
 				COALESCE(ii.name, '') as inventory_item_name
 			FROM inventory_serial is2
@@ -323,7 +340,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 			warrantyStart     *string
 			warrantyEnd       *string
 			purchaseOrder     *string
-			soldReference     *string
 			notes             *string
 			inventoryItemName string
 			total             int64
@@ -341,7 +357,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 			&warrantyStart,
 			&warrantyEnd,
 			&purchaseOrder,
-			&soldReference,
 			&notes,
 			&inventoryItemName,
 			&total,
@@ -373,10 +388,7 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 		if purchaseOrder != nil {
 			inventorySerial.PurchaseOrder = purchaseOrder
 		}
-		if soldReference != nil {
-			inventorySerial.SoldReference = soldReference
-		}
-		if notes != nil {
+if notes != nil {
 			inventorySerial.Notes = notes
 		}
 
@@ -455,7 +467,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialItemPageData(
 				is2.warranty_start,
 				is2.warranty_end,
 				is2.purchase_order,
-				is2.sold_reference,
 				is2.notes,
 				COALESCE(ii.name, '') as inventory_item_name,
 				COALESCE(ii.sku, '') as inventory_item_sku
@@ -480,7 +491,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialItemPageData(
 		warrantyStart     *string
 		warrantyEnd       *string
 		purchaseOrder     *string
-		soldReference     *string
 		notes             *string
 		inventoryItemName string
 		inventoryItemSku  string
@@ -498,7 +508,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialItemPageData(
 		&warrantyStart,
 		&warrantyEnd,
 		&purchaseOrder,
-		&soldReference,
 		&notes,
 		&inventoryItemName,
 		&inventoryItemSku,
@@ -530,9 +539,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialItemPageData(
 	}
 	if purchaseOrder != nil {
 		inventorySerial.PurchaseOrder = purchaseOrder
-	}
-	if soldReference != nil {
-		inventorySerial.SoldReference = soldReference
 	}
 	if notes != nil {
 		inventorySerial.Notes = notes

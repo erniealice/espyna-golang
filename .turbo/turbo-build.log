@@ -1,0 +1,7 @@
+
+> @leapfor/espyna@1.0.0 build C:\Users\arnel\crad\code\monorepo\master-monorepo-v2\packages\espyna
+> go build -o bin/espyna ./cmd/server
+
+build cache is required, but could not be located: GOCACHE is not defined and %LocalAppData% is not defined
+ ELIFECYCLE  Command failed with exit code 1.
+ WARN   Local package.json exists, but node_modules missing, did you mean to install?

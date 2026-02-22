@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -84,7 +85,7 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 		}
 		columns = append(columns, column)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
-		values = append(values, value)
+		values = append(values, serializeValue(value))
 		i++
 	}
 
@@ -217,7 +218,7 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 			continue
 		}
 		setParts = append(setParts, fmt.Sprintf("%s = $%d", column, i))
-		values = append(values, value)
+		values = append(values, serializeValue(value))
 		i++
 	}
 	values = append(values, id) // Add ID as last parameter
@@ -920,6 +921,14 @@ func normalizeValue(v any) any {
 			return nil
 		}
 		return t.UnixMilli()
+	case []byte:
+		// jsonb columns: unmarshal to native Go types so json.Marshal
+		// produces proper JSON instead of base64-encoded strings
+		var parsed any
+		if err := json.Unmarshal(t, &parsed); err == nil {
+			return parsed
+		}
+		return string(t)
 	default:
 		return v
 	}
@@ -967,6 +976,21 @@ func (p *PostgresOperations) WithTransaction(ctx context.Context, fn func(*sql.T
 // This is used for executing raw SQL queries in repository implementations
 func (p *PostgresOperations) GetDB() *sql.DB {
 	return p.db
+}
+
+// serializeValue converts map and slice values to JSON bytes so the SQL
+// driver can store them in JSONB columns. Primitive types pass through.
+func serializeValue(v any) any {
+	switch v.(type) {
+	case map[string]any, []any:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return v
+		}
+		return b
+	default:
+		return v
+	}
 }
 
 // normalizeKeys converts all map keys from camelCase to snake_case.

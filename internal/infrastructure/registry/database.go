@@ -101,8 +101,9 @@ type DatabaseTableConfig struct {
 	// Integration
 	IntegrationPayment string
 	// Product
-	Product, ProductVariant, Collection, CollectionAttribute, CollectionParent, CollectionPlan string
-	PriceProduct, ProductAttribute, ProductCollection, ProductPlan, Resource                   string
+	Product, ProductVariant, Collection, CollectionAttribute, CollectionParent, CollectionPlan  string
+	PriceList, PriceProduct, ProductAttribute, ProductCollection, ProductPlan, Resource         string
+	ProductOption, ProductOptionValue, ProductVariantOption, ProductVariantImage                 string
 	// Record
 	Record string
 	// Workflow
@@ -114,6 +115,7 @@ type DatabaseTableConfig struct {
 	// Inventory domain
 	InventoryItem, InventoryAttribute, InventoryTransaction string
 	InventorySerial, InventoryDepreciation                  string
+	InventorySerialHistory                                  string
 	// Subscription
 	Plan, PlanAttribute, PlanLocation, PlanSettings      string
 	Balance, BalanceAttribute, Invoice, InvoiceAttribute string
@@ -194,8 +196,10 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		Product: "product", ProductVariant: "product_variant",
 		Collection: "collection", CollectionAttribute: "collection_attribute",
 		CollectionParent: "collection_parent", CollectionPlan: "collection_plan",
-		PriceProduct: "price_product", ProductAttribute: "product_attribute",
+		PriceList: "price_list", PriceProduct: "price_product", ProductAttribute: "product_attribute",
 		ProductCollection: "product_collection", ProductPlan: "product_plan", Resource: "resource",
+		ProductOption: "product_option", ProductOptionValue: "product_option_value",
+		ProductVariantOption: "product_variant_option", ProductVariantImage: "product_variant_image",
 		// Record
 		Record: "record",
 		// Workflow
@@ -211,6 +215,7 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		InventoryItem: "inventory_item", InventoryAttribute: "inventory_attribute",
 		InventoryTransaction: "inventory_transaction",
 		InventorySerial: "inventory_serial", InventoryDepreciation: "inventory_depreciation",
+		InventorySerialHistory: "inventory_serial_history",
 		// Subscription
 		Plan: "plan", PlanAttribute: "plan_attribute", PlanLocation: "plan_location", PlanSettings: "plan_settings",
 		Balance: "balance", BalanceAttribute: "balance_attribute",

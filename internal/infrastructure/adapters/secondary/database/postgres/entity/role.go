@@ -129,7 +129,8 @@ func (r *PostgresRoleRepository) ReadRole(ctx context.Context, req *rolepb.ReadR
 	}
 
 	return &rolepb.ReadRoleResponse{
-		Data: []*rolepb.Role{role},
+		Data:    []*rolepb.Role{role},
+		Success: true,
 	}, nil
 }
 
@@ -290,7 +291,8 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 							'active', p.active
 						),
 						'active', rp.active,
-						'date_created', rp.date_created
+						'dateCreated', (EXTRACT(EPOCH FROM rp.date_created) * 1000)::bigint,
+						'dateCreatedString', TO_CHAR(rp.date_created AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 					) ORDER BY p.name
 				) FILTER (WHERE rp.id IS NOT NULL) as permissions
 			FROM role_permission rp
@@ -473,7 +475,8 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 							'active', p.active
 						),
 						'active', rp.active,
-						'date_created', rp.date_created
+						'dateCreated', (EXTRACT(EPOCH FROM rp.date_created) * 1000)::bigint,
+						'dateCreatedString', TO_CHAR(rp.date_created AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 					) ORDER BY p.name
 				) FILTER (WHERE rp.id IS NOT NULL) as permissions
 			FROM role_permission rp

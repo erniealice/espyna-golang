@@ -17,6 +17,7 @@ type Registry struct {
 	subscription *SubscriptionRepositories
 	payment      *PaymentRepositories
 	product      *ProductRepositories
+	inventory    *InventoryRepositories
 	event        *EventRepositories
 	workflow     *WorkflowRepositories
 	common       *CommonRepositories
@@ -70,6 +71,12 @@ func (r *Registry) InitializeAll() error {
 	r.product, err = NewProductRepositories(r.dbProvider, r.dbTableConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create product repositories: %w", err)
+	}
+
+	// Initialize inventory repositories
+	r.inventory, err = NewInventoryRepositories(r.dbProvider, r.dbTableConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create inventory repositories: %w", err)
 	}
 
 	// Initialize event repositories
@@ -145,6 +152,21 @@ func (r *Registry) GetProduct() (*ProductRepositories, error) {
 		}
 	}
 	return r.product, nil
+}
+
+// GetInventory returns inventory repositories (lazy init if needed)
+func (r *Registry) GetInventory() (*InventoryRepositories, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.inventory == nil {
+		var err error
+		r.inventory, err = NewInventoryRepositories(r.dbProvider, r.dbTableConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r.inventory, nil
 }
 
 // GetEvent returns event repositories (lazy init if needed)

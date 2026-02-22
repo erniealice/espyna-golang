@@ -28,6 +28,7 @@ type DatabaseOperation interface {
 	Read(ctx context.Context, tableName string, id string) (map[string]any, error)
 	Update(ctx context.Context, tableName string, id string, data map[string]any) (map[string]any, error)
 	Delete(ctx context.Context, tableName string, id string) error
+	HardDelete(ctx context.Context, tableName string, id string) error
 	List(ctx context.Context, tableName string, params *ListParams) (*ListResult, error)
 
 	// Query-based operations for composite keys and complex queries

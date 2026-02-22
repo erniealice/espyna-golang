@@ -305,6 +305,14 @@ const (
 	EntityPaymentProfile              = security.EntityPaymentProfile
 	EntityPaymentProfilePaymentMethod = security.EntityPaymentProfilePaymentMethod
 
+	// Inventory Domain
+	EntityInventoryItem          = security.EntityInventoryItem
+	EntityInventorySerial        = security.EntityInventorySerial
+	EntityInventoryTransaction   = security.EntityInventoryTransaction
+	EntityInventoryAttribute     = security.EntityInventoryAttribute
+	EntityInventoryDepreciation  = security.EntityInventoryDepreciation
+	EntityInventorySerialHistory = security.EntityInventorySerialHistory
+
 	// Product Domain
 	EntityCollection          = security.EntityCollection
 	EntityCollectionAttribute = security.EntityCollectionAttribute
@@ -313,9 +321,14 @@ const (
 	EntityPriceProduct        = security.EntityPriceProduct
 	EntityProduct             = security.EntityProduct
 	EntityProductAttribute    = security.EntityProductAttribute
-	EntityProductCollection   = security.EntityProductCollection
-	EntityProductPlan         = security.EntityProductPlan
-	EntityResource            = security.EntityResource
+	EntityProductCollection    = security.EntityProductCollection
+	EntityProductOption        = security.EntityProductOption
+	EntityProductOptionValue   = security.EntityProductOptionValue
+	EntityProductPlan          = security.EntityProductPlan
+	EntityProductVariant       = security.EntityProductVariant
+	EntityProductVariantImage  = security.EntityProductVariantImage
+	EntityProductVariantOption = security.EntityProductVariantOption
+	EntityResource             = security.EntityResource
 
 	// Record Domain
 	EntityRecord = security.EntityRecord

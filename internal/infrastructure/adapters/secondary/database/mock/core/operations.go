@@ -104,6 +104,11 @@ func (m *MockOperations) Delete(ctx context.Context, tableName string, id string
 	return model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
 }
 
+// HardDelete permanently removes a record from the mock data store (same as Delete for mocks)
+func (m *MockOperations) HardDelete(ctx context.Context, tableName string, id string) error {
+	return m.Delete(ctx, tableName, id)
+}
+
 // List retrieves all records from a table in the mock data store with pagination support
 func (m *MockOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
 	businessType := "default"

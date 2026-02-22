@@ -165,7 +165,15 @@ const (
 	EntityPaymentProfile              = "payment_profile"
 	EntityPaymentProfilePaymentMethod = "payment_profile_payment_method"
 
-	// Product Domain (10 entities)
+	// Inventory Domain (6 entities)
+	EntityInventoryItem          = "inventory_item"
+	EntityInventorySerial        = "inventory_serial"
+	EntityInventoryTransaction   = "inventory_transaction"
+	EntityInventoryAttribute     = "inventory_attribute"
+	EntityInventoryDepreciation  = "inventory_depreciation"
+	EntityInventorySerialHistory = "inventory_serial_history"
+
+	// Product Domain (15 entities)
 	EntityCollection          = "collection"
 	EntityCollectionAttribute = "collection_attribute"
 	EntityCollectionPlan      = "collection_plan"
@@ -174,7 +182,12 @@ const (
 	EntityProduct             = "product"
 	EntityProductAttribute    = "product_attribute"
 	EntityProductCollection   = "product_collection"
+	EntityProductOption       = "product_option"
+	EntityProductOptionValue  = "product_option_value"
 	EntityProductPlan         = "product_plan"
+	EntityProductVariant      = "product_variant"
+	EntityProductVariantImage = "product_variant_image"
+	EntityProductVariantOption = "product_variant_option"
 	EntityResource            = "resource"
 
 	// Record Domain (1 entity)

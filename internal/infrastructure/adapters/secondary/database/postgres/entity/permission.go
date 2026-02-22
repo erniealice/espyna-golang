@@ -124,7 +124,8 @@ func (r *PostgresPermissionRepository) ReadPermission(ctx context.Context, req *
 	}
 
 	return &permissionpb.ReadPermissionResponse{
-		Data: []*permissionpb.Permission{permission},
+		Data:    []*permissionpb.Permission{permission},
+		Success: true,
 	}, nil
 }
 

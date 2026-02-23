@@ -216,17 +216,16 @@ func (r *PostgresInventoryTransactionRepository) ListInventoryTransactions(ctx c
 	}
 
 	// Convert results to protobuf slice using protojson
+	unmarshalOpts := protojson.UnmarshalOptions{DiscardUnknown: true}
 	var inventoryTransactions []*inventorytransactionpb.InventoryTransaction
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			// Log error and continue with next item
 			continue
 		}
 
 		inventoryTransaction := &inventorytransactionpb.InventoryTransaction{}
-		if err := protojson.Unmarshal(resultJSON, inventoryTransaction); err != nil {
-			// Log error and continue with next item
+		if err := unmarshalOpts.Unmarshal(resultJSON, inventoryTransaction); err != nil {
 			continue
 		}
 		inventoryTransactions = append(inventoryTransactions, inventoryTransaction)

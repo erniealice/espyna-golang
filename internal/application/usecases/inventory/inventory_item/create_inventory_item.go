@@ -132,9 +132,6 @@ func (uc *CreateInventoryItemUseCase) validateInput(ctx context.Context, req *in
 	if req.Data.Name == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_item.validation.name_required", "Inventory item name is required [DEFAULT]"))
 	}
-	if req.Data.ItemType == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_item.validation.item_type_required", "Item type is required [DEFAULT]"))
-	}
 	if req.Data.QuantityOnHand < 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_item.validation.quantity_on_hand_non_negative", "Quantity on hand must be zero or greater [DEFAULT]"))
 	}
@@ -173,12 +170,6 @@ func (uc *CreateInventoryItemUseCase) validateBusinessRules(ctx context.Context,
 
 	if len(name) > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_item.validation.name_max_length", "Inventory item name cannot exceed 100 characters [DEFAULT]"))
-	}
-
-	// Validate item type
-	validItemTypes := map[string]bool{"serialized": true, "non_serialized": true, "consumable": true}
-	if !validItemTypes[item.ItemType] {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_item.validation.invalid_item_type", "Item type must be serialized, non_serialized, or consumable [DEFAULT]"))
 	}
 
 	return nil

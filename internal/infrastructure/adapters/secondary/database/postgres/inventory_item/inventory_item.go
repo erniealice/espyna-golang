@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventoryitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_item"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 func init() {
@@ -36,7 +37,6 @@ func init() {
 //   - CREATE INDEX idx_inventory_item_location_id ON inventory_item(location_id) - FK lookup on location_id
 //   - CREATE INDEX idx_inventory_item_name ON inventory_item(name) - Search on name field
 //   - CREATE INDEX idx_inventory_item_sku ON inventory_item(sku) - Search on sku field
-//   - CREATE INDEX idx_inventory_item_item_type ON inventory_item(item_type) - Filter by item_type
 //   - CREATE INDEX idx_inventory_item_date_created ON inventory_item(date_created DESC) - Default sorting
 type PostgresInventoryItemRepository struct {
 	inventoryitempb.UnimplementedInventoryItemDomainServiceServer
@@ -281,7 +281,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 				ii.quantity_available,
 				ii.reorder_level,
 				ii.unit_of_measure,
-				ii.item_type,
+				COALESCE(p.item_type, '') as item_type,
 				COALESCE(p.name, '') as product_name
 			FROM inventory_item ii
 			LEFT JOIN product p ON ii.product_id = p.id AND p.active = true
@@ -363,12 +363,16 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 			QuantityReserved:  quantityReserved,
 			QuantityAvailable: quantityAvailable,
 			UnitOfMeasure:     unitOfMeasure,
-			ItemType:          itemType,
 		}
 
 		// Handle nullable fields
 		if productID != nil {
 			inventoryItem.ProductId = productID
+			inventoryItem.Product = &productpb.Product{
+				Id:       *productID,
+				Name:     productName,
+				ItemType: itemType,
+			}
 		}
 		if locationID != nil {
 			inventoryItem.LocationId = locationID
@@ -393,10 +397,6 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 			dmStr := dateModified.Format(time.RFC3339)
 			inventoryItem.DateModifiedString = &dmStr
 		}
-
-		// Note: productName is available from the join but not directly mapped
-		// to the InventoryItem protobuf. Could be populated via the Product field
-		// if needed for frontend display.
 
 		inventoryItems = append(inventoryItems, inventoryItem)
 	}
@@ -457,7 +457,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 				ii.quantity_available,
 				ii.reorder_level,
 				ii.unit_of_measure,
-				ii.item_type,
+				COALESCE(p.item_type, '') as item_type,
 				ii.product_variant_id,
 				ii.notes,
 				COALESCE(p.name, '') as product_name,
@@ -527,12 +527,17 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 		QuantityReserved:  quantityReserved,
 		QuantityAvailable: quantityAvailable,
 		UnitOfMeasure:     unitOfMeasure,
-		ItemType:          itemType,
 	}
 
 	// Handle nullable fields
 	if productID != nil {
 		inventoryItem.ProductId = productID
+		inventoryItem.Product = &productpb.Product{
+			Id:       *productID,
+			Name:     productName,
+			Price:    productPrice,
+			ItemType: itemType,
+		}
 	}
 	if locationID != nil {
 		inventoryItem.LocationId = locationID
@@ -563,10 +568,6 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 		dmStr := dateModified.Format(time.RFC3339)
 		inventoryItem.DateModifiedString = &dmStr
 	}
-
-	// Note: productName and productPrice are available from the join
-	// but not directly mapped to the InventoryItem protobuf. These could be
-	// returned via the Product field or processed separately.
 
 	return &inventoryitempb.GetInventoryItemItemPageDataResponse{
 		InventoryItem: inventoryItem,

@@ -217,17 +217,16 @@ func (r *PostgresInventorySerialRepository) ListInventorySerials(ctx context.Con
 	}
 
 	// Convert results to protobuf slice using protojson
+	unmarshalOpts := protojson.UnmarshalOptions{DiscardUnknown: true}
 	var inventorySerials []*inventoryserialpb.InventorySerial
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			// Log error and continue with next item
 			continue
 		}
 
 		inventorySerial := &inventoryserialpb.InventorySerial{}
-		if err := protojson.Unmarshal(resultJSON, inventorySerial); err != nil {
-			// Log error and continue with next item
+		if err := unmarshalOpts.Unmarshal(resultJSON, inventorySerial); err != nil {
 			continue
 		}
 		inventorySerials = append(inventorySerials, inventorySerial)

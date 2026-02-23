@@ -9,9 +9,9 @@ import (
 
 func TestDefaultCredentialConfig(t *testing.T) {
 	// Set up test environment
-	os.Setenv("GOOGLE_PROJECT_ID", "test-project")
+	os.Setenv("GOOGLE_CLOUD_PROJECT_ID", "test-project")
 	os.Setenv("GOOGLE_USE_SERVICE_ACCOUNT", "true")
-	defer os.Unsetenv("GOOGLE_PROJECT_ID")
+	defer os.Unsetenv("GOOGLE_CLOUD_PROJECT_ID")
 	defer os.Unsetenv("GOOGLE_USE_SERVICE_ACCOUNT")
 
 	config := DefaultCredentialConfig("GOOGLE_")

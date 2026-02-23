@@ -2,7 +2,5 @@
 
 package consumer
 
-// NOTE: storage/gcs adapter does not yet have an init() with
-// registry.RegisterStorageProvider. This import is ready for when
-// self-registration is added to that package.
+// Import triggers gcs adapter's init() which registers with registry.RegisterStorageProvider.
 import _ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/gcs"

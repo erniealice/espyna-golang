@@ -79,9 +79,9 @@ func createLocalStorageConfigFromEnv() LocalStorageConfig {
 
 func createGCSConfigFromEnv() GCSConfig {
 	return GCSConfig{
-		BucketName:      GetEnv("GCS_BUCKET_NAME", ""),
-		CredentialsPath: GetEnv("GCS_CREDENTIALS_PATH", GetEnv("FIRESTORE_CREDENTIALS_PATH", "")),
-		ProjectID:       GetEnv("GCS_PROJECT_ID", GetEnv("FIRESTORE_PROJECT_ID", "")),
+		BucketName:      GetEnv("GOOGLE_CLOUD_STORAGE_BUCKET_NAME", ""),
+		CredentialsPath: GetEnv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+		ProjectID:       GetEnv("GOOGLE_CLOUD_PROJECT_ID", ""),
 	}
 }
 
@@ -104,7 +104,7 @@ func WithStorageFromEnv() ContainerOption {
 		storageProvider := strings.ToLower(GetEnv("CONFIG_STORAGE_PROVIDER", "local_storage"))
 
 		switch storageProvider {
-		case "gcs":
+		case "gcp_storage":
 			return WithGoogleCloudStorage(createGCSConfigFromEnv())(c)
 		case "s3":
 			return WithS3Storage(createS3ConfigFromEnv())(c)

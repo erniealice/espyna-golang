@@ -22,6 +22,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 
@@ -77,6 +78,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		productUC = &product.ProductUseCases{}
 	}
 
+	revenueUC, err := uci.initializeRevenueUseCases(container)
+	if err != nil {
+		revenueUC = &revenue.RevenueUseCases{}
+	}
+
 	inventoryUC, err := uci.initializeInventoryUseCases(container)
 	if err != nil {
 		inventoryUC = &inventory.InventoryUseCases{}
@@ -104,6 +110,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		inventoryUC,
 		paymentUC,
 		productUC,
+		revenueUC,
 		subscriptionUC,
 		workflowUC,
 		integrationUC,
@@ -262,6 +269,34 @@ func (uci *UseCaseInitializer) initializeProductUseCases(container *Container) (
 	fmt.Printf("✅ Product domain initialized successfully: %v\n", productUseCases != nil)
 
 	return productUseCases, nil
+}
+
+// initializeRevenueUseCases initializes Revenue domain use cases
+func (uci *UseCaseInitializer) initializeRevenueUseCases(container *Container) (*revenue.RevenueUseCases, error) {
+	fmt.Printf("💰 Initializing Revenue use cases...\n")
+
+	repos, err := domain.NewRevenueRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Revenue database provider not available: %v\n", err)
+		return &revenue.RevenueUseCases{}, nil
+	}
+	fmt.Printf("✅ Got revenue repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
+
+	revenueUseCases, err := initializers.InitializeRevenue(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize revenue use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Revenue domain initialized successfully: %v\n", revenueUseCases != nil)
+
+	return revenueUseCases, nil
 }
 
 // initializeInventoryUseCases initializes Inventory domain use cases (6 entities)

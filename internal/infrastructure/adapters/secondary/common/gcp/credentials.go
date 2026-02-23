@@ -36,7 +36,7 @@ type CredentialConfig struct {
 func DefaultCredentialConfig(envPrefix string) *CredentialConfig {
 	return &CredentialConfig{
 		EnvPrefix:             envPrefix,
-		ProjectID:             os.Getenv(envPrefix + "PROJECT_ID"),
+		ProjectID:             os.Getenv(envPrefix + "CLOUD_PROJECT_ID"),
 		CredentialsPath:       os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"),
 		UseServiceAccountJSON: os.Getenv(envPrefix+"USE_SERVICE_ACCOUNT") == "true",
 		ServiceAccountKeyPath: os.Getenv(envPrefix + "SERVICE_ACCOUNT_KEY_PATH"),

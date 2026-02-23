@@ -28,19 +28,19 @@ import (
 
 func init() {
 	registry.RegisterStorageProvider(
-		"gcs",
+		"gcp_storage",
 		func() ports.StorageProvider {
 			return NewGCSStorageProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterStorageBuildFromEnv("gcs", buildFromEnv)
+	registry.RegisterStorageBuildFromEnv("gcp_storage", buildFromEnv)
 }
 
 // buildFromEnv creates and initializes a GCS storage provider from environment variables.
 func buildFromEnv() (ports.StorageProvider, error) {
-	bucketName := os.Getenv("STORAGE_BUCKET_NAME")
-	projectId := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	bucketName := os.Getenv("GOOGLE_CLOUD_STORAGE_BUCKET_NAME")
+	projectId := os.Getenv("GOOGLE_CLOUD_PROJECT_ID")
 
 	protoConfig := &pb.StorageProviderConfig{
 		Provider: pb.StorageProvider_STORAGE_PROVIDER_GCP,

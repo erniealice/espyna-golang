@@ -34,7 +34,7 @@ func init() {
 
 // buildFromEnv creates and initializes a Firebase auth provider from environment variables.
 func buildFromEnv() (ports.AuthProvider, error) {
-	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT_ID")
 	protoConfig := &authpb.ProviderConfig{
 		Enabled:     true,
 		Provider:    authpb.Provider_PROVIDER_GCP,

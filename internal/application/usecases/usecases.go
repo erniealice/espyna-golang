@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 )
@@ -23,6 +24,7 @@ import (
 // - Event:        2 entities (Event, EventClient)
 // - Payment:      3 entities (Payment, PaymentMethod, PaymentProfile)
 // - Product:      8 entities (Product, Collection, Resource, PriceProduct, etc.)
+// - Revenue:      4 entities (Revenue, RevenueLineItem, RevenueCategory, RevenueAttribute)
 // - Subscription: 6 entities (Plan, Subscription, Invoice, Balance, etc.)
 // - Workflow:     3 entities (Workflow, StageTemplate, ActivityTemplate)
 type Aggregate struct {
@@ -32,6 +34,7 @@ type Aggregate struct {
 	Inventory    *inventory.InventoryUseCases
 	Payment      *payment.PaymentUseCases
 	Product      *product.ProductUseCases
+	Revenue      *revenue.RevenueUseCases
 	Subscription *subscription.SubscriptionUseCases
 	Workflow     *workflow.WorkflowUseCases
 	Integration  *integration.IntegrationUseCases
@@ -49,6 +52,7 @@ func NewAggregate(
 	inventoryUC *inventory.InventoryUseCases,
 	paymentUC *payment.PaymentUseCases,
 	productUC *product.ProductUseCases,
+	revenueUC *revenue.RevenueUseCases,
 	subscriptionUC *subscription.SubscriptionUseCases,
 	workflowUC *workflow.WorkflowUseCases,
 	integrationUC *integration.IntegrationUseCases,
@@ -60,6 +64,7 @@ func NewAggregate(
 		Inventory:    inventoryUC,
 		Payment:      paymentUC,
 		Product:      productUC,
+		Revenue:      revenueUC,
 		Subscription: subscriptionUC,
 		Workflow:     workflowUC,
 		Integration:  integrationUC,
@@ -76,6 +81,7 @@ func NewEmptyAggregate() *Aggregate {
 		Inventory:    &inventory.InventoryUseCases{},
 		Payment:      &payment.PaymentUseCases{},
 		Product:      &product.ProductUseCases{},
+		Revenue:      &revenue.RevenueUseCases{},
 		Subscription: &subscription.SubscriptionUseCases{},
 		Workflow:     &workflow.WorkflowUseCases{},
 		Integration:  &integration.IntegrationUseCases{},

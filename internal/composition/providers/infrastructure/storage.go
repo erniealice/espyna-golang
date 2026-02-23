@@ -13,7 +13,7 @@ import (
 // The provider reads its own environment variables - composition layer is provider-agnostic.
 //
 // Uses CONFIG_STORAGE_PROVIDER environment variable to select which provider to use:
-//   - "gcs" → Google Cloud Storage provider
+//   - "gcp_storage" → Google Cloud Storage provider (build tag: google && gcp_storage, env: GOOGLE_CLOUD_*)
 //   - "local" → Local filesystem storage provider
 //   - "mock_storage", "mock", or "" → Mock storage provider (default)
 func CreateStorageProvider() (contracts.Provider, error) {

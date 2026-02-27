@@ -93,7 +93,8 @@ func (r *PostgresRevenueRepository) CreateRevenue(ctx context.Context, req *reve
 	}
 
 	return &revenuepb.CreateRevenueResponse{
-		Data: []*revenuepb.Revenue{revenue},
+		Success: true,
+		Data:    []*revenuepb.Revenue{revenue},
 	}, nil
 }
 
@@ -119,7 +120,8 @@ func (r *PostgresRevenueRepository) ReadRevenue(ctx context.Context, req *revenu
 	}
 
 	return &revenuepb.ReadRevenueResponse{
-		Data: []*revenuepb.Revenue{revenue},
+		Success: true,
+		Data:    []*revenuepb.Revenue{revenue},
 	}, nil
 }
 
@@ -160,7 +162,8 @@ func (r *PostgresRevenueRepository) UpdateRevenue(ctx context.Context, req *reve
 	}
 
 	return &revenuepb.UpdateRevenueResponse{
-		Data: []*revenuepb.Revenue{revenue},
+		Success: true,
+		Data:    []*revenuepb.Revenue{revenue},
 	}, nil
 }
 
@@ -208,7 +211,8 @@ func (r *PostgresRevenueRepository) ListRevenues(ctx context.Context, req *reven
 	}
 
 	return &revenuepb.ListRevenuesResponse{
-		Data: revenues,
+		Success: true,
+		Data:    revenues,
 	}, nil
 }
 

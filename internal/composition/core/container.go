@@ -172,7 +172,7 @@ func NewContainer() *Container {
 //
 // Each provider reads its own configuration from environment variables.
 // See provider implementations for provider-specific variables.
-func NewContainerFromEnv() *Container {
+func NewContainerFromEnv() (*Container, error) {
 	container := NewContainer()
 
 	// Log which providers are configured (providers self-configure from env)
@@ -196,20 +196,11 @@ func NewContainerFromEnv() *Container {
 	// Initialize the container (providers self-configure via registry)
 	fmt.Printf("🔄 Initializing container...\n")
 	if err := container.Initialize(); err != nil {
-		fmt.Printf("❌ Container initialization failed: %v\n", err)
-		fmt.Printf("⚠️  Falling back to basic initialization\n")
-		routingConfig := routing.DefaultConfig()
-		routeManager := routing.NewRouteManager(routingConfig)
-
-		container.mu.Lock()
-		container.routing = routeManager
-		container.initialized = true
-		container.mu.Unlock()
-	} else {
-		fmt.Printf("✅ Container initialized successfully\n")
+		return nil, fmt.Errorf("container initialization failed: %w", err)
 	}
 
-	return container
+	fmt.Printf("✅ Container initialized successfully\n")
+	return container, nil
 }
 
 // getEnv returns environment variable value or default if not set

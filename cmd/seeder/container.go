@@ -17,6 +17,6 @@ import (
 type SeederContainer = core.Container
 
 // NewSeederContainer creates a container for the seeder from environment
-func NewSeederContainer() *SeederContainer {
+func NewSeederContainer() (*SeederContainer, error) {
 	return core.NewContainerFromEnv()
 }

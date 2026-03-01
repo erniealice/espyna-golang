@@ -153,9 +153,9 @@ func runSeeder(opts seeders.Options) error {
 
 	// Create container from environment
 	fmt.Println("Connecting to database...")
-	container := NewSeederContainer()
-	if container == nil {
-		return fmt.Errorf("failed to create container from environment")
+	container, err := NewSeederContainer()
+	if err != nil {
+		return fmt.Errorf("failed to create container: %w", err)
 	}
 	defer container.Close()
 

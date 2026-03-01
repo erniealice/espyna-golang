@@ -35,15 +35,10 @@ func main() {
 	log.Println("🌱 Workflow Template Seeder")
 	log.Println("============================")
 
-	// Create container from environment
-	container := consumer.NewContainerFromEnv()
-	if container == nil {
-		log.Fatal("❌ Failed to create container from environment")
-	}
-
-	// Initialize container (sets up use cases, repositories, etc.)
-	if err := container.Initialize(); err != nil {
-		log.Fatalf("❌ Failed to initialize container: %v", err)
+	// Create container from environment (initializes use cases, repositories, etc.)
+	container, err := consumer.NewContainerFromEnv()
+	if err != nil {
+		log.Fatalf("❌ Failed to create container: %v", err)
 	}
 	defer container.Close()
 

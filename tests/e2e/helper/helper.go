@@ -31,7 +31,10 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	testutil.SetupTestEnvironment("mock")
 
 	// Create container from environment (providers read their own config)
-	container := core.NewContainerFromEnv()
+	container, err := core.NewContainerFromEnv()
+	if err != nil {
+		t.Fatalf("Failed to create container: %v", err)
+	}
 
 	// Get route manager from container for routes
 	routeManager := container.GetRouteManager()

@@ -40,7 +40,7 @@ func SetupTestEnvironment(providerName string) {
 }
 
 // CreateTestContainer creates a container for testing with the specified provider
-func CreateTestContainer(providerName string) *core.Container {
+func CreateTestContainer(providerName string) (*core.Container, error) {
 	SetupTestEnvironment(providerName)
 	return core.NewContainerFromEnv()
 }

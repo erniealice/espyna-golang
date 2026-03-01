@@ -26,15 +26,15 @@ func NewContainer(opts ...infraopts.ContainerOption) (*core.Container, error) {
 	return core.NewContainerWithOptions(opts...)
 }
 
-// NewContainerFromEnv creates a new espyna container from environment variables
-// This reads CONFIG_* environment variables and configures providers accordingly.
+// NewContainerFromEnv creates a new espyna container from environment variables.
+// Returns an error if initialization fails (e.g. database connection refused).
 //
 // Environment variables:
 //   - CONFIG_DATABASE_PROVIDER: mock_db, postgres, firestore (default: mock_db)
 //   - CONFIG_AUTH_PROVIDER: mock_auth, firebase_auth (default: mock_auth)
 //   - CONFIG_ID_PROVIDER: noop, google_uuidv7 (default: noop)
 //   - CONFIG_STORAGE_PROVIDER: mock_storage, local (default: mock_storage)
-func NewContainerFromEnv() *core.Container {
+func NewContainerFromEnv() (*core.Container, error) {
 	return core.NewContainerFromEnv()
 }
 

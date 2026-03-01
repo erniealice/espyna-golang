@@ -70,9 +70,9 @@ func NewDatabaseAdapterFromContainer(container *Container) *DatabaseAdapter {
 // This creates its own container internally - use NewDatabaseAdapterFromContainer if you
 // already have a container to avoid creating duplicate connections.
 func NewDatabaseAdapterFromEnv(ctx context.Context) (*DatabaseAdapter, error) {
-	container := NewContainerFromEnv()
-	if container == nil {
-		return nil, fmt.Errorf("failed to create container from environment")
+	container, err := NewContainerFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create container from environment: %w", err)
 	}
 
 	adapter := NewDatabaseAdapterFromContainer(container)

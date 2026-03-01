@@ -41,20 +41,13 @@ CONFIG_SERVER_PROVIDER is only used for logging/configuration validation.
 
 func main() {
 	// Create container from environment variables
-	container := consumer.NewContainerFromEnv()
-	if container == nil {
-		log.Fatal("Failed to create container from environment")
+	container, err := consumer.NewContainerFromEnv()
+	if err != nil {
+		log.Fatalf("Failed to create container from environment: %v", err)
 	}
 	defer container.Close()
 
-	// Initialize container
-	log.Println("INFO: Initializing container...")
-	if err := container.Initialize(); err != nil {
-		log.Printf("WARNING: Container initialization issue: %v", err)
-		log.Println("   Server will start but some routes may not be available")
-	} else {
-		log.Println("SUCCESS: Container initialized")
-	}
+	log.Println("SUCCESS: Container initialized")
 
 	// Create server adapter (implementation selected by build tags)
 	adapter := consumer.NewServerAdapterFromContainer(container)

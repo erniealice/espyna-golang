@@ -5,13 +5,12 @@ package ledger
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
+	"time"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 )
-
-// Compile-time interface check
-var _ domain.LedgerReportingService = (*LedgerReportingAdapter)(nil)
 
 // TableConfig holds table names for the ledger reporting adapter.
 // Unlike entity repositories that use a single table, reporting queries
@@ -95,18 +94,36 @@ func (a *LedgerReportingAdapter) GetGrossProfitReport(
 	}, nil
 }
 
-// ListRevenue returns all revenue records for the report listing.
-func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context) ([]map[string]any, error) {
+// ListRevenue returns revenue records, optionally filtered by date range.
+func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error) {
 	query := `SELECT id, reference_number, status, total_amount, currency,
 		COALESCE(customer_first_name, '') || ' ' || COALESCE(customer_last_name, '') AS customer_name,
 		COALESCE(notes, '') AS notes,
 		COALESCE(location_name, '') AS location_name,
 		created_at
-		FROM ` + a.tableConfig.Revenue + `
-		ORDER BY created_at DESC
-		LIMIT 200`
+		FROM ` + a.tableConfig.Revenue
 
-	rows, err := a.db.QueryContext(ctx, query)
+	var args []any
+	var conditions []string
+	paramIdx := 1
+
+	if start != nil {
+		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", paramIdx))
+		args = append(args, *start)
+		paramIdx++
+	}
+	if end != nil {
+		conditions = append(conditions, fmt.Sprintf("created_at <= $%d", paramIdx))
+		args = append(args, *end)
+		paramIdx++
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY created_at DESC LIMIT 200"
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +132,8 @@ func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context) ([]map[string]
 	return scanToMaps(rows)
 }
 
-// ListExpenses returns all expenditure records of type "expense".
-func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context) ([]map[string]any, error) {
+// ListExpenses returns expenditure records of type "expense", optionally filtered by date range.
+func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error) {
 	table := a.tableConfig.Expenditure
 	if table == "" {
 		return nil, nil
@@ -126,11 +143,25 @@ func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context) ([]map[string
 		COALESCE(expenditure_date_string, '') AS expenditure_date,
 		COALESCE(notes, '') AS notes
 		FROM ` + table + `
-		WHERE expenditure_type = 'expense'
-		ORDER BY created_at DESC
-		LIMIT 200`
+		WHERE expenditure_type = 'expense'`
 
-	rows, err := a.db.QueryContext(ctx, query)
+	var args []any
+	paramIdx := 1
+
+	if start != nil {
+		query += fmt.Sprintf(" AND created_at >= $%d", paramIdx)
+		args = append(args, *start)
+		paramIdx++
+	}
+	if end != nil {
+		query += fmt.Sprintf(" AND created_at <= $%d", paramIdx)
+		args = append(args, *end)
+		paramIdx++
+	}
+
+	query += " ORDER BY created_at DESC LIMIT 200"
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

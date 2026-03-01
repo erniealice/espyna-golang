@@ -24,6 +24,7 @@ type TableConfig struct {
 	Product              string
 	Location             string
 	RevenueCategory      string
+	Expenditure          string
 }
 
 // LedgerReportingAdapter implements ports.LedgerReportingService using PostgreSQL.
@@ -92,6 +93,75 @@ func (a *LedgerReportingAdapter) GetGrossProfitReport(
 		Summary:   summary,
 		Success:   true,
 	}, nil
+}
+
+// ListRevenue returns all revenue records for the report listing.
+func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context) ([]map[string]any, error) {
+	query := `SELECT id, reference_number, status, total_amount, currency,
+		COALESCE(customer_first_name, '') || ' ' || COALESCE(customer_last_name, '') AS customer_name,
+		COALESCE(notes, '') AS notes,
+		COALESCE(location_name, '') AS location_name,
+		created_at
+		FROM ` + a.tableConfig.Revenue + `
+		ORDER BY created_at DESC
+		LIMIT 200`
+
+	rows, err := a.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanToMaps(rows)
+}
+
+// ListExpenses returns all expenditure records of type "expense".
+func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context) ([]map[string]any, error) {
+	table := a.tableConfig.Expenditure
+	if table == "" {
+		return nil, nil
+	}
+	query := `SELECT id, reference_number, vendor_name, category, status,
+		total_amount, currency,
+		COALESCE(expenditure_date_string, '') AS expenditure_date,
+		COALESCE(notes, '') AS notes
+		FROM ` + table + `
+		WHERE expenditure_type = 'expense'
+		ORDER BY created_at DESC
+		LIMIT 200`
+
+	rows, err := a.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanToMaps(rows)
+}
+
+// scanToMaps converts sql.Rows into a slice of column→value maps.
+func scanToMaps(rows *sql.Rows) ([]map[string]any, error) {
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	var result []map[string]any
+	for rows.Next() {
+		values := make([]any, len(columns))
+		ptrs := make([]any, len(columns))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return nil, err
+		}
+		row := make(map[string]any, len(columns))
+		for i, col := range columns {
+			row[col] = values[i]
+		}
+		result = append(result, row)
+	}
+	return result, rows.Err()
 }
 
 // computeSummary aggregates line item totals into a report summary.

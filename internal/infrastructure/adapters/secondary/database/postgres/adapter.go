@@ -113,6 +113,11 @@ func buildPgTableConfig() *registry.DatabaseTableConfig {
 		RevenueAttribute: prefix + getPostgresTableEnv("REVENUE_ATTRIBUTE", "revenue_attribute"),
 		RevenueLineItem:  prefix + getPostgresTableEnv("REVENUE_LINE_ITEM", "revenue_line_item"),
 		RevenueCategory:  prefix + getPostgresTableEnv("REVENUE_CATEGORY", "revenue_category"),
+		// Expenditure domain
+		Expenditure:          prefix + getPostgresTableEnv("EXPENDITURE", "expenditure"),
+		ExpenditureAttribute: prefix + getPostgresTableEnv("EXPENDITURE_ATTRIBUTE", "expenditure_attribute"),
+		ExpenditureLineItem:  prefix + getPostgresTableEnv("EXPENDITURE_LINE_ITEM", "expenditure_line_item"),
+		ExpenditureCategory:  prefix + getPostgresTableEnv("EXPENDITURE_CATEGORY", "expenditure_category"),
 		// Inventory domain
 		InventoryItem:          prefix + getPostgresTableEnv("INVENTORY_ITEM", "inventory_item"),
 		InventoryAttribute:     prefix + getPostgresTableEnv("INVENTORY_ATTRIBUTE", "inventory_attribute"),

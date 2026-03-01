@@ -298,12 +298,13 @@ const (
 	EntityObjective = security.EntityObjective
 	EntityTask      = security.EntityTask
 
-	// Payment Domain
-	EntityPayment                     = security.EntityPayment
-	EntityPaymentAttribute            = security.EntityPaymentAttribute
-	EntityPaymentMethod               = security.EntityPaymentMethod
-	EntityPaymentProfile              = security.EntityPaymentProfile
-	EntityPaymentProfilePaymentMethod = security.EntityPaymentProfilePaymentMethod
+	// Payment Domain (legacy entities removed — superseded by Collection and Disbursement)
+
+	// Expenditure Domain
+	EntityExpenditure          = security.EntityExpenditure
+	EntityExpenditureAttribute = security.EntityExpenditureAttribute
+	EntityExpenditureLineItem  = security.EntityExpenditureLineItem
+	EntityExpenditureCategory  = security.EntityExpenditureCategory
 
 	// Inventory Domain
 	EntityInventoryItem          = security.EntityInventoryItem

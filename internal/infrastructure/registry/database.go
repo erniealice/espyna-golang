@@ -112,6 +112,8 @@ type DatabaseTableConfig struct {
 	Session string
 	// Revenue domain
 	Revenue, RevenueAttribute, RevenueLineItem, RevenueCategory string
+	// Expenditure domain
+	Expenditure, ExpenditureAttribute, ExpenditureLineItem, ExpenditureCategory string
 	// Inventory domain
 	InventoryItem, InventoryAttribute, InventoryTransaction string
 	InventorySerial, InventoryDepreciation                  string
@@ -211,6 +213,9 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		// Revenue domain
 		Revenue: "revenue", RevenueAttribute: "revenue_attribute",
 		RevenueLineItem: "revenue_line_item", RevenueCategory: "revenue_category",
+		// Expenditure domain
+		Expenditure: "expenditure", ExpenditureAttribute: "expenditure_attribute",
+		ExpenditureLineItem: "expenditure_line_item", ExpenditureCategory: "expenditure_category",
 		// Inventory domain
 		InventoryItem: "inventory_item", InventoryAttribute: "inventory_attribute",
 		InventoryTransaction: "inventory_transaction",

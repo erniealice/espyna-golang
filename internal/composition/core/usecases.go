@@ -18,6 +18,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
@@ -83,6 +84,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		revenueUC = &revenue.RevenueUseCases{}
 	}
 
+	expenditureUC, err := uci.initializeExpenditureUseCases(container)
+	if err != nil {
+		expenditureUC = &expenditure.ExpenditureUseCases{}
+	}
+
 	inventoryUC, err := uci.initializeInventoryUseCases(container)
 	if err != nil {
 		inventoryUC = &inventory.InventoryUseCases{}
@@ -107,6 +113,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		commonUC,
 		entityUC,
 		eventUC,
+		expenditureUC,
 		inventoryUC,
 		paymentUC,
 		productUC,
@@ -213,7 +220,7 @@ func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*e
 	return eventUseCases, nil
 }
 
-// initializePaymentUseCases initializes Payment domain use cases (3 entities)
+// initializePaymentUseCases initializes Payment domain use cases (legacy entities removed)
 func (uci *UseCaseInitializer) initializePaymentUseCases(container *Container) (*payment.PaymentUseCases, error) {
 	fmt.Printf("💳 Initializing Payment use cases...\n")
 
@@ -297,6 +304,34 @@ func (uci *UseCaseInitializer) initializeRevenueUseCases(container *Container) (
 	fmt.Printf("✅ Revenue domain initialized successfully: %v\n", revenueUseCases != nil)
 
 	return revenueUseCases, nil
+}
+
+// initializeExpenditureUseCases initializes Expenditure domain use cases (4 entities)
+func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Container) (*expenditure.ExpenditureUseCases, error) {
+	fmt.Printf("💸 Initializing Expenditure use cases...\n")
+
+	repos, err := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Expenditure database provider not available: %v\n", err)
+		return &expenditure.ExpenditureUseCases{}, nil
+	}
+	fmt.Printf("✅ Got expenditure repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
+
+	expenditureUseCases, err := initializers.InitializeExpenditure(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize expenditure use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Expenditure domain initialized successfully: %v\n", expenditureUseCases != nil)
+
+	return expenditureUseCases, nil
 }
 
 // initializeInventoryUseCases initializes Inventory domain use cases (6 entities)

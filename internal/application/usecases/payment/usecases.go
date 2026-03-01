@@ -2,42 +2,29 @@ package payment
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-
-	// Payment use cases
-	paymentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment"
-	paymentAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment_attribute"
-	paymentMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment_method"
-	paymentProfileUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/payment/payment_profile"
-
-	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
-	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
-	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
-	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
-	paymentprofilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
-	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
-// PaymentRepositories contains all payment domain repositories
+// PaymentRepositories contains payment domain repositories.
+// The legacy Payment, PaymentAttribute, PaymentMethod, and PaymentProfile entities
+// have been removed. Their functionality is superseded by:
+//   - Collection (money IN) — revenue settlements
+//   - Disbursement (money OUT) — expenditure settlements
+//
+// See the collection and disbursement domains for active payment processing.
 type PaymentRepositories struct {
-	Payment          paymentpb.PaymentDomainServiceServer
-	PaymentAttribute paymentattributepb.PaymentAttributeDomainServiceServer
-	PaymentMethod    paymentmethodpb.PaymentMethodDomainServiceServer
-	PaymentProfile   paymentprofilepb.PaymentProfileDomainServiceServer
-	Attribute        attributepb.AttributeDomainServiceServer
-	Client           clientpb.ClientDomainServiceServer
-	Subscription     subscriptionpb.SubscriptionDomainServiceServer
+	// Reserved for future payment domain repositories if needed
 }
 
-// PaymentUseCases contains all payment-related use cases
+// PaymentUseCases contains all payment-related use cases.
+// Currently empty after removal of redundant Payment/PaymentAttribute/PaymentMethod/PaymentProfile
+// entities that were superseded by Collection and Disbursement.
 type PaymentUseCases struct {
-	Payment          *paymentUseCases.UseCases
-	PaymentAttribute *paymentAttributeUseCases.UseCases
-	PaymentMethod    *paymentMethodUseCases.UseCases
-	PaymentProfile   *paymentProfileUseCases.UseCases
+	// All payment entities have been superseded by collection (money IN) and disbursement (money OUT)
+	// See expenditure and revenue domains for the business transaction layer
 }
 
-// NewUseCases creates all payment use cases with proper constructor injection
+// NewUseCases creates payment use cases.
+// Currently returns an empty struct since all legacy payment entities have been removed.
 func NewUseCases(
 	repos PaymentRepositories,
 	authSvc ports.AuthorizationService,
@@ -45,53 +32,5 @@ func NewUseCases(
 	i18nSvc ports.TranslationService,
 	idService ports.IDService,
 ) *PaymentUseCases {
-	paymentRepositories := paymentUseCases.PaymentRepositories{
-		Payment:      repos.Payment,
-		Subscription: repos.Subscription,
-	}
-	paymentServices := paymentUseCases.PaymentServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idService,
-	}
-
-	paymentMethodRepositories := paymentMethodUseCases.PaymentMethodRepositories{
-		PaymentMethod: repos.PaymentMethod,
-	}
-	paymentMethodServices := paymentMethodUseCases.PaymentMethodServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-	}
-
-	paymentAttributeRepositories := paymentAttributeUseCases.PaymentAttributeRepositories{
-		PaymentAttribute: repos.PaymentAttribute,
-		Payment:          repos.Payment,
-		Attribute:        repos.Attribute,
-	}
-	paymentAttributeServices := paymentAttributeUseCases.PaymentAttributeServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idService,
-	}
-
-	paymentProfileRepositories := paymentProfileUseCases.PaymentProfileRepositories{
-		PaymentProfile: repos.PaymentProfile,
-		Client:         repos.Client,
-		PaymentMethod:  repos.PaymentMethod,
-	}
-	paymentProfileServices := paymentProfileUseCases.PaymentProfileServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-	}
-
-	return &PaymentUseCases{
-		Payment:          paymentUseCases.NewUseCases(paymentRepositories, paymentServices),
-		PaymentAttribute: paymentAttributeUseCases.NewUseCases(paymentAttributeRepositories, paymentAttributeServices),
-		PaymentMethod:    paymentMethodUseCases.NewUseCases(paymentMethodRepositories, paymentMethodServices),
-		PaymentProfile:   paymentProfileUseCases.NewUseCases(paymentProfileRepositories, paymentProfileServices),
-	}
+	return &PaymentUseCases{}
 }

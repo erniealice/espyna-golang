@@ -51,40 +51,45 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	readServices := ReadPriceListServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
 	}
 
 	updateRepos := UpdatePriceListRepositories{
 		PriceList: repositories.PriceList,
 	}
 	updateServices := UpdatePriceListServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
 	}
 
 	deleteRepos := DeletePriceListRepositories{
 		PriceList: repositories.PriceList,
 	}
 	deleteServices := DeletePriceListServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listRepos := ListPriceListsRepositories{
 		PriceList: repositories.PriceList,
 	}
 	listServices := ListPriceListsServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listPageDataRepos := GetPriceListListPageDataRepositories{
 		PriceList: repositories.PriceList,
 	}
 	listPageDataServices := GetPriceListListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
 	}
 
 	itemPageDataRepos := GetPriceListItemPageDataRepositories{
@@ -92,8 +97,9 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	itemPageDataServices := GetPriceListItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
 	}
 
 	return &UseCases{

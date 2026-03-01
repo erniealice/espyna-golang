@@ -15,7 +15,6 @@ import (
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/inventory_serial"
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/inventory_serial_history"
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/inventory_transaction"
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/payment"
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/revenue"
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/revenue_attribute"
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/revenue_category"

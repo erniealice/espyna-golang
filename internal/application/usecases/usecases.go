@@ -5,6 +5,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
@@ -18,11 +19,12 @@ import (
 // This type is exported for use by composition layers (e.g., Container, Factory)
 // to aggregate and organize use cases according to their composition strategy.
 //
-// The Aggregate represents the complete set of entities organized across 7 domains:
+// The Aggregate represents the complete set of entities organized across 8 domains:
 // - Common:       1 entity (Attribute - cross-domain dependency)
 // - Entity:       16 entities (Admin, Client, Delegate, User, Workspace, etc.)
 // - Event:        2 entities (Event, EventClient)
-// - Payment:      3 entities (Payment, PaymentMethod, PaymentProfile)
+// - Expenditure:  4 entities (Expenditure, ExpenditureLineItem, ExpenditureCategory, ExpenditureAttribute)
+// - Payment:      0 entities (legacy Payment/PaymentAttribute/PaymentMethod/PaymentProfile removed -- superseded by Collection and Disbursement)
 // - Product:      8 entities (Product, Collection, Resource, PriceProduct, etc.)
 // - Revenue:      4 entities (Revenue, RevenueLineItem, RevenueCategory, RevenueAttribute)
 // - Subscription: 6 entities (Plan, Subscription, Invoice, Balance, etc.)
@@ -31,6 +33,7 @@ type Aggregate struct {
 	Common       *common.CommonUseCases
 	Entity       *entity.EntityUseCases
 	Event        *event.EventUseCases
+	Expenditure  *expenditure.ExpenditureUseCases
 	Inventory    *inventory.InventoryUseCases
 	Payment      *payment.PaymentUseCases
 	Product      *product.ProductUseCases
@@ -49,6 +52,7 @@ func NewAggregate(
 	commonUC *common.CommonUseCases,
 	entityUC *entity.EntityUseCases,
 	eventUC *event.EventUseCases,
+	expenditureUC *expenditure.ExpenditureUseCases,
 	inventoryUC *inventory.InventoryUseCases,
 	paymentUC *payment.PaymentUseCases,
 	productUC *product.ProductUseCases,
@@ -61,6 +65,7 @@ func NewAggregate(
 		Common:       commonUC,
 		Entity:       entityUC,
 		Event:        eventUC,
+		Expenditure:  expenditureUC,
 		Inventory:    inventoryUC,
 		Payment:      paymentUC,
 		Product:      productUC,
@@ -78,6 +83,7 @@ func NewEmptyAggregate() *Aggregate {
 		Common:       &common.CommonUseCases{},
 		Entity:       &entity.EntityUseCases{},
 		Event:        &event.EventUseCases{},
+		Expenditure:  &expenditure.ExpenditureUseCases{},
 		Inventory:    &inventory.InventoryUseCases{},
 		Payment:      &payment.PaymentUseCases{},
 		Product:      &product.ProductUseCases{},

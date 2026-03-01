@@ -158,12 +158,13 @@ const (
 	EntityObjective = "objective"
 	EntityTask      = "task"
 
-	// Payment Domain (5 entities)
-	EntityPayment                     = "payment"
-	EntityPaymentAttribute            = "payment_attribute"
-	EntityPaymentMethod               = "payment_method"
-	EntityPaymentProfile              = "payment_profile"
-	EntityPaymentProfilePaymentMethod = "payment_profile_payment_method"
+	// Payment Domain (legacy entities removed — superseded by Collection and Disbursement)
+
+	// Expenditure Domain (4 entities)
+	EntityExpenditure          = "expenditure"
+	EntityExpenditureAttribute = "expenditure_attribute"
+	EntityExpenditureLineItem  = "expenditure_line_item"
+	EntityExpenditureCategory  = "expenditure_category"
 
 	// Inventory Domain (6 entities)
 	EntityInventoryItem          = "inventory_item"

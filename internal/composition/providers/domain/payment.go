@@ -1,96 +1,21 @@
 package domain
 
 import (
-	"fmt"
-
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
-
-	// Protobuf domain services - Common domain
-	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-
-	// Protobuf domain services - Entity domain
-	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
-
-	// Protobuf domain services - Payment domain
-	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment"
-	paymentattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_attribute"
-	paymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_method"
-	paymentprofilepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payment/payment_profile"
-
-	// Protobuf domain services - Subscription domain
-	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
-// PaymentRepositories contains all 4 payment domain repositories and cross-domain dependencies
-// Payment domain: Payment, PaymentAttribute, PaymentMethod, PaymentProfile (4 entities)
-// Cross-domain: Attribute, Client, Subscription (needed by Payment use cases)
+// PaymentRepositories contains payment domain repositories.
+// The legacy Payment, PaymentAttribute, PaymentMethod, and PaymentProfile entities
+// have been removed. Their functionality is superseded by:
+//   - Collection (money IN) — revenue settlements
+//   - Disbursement (money OUT) — expenditure settlements
 type PaymentRepositories struct {
-	Payment          paymentpb.PaymentDomainServiceServer
-	PaymentAttribute paymentattributepb.PaymentAttributeDomainServiceServer
-	PaymentMethod    paymentmethodpb.PaymentMethodDomainServiceServer
-	PaymentProfile   paymentprofilepb.PaymentProfileDomainServiceServer
-	Attribute        attributepb.AttributeDomainServiceServer       // Cross-domain dependency
-	Client           clientpb.ClientDomainServiceServer             // Cross-domain dependency
-	Subscription     subscriptionpb.SubscriptionDomainServiceServer // Cross-domain dependency
+	// Reserved for future payment domain repositories if needed
 }
 
-// NewPaymentRepositories creates and returns a new set of PaymentRepositories
+// NewPaymentRepositories creates and returns a new set of PaymentRepositories.
+// Currently returns an empty struct since all legacy payment entities have been removed.
 func NewPaymentRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*PaymentRepositories, error) {
-	if dbProvider == nil {
-		return nil, fmt.Errorf("database provider not initialized")
-	}
-
-	repoCreator, ok := dbProvider.(contracts.RepositoryProvider)
-	if !ok {
-		return nil, fmt.Errorf("database provider doesn't implement contracts.RepositoryProvider interface")
-	}
-
-	conn := repoCreator.GetConnection()
-
-	// Create each repository individually using configured table names directly from dbTableConfig
-	paymentRepo, err := repoCreator.CreateRepository("payment", conn, dbTableConfig.Payment)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create payment repository: %w", err)
-	}
-
-	paymentAttributeRepo, err := repoCreator.CreateRepository("payment_attribute", conn, dbTableConfig.PaymentAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create payment_attribute repository: %w", err)
-	}
-
-	paymentMethodRepo, err := repoCreator.CreateRepository("payment_method", conn, dbTableConfig.PaymentMethod)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create payment_method repository: %w", err)
-	}
-
-	paymentProfileRepo, err := repoCreator.CreateRepository("payment_profile", conn, dbTableConfig.PaymentProfile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create payment_profile repository: %w", err)
-	}
-
-	attributeRepo, err := repoCreator.CreateRepository("attribute", conn, dbTableConfig.Attribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create attribute repository: %w", err)
-	}
-
-	clientRepo, err := repoCreator.CreateRepository("client", conn, dbTableConfig.Client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client repository: %w", err)
-	}
-
-	subscriptionRepo, err := repoCreator.CreateRepository("subscription", conn, dbTableConfig.Subscription)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create subscription repository: %w", err)
-	}
-
-	return &PaymentRepositories{
-		Payment:          paymentRepo.(paymentpb.PaymentDomainServiceServer),
-		PaymentAttribute: paymentAttributeRepo.(paymentattributepb.PaymentAttributeDomainServiceServer),
-		PaymentMethod:    paymentMethodRepo.(paymentmethodpb.PaymentMethodDomainServiceServer),
-		PaymentProfile:   paymentProfileRepo.(paymentprofilepb.PaymentProfileDomainServiceServer),
-		Attribute:        attributeRepo.(attributepb.AttributeDomainServiceServer),
-		Client:           clientRepo.(clientpb.ClientDomainServiceServer),
-		Subscription:     subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
-	}, nil
+	return &PaymentRepositories{}, nil
 }

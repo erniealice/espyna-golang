@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgresql
 
 package consumer
 
@@ -23,5 +23,6 @@ func NewLedgerReportingService(db *sql.DB, config LedgerReportingTableConfig) Le
 		Product:              config.Product,
 		Location:             config.Location,
 		RevenueCategory:      config.RevenueCategory,
+		Expenditure:          config.Expenditure,
 	})
 }

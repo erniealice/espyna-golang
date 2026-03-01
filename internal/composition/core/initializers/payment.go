@@ -6,8 +6,10 @@ import (
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
-// InitializePayment creates all payment use cases from provider repositories
-// This is composition logic - it wires infrastructure (providers) to application (use cases)
+// InitializePayment creates all payment use cases from provider repositories.
+// Currently returns an empty PaymentUseCases since all legacy payment entities
+// (Payment, PaymentAttribute, PaymentMethod, PaymentProfile) have been removed.
+// Their functionality is superseded by Collection and Disbursement domains.
 func InitializePayment(
 	repos *domain.PaymentRepositories,
 	authSvc ports.AuthorizationService,
@@ -15,17 +17,8 @@ func InitializePayment(
 	i18nSvc ports.TranslationService,
 	idSvc ports.IDService,
 ) (*payment.PaymentUseCases, error) {
-	// Use the domain's constructor which properly handles all use case creation
 	return payment.NewUseCases(
-		payment.PaymentRepositories{
-			Payment:          repos.Payment,
-			PaymentAttribute: repos.PaymentAttribute,
-			PaymentMethod:    repos.PaymentMethod,
-			PaymentProfile:   repos.PaymentProfile,
-			Attribute:        repos.Attribute,
-			Client:           repos.Client,
-			Subscription:     repos.Subscription,
-		},
+		payment.PaymentRepositories{},
 		authSvc,
 		txSvc,
 		i18nSvc,

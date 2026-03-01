@@ -474,7 +474,13 @@ func (uci *UseCaseInitializer) getServices(container *Container) (
 	}
 
 	txSvc, _ = container.services.Transaction.(ports.TransactionService)
-	i18nSvc, _ = container.services.Translation.(ports.TranslationService)
+
+	// Extract TranslationService from wrapper or direct assignment
+	if wrapper, ok := container.services.Translation.(*translationServiceWrapper); ok {
+		i18nSvc = wrapper.svc
+	} else {
+		i18nSvc, _ = container.services.Translation.(ports.TranslationService)
+	}
 
 	return authSvc, txSvc, i18nSvc, idSvc, nil
 }

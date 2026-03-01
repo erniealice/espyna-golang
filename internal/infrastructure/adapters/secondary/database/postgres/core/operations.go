@@ -121,7 +121,7 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 		return nil, model.NewDatabaseError("record ID is required", "MISSING_RECORD_ID", 400)
 	}
 
-	query := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1 AND active = true", tableName)
+	query := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
 
 	row := p.db.QueryRowContext(ctx, query, id)
 

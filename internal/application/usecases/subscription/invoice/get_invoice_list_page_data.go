@@ -79,7 +79,7 @@ func (uc *GetInvoiceListPageDataUseCase) executeWithTransaction(ctx context.Cont
 	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "invoice.errors.get_list_page_data_failed", "")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "invoice.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load invoice list")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -101,7 +101,7 @@ func (uc *GetInvoiceListPageDataUseCase) executeCore(ctx context.Context, req *i
 // validateInput validates the input request
 func (uc *GetInvoiceListPageDataUseCase) validateInput(ctx context.Context, req *invoicepb.GetInvoiceListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate pagination parameters

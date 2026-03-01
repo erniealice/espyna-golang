@@ -53,7 +53,7 @@ func (uc *CreateAdminUseCase) Execute(ctx context.Context, req *adminpb.CreateAd
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Check if transaction service is available and supports transactions
@@ -72,7 +72,7 @@ func (uc *CreateAdminUseCase) executeWithTransaction(ctx context.Context, req *a
 	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "admin.errors.creation_failed", "")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "admin.errors.creation_failed", "[ERR-DEFAULT] Admin creation failed")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -143,43 +143,43 @@ func (uc *CreateAdminUseCase) applyBusinessLogic(admin *adminpb.Admin) *adminpb.
 func (uc *CreateAdminUseCase) validateBusinessRules(ctx context.Context, admin *adminpb.Admin) error {
 	// Business rule: Required data validation
 	if admin == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.data_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.data_required", "[ERR-DEFAULT] Admin data is required"))
 	}
 	if admin.User == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.user_data_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.user_data_required", "[ERR-DEFAULT] User data is required"))
 	}
 	if admin.User.FirstName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.first_name_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.first_name_required", "[ERR-DEFAULT] First name is required"))
 	}
 	if admin.User.LastName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.last_name_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.last_name_required", "[ERR-DEFAULT] Last name is required"))
 	}
 	if admin.User.EmailAddress == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_required", "[ERR-DEFAULT] Email is required"))
 	}
 
 	// Business rule: Email format validation
 	if err := uc.validateEmail(admin.User.EmailAddress); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_invalid", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_invalid", "[ERR-DEFAULT] Invalid email format"))
 	}
 
 	// Business rule: Name length constraints
 	fullName := admin.User.FirstName + " " + admin.User.LastName
 	if len(fullName) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.full_name_too_short", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.full_name_too_short", "[ERR-DEFAULT] Full name is too short"))
 	}
 
 	if len(fullName) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.full_name_too_long", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.full_name_too_long", "[ERR-DEFAULT] Full name is too long"))
 	}
 
 	// Business rule: Individual name part validation
 	if len(admin.User.FirstName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.first_name_too_short", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.first_name_too_short", "[ERR-DEFAULT] First name is too short"))
 	}
 
 	if len(admin.User.LastName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.last_name_too_short", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.last_name_too_short", "[ERR-DEFAULT] Last name is too short"))
 	}
 
 	return nil

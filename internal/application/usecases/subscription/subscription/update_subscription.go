@@ -104,14 +104,14 @@ func (uc *UpdateSubscriptionUseCase) executeCore(ctx context.Context, req *subsc
 		Data: &subscriptionpb.Subscription{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.not_found", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
 	}
 
 	resp, err := uc.repositories.Subscription.UpdateSubscription(ctx, &subscriptionpb.UpdateSubscriptionRequest{
 		Data: enrichedSubscription,
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.update_failed", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.update_failed", "[ERR-DEFAULT] Subscription update failed"))
 	}
 	return resp, nil
 }
@@ -130,13 +130,13 @@ func (uc *UpdateSubscriptionUseCase) applyBusinessLogic(subscription *subscripti
 // validateInput validates the input request
 func (uc *UpdateSubscriptionUseCase) validateInput(ctx context.Context, req *subscriptionpb.UpdateSubscriptionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.data_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.data_required", "[ERR-DEFAULT] Subscription data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_required", "[ERR-DEFAULT] Subscription ID is required"))
 	}
 	return nil
 }
@@ -147,35 +147,35 @@ func (uc *UpdateSubscriptionUseCase) validateInput(ctx context.Context, req *sub
 func (uc *UpdateSubscriptionUseCase) validateBusinessRules(ctx context.Context, subscription *subscriptionpb.Subscription) error {
 	// Business rule: Required data validation
 	if subscription == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.data_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.data_required", "[ERR-DEFAULT] Subscription data is required"))
 	}
 
 	// ID is always required for updates
 	if subscription.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_required", "[ERR-DEFAULT] Subscription ID is required"))
 	}
 	if len(subscription.Id) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_too_short", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_too_short", "[ERR-DEFAULT] Subscription ID is too short"))
 	}
 
 	// Validate Name only if provided
 	if subscription.Name != "" {
 		if len(subscription.Name) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.name_too_short", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.name_too_short", "[ERR-DEFAULT] Subscription name is too short"))
 		}
 		if len(subscription.Name) > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.name_too_long", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.name_too_long", "[ERR-DEFAULT] Subscription name is too long"))
 		}
 	}
 
 	// Validate PricePlanId only if provided
 	if subscription.PricePlanId != "" && len(subscription.PricePlanId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.price_plan_id_too_short", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.price_plan_id_too_short", "[ERR-DEFAULT] Price plan ID is too short"))
 	}
 
 	// Validate ClientId only if provided
 	if subscription.ClientId != "" && len(subscription.ClientId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.client_id_too_short", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.client_id_too_short", "[ERR-DEFAULT] Client ID is too short"))
 	}
 
 	return nil
@@ -189,10 +189,10 @@ func (uc *UpdateSubscriptionUseCase) validateEntityReferences(ctx context.Contex
 			Data: &priceplanpb.PricePlan{Id: subscription.PricePlanId},
 		})
 		if err != nil || pricePlan == nil || pricePlan.Data == nil || len(pricePlan.Data) == 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_found", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_found", "[ERR-DEFAULT] Price plan not found"))
 		}
 		if !pricePlan.Data[0].Active {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_active", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_active", "[ERR-DEFAULT] Price plan is not active"))
 		}
 	}
 
@@ -202,10 +202,10 @@ func (uc *UpdateSubscriptionUseCase) validateEntityReferences(ctx context.Contex
 			Data: &clientpb.Client{Id: subscription.ClientId},
 		})
 		if err != nil || client == nil || client.Data == nil || len(client.Data) == 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_found", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_found", "[ERR-DEFAULT] Client not found"))
 		}
 		if !client.Data[0].Active {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_active", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_active", "[ERR-DEFAULT] Client is not active"))
 		}
 	}
 

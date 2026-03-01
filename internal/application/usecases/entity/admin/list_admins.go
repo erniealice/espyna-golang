@@ -55,7 +55,7 @@ func (uc *ListAdminsUseCase) Execute(ctx context.Context, req *adminpb.ListAdmin
 	// Call repository
 	resp, err := uc.repositories.Admin.ListAdmins(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.list_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.list_failed", "[ERR-DEFAULT] Failed to load admin list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

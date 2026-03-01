@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -121,16 +122,25 @@ func (uc *CreateLocationUseCase) executeCore(ctx context.Context, req *locationp
 // validateInput validates the input request
 func (uc *CreateLocationUseCase) validateInput(ctx context.Context, req *locationpb.CreateLocationRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.data_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.data_required", "[ERR-DEFAULT] Location data is required"))
 	}
+
+	// Trim leading and trailing spaces
+	req.Data.Name = strings.TrimSpace(req.Data.Name)
+	req.Data.Address = strings.TrimSpace(req.Data.Address)
+	if req.Data.Description != nil {
+		trimmed := strings.TrimSpace(*req.Data.Description)
+		req.Data.Description = &trimmed
+	}
+
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.name_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.name_required", "[ERR-DEFAULT] Name is required"))
 	}
 	if req.Data.Address == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.address_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.address_required", "[ERR-DEFAULT] Address is required"))
 	}
 	return nil
 }
@@ -157,26 +167,18 @@ func (uc *CreateLocationUseCase) enrichLocationData(location *locationpb.Locatio
 // validateBusinessRules enforces business constraints
 func (uc *CreateLocationUseCase) validateBusinessRules(ctx context.Context, location *locationpb.Location) error {
 	// Validate name length
-	if len(location.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.name_too_short", ""))
-	}
-
 	if len(location.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.name_too_long", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 100 characters"))
 	}
 
 	// Validate address length
-	if len(location.Address) < 5 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.address_too_short", ""))
-	}
-
 	if len(location.Address) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.address_too_long", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.address_too_long", "[ERR-DEFAULT] Address must not exceed 500 characters"))
 	}
 
 	// Validate description length if provided
 	if location.Description != nil && len(*location.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.description_too_long", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 1000 characters"))
 	}
 
 	return nil

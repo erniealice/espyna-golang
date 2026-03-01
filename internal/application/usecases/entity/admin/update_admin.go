@@ -51,31 +51,31 @@ func (uc *UpdateAdminUseCase) Execute(ctx context.Context, req *adminpb.UpdateAd
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.data_required", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.data_required", "[ERR-DEFAULT] Admin data is required"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.id_required", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.id_required", "[ERR-DEFAULT] Admin ID is required"))
 	}
 
 	// Validate email format if email is provided
 	if req.Data.User != nil && req.Data.User.EmailAddress != "" {
 		if err := uc.validateEmail(req.Data.User.EmailAddress); err != nil {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_invalid", ""))
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_invalid", "[ERR-DEFAULT] Invalid email format"))
 		}
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Admin.UpdateAdmin(ctx, req)
 	if err != nil {
-		if err.Error() == contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.not_found", "") {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.not_found", ""))
+		if err.Error() == contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.not_found", "[ERR-DEFAULT] Admin not found") {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.not_found", "[ERR-DEFAULT] Admin not found"))
 		}
-		return nil, fmt.Errorf("%s: %w", contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.update_failed", ""), err)
+		return nil, fmt.Errorf("%s: %w", contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.update_failed", "[ERR-DEFAULT] Admin update failed"), err)
 	}
 
 	return resp, nil

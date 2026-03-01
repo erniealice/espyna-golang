@@ -79,7 +79,7 @@ func (uc *GetInvoiceItemPageDataUseCase) executeWithTransaction(ctx context.Cont
 	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "invoice.errors.get_item_page_data_failed", "")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "invoice.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load invoice details")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -101,7 +101,7 @@ func (uc *GetInvoiceItemPageDataUseCase) executeCore(ctx context.Context, req *i
 // validateInput validates the input request
 func (uc *GetInvoiceItemPageDataUseCase) validateInput(ctx context.Context, req *invoicepb.GetInvoiceItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.InvoiceId == "" {

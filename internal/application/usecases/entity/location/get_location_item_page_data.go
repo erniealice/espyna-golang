@@ -51,20 +51,20 @@ func (uc *GetLocationItemPageDataUseCase) Execute(ctx context.Context, req *loca
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.input_validation_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.business_rule_validation_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Location.GetLocationItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.get_item_page_data_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load location details")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -74,22 +74,22 @@ func (uc *GetLocationItemPageDataUseCase) Execute(ctx context.Context, req *loca
 // validateInput validates the input request
 func (uc *GetLocationItemPageDataUseCase) validateInput(ctx context.Context, req *locationpb.GetLocationItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate location ID
 	if req.LocationId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.location_id_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.location_id_required", "[ERR-DEFAULT] Location ID is required"))
 	}
 
 	// Basic ID format validation
 	if len(req.LocationId) < 3 || len(req.LocationId) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.invalid_location_id_format", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.invalid_location_id_format", "[ERR-DEFAULT] Invalid location ID format"))
 	}
 
 	// Ensure ID doesn't contain invalid characters
 	if strings.ContainsAny(req.LocationId, " \t\n\r") {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.location_id_invalid_characters", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.location_id_invalid_characters", "[ERR-DEFAULT] Location ID contains invalid characters"))
 	}
 
 	return nil

@@ -50,20 +50,20 @@ func (uc *GetLocationListPageDataUseCase) Execute(ctx context.Context, req *loca
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.input_validation_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.business_rule_validation_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Location.GetLocationListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.get_list_page_data_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load location list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -73,30 +73,30 @@ func (uc *GetLocationListPageDataUseCase) Execute(ctx context.Context, req *loca
 // validateInput validates the input request
 func (uc *GetLocationListPageDataUseCase) validateInput(ctx context.Context, req *locationpb.GetLocationListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate pagination parameters
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 && (req.Pagination.Limit < 1 || req.Pagination.Limit > 100) {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.invalid_pagination_limit", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
 		}
 	}
 
 	// Validate filter parameters
 	if req.Filters != nil && len(req.Filters.Filters) > 10 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.too_many_filters", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.too_many_filters", "[ERR-DEFAULT] Too many filters"))
 	}
 
 	// Validate sort parameters
 	if req.Sort != nil && len(req.Sort.Fields) > 5 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.too_many_sort_fields", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.too_many_sort_fields", "[ERR-DEFAULT] Too many sort fields"))
 	}
 
 	// Validate search parameters
 	if req.Search != nil && req.Search.Query != "" {
 		if len(req.Search.Query) > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.search_query_too_long", ""))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
 		}
 	}
 

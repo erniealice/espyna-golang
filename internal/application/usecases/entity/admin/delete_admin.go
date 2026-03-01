@@ -50,17 +50,17 @@ func (uc *DeleteAdminUseCase) Execute(ctx context.Context, req *adminpb.DeleteAd
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.id_required", ""))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.id_required", "[ERR-DEFAULT] Admin ID is required"))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Admin.DeleteAdmin(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.deletion_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.deletion_failed", "[ERR-DEFAULT] Admin deletion failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

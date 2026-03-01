@@ -112,19 +112,19 @@ func (uc *CreateClientAttributeUseCase) Execute(ctx context.Context, req *client
 // validateInput validates the input request
 func (uc *CreateClientAttributeUseCase) validateInput(ctx context.Context, req *clientattributepb.CreateClientAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.data_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.data_required", "[ERR-DEFAULT] Client attribute data is required"))
 	}
 	if req.Data.ClientId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.client_id_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.client_id_required", "[ERR-DEFAULT] Client ID is required"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.attribute_id_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.attribute_id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.value_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.value_required", "[ERR-DEFAULT] Attribute value is required"))
 	}
 	return nil
 }
@@ -179,7 +179,7 @@ func (uc *CreateClientAttributeUseCase) validateEntityReferences(ctx context.Con
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if client == nil || client.Data == nil || len(client.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.client_not_found", "")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.client_not_found", "[ERR-DEFAULT] Client not found")
 			translatedError = strings.ReplaceAll(translatedError, "{clientId}", clientAttribute.ClientId)
 			return errors.New(translatedError)
 		}
@@ -200,7 +200,7 @@ func (uc *CreateClientAttributeUseCase) validateEntityReferences(ctx context.Con
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.attribute_not_found", "")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.attribute_not_found", "[ERR-DEFAULT] Attribute not found")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", clientAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

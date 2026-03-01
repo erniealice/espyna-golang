@@ -145,10 +145,10 @@ func (uc *CreateUserUseCase) applyBusinessLogic(user *userpb.User) *userpb.User 
 func (uc *CreateUserUseCase) validateBusinessRules(ctx context.Context, user *userpb.User) error {
 	// Business rule: Required data validation
 	if user == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.data_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.data_required", "[ERR-DEFAULT] User data is required"))
 	}
 	if user.FirstName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.first_name_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.first_name_required", "[ERR-DEFAULT] First name is required"))
 	}
 	if user.LastName == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.last_name_required", "User last name is required [DEFAULT]"))
@@ -159,7 +159,7 @@ func (uc *CreateUserUseCase) validateBusinessRules(ctx context.Context, user *us
 
 	// Business rule: Email format validation
 	if err := uc.validateEmail(user.EmailAddress); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.email_invalid", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.email_invalid", "[ERR-DEFAULT] Invalid email format"))
 	}
 
 	// Business rule: Name length constraints

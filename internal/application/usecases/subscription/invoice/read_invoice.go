@@ -79,14 +79,14 @@ func (uc *ReadInvoiceUseCase) Execute(ctx context.Context, req *invoicepb.ReadIn
 	// Call repository
 	response, err := uc.repositories.Invoice.ReadInvoice(ctx, req)
 	if err != nil {
-		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.not_found", "")
+		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.not_found", "[ERR-DEFAULT] Invoice not found")
 		errorMsg = strings.ReplaceAll(errorMsg, "{invoiceId}", req.Data.Id)
 		return nil, errors.New(errorMsg)
 	}
 
 	// Not found error
 	if response == nil || len(response.Data) == 0 {
-		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.not_found", "")
+		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.not_found", "[ERR-DEFAULT] Invoice not found")
 		errorMsg = strings.ReplaceAll(errorMsg, "{invoiceId}", req.Data.Id)
 		return nil, errors.New(errorMsg)
 	}

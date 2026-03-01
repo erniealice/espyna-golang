@@ -79,7 +79,7 @@ func (uc *GetPricePlanListPageDataUseCase) executeWithTransaction(ctx context.Co
 	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "price_plan.errors.get_list_page_data_failed", "")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "price_plan.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load price plan list")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -101,7 +101,7 @@ func (uc *GetPricePlanListPageDataUseCase) executeCore(ctx context.Context, req 
 // validateInput validates the input request
 func (uc *GetPricePlanListPageDataUseCase) validateInput(ctx context.Context, req *priceplanpb.GetPricePlanListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate pagination parameters

@@ -80,7 +80,7 @@ func (uc *GetPlanItemPageDataUseCase) executeWithTransaction(ctx context.Context
 	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "plan.errors.get_item_page_data_failed", "")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "plan.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load plan details")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -102,7 +102,7 @@ func (uc *GetPlanItemPageDataUseCase) executeCore(ctx context.Context, req *plan
 // validateInput validates the input request
 func (uc *GetPlanItemPageDataUseCase) validateInput(ctx context.Context, req *planpb.GetPlanItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.PlanId == "" {

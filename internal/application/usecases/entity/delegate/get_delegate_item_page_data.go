@@ -51,20 +51,20 @@ func (uc *GetDelegateItemPageDataUseCase) Execute(ctx context.Context, req *dele
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.input_validation_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.business_rule_validation_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Delegate.GetDelegateItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.get_item_page_data_failed", "")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load delegate details")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -74,22 +74,22 @@ func (uc *GetDelegateItemPageDataUseCase) Execute(ctx context.Context, req *dele
 // validateInput validates the input request
 func (uc *GetDelegateItemPageDataUseCase) validateInput(ctx context.Context, req *delegatepb.GetDelegateItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.request_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate delegate ID
 	if req.DelegateId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.delegate_id_required", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.delegate_id_required", "[ERR-DEFAULT] Delegate ID is required"))
 	}
 
 	// Basic ID format validation
 	if len(req.DelegateId) < 3 || len(req.DelegateId) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.invalid_delegate_id_format", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.invalid_delegate_id_format", "[ERR-DEFAULT] Invalid delegate ID format"))
 	}
 
 	// Ensure ID doesn't contain invalid characters
 	if strings.ContainsAny(req.DelegateId, " \t\n\r") {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.delegate_id_invalid_characters", ""))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.delegate_id_invalid_characters", "[ERR-DEFAULT] Delegate ID contains invalid characters"))
 	}
 
 	return nil

@@ -26,6 +26,9 @@ import (
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
+	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
+	supplierattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_attribute"
+	suppliercategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_category"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -50,6 +53,9 @@ type EntityRepositories struct {
 	RolePermission    rolepermissionpb.RolePermissionDomainServiceServer
 	Staff             staffpb.StaffDomainServiceServer
 	StaffAttribute    staffattributepb.StaffAttributeDomainServiceServer
+	Supplier          supplierpb.SupplierDomainServiceServer
+	SupplierAttribute supplierattributepb.SupplierAttributeDomainServiceServer
+	SupplierCategory  suppliercategorypb.SupplierCategoryDomainServiceServer
 	User              userpb.UserDomainServiceServer
 	Workspace         workspacepb.WorkspaceDomainServiceServer
 	WorkspaceUser     workspaceuserpb.WorkspaceUserDomainServiceServer
@@ -133,6 +139,15 @@ func NewEntityRepositories(dbProvider contracts.Provider, dbTableConfig *registr
 	}
 	if r := tryCreate("staff_attribute", dbTableConfig.StaffAttribute); r != nil {
 		repos.StaffAttribute = r.(staffattributepb.StaffAttributeDomainServiceServer)
+	}
+	if r := tryCreate("supplier", dbTableConfig.Supplier); r != nil {
+		repos.Supplier = r.(supplierpb.SupplierDomainServiceServer)
+	}
+	if r := tryCreate("supplier_attribute", dbTableConfig.SupplierAttribute); r != nil {
+		repos.SupplierAttribute = r.(supplierattributepb.SupplierAttributeDomainServiceServer)
+	}
+	if r := tryCreate("supplier_category", dbTableConfig.SupplierCategory); r != nil {
+		repos.SupplierCategory = r.(suppliercategorypb.SupplierCategoryDomainServiceServer)
 	}
 	if r := tryCreate("user", dbTableConfig.User); r != nil {
 		repos.User = r.(userpb.UserDomainServiceServer)

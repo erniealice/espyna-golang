@@ -207,4 +207,16 @@ const (
 	EntityPricePlan             = "price_plan"
 	EntitySubscription          = "subscription"
 	EntitySubscriptionAttribute = "subscription_attribute"
+
+	// Asset Domain (10 entities)
+	EntityAsset                = "asset"
+	EntityAssetCategory        = "asset_category"
+	EntityAssetAttribute       = "asset_attribute"
+	EntityAssetLocation        = "asset_location"
+	EntityDepreciationSchedule = "depreciation_schedule"
+	EntityAssetTransaction     = "asset_transaction"
+	EntityAssetDisposal        = "asset_disposal"
+	EntityAssetRevaluation     = "asset_revaluation"
+	EntityAssetMaintenance     = "asset_maintenance"
+	EntityAssetComponent       = "asset_component"
 )

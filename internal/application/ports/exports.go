@@ -347,4 +347,16 @@ const (
 	EntityPricePlan             = security.EntityPricePlan
 	EntitySubscription          = security.EntitySubscription
 	EntitySubscriptionAttribute = security.EntitySubscriptionAttribute
+
+	// Asset Domain
+	EntityAsset                = security.EntityAsset
+	EntityAssetCategory        = security.EntityAssetCategory
+	EntityAssetAttribute       = security.EntityAssetAttribute
+	EntityAssetLocation        = security.EntityAssetLocation
+	EntityDepreciationSchedule = security.EntityDepreciationSchedule
+	EntityAssetTransaction     = security.EntityAssetTransaction
+	EntityAssetDisposal        = security.EntityAssetDisposal
+	EntityAssetRevaluation     = security.EntityAssetRevaluation
+	EntityAssetMaintenance     = security.EntityAssetMaintenance
+	EntityAssetComponent       = security.EntityAssetComponent
 )

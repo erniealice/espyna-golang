@@ -161,14 +161,13 @@ func (r *PostgresLocationRepository) UpdateLocation(ctx context.Context, req *lo
 	}, nil
 }
 
-// DeleteLocation deletes a location using common PostgreSQL operations
+// DeleteLocation hard-deletes a location from the database.
 func (r *PostgresLocationRepository) DeleteLocation(ctx context.Context, req *locationpb.DeleteLocationRequest) (*locationpb.DeleteLocationResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("location ID is required")
 	}
 
-	// Delete document using common operations (soft delete)
-	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
+	err := r.dbOps.HardDelete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete location: %w", err)
 	}

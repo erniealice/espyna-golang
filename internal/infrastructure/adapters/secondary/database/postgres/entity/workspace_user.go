@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
@@ -401,9 +402,9 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 							'color', r.color,
 							'active', r.active
 						),
-						'date_created', EXTRACT(EPOCH FROM wur.date_created) * 1000,
+						'date_created', (EXTRACT(EPOCH FROM wur.date_created) * 1000)::bigint,
 						'date_created_string', TO_CHAR(wur.date_created, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-						'date_modified', EXTRACT(EPOCH FROM wur.date_modified) * 1000,
+						'date_modified', (EXTRACT(EPOCH FROM wur.date_modified) * 1000)::bigint,
 						'active', wur.active
 					)
 				) as roles
@@ -545,9 +546,11 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 						continue
 					}
 					wur := &workspaceuserrolepb.WorkspaceUserRole{}
-					if err := protojson.Unmarshal(roleJSON, wur); err == nil {
-						workspaceUser.WorkspaceUserRoles = append(workspaceUser.WorkspaceUserRoles, wur)
+					if err := protojson.Unmarshal(roleJSON, wur); err != nil {
+						log.Printf("Failed to unmarshal workspace_user_role JSONB: %v (json: %s)", err, string(roleJSON))
+						continue
 					}
+					workspaceUser.WorkspaceUserRoles = append(workspaceUser.WorkspaceUserRoles, wur)
 				}
 			}
 		}
@@ -616,9 +619,9 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 							'color', r.color,
 							'active', r.active
 						),
-						'date_created', EXTRACT(EPOCH FROM wur.date_created) * 1000,
+						'date_created', (EXTRACT(EPOCH FROM wur.date_created) * 1000)::bigint,
 						'date_created_string', TO_CHAR(wur.date_created, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-						'date_modified', EXTRACT(EPOCH FROM wur.date_modified) * 1000,
+						'date_modified', (EXTRACT(EPOCH FROM wur.date_modified) * 1000)::bigint,
 						'active', wur.active
 					)
 				) as roles
@@ -728,9 +731,11 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 					continue
 				}
 				wur := &workspaceuserrolepb.WorkspaceUserRole{}
-				if err := protojson.Unmarshal(roleJSON, wur); err == nil {
-					workspaceUser.WorkspaceUserRoles = append(workspaceUser.WorkspaceUserRoles, wur)
+				if err := protojson.Unmarshal(roleJSON, wur); err != nil {
+					log.Printf("Failed to unmarshal workspace_user_role JSONB: %v (json: %s)", err, string(roleJSON))
+					continue
 				}
+				workspaceUser.WorkspaceUserRoles = append(workspaceUser.WorkspaceUserRoles, wur)
 			}
 		}
 	}

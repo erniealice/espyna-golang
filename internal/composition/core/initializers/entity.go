@@ -21,6 +21,9 @@ import (
 	rolePermissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/role_permission"
 	staffUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/staff"
 	staffAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/staff_attribute"
+	supplierUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier"
+	supplierAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_attribute"
+	supplierCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_category"
 	userUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/user"
 	workspaceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace"
 	workspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user"
@@ -176,6 +179,36 @@ func InitializeEntity(
 				Attribute:      repos.Attribute,
 			},
 			staffAttributeUseCases.StaffAttributeServices(svc()),
+		)
+	}
+
+	if repos.Supplier != nil {
+		result.Supplier = supplierUseCases.NewUseCases(
+			supplierUseCases.SupplierRepositories{
+				Supplier: repos.Supplier,
+				User:     repos.User,
+			},
+			supplierUseCases.SupplierServices(svc()),
+		)
+	}
+
+	if repos.SupplierAttribute != nil {
+		result.SupplierAttribute = supplierAttributeUseCases.NewUseCases(
+			supplierAttributeUseCases.SupplierAttributeRepositories{
+				SupplierAttribute: repos.SupplierAttribute,
+				Supplier:          repos.Supplier,
+				Attribute:         repos.Attribute,
+			},
+			supplierAttributeUseCases.SupplierAttributeServices(svc()),
+		)
+	}
+
+	if repos.SupplierCategory != nil {
+		result.SupplierCategory = supplierCategoryUseCases.NewUseCases(
+			supplierCategoryUseCases.SupplierCategoryRepositories{
+				SupplierCategory: repos.SupplierCategory,
+			},
+			supplierCategoryUseCases.SupplierCategoryServices(svc()),
 		)
 	}
 

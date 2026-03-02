@@ -18,6 +18,9 @@ import (
 	rolePermissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/role_permission"
 	staffUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/staff"
 	staffAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/staff_attribute"
+	supplierUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier"
+	supplierAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_attribute"
+	supplierCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_category"
 	userUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/user"
 	workspaceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace"
 	workspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user"
@@ -43,6 +46,9 @@ type EntityUseCases struct {
 	RolePermission    *rolePermissionUseCases.UseCases
 	Staff             *staffUseCases.UseCases
 	StaffAttribute    *staffAttributeUseCases.UseCases
+	Supplier          *supplierUseCases.UseCases
+	SupplierAttribute *supplierAttributeUseCases.UseCases
+	SupplierCategory  *supplierCategoryUseCases.UseCases
 	User              *userUseCases.UseCases
 	Workspace         *workspaceUseCases.UseCases
 	WorkspaceUser     *workspaceUserUseCases.UseCases

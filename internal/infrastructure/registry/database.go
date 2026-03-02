@@ -87,6 +87,7 @@ type DatabaseTableConfig struct {
 	// Entity
 	Client, ClientAttribute, ClientCategory                            string
 	Admin, Manager, Staff, StaffAttribute                              string
+	Supplier, SupplierAttribute, SupplierCategory                      string
 	Delegate, DelegateAttribute, DelegateClient                        string
 	Group, GroupAttribute, Location, LocationAttribute                 string
 	Permission, Role, RolePermission                                   string
@@ -177,6 +178,7 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		Client: "client", ClientAttribute: "client_attribute", ClientCategory: "client_category",
 		Admin: "admin", Manager: "manager",
 		Staff: "staff", StaffAttribute: "staff_attribute",
+		Supplier: "supplier", SupplierAttribute: "supplier_attribute", SupplierCategory: "supplier_category",
 		Delegate: "delegate", DelegateAttribute: "delegate_attribute", DelegateClient: "delegate_client",
 		Group: "group", GroupAttribute: "group_attribute",
 		Location: "location", LocationAttribute: "location_attribute",

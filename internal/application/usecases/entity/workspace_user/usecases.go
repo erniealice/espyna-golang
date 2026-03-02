@@ -79,16 +79,18 @@ func NewUseCases(
 		WorkspaceUser: repositories.WorkspaceUser,
 	}
 	listPageDataServices := GetWorkspaceUserListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	itemPageDataRepos := GetWorkspaceUserItemPageDataRepositories{
 		WorkspaceUser: repositories.WorkspaceUser,
 	}
 	itemPageDataServices := GetWorkspaceUserItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	return &UseCases{

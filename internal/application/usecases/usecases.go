@@ -8,7 +8,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -24,7 +24,7 @@ import (
 // - Entity:       16 entities (Admin, Client, Delegate, User, Workspace, etc.)
 // - Event:        2 entities (Event, EventClient)
 // - Expenditure:  4 entities (Expenditure, ExpenditureLineItem, ExpenditureCategory, ExpenditureAttribute)
-// - Payment:      0 entities (legacy Payment/PaymentAttribute/PaymentMethod/PaymentProfile removed -- superseded by Collection and Disbursement)
+// - Treasury:     0 entities (legacy Payment/PaymentAttribute/PaymentMethod/PaymentProfile removed -- superseded by Collection and Disbursement)
 // - Product:      8 entities (Product, Collection, Resource, PriceProduct, etc.)
 // - Revenue:      4 entities (Revenue, RevenueLineItem, RevenueCategory, RevenueAttribute)
 // - Subscription: 6 entities (Plan, Subscription, Invoice, Balance, etc.)
@@ -35,7 +35,7 @@ type Aggregate struct {
 	Event        *event.EventUseCases
 	Expenditure  *expenditure.ExpenditureUseCases
 	Inventory    *inventory.InventoryUseCases
-	Payment      *payment.PaymentUseCases
+	Treasury     *treasury.TreasuryUseCases
 	Product      *product.ProductUseCases
 	Revenue      *revenue.RevenueUseCases
 	Subscription *subscription.SubscriptionUseCases
@@ -54,7 +54,7 @@ func NewAggregate(
 	eventUC *event.EventUseCases,
 	expenditureUC *expenditure.ExpenditureUseCases,
 	inventoryUC *inventory.InventoryUseCases,
-	paymentUC *payment.PaymentUseCases,
+	treasuryUC *treasury.TreasuryUseCases,
 	productUC *product.ProductUseCases,
 	revenueUC *revenue.RevenueUseCases,
 	subscriptionUC *subscription.SubscriptionUseCases,
@@ -67,7 +67,7 @@ func NewAggregate(
 		Event:        eventUC,
 		Expenditure:  expenditureUC,
 		Inventory:    inventoryUC,
-		Payment:      paymentUC,
+		Treasury:     treasuryUC,
 		Product:      productUC,
 		Revenue:      revenueUC,
 		Subscription: subscriptionUC,
@@ -85,7 +85,7 @@ func NewEmptyAggregate() *Aggregate {
 		Event:        &event.EventUseCases{},
 		Expenditure:  &expenditure.ExpenditureUseCases{},
 		Inventory:    &inventory.InventoryUseCases{},
-		Payment:      &payment.PaymentUseCases{},
+		Treasury:     &treasury.TreasuryUseCases{},
 		Product:      &product.ProductUseCases{},
 		Revenue:      &revenue.RevenueUseCases{},
 		Subscription: &subscription.SubscriptionUseCases{},

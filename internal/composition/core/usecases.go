@@ -21,7 +21,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/payment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -69,9 +69,9 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		eventUC = &event.EventUseCases{}
 	}
 
-	paymentUC, err := uci.initializePaymentUseCases(container)
+	treasuryUC, err := uci.initializeTreasuryUseCases(container)
 	if err != nil {
-		paymentUC = &payment.PaymentUseCases{}
+		treasuryUC = &treasury.TreasuryUseCases{}
 	}
 
 	productUC, err := uci.initializeProductUseCases(container)
@@ -115,7 +115,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		eventUC,
 		expenditureUC,
 		inventoryUC,
-		paymentUC,
+		treasuryUC,
 		productUC,
 		revenueUC,
 		subscriptionUC,
@@ -130,7 +130,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 // Domain initializer methods - one for each of the 7 domains
 
 // initializeCommonUseCases initializes Common domain use cases (1 entity: Attribute)
-// Common domain provides cross-domain dependencies used by Entity, Subscription, Product, and Payment domains
+// Common domain provides cross-domain dependencies used by Entity, Subscription, Product, and Treasury domains
 func (uci *UseCaseInitializer) initializeCommonUseCases(container *Container) (*common.CommonUseCases, error) {
 	fmt.Printf("🔧 Initializing Common use cases...\n")
 
@@ -220,16 +220,16 @@ func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*e
 	return eventUseCases, nil
 }
 
-// initializePaymentUseCases initializes Payment domain use cases (legacy entities removed)
-func (uci *UseCaseInitializer) initializePaymentUseCases(container *Container) (*payment.PaymentUseCases, error) {
-	fmt.Printf("💳 Initializing Payment use cases...\n")
+// initializeTreasuryUseCases initializes Treasury domain use cases (legacy entities removed)
+func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) (*treasury.TreasuryUseCases, error) {
+	fmt.Printf("💳 Initializing Treasury use cases...\n")
 
-	repos, err := domain.NewPaymentRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := domain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
-		fmt.Printf("❌ Failed to get payment repositories: %v\n", err)
+		fmt.Printf("❌ Failed to get treasury repositories: %v\n", err)
 		return nil, err
 	}
-	fmt.Printf("✅ Got payment repositories\n")
+	fmt.Printf("✅ Got treasury repositories\n")
 
 	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
 	if err != nil {
@@ -239,14 +239,14 @@ func (uci *UseCaseInitializer) initializePaymentUseCases(container *Container) (
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	paymentUseCases, err := initializers.InitializePayment(repos, authSvc, txSvc, i18nSvc, idSvc)
+	treasuryUseCases, err := initializers.InitializeTreasury(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
-		fmt.Printf("❌ Failed to initialize payment use cases: %v\n", err)
+		fmt.Printf("❌ Failed to initialize treasury use cases: %v\n", err)
 		return nil, err
 	}
-	fmt.Printf("✅ Payment domain initialized successfully: %v\n", paymentUseCases != nil)
+	fmt.Printf("✅ Treasury domain initialized successfully: %v\n", treasuryUseCases != nil)
 
-	return paymentUseCases, nil
+	return treasuryUseCases, nil
 }
 
 // initializeProductUseCases initializes Product domain use cases (8 entities)

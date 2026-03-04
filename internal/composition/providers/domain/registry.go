@@ -15,7 +15,7 @@ type Registry struct {
 	// Repository collections by domain
 	entity       *EntityRepositories
 	subscription *SubscriptionRepositories
-	payment      *PaymentRepositories
+	treasury     *TreasuryRepositories
 	product      *ProductRepositories
 	inventory    *InventoryRepositories
 	event        *EventRepositories
@@ -61,10 +61,10 @@ func (r *Registry) InitializeAll() error {
 		return fmt.Errorf("failed to create subscription repositories: %w", err)
 	}
 
-	// Initialize payment repositories
-	r.payment, err = NewPaymentRepositories(r.dbProvider, r.dbTableConfig)
+	// Initialize treasury repositories
+	r.treasury, err = NewTreasuryRepositories(r.dbProvider, r.dbTableConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create payment repositories: %w", err)
+		return fmt.Errorf("failed to create treasury repositories: %w", err)
 	}
 
 	// Initialize product repositories
@@ -124,19 +124,19 @@ func (r *Registry) GetSubscription() (*SubscriptionRepositories, error) {
 	return r.subscription, nil
 }
 
-// GetPayment returns payment repositories (lazy init if needed)
-func (r *Registry) GetPayment() (*PaymentRepositories, error) {
+// GetTreasury returns treasury repositories (lazy init if needed)
+func (r *Registry) GetTreasury() (*TreasuryRepositories, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.payment == nil {
+	if r.treasury == nil {
 		var err error
-		r.payment, err = NewPaymentRepositories(r.dbProvider, r.dbTableConfig)
+		r.treasury, err = NewTreasuryRepositories(r.dbProvider, r.dbTableConfig)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return r.payment, nil
+	return r.treasury, nil
 }
 
 // GetProduct returns product repositories (lazy init if needed)

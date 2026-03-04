@@ -56,7 +56,7 @@ func (r *Registry) registerAll() {
 	// Register domain use cases
 	domain.RegisterEntityUseCases(r.useCases, r.register)
 	domain.RegisterSubscriptionUseCases(r.useCases, r.register)
-	domain.RegisterPaymentUseCases(r.useCases, r.register)
+	domain.RegisterTreasuryUseCases(r.useCases, r.register)
 	domain.RegisterProductUseCases(r.useCases, r.register)
 	domain.RegisterEventUseCases(r.useCases, r.register)
 	domain.RegisterWorkflowUseCases(r.useCases, r.register)

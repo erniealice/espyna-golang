@@ -2,8 +2,10 @@ package consumer
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
+	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 )
 
@@ -26,4 +28,19 @@ type LedgerReportingTableConfig struct {
 	Location             string
 	RevenueCategory      string
 	Expenditure          string
+}
+
+// NewLedgerReportingService creates a new ledger reporting service using registry discovery.
+// If no ledger provider has been registered (e.g. via contrib/postgres init()),
+// this returns nil — the consumer app should handle nil gracefully (reports will be unavailable).
+func NewLedgerReportingService(db *sql.DB, config LedgerReportingTableConfig) LedgerReportingService {
+	factory, ok := registry.GetLedgerReportingFactory()
+	if !ok {
+		return nil // no ledger provider registered (equivalent to old noop)
+	}
+	result := factory(db, config)
+	if svc, ok := result.(LedgerReportingService); ok {
+		return svc
+	}
+	return nil
 }

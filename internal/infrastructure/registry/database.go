@@ -119,6 +119,10 @@ type DatabaseTableConfig struct {
 	InventoryItem, InventoryAttribute, InventoryTransaction string
 	InventorySerial, InventoryDepreciation                  string
 	InventorySerialHistory                                  string
+	// Treasury domain
+	TreasuryCollection, TreasuryDisbursement string
+	// Ledger domain
+	DocumentTemplate string
 	// Subscription
 	Plan, PlanAttribute, PlanLocation, PlanSettings      string
 	Balance, BalanceAttribute, Invoice, InvoiceAttribute string
@@ -223,6 +227,10 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		InventoryTransaction: "inventory_transaction",
 		InventorySerial: "inventory_serial", InventoryDepreciation: "inventory_depreciation",
 		InventorySerialHistory: "inventory_serial_history",
+		// Treasury domain
+		TreasuryCollection: "treasury_collection", TreasuryDisbursement: "treasury_disbursement",
+		// Ledger domain
+		DocumentTemplate: "document_template",
 		// Subscription
 		Plan: "plan", PlanAttribute: "plan_attribute", PlanLocation: "plan_location", PlanSettings: "plan_settings",
 		Balance: "balance", BalanceAttribute: "balance_attribute",

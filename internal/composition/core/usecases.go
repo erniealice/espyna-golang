@@ -21,6 +21,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
@@ -69,6 +70,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		eventUC = &event.EventUseCases{}
 	}
 
+	ledgerUC, err := uci.initializeLedgerUseCases(container)
+	if err != nil {
+		ledgerUC = &ledger.LedgerUseCases{}
+	}
+
 	treasuryUC, err := uci.initializeTreasuryUseCases(container)
 	if err != nil {
 		treasuryUC = &treasury.TreasuryUseCases{}
@@ -115,6 +121,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		eventUC,
 		expenditureUC,
 		inventoryUC,
+		ledgerUC,
 		treasuryUC,
 		productUC,
 		revenueUC,
@@ -218,6 +225,34 @@ func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*e
 	fmt.Printf("✅ Event domain initialized successfully: %v\n", eventUseCases != nil)
 
 	return eventUseCases, nil
+}
+
+// initializeLedgerUseCases initializes Ledger domain use cases (document template)
+func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*ledger.LedgerUseCases, error) {
+	fmt.Printf("📄 Initializing Ledger use cases...\n")
+
+	repos, err := domain.NewLedgerRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Ledger database provider not available: %v\n", err)
+		return &ledger.LedgerUseCases{}, nil
+	}
+	fmt.Printf("✅ Got ledger repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
+
+	ledgerUseCases, err := initializers.InitializeLedger(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize ledger use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Ledger domain initialized successfully: %v\n", ledgerUseCases != nil)
+
+	return ledgerUseCases, nil
 }
 
 // initializeTreasuryUseCases initializes Treasury domain use cases (legacy entities removed)

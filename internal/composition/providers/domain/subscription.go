@@ -107,9 +107,10 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, dbTableConfig *r
 		return nil, fmt.Errorf("failed to create subscription_attribute repository: %w", err)
 	}
 
+	var attributeServer attributepb.AttributeDomainServiceServer
 	attributeRepo, err := repoCreator.CreateRepository("attribute", conn, dbTableConfig.Attribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create attribute repository: %w", err)
+	if err == nil {
+		attributeServer = attributeRepo.(attributepb.AttributeDomainServiceServer)
 	}
 
 	// Type assert each repository to its interface
@@ -125,6 +126,6 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, dbTableConfig *r
 		PricePlan:             pricePlanRepo.(priceplanpb.PricePlanDomainServiceServer),
 		Subscription:          subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
 		SubscriptionAttribute: subscriptionAttributeRepo.(subscriptionattributepb.SubscriptionAttributeDomainServiceServer),
-		Attribute:             attributeRepo.(attributepb.AttributeDomainServiceServer),
+		Attribute:             attributeServer,
 	}, nil
 }

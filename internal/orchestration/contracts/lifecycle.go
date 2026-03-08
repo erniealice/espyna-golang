@@ -15,12 +15,16 @@ const (
 	// ModeLazy initializes engine on first workflow execution
 	// Minimizes startup time when workflows aren't used
 	ModeLazy WorkflowEngineMode = "lazy"
+
+	// ModeNone disables workflow engine entirely
+	// Skips all engine initialization for apps that don't use workflows
+	ModeNone WorkflowEngineMode = "none"
 )
 
 // IsValid returns true if the mode is a recognized value
 func (m WorkflowEngineMode) IsValid() bool {
 	switch m {
-	case ModeLate, ModeEager, ModeLazy:
+	case ModeLate, ModeEager, ModeLazy, ModeNone:
 		return true
 	default:
 		return false

@@ -6,10 +6,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
-// InitializeTreasury creates all treasury use cases from provider repositories.
-// Currently returns an empty TreasuryUseCases since all legacy payment entities
-// (Payment, PaymentAttribute, PaymentMethod, PaymentProfile) have been removed.
-// Their functionality is superseded by Collection and Disbursement domains.
+// InitializeTreasury creates all treasury use cases from provider repositories
 func InitializeTreasury(
 	repos *domain.TreasuryRepositories,
 	authSvc ports.AuthorizationService,
@@ -18,7 +15,10 @@ func InitializeTreasury(
 	idSvc ports.IDService,
 ) (*treasury.TreasuryUseCases, error) {
 	return treasury.NewUseCases(
-		treasury.TreasuryRepositories{},
+		treasury.TreasuryRepositories{
+			Collection:   repos.Collection,
+			Disbursement: repos.Disbursement,
+		},
 		authSvc,
 		txSvc,
 		i18nSvc,

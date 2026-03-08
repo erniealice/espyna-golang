@@ -1,30 +1,32 @@
 package treasury
 
 import (
+	// Collection use cases
+	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/collection"
+	// Disbursement use cases
+	disbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/disbursement"
+
+	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+
+	// Protobuf domain services for treasury repositories
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
+	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
 
-// TreasuryRepositories contains treasury domain repositories.
-// The legacy Payment, PaymentAttribute, PaymentMethod, and PaymentProfile entities
-// have been removed. Their functionality is superseded by:
-//   - Collection (money IN) — revenue settlements
-//   - Disbursement (money OUT) — expenditure settlements
-//
-// See the collection and disbursement domains for active payment processing.
+// TreasuryRepositories contains all treasury domain repositories
 type TreasuryRepositories struct {
-	// Reserved for future treasury domain repositories if needed
+	Collection   collectionpb.CollectionDomainServiceServer
+	Disbursement disbursementpb.DisbursementDomainServiceServer
 }
 
-// TreasuryUseCases contains all treasury-related use cases.
-// Currently empty after removal of redundant Payment/PaymentAttribute/PaymentMethod/PaymentProfile
-// entities that were superseded by Collection and Disbursement.
+// TreasuryUseCases contains all treasury-related use cases
 type TreasuryUseCases struct {
-	// All payment entities have been superseded by collection (money IN) and disbursement (money OUT)
-	// See expenditure and revenue domains for the business transaction layer
+	Collection   *collectionUseCases.UseCases
+	Disbursement *disbursementUseCases.UseCases
 }
 
-// NewUseCases creates treasury use cases.
-// Currently returns an empty struct since all legacy payment entities have been removed.
+// NewUseCases creates all treasury use cases with proper constructor injection
 func NewUseCases(
 	repos TreasuryRepositories,
 	authSvc ports.AuthorizationService,
@@ -32,5 +34,32 @@ func NewUseCases(
 	i18nSvc ports.TranslationService,
 	idService ports.IDService,
 ) *TreasuryUseCases {
-	return &TreasuryUseCases{}
+	collectionUC := collectionUseCases.NewUseCases(
+		collectionUseCases.CollectionRepositories{
+			Collection: repos.Collection,
+		},
+		collectionUseCases.CollectionServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	disbursementUC := disbursementUseCases.NewUseCases(
+		disbursementUseCases.DisbursementRepositories{
+			Disbursement: repos.Disbursement,
+		},
+		disbursementUseCases.DisbursementServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	return &TreasuryUseCases{
+		Collection:   collectionUC,
+		Disbursement: disbursementUC,
+	}
 }

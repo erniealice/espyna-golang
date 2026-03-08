@@ -10,7 +10,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
-	assetcategorypb "github.com/erniealice/esqyma/golang/v1/domain/asset/asset_category"
+	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
 )
 
 const entityAssetCategory = "asset_category"

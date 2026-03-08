@@ -20,7 +20,7 @@ type ExecuteActivityUseCase struct {
 	services        EngineServices
 	cache           *TemplateCache
 	schemaProcessor *SchemaProcessor
-	celEvaluator    *CELEvaluator
+	celEvaluator    ConditionEvaluator
 }
 
 // NewExecuteActivityUseCase creates a new use case

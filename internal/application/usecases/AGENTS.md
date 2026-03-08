@@ -321,7 +321,7 @@ func TestCreateClientUseCase_Execute(t *testing.T) {
 | `application/ports/` | Service interfaces (AuthorizationService, etc.) |
 | `composition/core/initializers/` | Use case initialization per domain |
 | `composition/routing/handlers/` | HTTP handlers that call use cases |
-| `esqyma/golang/v1/domain/` | Proto-generated request/response types |
+| `esqyma/pkg/schema/v1/domain/` | Proto-generated request/response types |
 
 ## Key Design Decisions
 

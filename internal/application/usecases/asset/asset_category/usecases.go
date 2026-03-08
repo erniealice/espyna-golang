@@ -2,7 +2,7 @@ package asset_category
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	assetcategorypb "github.com/erniealice/esqyma/golang/v1/domain/asset/asset_category"
+	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
 )
 
 // AssetCategoryRepositories groups all repository dependencies for asset category use cases

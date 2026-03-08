@@ -67,7 +67,7 @@ import (
     idAdapter "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/id"
     "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/translation"
 
-    [entitypb] "leapfor.xyz/esqyma/golang/v1/domain/[domain]/[entity]"
+    [entitypb] "leapfor.xyz/esqyma/pkg/schema/v1/domain/[domain]/[entity]"
 )
 ```
 

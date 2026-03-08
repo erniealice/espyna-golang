@@ -411,6 +411,10 @@ func (c *Container) initializeWorkflowEngine() error {
 			fmt.Printf("✅ Workflow Engine initialized (lazily)\n")
 			return nil
 		}
+
+	case orchcontracts.ModeNone:
+		fmt.Printf("⏭️ Workflow Engine disabled (none mode)\n")
+
 	default:
 		return fmt.Errorf("unknown Workflow Engine Mode: %s", c.config.WorkflowEngineMode)
 	}

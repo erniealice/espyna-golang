@@ -9,7 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	assetcategorypb "github.com/erniealice/esqyma/golang/v1/domain/asset/asset_category"
+	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
 )
 
 // GetAssetCategoryItemPageDataRepositories groups all repository dependencies

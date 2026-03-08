@@ -2,7 +2,7 @@ package asset
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	assetpb "github.com/erniealice/esqyma/golang/v1/domain/asset/asset"
+	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 )
 
 // AssetRepositories groups all repository dependencies for asset use cases

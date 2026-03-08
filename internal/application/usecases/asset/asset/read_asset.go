@@ -7,7 +7,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	assetpb "github.com/erniealice/esqyma/golang/v1/domain/asset/asset"
+	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 )
 
 // ReadAssetRepositories groups all repository dependencies

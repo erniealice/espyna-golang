@@ -152,7 +152,7 @@ type EmailReader interface {
 ### **3. Use Proto Types, Define Behavior**
 Ports should use proto-generated types but define behavior:
 ```go
-import pb "leapfor.xyz/esqyma/golang/v1/integration/email"
+import pb "leapfor.xyz/esqyma/pkg/schema/v1/integration/email"
 
 type EmailProvider interface {
     // Uses proto request/response types ✅

@@ -1,3 +1,5 @@
+//go:build cel
+
 package engine
 
 import (
@@ -23,7 +25,7 @@ type CELEvaluator struct {
 //   - input: workflow input data
 //   - stage: stage outputs indexed by stage number (e.g., stage[0].activity[0].output)
 //   - computed: computed values from workflow context
-func NewCELEvaluator() (*CELEvaluator, error) {
+func NewCELEvaluator() (ConditionEvaluator, error) {
 	env, err := cel.NewEnv(
 		// Declare workflow context variables as dynamic maps
 		cel.Variable("input", cel.DynType),

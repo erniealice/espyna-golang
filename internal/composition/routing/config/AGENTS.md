@@ -121,4 +121,4 @@ Exposes workflow engine operations via adapter wrappers:
 - `leapfor.xyz/espyna/internal/application/usecases/*` - Use case aggregates
 - `leapfor.xyz/espyna/internal/application/ports` - Port interfaces
 - `leapfor.xyz/espyna/internal/composition/contracts` - Route contracts
-- `leapfor.xyz/esqyma/golang/v1/*` - Protobuf request/response types
+- `leapfor.xyz/esqyma/pkg/schema/v1/*` - Protobuf request/response types

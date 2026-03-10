@@ -67,9 +67,16 @@ func NewStorageAdapterFromContainer(container *Container) *StorageAdapter {
 		return nil
 	}
 
-	// Cast to storageOperations interface (avoids Initialize method conflict)
+	// Cast to storageOperations interface (avoids Initialize method conflict).
+	// First try direct cast, then unwrap ProviderWrapper if needed.
 	provider, ok := providerContract.(storageOperations)
 	if !ok {
+		// The provider may be wrapped in a ProviderWrapper — unwrap to get the inner provider
+		if wrapper, wrapperOk := providerContract.(interface{ Provider() interface{} }); wrapperOk {
+			provider, ok = wrapper.Provider().(storageOperations)
+		}
+	}
+	if !ok || provider == nil {
 		return nil
 	}
 

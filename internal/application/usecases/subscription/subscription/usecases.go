@@ -45,17 +45,19 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 	}
 	createServices := CreateSubscriptionServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
-		IDService:          services.IDService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+		IDService:            services.IDService,
 	}
 
 	readRepos := ReadSubscriptionRepositories{
 		Subscription: repositories.Subscription,
 	}
 	readServices := ReadSubscriptionServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	updateRepos := UpdateSubscriptionRepositories{
@@ -64,40 +66,45 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 	}
 	updateServices := UpdateSubscriptionServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	deleteRepos := DeleteSubscriptionRepositories{
 		Subscription: repositories.Subscription,
 	}
 	deleteServices := DeleteSubscriptionServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listRepos := ListSubscriptionsRepositories{
 		Subscription: repositories.Subscription,
 	}
 	listServices := ListSubscriptionsServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listPageDataRepos := GetSubscriptionListPageDataRepositories{
 		Subscription: repositories.Subscription,
 	}
 	listPageDataServices := GetSubscriptionListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	itemPageDataRepos := GetSubscriptionItemPageDataRepositories{
 		Subscription: repositories.Subscription,
 	}
 	itemPageDataServices := GetSubscriptionItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	return &UseCases{

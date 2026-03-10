@@ -272,9 +272,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				sf.client_id,
 				sf.price_plan_id,
 				sf.date_start,
-				sf.date_start_string,
 				sf.date_end,
-				sf.date_end_string,
 				sf.active,
 				sf.date_created,
 				sf.date_modified,
@@ -335,9 +333,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			s.client_id,
 			s.price_plan_id,
 			s.date_start,
-			s.date_start_string,
 			s.date_end,
-			s.date_end_string,
 			s.active,
 			s.date_created,
 			s.date_modified,
@@ -373,22 +369,18 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 
 	for rows.Next() {
 		var (
-			id                 string
-			name               string
-			clientID           string
-			pricePlanID        string
-			dateStart          sql.NullInt64
-			dateStartString    sql.NullString
-			dateEnd            sql.NullInt64
-			dateEndString      sql.NullString
-			active             bool
-			dateCreated        sql.NullInt64
-			dateCreatedString  sql.NullString
-			dateModified       sql.NullInt64
-			dateModifiedString sql.NullString
-			clientJSON         []byte
-			pricePlanJSON      []byte
-			rowTotalCount      int32
+			id            string
+			name          string
+			clientID      string
+			pricePlanID   string
+			dateStart     sql.NullInt64
+			dateEnd       sql.NullInt64
+			active        bool
+			dateCreated   sql.NullTime
+			dateModified  sql.NullTime
+			clientJSON    []byte
+			pricePlanJSON []byte
+			rowTotalCount int32
 		)
 
 		err := rows.Scan(
@@ -397,9 +389,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			&clientID,
 			&pricePlanID,
 			&dateStart,
-			&dateStartString,
 			&dateEnd,
-			&dateEndString,
 			&active,
 			&dateCreated,
 			&dateModified,
@@ -425,26 +415,16 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		if dateStart.Valid {
 			subscription.DateStart = &dateStart.Int64
 		}
-		if dateStartString.Valid {
-			subscription.DateStartString = &dateStartString.String
-		}
 		if dateEnd.Valid {
 			subscription.DateEnd = &dateEnd.Int64
 		}
-		if dateEndString.Valid {
-			subscription.DateEndString = &dateEndString.String
-		}
 		if dateCreated.Valid {
-			subscription.DateCreated = &dateCreated.Int64
-		}
-		if dateCreatedString.Valid {
-			subscription.DateCreatedString = &dateCreatedString.String
+			ts := dateCreated.Time.Unix()
+			subscription.DateCreated = &ts
 		}
 		if dateModified.Valid {
-			subscription.DateModified = &dateModified.Int64
-		}
-		if dateModifiedString.Valid {
-			subscription.DateModifiedString = &dateModifiedString.String
+			ts := dateModified.Time.Unix()
+			subscription.DateModified = &ts
 		}
 
 		// Parse client JSON
@@ -518,9 +498,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 			s.client_id,
 			s.price_plan_id,
 			s.date_start,
-			s.date_start_string,
 			s.date_end,
-			s.date_end_string,
 			s.active,
 			s.date_created,
 			s.date_modified,
@@ -564,21 +542,17 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 
 	// Execute query
 	var (
-		id                 string
-		name               string
-		clientID           string
-		pricePlanID        string
-		dateStart          sql.NullInt64
-		dateStartString    sql.NullString
-		dateEnd            sql.NullInt64
-		dateEndString      sql.NullString
-		active             bool
-		dateCreated        sql.NullInt64
-		dateCreatedString  sql.NullString
-		dateModified       sql.NullInt64
-		dateModifiedString sql.NullString
-		clientJSON         []byte
-		pricePlanJSON      []byte
+		id            string
+		name          string
+		clientID      string
+		pricePlanID   string
+		dateStart     sql.NullInt64
+		dateEnd       sql.NullInt64
+		active        bool
+		dateCreated   sql.NullTime
+		dateModified  sql.NullTime
+		clientJSON    []byte
+		pricePlanJSON []byte
 	)
 
 	err := db.GetDB().QueryRowContext(ctx, query, req.SubscriptionId).Scan(
@@ -587,9 +561,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		&clientID,
 		&pricePlanID,
 		&dateStart,
-		&dateStartString,
 		&dateEnd,
-		&dateEndString,
 		&active,
 		&dateCreated,
 		&dateModified,
@@ -615,26 +587,16 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 	if dateStart.Valid {
 		subscription.DateStart = &dateStart.Int64
 	}
-	if dateStartString.Valid {
-		subscription.DateStartString = &dateStartString.String
-	}
 	if dateEnd.Valid {
 		subscription.DateEnd = &dateEnd.Int64
 	}
-	if dateEndString.Valid {
-		subscription.DateEndString = &dateEndString.String
-	}
 	if dateCreated.Valid {
-		subscription.DateCreated = &dateCreated.Int64
-	}
-	if dateCreatedString.Valid {
-		subscription.DateCreatedString = &dateCreatedString.String
+		ts := dateCreated.Time.Unix()
+		subscription.DateCreated = &ts
 	}
 	if dateModified.Valid {
-		subscription.DateModified = &dateModified.Int64
-	}
-	if dateModifiedString.Valid {
-		subscription.DateModifiedString = &dateModifiedString.String
+		ts := dateModified.Time.Unix()
+		subscription.DateModified = &ts
 	}
 
 	// Parse client JSON

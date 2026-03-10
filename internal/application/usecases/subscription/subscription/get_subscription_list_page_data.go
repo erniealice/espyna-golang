@@ -7,7 +7,6 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
@@ -27,7 +26,6 @@ type GetSubscriptionListPageDataServices struct {
 type GetSubscriptionListPageDataUseCase struct {
 	repositories GetSubscriptionListPageDataRepositories
 	services     GetSubscriptionListPageDataServices
-	processor    *listdata.ListDataProcessor
 }
 
 // NewGetSubscriptionListPageDataUseCase creates a new GetSubscriptionListPageDataUseCase
@@ -38,7 +36,6 @@ func NewGetSubscriptionListPageDataUseCase(
 	return &GetSubscriptionListPageDataUseCase{
 		repositories: repositories,
 		services:     services,
-		processor:    listdata.NewListDataProcessor(),
 	}
 }
 
@@ -95,80 +92,22 @@ func (uc *GetSubscriptionListPageDataUseCase) executeWithTransaction(
 }
 
 // executeCore contains the core business logic for getting subscription list page data
+// It delegates directly to the repository's GetSubscriptionListPageData which uses
+// CTE-based queries to JOIN client+user and price_plan data in a single query.
 func (uc *GetSubscriptionListPageDataUseCase) executeCore(
 	ctx context.Context,
 	req *subscriptionpb.GetSubscriptionListPageDataRequest,
 ) (*subscriptionpb.GetSubscriptionListPageDataResponse, error) {
-	// First, get all subscriptions from the repository
-	listReq := &subscriptionpb.ListSubscriptionsRequest{}
-	listResp, err := uc.repositories.Subscription.ListSubscriptions(ctx, listReq)
+	resp, err := uc.repositories.Subscription.GetSubscriptionListPageData(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
 			uc.services.TranslationService,
-			"subscription.errors.list_failed",
-			"failed to retrieve subscriptions: %w",
+			"subscription.errors.list_page_data_failed",
+			"failed to retrieve subscription list page data: %w",
 		), err)
 	}
-
-	if listResp == nil || len(listResp.Data) == 0 {
-		// Return empty response with proper pagination metadata
-		emptyPagination := uc.processor.GetPaginationUtils().CreatePaginationResponse(req.Pagination, 0, false)
-		return &subscriptionpb.GetSubscriptionListPageDataResponse{
-			SubscriptionList: []*subscriptionpb.Subscription{},
-			Pagination:       emptyPagination,
-			SearchResults:    []*commonpb.SearchResult{},
-			Success:          true,
-		}, nil
-	}
-
-	// Process the data with filtering, sorting, searching, and pagination
-	result, err := uc.processor.ProcessListRequest(
-		listResp.Data,
-		req.Pagination,
-		req.Filters,
-		req.Sort,
-		req.Search,
-	)
-	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
-			ctx,
-			uc.services.TranslationService,
-			"subscription.errors.processing_failed",
-			"failed to process subscription list data: %w",
-		), err)
-	}
-
-	// Convert processed items back to subscription protobuf format
-	subscriptions := make([]*subscriptionpb.Subscription, len(result.Items))
-	for i, item := range result.Items {
-		if subscription, ok := item.(*subscriptionpb.Subscription); ok {
-			subscriptions[i] = subscription
-		} else {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-				ctx,
-				uc.services.TranslationService,
-				"subscription.errors.type_conversion_failed",
-				"failed to convert item to subscription type",
-			))
-		}
-	}
-
-	// Convert search results to protobuf format
-	searchResults := make([]*commonpb.SearchResult, len(result.SearchResults))
-	for i, searchResult := range result.SearchResults {
-		searchResults[i] = &commonpb.SearchResult{
-			Score:      searchResult.Score,
-			Highlights: searchResult.Highlights,
-		}
-	}
-
-	return &subscriptionpb.GetSubscriptionListPageDataResponse{
-		SubscriptionList: subscriptions,
-		Pagination:       result.PaginationResponse,
-		SearchResults:    searchResults,
-		Success:          true,
-	}, nil
+	return resp, nil
 }
 
 // validateInput validates the input request

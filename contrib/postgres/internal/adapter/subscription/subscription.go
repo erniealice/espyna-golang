@@ -264,7 +264,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					s.name ILIKE $1)
 		),
 
-		-- CTE 2: Join with client and user
+		-- CTE 2: Join with client, user, price_plan, and plan
 		enriched AS (
 			SELECT
 				sf.id,
@@ -280,31 +280,42 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					'id', c.id,
 					'user_id', c.user_id,
 					'internal_id', c.internal_id,
+					'company_name', c.company_name,
 					'active', c.active,
-					'date_created', c.date_created,
-					'date_modified', c.date_modified,
+					'date_created', (EXTRACT(EPOCH FROM c.date_created) * 1000)::bigint,
+					'date_modified', (EXTRACT(EPOCH FROM c.date_modified) * 1000)::bigint,
 					'user', jsonb_build_object(
 						'id', u.id,
 						'first_name', u.first_name,
 						'last_name', u.last_name,
 						'email_address', u.email_address,
 						'active', u.active,
-						'date_created', u.date_created,
-						'date_modified', u.date_modified
+						'date_created', (EXTRACT(EPOCH FROM u.date_created) * 1000)::bigint,
+						'date_modified', (EXTRACT(EPOCH FROM u.date_modified) * 1000)::bigint
 					)
 				) as client,
 				jsonb_build_object(
 					'id', pp.id,
+					'plan_id', pp.plan_id,
 					'name', pp.name,
 					'description', pp.description,
 					'active', pp.active,
-					'date_created', pp.date_created,
-					'date_modified', pp.date_modified
+					'date_created', (EXTRACT(EPOCH FROM pp.date_created) * 1000)::bigint,
+					'date_modified', (EXTRACT(EPOCH FROM pp.date_modified) * 1000)::bigint,
+					'plan', jsonb_build_object(
+						'id', p.id,
+						'name', p.name,
+						'description', p.description,
+						'active', p.active,
+						'date_created', (EXTRACT(EPOCH FROM p.date_created) * 1000)::bigint,
+						'date_modified', (EXTRACT(EPOCH FROM p.date_modified) * 1000)::bigint
+					)
 				) as price_plan
 			FROM search_filtered sf
 			LEFT JOIN client c ON sf.client_id = c.id AND c.active = true
 			LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
 			LEFT JOIN price_plan pp ON sf.price_plan_id = pp.id AND pp.active = true
+			LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = true
 		),
 
 		-- CTE 3: Apply sorting
@@ -506,31 +517,42 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 				'id', c.id,
 				'user_id', c.user_id,
 				'internal_id', c.internal_id,
+				'company_name', c.company_name,
 				'active', c.active,
-				'date_created', c.date_created,
-				'date_modified', c.date_modified,
+				'date_created', (EXTRACT(EPOCH FROM c.date_created) * 1000)::bigint,
+				'date_modified', (EXTRACT(EPOCH FROM c.date_modified) * 1000)::bigint,
 				'user', jsonb_build_object(
 					'id', u.id,
 					'first_name', u.first_name,
 					'last_name', u.last_name,
 					'email_address', u.email_address,
 					'active', u.active,
-					'date_created', u.date_created,
-					'date_modified', u.date_modified
+					'date_created', (EXTRACT(EPOCH FROM u.date_created) * 1000)::bigint,
+					'date_modified', (EXTRACT(EPOCH FROM u.date_modified) * 1000)::bigint
 				)
 			) as client,
 			jsonb_build_object(
 				'id', pp.id,
+				'plan_id', pp.plan_id,
 				'name', pp.name,
 				'description', pp.description,
 				'active', pp.active,
-				'date_created', pp.date_created,
-				'date_modified', pp.date_modified
+				'date_created', (EXTRACT(EPOCH FROM pp.date_created) * 1000)::bigint,
+				'date_modified', (EXTRACT(EPOCH FROM pp.date_modified) * 1000)::bigint,
+				'plan', jsonb_build_object(
+					'id', p.id,
+					'name', p.name,
+					'description', p.description,
+					'active', p.active,
+					'date_created', (EXTRACT(EPOCH FROM p.date_created) * 1000)::bigint,
+					'date_modified', (EXTRACT(EPOCH FROM p.date_modified) * 1000)::bigint
+				)
 			) as price_plan
 		FROM subscription s
 		LEFT JOIN client c ON s.client_id = c.id AND c.active = true
 		LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
 		LEFT JOIN price_plan pp ON s.price_plan_id = pp.id AND pp.active = true
+		LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = true
 		WHERE s.id = $1 AND s.active = true
 	`
 

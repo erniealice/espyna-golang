@@ -588,6 +588,64 @@ func (r *PostgresPlanRepository) GetPlanItemPageData(ctx context.Context, req *p
 	}, nil
 }
 
+// SearchPlansByName searches active plans by name using ILIKE
+func (r *PostgresPlanRepository) SearchPlansByName(ctx context.Context, req *planpb.SearchPlansByNameRequest) (*planpb.SearchPlansByNameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("search plans by name request is required")
+	}
+
+	limit := int32(20)
+	if req.Limit != nil && *req.Limit > 0 {
+		limit = *req.Limit
+	}
+
+	query := `
+		SELECT id, name
+		FROM plan
+		WHERE active = true
+			AND ($1::text = '' OR name ILIKE $1)
+		ORDER BY name ASC
+		LIMIT $2
+	`
+
+	pattern := ""
+	if req.Query != "" {
+		pattern = "%" + req.Query + "%"
+	}
+
+	// Get DB connection from dbOps interface
+	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
+	if !ok {
+		return nil, fmt.Errorf("database operations does not support raw SQL queries")
+	}
+
+	rows, err := db.GetDB().QueryContext(ctx, query, pattern, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search plans by name: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*planpb.SearchPlanResult
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("failed to scan search plan row: %w", err)
+		}
+		results = append(results, &planpb.SearchPlanResult{
+			Id:    id,
+			Label: name,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating search plan rows: %w", err)
+	}
+
+	return &planpb.SearchPlansByNameResponse{
+		Results: results,
+		Success: true,
+	}, nil
+}
+
 // NewPlanRepository creates a new PostgreSQL plan repository (old-style constructor)
 func NewPlanRepository(db *sql.DB, tableName string) planpb.PlanDomainServiceServer {
 	dbOps := postgresCore.NewPostgresOperations(db)

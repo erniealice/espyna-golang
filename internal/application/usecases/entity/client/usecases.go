@@ -31,6 +31,7 @@ type UseCases struct {
 	GetClientItemPageData *GetClientItemPageDataUseCase
 	FindOrCreateClient    *FindOrCreateClientUseCase
 	GetClientByEmail      *GetClientByEmailUseCase
+	SearchClientsByName   *SearchClientsByNameUseCase
 }
 
 // NewUseCases creates a new collection of client use cases
@@ -127,6 +128,15 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	searchByNameRepos := SearchClientsByNameRepositories{
+		Client: repositories.Client,
+	}
+	searchByNameServices := SearchClientsByNameServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreateClient:          NewCreateClientUseCase(createRepos, createServices),
 		ReadClient:            NewReadClientUseCase(readRepos, readServices),
@@ -137,6 +147,7 @@ func NewUseCases(
 		GetClientItemPageData: NewGetClientItemPageDataUseCase(getItemPageDataRepos, getItemPageDataServices),
 		FindOrCreateClient:    NewFindOrCreateClientUseCase(findOrCreateRepos, findOrCreateServices),
 		GetClientByEmail:      NewGetClientByEmailUseCase(getByEmailRepos, getByEmailServices),
+		SearchClientsByName:   NewSearchClientsByNameUseCase(searchByNameRepos, searchByNameServices),
 	}
 }
 

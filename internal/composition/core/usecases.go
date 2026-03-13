@@ -82,7 +82,10 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 
 	productUC, err := uci.initializeProductUseCases(container)
 	if err != nil {
-		productUC = &product.ProductUseCases{}
+		fmt.Printf("FATAL: Product domain initialization failed: %v\n", err)
+		fmt.Printf("  The application cannot start without Product use cases.\n")
+		fmt.Printf("  Check that PostgreSQL is running and the database schema includes product tables.\n")
+		panic(fmt.Sprintf("product domain initialization failed: %v", err))
 	}
 
 	revenueUC, err := uci.initializeRevenueUseCases(container)
@@ -291,7 +294,8 @@ func (uci *UseCaseInitializer) initializeProductUseCases(container *Container) (
 	repos, err := domain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("❌ Failed to get product repositories: %v\n", err)
-		return nil, err
+		fmt.Printf("  Database provider: %v, Table config: %v\n", uci.providerManager.GetDatabaseProvider() != nil, uci.providerManager.GetDBTableConfig() != nil)
+		return nil, fmt.Errorf("product repository creation failed (database unavailable): %w", err)
 	}
 	fmt.Printf("✅ Got product repositories\n")
 

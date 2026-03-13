@@ -27,6 +27,7 @@ type UseCases struct {
 	ListPlans           *ListPlansUseCase
 	GetPlanListPageData *GetPlanListPageDataUseCase
 	GetPlanItemPageData *GetPlanItemPageDataUseCase
+	SearchPlansByName   *SearchPlansByNameUseCase
 }
 
 // NewUseCases creates a new collection of plan use cases
@@ -89,6 +90,15 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	searchByNameRepos := SearchPlansByNameRepositories{
+		Plan: repositories.Plan,
+	}
+	searchByNameServices := SearchPlansByNameServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreatePlan:          NewCreatePlanUseCase(createRepos, createServices),
 		ReadPlan:            NewReadPlanUseCase(readRepos, readServices),
@@ -97,5 +107,6 @@ func NewUseCases(
 		ListPlans:           NewListPlansUseCase(listRepos, listServices),
 		GetPlanListPageData: NewGetPlanListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetPlanItemPageData: NewGetPlanItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
+		SearchPlansByName:   NewSearchPlansByNameUseCase(searchByNameRepos, searchByNameServices),
 	}
 }

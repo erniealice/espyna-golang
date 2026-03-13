@@ -851,6 +851,68 @@ func deref(s *string) string {
 	return *s
 }
 
+// SearchClientsByName searches clients by company name or user first/last name using ILIKE
+func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req *clientpb.SearchClientsByNameRequest) (*clientpb.SearchClientsByNameResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("search clients by name request is required")
+	}
+
+	limit := int32(20)
+	if req.Limit != nil && *req.Limit > 0 {
+		limit = *req.Limit
+	}
+
+	query := `
+		SELECT
+			c.id,
+			COALESCE(
+				NULLIF(c.company_name, ''),
+				NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''),
+				c.id
+			) AS label
+		FROM client c
+		LEFT JOIN "user" u ON c.user_id = u.id
+		WHERE c.active = true
+			AND ($1::text = '' OR
+				c.company_name ILIKE $1 OR
+				u.first_name ILIKE $1 OR
+				u.last_name ILIKE $1)
+		ORDER BY label ASC
+		LIMIT $2
+	`
+
+	pattern := ""
+	if req.Query != "" {
+		pattern = "%" + req.Query + "%"
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, pattern, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search clients by name: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*clientpb.SearchClientResult
+	for rows.Next() {
+		var id, label string
+		if err := rows.Scan(&id, &label); err != nil {
+			return nil, fmt.Errorf("failed to scan search client row: %w", err)
+		}
+		results = append(results, &clientpb.SearchClientResult{
+			Id:    id,
+			Label: label,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating search client rows: %w", err)
+	}
+
+	return &clientpb.SearchClientsByNameResponse{
+		Results: results,
+		Success: true,
+	}, nil
+}
+
 // NewClientRepository creates a new PostgreSQL client repository (old-style constructor)
 func NewClientRepository(db *sql.DB, tableName string) clientpb.ClientDomainServiceServer {
 	dbOps := postgresCore.NewPostgresOperations(db)

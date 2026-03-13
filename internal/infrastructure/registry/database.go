@@ -123,6 +123,7 @@ type DatabaseTableConfig struct {
 	TreasuryCollection, TreasuryDisbursement string
 	// Ledger domain
 	DocumentTemplate string
+	Attachment       string
 	// Subscription
 	Plan, PlanAttribute, PlanLocation, PlanSettings      string
 	Balance, BalanceAttribute, Invoice, InvoiceAttribute string
@@ -231,6 +232,7 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		TreasuryCollection: "treasury_collection", TreasuryDisbursement: "treasury_disbursement",
 		// Ledger domain
 		DocumentTemplate: "document_template",
+		Attachment:       "attachment",
 		// Subscription
 		Plan: "plan", PlanAttribute: "plan_attribute", PlanLocation: "plan_location", PlanSettings: "plan_settings",
 		Balance: "balance", BalanceAttribute: "balance_attribute",

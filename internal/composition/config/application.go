@@ -85,6 +85,10 @@ type DatabaseTableConfig struct {
 	InventoryDepreciation  string
 	InventorySerialHistory string
 
+	// Document tables - Document templates and attachments
+	DocumentTemplate string
+	Attachment       string
+
 	// Subscription tables - Billing and subscription management
 	Plan                  string
 	PlanLocation          string
@@ -184,6 +188,10 @@ func DefaultDatabaseTableConfig() DatabaseTableConfig {
 		InventorySerial:        "inventory_serial",
 		InventoryDepreciation:  "inventory_depreciation",
 		InventorySerialHistory: "inventory_serial_history",
+
+		// Document tables
+		DocumentTemplate: "document_template",
+		Attachment:       "attachment",
 
 		// Subscription tables
 		Plan:                  "plan",

@@ -20,11 +20,12 @@ type DocumentTemplateServices struct {
 
 // UseCases contains all document template-related use cases
 type UseCases struct {
-	CreateDocumentTemplate *CreateDocumentTemplateUseCase
-	ReadDocumentTemplate   *ReadDocumentTemplateUseCase
-	UpdateDocumentTemplate *UpdateDocumentTemplateUseCase
-	DeleteDocumentTemplate *DeleteDocumentTemplateUseCase
-	ListDocumentTemplates  *ListDocumentTemplatesUseCase
+	CreateDocumentTemplate       *CreateDocumentTemplateUseCase
+	ReadDocumentTemplate         *ReadDocumentTemplateUseCase
+	UpdateDocumentTemplate       *UpdateDocumentTemplateUseCase
+	DeleteDocumentTemplate       *DeleteDocumentTemplateUseCase
+	ListDocumentTemplates        *ListDocumentTemplatesUseCase
+	ListDocumentTemplatesByModule *ListDocumentTemplatesByModuleUseCase
 }
 
 // NewUseCases creates a new collection of document template use cases
@@ -68,11 +69,19 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	listByModuleRepos := ListDocumentTemplatesByModuleRepositories(repositories)
+	listByModuleServices := ListDocumentTemplatesByModuleServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
-		CreateDocumentTemplate: NewCreateDocumentTemplateUseCase(createRepos, createServices),
-		ReadDocumentTemplate:   NewReadDocumentTemplateUseCase(readRepos, readServices),
-		UpdateDocumentTemplate: NewUpdateDocumentTemplateUseCase(updateRepos, updateServices),
-		DeleteDocumentTemplate: NewDeleteDocumentTemplateUseCase(deleteRepos, deleteServices),
-		ListDocumentTemplates:  NewListDocumentTemplatesUseCase(listRepos, listServices),
+		CreateDocumentTemplate:       NewCreateDocumentTemplateUseCase(createRepos, createServices),
+		ReadDocumentTemplate:         NewReadDocumentTemplateUseCase(readRepos, readServices),
+		UpdateDocumentTemplate:       NewUpdateDocumentTemplateUseCase(updateRepos, updateServices),
+		DeleteDocumentTemplate:       NewDeleteDocumentTemplateUseCase(deleteRepos, deleteServices),
+		ListDocumentTemplates:        NewListDocumentTemplatesUseCase(listRepos, listServices),
+		ListDocumentTemplatesByModule: NewListDocumentTemplatesByModuleUseCase(listByModuleRepos, listByModuleServices),
 	}
 }

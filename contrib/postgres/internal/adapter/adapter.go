@@ -126,6 +126,7 @@ func buildPgTableConfig() *registry.DatabaseTableConfig {
 		InventorySerialHistory: prefix + getPostgresTableEnv("INVENTORY_SERIAL_HISTORY", "inventory_serial_history"),
 		// Ledger domain
 		DocumentTemplate: prefix + getPostgresTableEnv("DOCUMENT_TEMPLATE", "document_template"),
+		Attachment:       prefix + getPostgresTableEnv("ATTACHMENT", "attachment"),
 		// Subscription
 		Plan:                  prefix + getPostgresTableEnv("PLAN", "plan"),
 		PlanAttribute:         prefix + getPostgresTableEnv("PLAN_ATTRIBUTE", "plan_attribute"),

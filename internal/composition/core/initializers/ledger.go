@@ -17,6 +17,7 @@ func InitializeLedger(
 	return ledger.NewUseCases(
 		ledger.LedgerRepositories{
 			DocumentTemplate: repos.DocumentTemplate,
+			Attachment:       repos.Attachment,
 		},
 		authSvc,
 		txSvc,

@@ -7,12 +7,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 
 	// Protobuf domain services - Ledger domain
+	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/document_template"
 )
 
 // LedgerRepositories contains all ledger domain repositories
 type LedgerRepositories struct {
 	DocumentTemplate documenttemplatepb.DocumentTemplateDomainServiceServer
+	Attachment       attachmentpb.AttachmentDomainServiceServer
 }
 
 // NewLedgerRepositories creates and returns a new set of LedgerRepositories
@@ -33,7 +35,13 @@ func NewLedgerRepositories(dbProvider contracts.Provider, dbTableConfig *registr
 		return nil, fmt.Errorf("failed to create document template repository: %w", err)
 	}
 
+	attachmentRepo, err := repoCreator.CreateRepository("attachment", conn, dbTableConfig.Attachment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create attachment repository: %w", err)
+	}
+
 	return &LedgerRepositories{
 		DocumentTemplate: documentTemplateRepo.(documenttemplatepb.DocumentTemplateDomainServiceServer),
+		Attachment:       attachmentRepo.(attachmentpb.AttachmentDomainServiceServer),
 	}, nil
 }

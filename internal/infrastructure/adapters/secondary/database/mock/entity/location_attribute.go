@@ -12,6 +12,7 @@ import (
 	datamock "leapfor.xyz/copya/golang"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
@@ -449,7 +450,7 @@ func NewLocationAttributeRepository(businessType string) locationattributepb.Loc
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "location_attribute", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.LocationAttribute, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

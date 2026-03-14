@@ -14,6 +14,7 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // MockResourceRepository implements product.ResourceRepository using stateful mock data
@@ -417,7 +418,7 @@ func NewResourceRepository(data map[string]*resourcepb.Resource) resourcepb.Reso
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "resource", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.Resource, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

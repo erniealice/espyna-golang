@@ -12,11 +12,12 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("postgresql", "attribute_value", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("postgresql", entityid.AttributeValue, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
 		if !ok {
 			return nil, fmt.Errorf("postgres attribute_value repository requires *sql.DB, got %T", conn)

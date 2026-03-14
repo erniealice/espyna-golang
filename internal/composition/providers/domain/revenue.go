@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Revenue domain
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
@@ -34,22 +35,22 @@ func NewRevenueRepositories(dbProvider contracts.Provider, dbTableConfig *regist
 
 	conn := repoCreator.GetConnection()
 
-	revenueRepo, err := repoCreator.CreateRepository("revenue", conn, dbTableConfig.Revenue)
+	revenueRepo, err := repoCreator.CreateRepository(entityid.Revenue, conn, dbTableConfig.Revenue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create revenue repository: %w", err)
 	}
 
-	revenueLineItemRepo, err := repoCreator.CreateRepository("revenue_line_item", conn, dbTableConfig.RevenueLineItem)
+	revenueLineItemRepo, err := repoCreator.CreateRepository(entityid.RevenueLineItem, conn, dbTableConfig.RevenueLineItem)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create revenue_line_item repository: %w", err)
 	}
 
-	revenueCategoryRepo, err := repoCreator.CreateRepository("revenue_category", conn, dbTableConfig.RevenueCategory)
+	revenueCategoryRepo, err := repoCreator.CreateRepository(entityid.RevenueCategory, conn, dbTableConfig.RevenueCategory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create revenue_category repository: %w", err)
 	}
 
-	revenueAttributeRepo, err := repoCreator.CreateRepository("revenue_attribute", conn, dbTableConfig.RevenueAttribute)
+	revenueAttributeRepo, err := repoCreator.CreateRepository(entityid.RevenueAttribute, conn, dbTableConfig.RevenueAttribute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create revenue_attribute repository: %w", err)
 	}

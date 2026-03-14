@@ -10,11 +10,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("postgresql", "integration_payment", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("postgresql", entityid.IntegrationPayment, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
 		if !ok {
 			return nil, fmt.Errorf("postgres integration_payment repository requires *sql.DB, got %T", conn)

@@ -10,11 +10,12 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	stagetemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("firestore", "stage_template", func(conn any, collectionName string) (any, error) {
+	registry.RegisterRepositoryFactory("firestore", entityid.StageTemplate, func(conn any, collectionName string) (any, error) {
 		client, ok := conn.(*firestore.Client)
 		if !ok {
 			return nil, fmt.Errorf("firestore stage_template repository requires *firestore.Client, got %T", conn)

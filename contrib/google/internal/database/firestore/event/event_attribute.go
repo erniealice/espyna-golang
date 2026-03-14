@@ -10,11 +10,12 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("firestore", "event_attribute", func(conn any, collectionName string) (any, error) {
+	registry.RegisterRepositoryFactory("firestore", entityid.EventAttribute, func(conn any, collectionName string) (any, error) {
 		client, ok := conn.(*firestore.Client)
 		if !ok {
 			return nil, fmt.Errorf("firestore event_attribute repository requires *firestore.Client, got %T", conn)

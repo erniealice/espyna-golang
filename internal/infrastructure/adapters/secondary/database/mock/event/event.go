@@ -15,6 +15,7 @@ import (
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // MockEventRepository implements event.EventRepository using stateful mock data
@@ -650,7 +651,7 @@ func (r *MockEventClientRepository) ListEventClients(ctx context.Context, req *e
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "event", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.Event, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

@@ -13,6 +13,7 @@ import (
 	datamock "leapfor.xyz/copya/golang"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -456,7 +457,7 @@ func NewStaffRepository(businessType string) staffpb.StaffDomainServiceServer {
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "staff", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.Staff, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

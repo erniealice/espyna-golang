@@ -12,12 +12,13 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	serialhistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/serial_history"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("postgresql", "inventory_serial_history", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("postgresql", entityid.InventorySerialHistory, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_serial_history repository requires *sql.DB, got %T", conn)

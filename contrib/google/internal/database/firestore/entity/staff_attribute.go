@@ -10,11 +10,12 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("firestore", "staff_attribute", func(conn any, collectionName string) (any, error) {
+	registry.RegisterRepositoryFactory("firestore", entityid.StaffAttribute, func(conn any, collectionName string) (any, error) {
 		client, ok := conn.(*firestore.Client)
 		if !ok {
 			return nil, fmt.Errorf("firestore staff_attribute repository requires *firestore.Client, got %T", conn)

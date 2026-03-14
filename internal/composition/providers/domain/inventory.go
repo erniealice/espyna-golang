@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Inventory domain
 	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
@@ -40,32 +41,32 @@ func NewInventoryRepositories(dbProvider contracts.Provider, dbTableConfig *regi
 	conn := repoCreator.GetConnection()
 
 	// Create each repository individually using configured table names directly from dbTableConfig
-	inventoryItemRepo, err := repoCreator.CreateRepository("inventory_item", conn, dbTableConfig.InventoryItem)
+	inventoryItemRepo, err := repoCreator.CreateRepository(entityid.InventoryItem, conn, dbTableConfig.InventoryItem)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inventory_item repository: %w", err)
 	}
 
-	inventorySerialRepo, err := repoCreator.CreateRepository("inventory_serial", conn, dbTableConfig.InventorySerial)
+	inventorySerialRepo, err := repoCreator.CreateRepository(entityid.InventorySerial, conn, dbTableConfig.InventorySerial)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inventory_serial repository: %w", err)
 	}
 
-	inventoryTransactionRepo, err := repoCreator.CreateRepository("inventory_transaction", conn, dbTableConfig.InventoryTransaction)
+	inventoryTransactionRepo, err := repoCreator.CreateRepository(entityid.InventoryTransaction, conn, dbTableConfig.InventoryTransaction)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inventory_transaction repository: %w", err)
 	}
 
-	inventoryAttributeRepo, err := repoCreator.CreateRepository("inventory_attribute", conn, dbTableConfig.InventoryAttribute)
+	inventoryAttributeRepo, err := repoCreator.CreateRepository(entityid.InventoryAttribute, conn, dbTableConfig.InventoryAttribute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inventory_attribute repository: %w", err)
 	}
 
-	inventoryDepreciationRepo, err := repoCreator.CreateRepository("inventory_depreciation", conn, dbTableConfig.InventoryDepreciation)
+	inventoryDepreciationRepo, err := repoCreator.CreateRepository(entityid.InventoryDepreciation, conn, dbTableConfig.InventoryDepreciation)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inventory_depreciation repository: %w", err)
 	}
 
-	inventorySerialHistoryRepo, err := repoCreator.CreateRepository("inventory_serial_history", conn, dbTableConfig.InventorySerialHistory)
+	inventorySerialHistoryRepo, err := repoCreator.CreateRepository(entityid.InventorySerialHistory, conn, dbTableConfig.InventorySerialHistory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inventory_serial_history repository: %w", err)
 	}

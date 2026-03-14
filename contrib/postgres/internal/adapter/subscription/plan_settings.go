@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
@@ -30,7 +31,7 @@ type PostgresPlanSettingsRepository struct {
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("postgresql", "plan_settings", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("postgresql", entityid.PlanSettings, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
 		if !ok {
 			return nil, fmt.Errorf("postgres plan_settings repository requires *sql.DB, got %T", conn)

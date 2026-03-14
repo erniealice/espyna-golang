@@ -10,11 +10,12 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("firestore", "workspace_user_role", func(conn any, collectionName string) (any, error) {
+	registry.RegisterRepositoryFactory("firestore", entityid.WorkspaceUserRole, func(conn any, collectionName string) (any, error) {
 		client, ok := conn.(*firestore.Client)
 		if !ok {
 			return nil, fmt.Errorf("firestore workspace_user_role repository requires *firestore.Client, got %T", conn)

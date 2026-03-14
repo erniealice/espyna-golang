@@ -14,12 +14,13 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productoptionvaluepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option_value"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("postgresql", "product_option_value", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("postgresql", entityid.ProductOptionValue, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
 		if !ok {
 			return nil, fmt.Errorf("postgres product_option_value repository requires *sql.DB, got %T", conn)

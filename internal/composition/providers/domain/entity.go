@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Common domain
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -92,77 +93,77 @@ func NewEntityRepositories(dbProvider contracts.Provider, dbTableConfig *registr
 	}
 
 	// Create each repository individually — failures are non-fatal
-	if r := tryCreate("admin", dbTableConfig.Admin); r != nil {
+	if r := tryCreate(entityid.Admin, dbTableConfig.Admin); r != nil {
 		repos.Admin = r.(adminpb.AdminDomainServiceServer)
 	}
-	if r := tryCreate("client", dbTableConfig.Client); r != nil {
+	if r := tryCreate(entityid.Client, dbTableConfig.Client); r != nil {
 		repos.Client = r.(clientpb.ClientDomainServiceServer)
 	}
-	if r := tryCreate("client_attribute", dbTableConfig.ClientAttribute); r != nil {
+	if r := tryCreate(entityid.ClientAttribute, dbTableConfig.ClientAttribute); r != nil {
 		repos.ClientAttribute = r.(clientattributepb.ClientAttributeDomainServiceServer)
 	}
-	if r := tryCreate("client_category", dbTableConfig.ClientCategory); r != nil {
+	if r := tryCreate(entityid.ClientCategory, dbTableConfig.ClientCategory); r != nil {
 		repos.ClientCategory = r.(clientcategorypb.ClientCategoryDomainServiceServer)
 	}
-	if r := tryCreate("delegate", dbTableConfig.Delegate); r != nil {
+	if r := tryCreate(entityid.Delegate, dbTableConfig.Delegate); r != nil {
 		repos.Delegate = r.(delegatepb.DelegateDomainServiceServer)
 	}
-	if r := tryCreate("delegate_attribute", dbTableConfig.DelegateAttribute); r != nil {
+	if r := tryCreate(entityid.DelegateAttribute, dbTableConfig.DelegateAttribute); r != nil {
 		repos.DelegateAttribute = r.(delegateattributepb.DelegateAttributeDomainServiceServer)
 	}
-	if r := tryCreate("delegate_client", dbTableConfig.DelegateClient); r != nil {
+	if r := tryCreate(entityid.DelegateClient, dbTableConfig.DelegateClient); r != nil {
 		repos.DelegateClient = r.(delegateclientpb.DelegateClientDomainServiceServer)
 	}
-	if r := tryCreate("group", dbTableConfig.Group); r != nil {
+	if r := tryCreate(entityid.Group, dbTableConfig.Group); r != nil {
 		repos.Group = r.(grouppb.GroupDomainServiceServer)
 	}
-	if r := tryCreate("group_attribute", dbTableConfig.GroupAttribute); r != nil {
+	if r := tryCreate(entityid.GroupAttribute, dbTableConfig.GroupAttribute); r != nil {
 		repos.GroupAttribute = r.(groupattributepb.GroupAttributeDomainServiceServer)
 	}
-	if r := tryCreate("location", dbTableConfig.Location); r != nil {
+	if r := tryCreate(entityid.Location, dbTableConfig.Location); r != nil {
 		repos.Location = r.(locationpb.LocationDomainServiceServer)
 	}
-	if r := tryCreate("location_attribute", dbTableConfig.LocationAttribute); r != nil {
+	if r := tryCreate(entityid.LocationAttribute, dbTableConfig.LocationAttribute); r != nil {
 		repos.LocationAttribute = r.(locationattributepb.LocationAttributeDomainServiceServer)
 	}
-	if r := tryCreate("permission", dbTableConfig.Permission); r != nil {
+	if r := tryCreate(entityid.Permission, dbTableConfig.Permission); r != nil {
 		repos.Permission = r.(permissionpb.PermissionDomainServiceServer)
 	}
-	if r := tryCreate("role", dbTableConfig.Role); r != nil {
+	if r := tryCreate(entityid.Role, dbTableConfig.Role); r != nil {
 		repos.Role = r.(rolepb.RoleDomainServiceServer)
 	}
-	if r := tryCreate("role_permission", dbTableConfig.RolePermission); r != nil {
+	if r := tryCreate(entityid.RolePermission, dbTableConfig.RolePermission); r != nil {
 		repos.RolePermission = r.(rolepermissionpb.RolePermissionDomainServiceServer)
 	}
-	if r := tryCreate("staff", dbTableConfig.Staff); r != nil {
+	if r := tryCreate(entityid.Staff, dbTableConfig.Staff); r != nil {
 		repos.Staff = r.(staffpb.StaffDomainServiceServer)
 	}
-	if r := tryCreate("staff_attribute", dbTableConfig.StaffAttribute); r != nil {
+	if r := tryCreate(entityid.StaffAttribute, dbTableConfig.StaffAttribute); r != nil {
 		repos.StaffAttribute = r.(staffattributepb.StaffAttributeDomainServiceServer)
 	}
-	if r := tryCreate("supplier", dbTableConfig.Supplier); r != nil {
+	if r := tryCreate(entityid.Supplier, dbTableConfig.Supplier); r != nil {
 		repos.Supplier = r.(supplierpb.SupplierDomainServiceServer)
 	}
-	if r := tryCreate("supplier_attribute", dbTableConfig.SupplierAttribute); r != nil {
+	if r := tryCreate(entityid.SupplierAttribute, dbTableConfig.SupplierAttribute); r != nil {
 		repos.SupplierAttribute = r.(supplierattributepb.SupplierAttributeDomainServiceServer)
 	}
-	if r := tryCreate("supplier_category", dbTableConfig.SupplierCategory); r != nil {
+	if r := tryCreate(entityid.SupplierCategory, dbTableConfig.SupplierCategory); r != nil {
 		repos.SupplierCategory = r.(suppliercategorypb.SupplierCategoryDomainServiceServer)
 	}
-	if r := tryCreate("user", dbTableConfig.User); r != nil {
+	if r := tryCreate(entityid.User, dbTableConfig.User); r != nil {
 		repos.User = r.(userpb.UserDomainServiceServer)
 	}
-	if r := tryCreate("workspace", dbTableConfig.Workspace); r != nil {
+	if r := tryCreate(entityid.Workspace, dbTableConfig.Workspace); r != nil {
 		repos.Workspace = r.(workspacepb.WorkspaceDomainServiceServer)
 	}
-	if r := tryCreate("workspace_user", dbTableConfig.WorkspaceUser); r != nil {
+	if r := tryCreate(entityid.WorkspaceUser, dbTableConfig.WorkspaceUser); r != nil {
 		repos.WorkspaceUser = r.(workspaceuserpb.WorkspaceUserDomainServiceServer)
 	}
-	if r := tryCreate("workspace_user_role", dbTableConfig.WorkspaceUserRole); r != nil {
+	if r := tryCreate(entityid.WorkspaceUserRole, dbTableConfig.WorkspaceUserRole); r != nil {
 		repos.WorkspaceUserRole = r.(workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer)
 	}
 	// Cross-domain dependency: Attribute repository from Common domain
-	if r := tryCreate("attribute", dbTableConfig.Attribute); r != nil {
+	if r := tryCreate(entityid.Attribute, dbTableConfig.Attribute); r != nil {
 		repos.Attribute = r.(attributepb.AttributeDomainServiceServer)
 	}
 

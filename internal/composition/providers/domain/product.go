@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Common domain
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -63,84 +64,84 @@ func NewProductRepositories(dbProvider contracts.Provider, dbTableConfig *regist
 	conn := repoCreator.GetConnection()
 
 	// Create each repository individually using configured table names directly from dbTableConfig
-	collectionRepo, err := repoCreator.CreateRepository("collection", conn, dbTableConfig.Collection)
+	collectionRepo, err := repoCreator.CreateRepository(entityid.Collection, conn, dbTableConfig.Collection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection repository: %w", err)
 	}
 
-	collectionAttributeRepo, err := repoCreator.CreateRepository("collection_attribute", conn, dbTableConfig.CollectionAttribute)
+	collectionAttributeRepo, err := repoCreator.CreateRepository(entityid.CollectionAttribute, conn, dbTableConfig.CollectionAttribute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection_attribute repository: %w", err)
 	}
 
-	collectionPlanRepo, err := repoCreator.CreateRepository("collection_plan", conn, dbTableConfig.CollectionPlan)
+	collectionPlanRepo, err := repoCreator.CreateRepository(entityid.CollectionPlan, conn, dbTableConfig.CollectionPlan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection_plan repository: %w", err)
 	}
 
-	priceListRepo, err := repoCreator.CreateRepository("price_list", conn, dbTableConfig.PriceList)
+	priceListRepo, err := repoCreator.CreateRepository(entityid.PriceList, conn, dbTableConfig.PriceList)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create price_list repository: %w", err)
 	}
 
-	priceProductRepo, err := repoCreator.CreateRepository("price_product", conn, dbTableConfig.PriceProduct)
+	priceProductRepo, err := repoCreator.CreateRepository(entityid.PriceProduct, conn, dbTableConfig.PriceProduct)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create price_product repository: %w", err)
 	}
 
-	productRepo, err := repoCreator.CreateRepository("product", conn, dbTableConfig.Product)
+	productRepo, err := repoCreator.CreateRepository(entityid.Product, conn, dbTableConfig.Product)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product repository: %w", err)
 	}
 
-	productAttributeRepo, err := repoCreator.CreateRepository("product_attribute", conn, dbTableConfig.ProductAttribute)
+	productAttributeRepo, err := repoCreator.CreateRepository(entityid.ProductAttribute, conn, dbTableConfig.ProductAttribute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_attribute repository: %w", err)
 	}
 
-	productCollectionRepo, err := repoCreator.CreateRepository("product_collection", conn, dbTableConfig.ProductCollection)
+	productCollectionRepo, err := repoCreator.CreateRepository(entityid.ProductCollection, conn, dbTableConfig.ProductCollection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_collection repository: %w", err)
 	}
 
-	productOptionRepo, err := repoCreator.CreateRepository("product_option", conn, dbTableConfig.ProductOption)
+	productOptionRepo, err := repoCreator.CreateRepository(entityid.ProductOption, conn, dbTableConfig.ProductOption)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_option repository: %w", err)
 	}
 
-	productOptionValueRepo, err := repoCreator.CreateRepository("product_option_value", conn, dbTableConfig.ProductOptionValue)
+	productOptionValueRepo, err := repoCreator.CreateRepository(entityid.ProductOptionValue, conn, dbTableConfig.ProductOptionValue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_option_value repository: %w", err)
 	}
 
-	productPlanRepo, err := repoCreator.CreateRepository("product_plan", conn, dbTableConfig.ProductPlan)
+	productPlanRepo, err := repoCreator.CreateRepository(entityid.ProductPlan, conn, dbTableConfig.ProductPlan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_plan repository: %w", err)
 	}
 
-	productVariantRepo, err := repoCreator.CreateRepository("product_variant", conn, dbTableConfig.ProductVariant)
+	productVariantRepo, err := repoCreator.CreateRepository(entityid.ProductVariant, conn, dbTableConfig.ProductVariant)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_variant repository: %w", err)
 	}
 
-	productVariantImageRepo, err := repoCreator.CreateRepository("product_variant_image", conn, dbTableConfig.ProductVariantImage)
+	productVariantImageRepo, err := repoCreator.CreateRepository(entityid.ProductVariantImage, conn, dbTableConfig.ProductVariantImage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_variant_image repository: %w", err)
 	}
 
-	productVariantOptionRepo, err := repoCreator.CreateRepository("product_variant_option", conn, dbTableConfig.ProductVariantOption)
+	productVariantOptionRepo, err := repoCreator.CreateRepository(entityid.ProductVariantOption, conn, dbTableConfig.ProductVariantOption)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_variant_option repository: %w", err)
 	}
 
-	resourceRepo, err := repoCreator.CreateRepository("resource", conn, dbTableConfig.Resource)
+	resourceRepo, err := repoCreator.CreateRepository(entityid.Resource, conn, dbTableConfig.Resource)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource repository: %w", err)
 	}
 
 	// Cross-domain repository - Attribute from Common domain (optional)
 	var attributeServer attributepb.AttributeDomainServiceServer
-	attributeRepo, err := repoCreator.CreateRepository("attribute", conn, dbTableConfig.Attribute)
+	attributeRepo, err := repoCreator.CreateRepository(entityid.Attribute, conn, dbTableConfig.Attribute)
 	if err != nil {
 		log.Printf("  Attribute repository not available for product domain: %v", err)
 	} else {

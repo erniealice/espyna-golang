@@ -10,11 +10,12 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("firestore", "price_plan", func(conn any, collectionName string) (any, error) {
+	registry.RegisterRepositoryFactory("firestore", entityid.PricePlan, func(conn any, collectionName string) (any, error) {
 		client, ok := conn.(*firestore.Client)
 		if !ok {
 			return nil, fmt.Errorf("firestore price_plan repository requires *firestore.Client, got %T", conn)

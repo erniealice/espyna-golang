@@ -14,6 +14,7 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // MockProductRepository implements product.ProductRepository using stateful mock data
@@ -423,7 +424,7 @@ func (r *MockProductRepository) parseTimestamp(timestampStr string) (int64, erro
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "product", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.Product, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

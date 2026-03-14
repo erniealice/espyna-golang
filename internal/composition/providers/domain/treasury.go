@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Treasury domain
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -30,12 +31,12 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, dbTableConfig *regis
 
 	conn := repoCreator.GetConnection()
 
-	collectionRepo, err := repoCreator.CreateRepository("collection", conn, dbTableConfig.TreasuryCollection)
+	collectionRepo, err := repoCreator.CreateRepository(entityid.TreasuryCollection, conn, dbTableConfig.TreasuryCollection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create treasury collection repository: %w", err)
 	}
 
-	disbursementRepo, err := repoCreator.CreateRepository("disbursement", conn, dbTableConfig.TreasuryDisbursement)
+	disbursementRepo, err := repoCreator.CreateRepository(entityid.TreasuryDisbursement, conn, dbTableConfig.TreasuryDisbursement)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create treasury disbursement repository: %w", err)
 	}

@@ -11,11 +11,12 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("postgresql", "category", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("postgresql", entityid.Category, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
 		if !ok {
 			return nil, fmt.Errorf("postgres category repository requires *sql.DB, got %T", conn)

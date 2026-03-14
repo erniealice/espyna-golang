@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Expenditure domain
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
@@ -34,22 +35,22 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, dbTableConfig *re
 
 	conn := repoCreator.GetConnection()
 
-	expenditureRepo, err := repoCreator.CreateRepository("expenditure", conn, dbTableConfig.Expenditure)
+	expenditureRepo, err := repoCreator.CreateRepository(entityid.Expenditure, conn, dbTableConfig.Expenditure)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create expenditure repository: %w", err)
 	}
 
-	expenditureLineItemRepo, err := repoCreator.CreateRepository("expenditure_line_item", conn, dbTableConfig.ExpenditureLineItem)
+	expenditureLineItemRepo, err := repoCreator.CreateRepository(entityid.ExpenditureLineItem, conn, dbTableConfig.ExpenditureLineItem)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create expenditure_line_item repository: %w", err)
 	}
 
-	expenditureCategoryRepo, err := repoCreator.CreateRepository("expenditure_category", conn, dbTableConfig.ExpenditureCategory)
+	expenditureCategoryRepo, err := repoCreator.CreateRepository(entityid.ExpenditureCategory, conn, dbTableConfig.ExpenditureCategory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create expenditure_category repository: %w", err)
 	}
 
-	expenditureAttributeRepo, err := repoCreator.CreateRepository("expenditure_attribute", conn, dbTableConfig.ExpenditureAttribute)
+	expenditureAttributeRepo, err := repoCreator.CreateRepository(entityid.ExpenditureAttribute, conn, dbTableConfig.ExpenditureAttribute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create expenditure_attribute repository: %w", err)
 	}

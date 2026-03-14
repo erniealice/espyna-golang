@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Workflow domain
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
@@ -39,32 +40,32 @@ func NewWorkflowRepositories(dbProvider contracts.Provider, dbTableConfig *regis
 	conn := repoCreator.GetConnection()
 
 	// Create each repository individually using configured table names directly from dbTableConfig
-	workflowRepo, err := repoCreator.CreateRepository("workflow", conn, dbTableConfig.Workflow)
+	workflowRepo, err := repoCreator.CreateRepository(entityid.Workflow, conn, dbTableConfig.Workflow)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create workflow repository: %w", err)
 	}
 
-	workflowTemplateRepo, err := repoCreator.CreateRepository("workflow_template", conn, dbTableConfig.WorkflowTemplate)
+	workflowTemplateRepo, err := repoCreator.CreateRepository(entityid.WorkflowTemplate, conn, dbTableConfig.WorkflowTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create workflow_template repository: %w", err)
 	}
 
-	stageRepo, err := repoCreator.CreateRepository("stage", conn, dbTableConfig.Stage)
+	stageRepo, err := repoCreator.CreateRepository(entityid.Stage, conn, dbTableConfig.Stage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stage repository: %w", err)
 	}
 
-	stageTemplateRepo, err := repoCreator.CreateRepository("stage_template", conn, dbTableConfig.StageTemplate)
+	stageTemplateRepo, err := repoCreator.CreateRepository(entityid.StageTemplate, conn, dbTableConfig.StageTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stage_template repository: %w", err)
 	}
 
-	activityRepo, err := repoCreator.CreateRepository("activity", conn, dbTableConfig.Activity)
+	activityRepo, err := repoCreator.CreateRepository(entityid.Activity, conn, dbTableConfig.Activity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activity repository: %w", err)
 	}
 
-	activityTemplateRepo, err := repoCreator.CreateRepository("activity_template", conn, dbTableConfig.ActivityTemplate)
+	activityTemplateRepo, err := repoCreator.CreateRepository(entityid.ActivityTemplate, conn, dbTableConfig.ActivityTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activity_template repository: %w", err)
 	}

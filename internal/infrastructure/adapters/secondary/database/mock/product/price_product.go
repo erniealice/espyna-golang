@@ -14,6 +14,7 @@ import (
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // MockPriceProductRepository implements product.PriceProductRepository using stateful mock data
@@ -437,7 +438,7 @@ func NewPriceProductRepository(data map[string]*priceproductpb.PriceProduct) pri
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "price_product", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.PriceProduct, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

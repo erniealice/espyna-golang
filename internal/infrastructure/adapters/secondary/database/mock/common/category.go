@@ -10,11 +10,12 @@ import (
 
 	datamock "leapfor.xyz/copya/golang"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "category", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.Category, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

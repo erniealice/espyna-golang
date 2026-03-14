@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Ledger domain
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
@@ -30,12 +31,12 @@ func NewLedgerRepositories(dbProvider contracts.Provider, dbTableConfig *registr
 
 	conn := repoCreator.GetConnection()
 
-	documentTemplateRepo, err := repoCreator.CreateRepository("document_template", conn, dbTableConfig.DocumentTemplate)
+	documentTemplateRepo, err := repoCreator.CreateRepository(entityid.DocumentTemplate, conn, dbTableConfig.DocumentTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create document template repository: %w", err)
 	}
 
-	attachmentRepo, err := repoCreator.CreateRepository("attachment", conn, dbTableConfig.Attachment)
+	attachmentRepo, err := repoCreator.CreateRepository(entityid.Attachment, conn, dbTableConfig.Attachment)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create attachment repository: %w", err)
 	}

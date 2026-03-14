@@ -6,6 +6,7 @@ import (
 	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // IntegrationPaymentRepository is an alias for the ports interface
@@ -38,7 +39,7 @@ func NewIntegrationPaymentRepository(
 		collectionName = "integration_payment"
 	}
 
-	repo, err := repoCreator.CreateRepository("integration_payment", conn, collectionName)
+	repo, err := repoCreator.CreateRepository(entityid.IntegrationPayment, conn, collectionName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create integration_payment repository: %w", err)
 	}

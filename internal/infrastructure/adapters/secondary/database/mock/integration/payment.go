@@ -10,11 +10,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "integration_payment", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.IntegrationPayment, func(conn any, tableName string) (any, error) {
 		return NewMockIntegrationPaymentRepository(), nil
 	})
 }

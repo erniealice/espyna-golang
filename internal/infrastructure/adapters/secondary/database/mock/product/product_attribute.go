@@ -14,6 +14,7 @@ import (
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // MockProductAttributeRepository implements product.ProductAttributeRepository using stateful mock data
@@ -451,7 +452,7 @@ func NewProductAttributeRepository(data map[string]*productattributepb.ProductAt
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "product_attribute", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.ProductAttribute, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

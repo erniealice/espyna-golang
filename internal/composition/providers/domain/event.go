@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Entity domain
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -40,22 +41,22 @@ func NewEventRepositories(dbProvider contracts.Provider, dbTableConfig *registry
 	conn := repoCreator.GetConnection()
 
 	// Create each repository individually using configured table names directly from dbTableConfig
-	eventRepo, err := repoCreator.CreateRepository("event", conn, dbTableConfig.Event)
+	eventRepo, err := repoCreator.CreateRepository(entityid.Event, conn, dbTableConfig.Event)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event repository: %w", err)
 	}
 
-	eventAttributeRepo, err := repoCreator.CreateRepository("event_attribute", conn, dbTableConfig.EventAttribute)
+	eventAttributeRepo, err := repoCreator.CreateRepository(entityid.EventAttribute, conn, dbTableConfig.EventAttribute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event_attribute repository: %w", err)
 	}
 
-	eventClientRepo, err := repoCreator.CreateRepository("event_client", conn, dbTableConfig.EventClient)
+	eventClientRepo, err := repoCreator.CreateRepository(entityid.EventClient, conn, dbTableConfig.EventClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event_client repository: %w", err)
 	}
 
-	clientRepo, err := repoCreator.CreateRepository("client", conn, dbTableConfig.Client)
+	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, dbTableConfig.Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client repository: %w", err)
 	}

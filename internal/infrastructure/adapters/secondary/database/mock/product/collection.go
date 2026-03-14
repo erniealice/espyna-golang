@@ -14,6 +14,7 @@ import (
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // MockCollectionRepository implements product.CollectionRepository using stateful mock data
@@ -409,7 +410,7 @@ func NewCollectionRepository(businessType string) collectionpb.CollectionDomainS
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", "collection", func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock", entityid.Collection, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

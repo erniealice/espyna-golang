@@ -32,9 +32,9 @@ var (
 	GetDatabaseConfigTransformer      = internal.GetDatabaseConfigTransformer
 	TransformDatabaseConfig           = internal.TransformDatabaseConfig
 
-	RegisterDatabaseBuildFromEnv     = internal.RegisterDatabaseBuildFromEnv
-	GetDatabaseBuildFromEnv          = internal.GetDatabaseBuildFromEnv
-	BuildDatabaseProviderFromEnv     = internal.BuildDatabaseProviderFromEnv
+	RegisterDatabaseBuildFromEnv      = internal.RegisterDatabaseBuildFromEnv
+	GetDatabaseBuildFromEnv           = internal.GetDatabaseBuildFromEnv
+	BuildDatabaseProviderFromEnv      = internal.BuildDatabaseProviderFromEnv
 	ListAvailableDatabaseBuildFromEnv = internal.ListAvailableDatabaseBuildFromEnv
 
 	ListAvailableDatabaseProviderFactories = internal.ListAvailableDatabaseProviderFactories
@@ -75,10 +75,10 @@ var (
 type DatabaseOperationsFactory = internal.DatabaseOperationsFactory
 
 var (
-	RegisterDatabaseOperationsFactory  = internal.RegisterDatabaseOperationsFactory
-	GetDatabaseOperationsFactory       = internal.GetDatabaseOperationsFactory
-	CreateDatabaseOperations           = internal.CreateDatabaseOperations
-	ListDatabaseOperationsFactories    = internal.ListDatabaseOperationsFactories
+	RegisterDatabaseOperationsFactory = internal.RegisterDatabaseOperationsFactory
+	GetDatabaseOperationsFactory      = internal.GetDatabaseOperationsFactory
+	CreateDatabaseOperations          = internal.CreateDatabaseOperations
+	ListDatabaseOperationsFactories   = internal.ListDatabaseOperationsFactories
 )
 
 // =============================================================================
@@ -96,9 +96,9 @@ var (
 	GetStorageConfigTransformer      = internal.GetStorageConfigTransformer
 	TransformStorageConfig           = internal.TransformStorageConfig
 
-	RegisterStorageBuildFromEnv     = internal.RegisterStorageBuildFromEnv
-	GetStorageBuildFromEnv          = internal.GetStorageBuildFromEnv
-	BuildStorageProviderFromEnv     = internal.BuildStorageProviderFromEnv
+	RegisterStorageBuildFromEnv      = internal.RegisterStorageBuildFromEnv
+	GetStorageBuildFromEnv           = internal.GetStorageBuildFromEnv
+	BuildStorageProviderFromEnv      = internal.BuildStorageProviderFromEnv
 	ListAvailableStorageBuildFromEnv = internal.ListAvailableStorageBuildFromEnv
 
 	ListAvailableStorageProviderFactories = internal.ListAvailableStorageProviderFactories
@@ -119,9 +119,9 @@ var (
 	GetAuthConfigTransformer      = internal.GetAuthConfigTransformer
 	TransformAuthConfig           = internal.TransformAuthConfig
 
-	RegisterAuthBuildFromEnv     = internal.RegisterAuthBuildFromEnv
-	GetAuthBuildFromEnv          = internal.GetAuthBuildFromEnv
-	BuildAuthProviderFromEnv     = internal.BuildAuthProviderFromEnv
+	RegisterAuthBuildFromEnv      = internal.RegisterAuthBuildFromEnv
+	GetAuthBuildFromEnv           = internal.GetAuthBuildFromEnv
+	BuildAuthProviderFromEnv      = internal.BuildAuthProviderFromEnv
 	ListAvailableAuthBuildFromEnv = internal.ListAvailableAuthBuildFromEnv
 
 	ListAvailableAuthProviderFactories = internal.ListAvailableAuthProviderFactories
@@ -142,9 +142,9 @@ var (
 	GetEmailConfigTransformer      = internal.GetEmailConfigTransformer
 	TransformEmailConfig           = internal.TransformEmailConfig
 
-	RegisterEmailBuildFromEnv     = internal.RegisterEmailBuildFromEnv
-	GetEmailBuildFromEnv          = internal.GetEmailBuildFromEnv
-	BuildEmailProviderFromEnv     = internal.BuildEmailProviderFromEnv
+	RegisterEmailBuildFromEnv      = internal.RegisterEmailBuildFromEnv
+	GetEmailBuildFromEnv           = internal.GetEmailBuildFromEnv
+	BuildEmailProviderFromEnv      = internal.BuildEmailProviderFromEnv
 	ListAvailableEmailBuildFromEnv = internal.ListAvailableEmailBuildFromEnv
 
 	ListAvailableEmailProviderFactories = internal.ListAvailableEmailProviderFactories
@@ -166,9 +166,9 @@ var (
 	GetTabularConfigTransformer      = internal.GetTabularConfigTransformer
 	TransformTabularConfig           = internal.TransformTabularConfig
 
-	RegisterTabularBuildFromEnv     = internal.RegisterTabularBuildFromEnv
-	GetTabularBuildFromEnv          = internal.GetTabularBuildFromEnv
-	BuildTabularProviderFromEnv     = internal.BuildTabularProviderFromEnv
+	RegisterTabularBuildFromEnv      = internal.RegisterTabularBuildFromEnv
+	GetTabularBuildFromEnv           = internal.GetTabularBuildFromEnv
+	BuildTabularProviderFromEnv      = internal.BuildTabularProviderFromEnv
 	ListAvailableTabularBuildFromEnv = internal.ListAvailableTabularBuildFromEnv
 
 	ListAvailableTabularProviderFactories = internal.ListAvailableTabularProviderFactories
@@ -183,9 +183,9 @@ var (
 	RegisterServerProviderFactory = internal.RegisterServerProviderFactory
 	GetServerProviderFactory      = internal.GetServerProviderFactory
 
-	RegisterServerBuildFromEnv     = internal.RegisterServerBuildFromEnv
-	GetServerBuildFromEnv          = internal.GetServerBuildFromEnv
-	BuildServerProviderFromEnv     = internal.BuildServerProviderFromEnv
+	RegisterServerBuildFromEnv      = internal.RegisterServerBuildFromEnv
+	GetServerBuildFromEnv           = internal.GetServerBuildFromEnv
+	BuildServerProviderFromEnv      = internal.BuildServerProviderFromEnv
 	ListAvailableServerBuildFromEnv = internal.ListAvailableServerBuildFromEnv
 
 	ListAvailableServerProviderFactories = internal.ListAvailableServerProviderFactories

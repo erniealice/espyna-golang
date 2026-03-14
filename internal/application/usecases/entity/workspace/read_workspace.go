@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
@@ -64,7 +64,7 @@ func (uc *ReadWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.Re
 		return nil, err
 	}
 
-		if err := uc.validateInput(ctx, req); err != nil {
+	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err
 	}
 

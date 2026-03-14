@@ -19,8 +19,8 @@ type ReadBalanceAttributeRepositories struct {
 // ReadBalanceAttributeServices groups all business service dependencies
 type ReadBalanceAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadBalanceAttributeUseCase handles the business logic for reading balance attributes

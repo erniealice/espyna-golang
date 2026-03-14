@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
 
@@ -20,8 +20,8 @@ type DeleteDelegateAttributeRepositories struct {
 // DeleteDelegateAttributeServices groups all business service dependencies
 type DeleteDelegateAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteDelegateAttributeUseCase handles the business logic for deleting delegate attributes
@@ -51,8 +51,8 @@ func NewDeleteDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateat
 
 	services := DeleteDelegateAttributeServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewDeleteDelegateAttributeUseCase(repositories, services)

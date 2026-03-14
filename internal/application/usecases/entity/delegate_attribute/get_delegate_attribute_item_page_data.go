@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
 
@@ -21,8 +21,8 @@ type GetDelegateAttributeItemPageDataRepositories struct {
 // GetDelegateAttributeItemPageDataServices groups all business service dependencies
 type GetDelegateAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetDelegateAttributeItemPageDataUseCase handles the business logic for getting delegate attribute item page data
@@ -52,8 +52,8 @@ func NewGetDelegateAttributeItemPageDataUseCaseUngrouped(delegateAttributeRepo d
 
 	services := GetDelegateAttributeItemPageDataServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewGetDelegateAttributeItemPageDataUseCase(repositories, services)

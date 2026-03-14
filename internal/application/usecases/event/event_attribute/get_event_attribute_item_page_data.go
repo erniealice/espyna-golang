@@ -18,8 +18,8 @@ type GetEventAttributeItemPageDataRepositories struct {
 
 type GetEventAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetEventAttributeItemPageDataUseCase handles the business logic for getting event attribute item page data

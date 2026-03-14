@@ -8,8 +8,8 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
 )
 
@@ -119,4 +119,3 @@ func (uc *GetRolePermissionItemPageDataUseCase) validateInput(ctx context.Contex
 
 	return nil
 }
-

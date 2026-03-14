@@ -60,7 +60,6 @@ func (uc *CreateBalanceAttributeUseCase) Execute(ctx context.Context, req *balan
 		return nil, err
 	}
 
-
 	// Business logic and enrichment
 	if err := uc.enrichBalanceAttributeData(req.Data); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")

@@ -30,10 +30,10 @@ package user
 import (
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // createTestDeleteUserUseCase is a helper function to create the use case with mock dependencies

@@ -16,8 +16,8 @@ type ReadSubscriptionRepositories struct {
 
 type ReadSubscriptionServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadSubscriptionUseCase handles the business logic for reading subscriptions

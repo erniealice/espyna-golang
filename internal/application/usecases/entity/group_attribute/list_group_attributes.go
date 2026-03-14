@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
 
@@ -20,8 +20,8 @@ type ListGroupAttributesRepositories struct {
 // ListGroupAttributesServices groups all business service dependencies
 type ListGroupAttributesServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListGroupAttributesUseCase handles the business logic for listing group attributes
@@ -51,8 +51,8 @@ func NewListGroupAttributesUseCaseUngrouped(groupAttributeRepo groupattributepb.
 
 	services := ListGroupAttributesServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewListGroupAttributesUseCase(repositories, services)

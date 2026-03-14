@@ -68,7 +68,7 @@ func (uc *CreateAttributeUseCase) Execute(ctx context.Context, req *attributepb.
 		return nil, err
 	}
 
-		// Check if transaction service is available and supports transactions
+	// Check if transaction service is available and supports transactions
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}

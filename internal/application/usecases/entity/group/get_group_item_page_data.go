@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
 
@@ -21,8 +21,8 @@ type GetGroupItemPageDataRepositories struct {
 // GetGroupItemPageDataServices groups all business service dependencies
 type GetGroupItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetGroupItemPageDataUseCase handles the business logic for getting group item page data
@@ -52,8 +52,8 @@ func NewGetGroupItemPageDataUseCaseUngrouped(groupRepo grouppb.GroupDomainServic
 
 	services := GetGroupItemPageDataServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewGetGroupItemPageDataUseCase(repositories, services)

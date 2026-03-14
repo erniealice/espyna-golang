@@ -17,8 +17,8 @@ type ListSubscriptionsRepositories struct {
 
 type ListSubscriptionsServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListSubscriptionsUseCase handles the business logic for listing subscriptions

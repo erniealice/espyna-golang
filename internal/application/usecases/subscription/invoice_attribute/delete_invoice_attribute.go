@@ -19,8 +19,8 @@ type DeleteInvoiceAttributeRepositories struct {
 // DeleteInvoiceAttributeServices groups all business service dependencies
 type DeleteInvoiceAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteInvoiceAttributeUseCase handles the business logic for deleting invoice attributes

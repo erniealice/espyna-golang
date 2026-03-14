@@ -25,8 +25,8 @@ type UpdateBalanceAttributeRepositories struct {
 // UpdateBalanceAttributeServices groups all business service dependencies
 type UpdateBalanceAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdateBalanceAttributeUseCase handles the business logic for updating balance attributes

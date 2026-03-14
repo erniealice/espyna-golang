@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 )
 
 // GetGrossProfitReportUseCase handles the business logic for generating a gross profit report.

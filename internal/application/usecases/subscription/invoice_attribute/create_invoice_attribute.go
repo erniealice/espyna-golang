@@ -60,7 +60,6 @@ func (uc *CreateInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoi
 		return nil, err
 	}
 
-
 	// Business logic and enrichment
 	if err := uc.enrichInvoiceAttributeData(req.Data); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")

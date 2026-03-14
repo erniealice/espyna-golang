@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
 
@@ -21,8 +21,8 @@ type GetGroupAttributeItemPageDataRepositories struct {
 // GetGroupAttributeItemPageDataServices groups all business service dependencies
 type GetGroupAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetGroupAttributeItemPageDataUseCase handles the business logic for getting group attribute item page data
@@ -52,8 +52,8 @@ func NewGetGroupAttributeItemPageDataUseCaseUngrouped(groupAttributeRepo groupat
 
 	services := GetGroupAttributeItemPageDataServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewGetGroupAttributeItemPageDataUseCase(repositories, services)

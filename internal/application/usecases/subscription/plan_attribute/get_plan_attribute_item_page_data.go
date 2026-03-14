@@ -20,8 +20,8 @@ type GetPlanAttributeItemPageDataRepositories struct {
 // GetPlanAttributeItemPageDataServices groups all business service dependencies
 type GetPlanAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetPlanAttributeItemPageDataUseCase handles the business logic for getting plan attribute item page data

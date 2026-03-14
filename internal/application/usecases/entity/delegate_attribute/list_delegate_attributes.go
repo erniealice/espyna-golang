@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
 
@@ -20,8 +20,8 @@ type ListDelegateAttributesRepositories struct {
 // ListDelegateAttributesServices groups all business service dependencies
 type ListDelegateAttributesServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListDelegateAttributesUseCase handles the business logic for listing delegate attributes
@@ -51,8 +51,8 @@ func NewListDelegateAttributesUseCaseUngrouped(delegateAttributeRepo delegateatt
 
 	services := ListDelegateAttributesServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewListDelegateAttributesUseCase(repositories, services)

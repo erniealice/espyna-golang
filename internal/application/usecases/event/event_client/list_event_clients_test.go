@@ -30,11 +30,11 @@ import (
 	"context"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mockEntity "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
 	mockEvent "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/event"
 	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for list event clients test cases

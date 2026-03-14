@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
 
@@ -20,8 +20,8 @@ type DeleteStaffAttributeRepositories struct {
 // DeleteStaffAttributeServices groups all business service dependencies
 type DeleteStaffAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteStaffAttributeUseCase handles the business logic for deleting staff attributes
@@ -51,8 +51,8 @@ func NewDeleteStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb
 
 	services := DeleteStaffAttributeServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewDeleteStaffAttributeUseCase(repositories, services)

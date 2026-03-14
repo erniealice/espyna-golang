@@ -15,11 +15,11 @@ type (
 
 // Query types
 type (
-	QueryBuilder      = internal.QueryBuilder
-	QueryFilter       = internal.QueryFilter
-	QueryCondition    = internal.QueryCondition
-	OrderByClause     = internal.OrderByClause
-	CompositeKeyQuery = internal.CompositeKeyQuery
+	QueryBuilder       = internal.QueryBuilder
+	QueryFilter        = internal.QueryFilter
+	QueryCondition     = internal.QueryCondition
+	OrderByClause      = internal.OrderByClause
+	CompositeKeyQuery  = internal.CompositeKeyQuery
 	SimpleQueryBuilder = internal.SimpleQueryBuilder
 )
 

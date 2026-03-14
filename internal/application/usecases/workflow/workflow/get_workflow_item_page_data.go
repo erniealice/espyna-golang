@@ -17,8 +17,8 @@ type GetWorkflowItemPageDataRepositories struct {
 
 type GetWorkflowItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetWorkflowItemPageDataUseCase handles the business logic for getting workflow item page data

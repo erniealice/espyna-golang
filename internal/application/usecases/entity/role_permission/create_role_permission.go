@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
@@ -79,8 +79,6 @@ func (uc *CreateRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 		ports.EntityRolePermission, ports.ActionCreate); err != nil {
 		return nil, err
 	}
-
-	
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

@@ -25,6 +25,7 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/product_variant"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/product_variant_image"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/product_variant_option"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/operation"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/subscription"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/treasury"
 )

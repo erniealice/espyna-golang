@@ -21,8 +21,8 @@ type GetLicenseListPageDataRepositories struct {
 // GetLicenseListPageDataServices groups all business service dependencies
 type GetLicenseListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetLicenseListPageDataUseCase handles the business logic for getting license list page data

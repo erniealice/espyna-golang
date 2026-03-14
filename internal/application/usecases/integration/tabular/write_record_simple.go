@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"google.golang.org/protobuf/types/known/structpb"
 	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	tabularpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/tabular"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // WriteRecordSimpleRepositories groups all repository dependencies

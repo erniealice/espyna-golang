@@ -71,6 +71,14 @@ type DatabaseTableConfig struct {
 	StageTemplate    string
 	ActivityTemplate string
 
+	// Operation tables - Jobs and job templates
+	Job              string
+	JobPhase         string
+	JobTask          string
+	JobTemplate      string
+	JobTemplatePhase string
+	JobTemplateTask  string
+
 	// Revenue tables - Revenue management
 	Revenue          string
 	RevenueAttribute string
@@ -174,6 +182,14 @@ func DefaultDatabaseTableConfig() DatabaseTableConfig {
 		Activity:         "activity",
 		StageTemplate:    "stage_template",
 		ActivityTemplate: "activity_template",
+
+		// Operation tables
+		Job:              "job",
+		JobPhase:         "job_phase",
+		JobTask:          "job_task",
+		JobTemplate:      "job_template",
+		JobTemplatePhase: "job_template_phase",
+		JobTemplateTask:  "job_template_task",
 
 		// Revenue tables
 		Revenue:          "revenue",

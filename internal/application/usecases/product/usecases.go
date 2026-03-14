@@ -44,42 +44,42 @@ import (
 
 // ProductRepositories contains all product domain repositories
 type ProductRepositories struct {
-	Collection          collectionpb.CollectionDomainServiceServer
-	CollectionAttribute collectionattributepb.CollectionAttributeDomainServiceServer
-	CollectionPlan      collectionplanpb.CollectionPlanDomainServiceServer
-	PriceList           pricelistpb.PriceListDomainServiceServer
-	PriceProduct        priceproductpb.PriceProductDomainServiceServer
-	Product             productpb.ProductDomainServiceServer
-	ProductAttribute    productattributepb.ProductAttributeDomainServiceServer
-	ProductCollection   productcollectionpb.ProductCollectionDomainServiceServer
-	ProductOption       productoptionpb.ProductOptionDomainServiceServer
-	ProductOptionValue  productoptionvaluepb.ProductOptionValueDomainServiceServer
-	ProductPlan         productplanpb.ProductPlanDomainServiceServer
-	ProductVariant      productvariantpb.ProductVariantDomainServiceServer
-	ProductVariantImage productvariantimagepb.ProductVariantImageDomainServiceServer
+	Collection           collectionpb.CollectionDomainServiceServer
+	CollectionAttribute  collectionattributepb.CollectionAttributeDomainServiceServer
+	CollectionPlan       collectionplanpb.CollectionPlanDomainServiceServer
+	PriceList            pricelistpb.PriceListDomainServiceServer
+	PriceProduct         priceproductpb.PriceProductDomainServiceServer
+	Product              productpb.ProductDomainServiceServer
+	ProductAttribute     productattributepb.ProductAttributeDomainServiceServer
+	ProductCollection    productcollectionpb.ProductCollectionDomainServiceServer
+	ProductOption        productoptionpb.ProductOptionDomainServiceServer
+	ProductOptionValue   productoptionvaluepb.ProductOptionValueDomainServiceServer
+	ProductPlan          productplanpb.ProductPlanDomainServiceServer
+	ProductVariant       productvariantpb.ProductVariantDomainServiceServer
+	ProductVariantImage  productvariantimagepb.ProductVariantImageDomainServiceServer
 	ProductVariantOption productvariantoptionpb.ProductVariantOptionDomainServiceServer
-	Resource            resourcepb.ResourceDomainServiceServer
+	Resource             resourcepb.ResourceDomainServiceServer
 	// Cross-domain dependency
 	Attribute attributepb.AttributeDomainServiceServer
 }
 
 // ProductUseCases contains all product-related use cases
 type ProductUseCases struct {
-	Collection          *collectionUseCases.UseCases
-	CollectionAttribute *collectionAttributeUseCases.UseCases
-	CollectionPlan      *collectionPlanUseCases.UseCases
-	PriceList           *priceListUseCases.UseCases
-	PriceProduct        *priceProductUseCases.UseCases
-	Product             *productUseCases.UseCases
-	ProductAttribute    *productAttributeUseCases.UseCases
-	ProductCollection   *productCollectionUseCases.UseCases
-	ProductOption       *productOptionUC.UseCases
-	ProductOptionValue  *productOptionValueUC.UseCases
-	ProductPlan         *productPlanUseCases.UseCases
-	ProductVariant      *productVariantUC.UseCases
-	ProductVariantImage *productVariantImageUC.UseCases
+	Collection           *collectionUseCases.UseCases
+	CollectionAttribute  *collectionAttributeUseCases.UseCases
+	CollectionPlan       *collectionPlanUseCases.UseCases
+	PriceList            *priceListUseCases.UseCases
+	PriceProduct         *priceProductUseCases.UseCases
+	Product              *productUseCases.UseCases
+	ProductAttribute     *productAttributeUseCases.UseCases
+	ProductCollection    *productCollectionUseCases.UseCases
+	ProductOption        *productOptionUC.UseCases
+	ProductOptionValue   *productOptionValueUC.UseCases
+	ProductPlan          *productPlanUseCases.UseCases
+	ProductVariant       *productVariantUC.UseCases
+	ProductVariantImage  *productVariantImageUC.UseCases
 	ProductVariantOption *productVariantOptionUC.UseCases
-	Resource            *resourceUseCases.UseCases
+	Resource             *resourceUseCases.UseCases
 }
 
 // NewUseCases creates all product use cases with proper constructor injection

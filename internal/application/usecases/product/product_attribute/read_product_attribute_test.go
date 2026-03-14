@@ -37,11 +37,11 @@ import (
 	"context"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for read product attribute test cases

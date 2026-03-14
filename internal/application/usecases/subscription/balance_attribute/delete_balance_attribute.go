@@ -19,8 +19,8 @@ type DeleteBalanceAttributeRepositories struct {
 // DeleteBalanceAttributeServices groups all business service dependencies
 type DeleteBalanceAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteBalanceAttributeUseCase handles the business logic for deleting balance attributes

@@ -16,8 +16,8 @@ type DeleteSubscriptionRepositories struct {
 
 type DeleteSubscriptionServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteSubscriptionUseCase handles the business logic for deleting subscriptions

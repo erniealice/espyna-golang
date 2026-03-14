@@ -18,8 +18,8 @@ type GetSubscriptionListPageDataRepositories struct {
 
 type GetSubscriptionListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetSubscriptionListPageDataUseCase handles the business logic for getting subscription list page data

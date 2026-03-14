@@ -17,8 +17,8 @@ type GetProductAttributeItemPageDataRepositories struct {
 
 type GetProductAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetProductAttributeItemPageDataUseCase handles the business logic for getting product attribute item page data

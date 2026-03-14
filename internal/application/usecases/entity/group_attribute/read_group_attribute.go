@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
 
@@ -19,8 +19,8 @@ type ReadGroupAttributeRepositories struct {
 // ReadGroupAttributeServices groups all business service dependencies
 type ReadGroupAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadGroupAttributeUseCase handles the business logic for reading group attributes
@@ -50,8 +50,8 @@ func NewReadGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb.G
 
 	services := ReadGroupAttributeServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewReadGroupAttributeUseCase(repositories, services)

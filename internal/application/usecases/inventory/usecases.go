@@ -2,22 +2,22 @@ package inventory
 
 import (
 	// Inventory use cases
-	inventoryItemUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_item"
-	inventorySerialUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_serial"
-	inventoryTransactionUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_transaction"
 	inventoryAttributeUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_attribute"
 	inventoryDepreciationUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_depreciation"
+	inventoryItemUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_item"
+	inventorySerialUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_serial"
 	serialHistoryUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_serial_history"
+	inventoryTransactionUC "github.com/erniealice/espyna-golang/internal/application/usecases/inventory/inventory_transaction"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Protobuf domain services for inventory repositories
+	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
+	inventorydepreciationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_depreciation"
 	inventoryitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_item"
 	inventoryserialpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_serial"
 	inventorytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_transaction"
-	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
-	inventorydepreciationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_depreciation"
 	serialhistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/serial_history"
 )
 

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	"google.golang.org/protobuf/proto"
 )
 
 type GetEventItemPageDataRepositories struct {

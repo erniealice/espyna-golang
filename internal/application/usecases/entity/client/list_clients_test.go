@@ -28,9 +28,9 @@ package client
 import (
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )

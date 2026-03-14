@@ -25,8 +25,8 @@ type UpdateSubscriptionAttributeRepositories struct {
 // UpdateSubscriptionAttributeServices groups all business service dependencies
 type UpdateSubscriptionAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdateSubscriptionAttributeUseCase handles the business logic for updating subscription attributes

@@ -19,8 +19,8 @@ type ReadSubscriptionAttributeRepositories struct {
 // ReadSubscriptionAttributeServices groups all business service dependencies
 type ReadSubscriptionAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadSubscriptionAttributeUseCase handles the business logic for reading subscription attributes

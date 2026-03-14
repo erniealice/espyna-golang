@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // UpdateResourceUseCase handles the business logic for updating resources

@@ -9,10 +9,11 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 )
 
@@ -37,6 +38,7 @@ type Aggregate struct {
 	Expenditure  *expenditure.ExpenditureUseCases
 	Inventory    *inventory.InventoryUseCases
 	Ledger       *ledger.LedgerUseCases
+	Operation    *operation.OperationUseCases
 	Treasury     *treasury.TreasuryUseCases
 	Product      *product.ProductUseCases
 	Revenue      *revenue.RevenueUseCases
@@ -57,6 +59,7 @@ func NewAggregate(
 	expenditureUC *expenditure.ExpenditureUseCases,
 	inventoryUC *inventory.InventoryUseCases,
 	ledgerUC *ledger.LedgerUseCases,
+	operationUC *operation.OperationUseCases,
 	treasuryUC *treasury.TreasuryUseCases,
 	productUC *product.ProductUseCases,
 	revenueUC *revenue.RevenueUseCases,
@@ -71,6 +74,7 @@ func NewAggregate(
 		Expenditure:  expenditureUC,
 		Inventory:    inventoryUC,
 		Ledger:       ledgerUC,
+		Operation:    operationUC,
 		Treasury:     treasuryUC,
 		Product:      productUC,
 		Revenue:      revenueUC,
@@ -90,6 +94,7 @@ func NewEmptyAggregate() *Aggregate {
 		Expenditure:  &expenditure.ExpenditureUseCases{},
 		Inventory:    &inventory.InventoryUseCases{},
 		Ledger:       &ledger.LedgerUseCases{},
+		Operation:    &operation.OperationUseCases{},
 		Treasury:     &treasury.TreasuryUseCases{},
 		Product:      &product.ProductUseCases{},
 		Revenue:      &revenue.RevenueUseCases{},

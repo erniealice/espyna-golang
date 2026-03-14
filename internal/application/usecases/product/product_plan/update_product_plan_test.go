@@ -42,10 +42,10 @@ import (
 	"strings"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mockProduct "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for update product plan test cases

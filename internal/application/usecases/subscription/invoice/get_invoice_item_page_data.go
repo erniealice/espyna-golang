@@ -48,7 +48,6 @@ func (uc *GetInvoiceItemPageDataUseCase) Execute(ctx context.Context, req *invoi
 		return nil, err
 	}
 
-
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.request_required", "Request is required for invoice item page data"))

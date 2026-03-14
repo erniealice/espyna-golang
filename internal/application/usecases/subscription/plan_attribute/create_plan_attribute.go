@@ -60,7 +60,6 @@ func (uc *CreatePlanAttributeUseCase) Execute(ctx context.Context, req *planattr
 		return nil, err
 	}
 
-
 	// Business logic and enrichment
 	if err := uc.enrichPlanAttributeData(req.Data); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")

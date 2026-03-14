@@ -63,7 +63,7 @@ func (uc *DeleteAttributeUseCase) Execute(ctx context.Context, req *attributepb.
 		return nil, err
 	}
 
-		// Input validation
+	// Input validation
 	if err := uc.validateInput(req); err != nil {
 		return nil, err
 	}

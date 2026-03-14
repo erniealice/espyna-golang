@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
 
@@ -19,8 +19,8 @@ type ReadDelegateAttributeRepositories struct {
 // ReadDelegateAttributeServices groups all business service dependencies
 type ReadDelegateAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadDelegateAttributeUseCase handles the business logic for reading delegate attributes
@@ -50,8 +50,8 @@ func NewReadDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateattr
 
 	services := ReadDelegateAttributeServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewReadDelegateAttributeUseCase(repositories, services)

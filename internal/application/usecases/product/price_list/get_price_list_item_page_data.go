@@ -19,8 +19,8 @@ type GetPriceListItemPageDataRepositories struct {
 
 type GetPriceListItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetPriceListItemPageDataUseCase handles the business logic for getting price list item page data

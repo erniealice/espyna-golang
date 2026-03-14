@@ -18,8 +18,8 @@ type ListInvoiceAttributesRepositories struct {
 // ListInvoiceAttributesServices groups all business service dependencies
 type ListInvoiceAttributesServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListInvoiceAttributesUseCase handles the business logic for listing invoice attributes

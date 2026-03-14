@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
 
@@ -19,8 +19,8 @@ type ListLocationAttributesRepositories struct {
 // ListLocationAttributesServices groups all business service dependencies
 type ListLocationAttributesServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService // Current: Database transactions
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService // Current: Database transactions
+	TranslationService   ports.TranslationService
 }
 
 // ListLocationAttributesUseCase handles the business logic for listing location attributes
@@ -52,8 +52,8 @@ func NewListLocationAttributesUseCaseUngrouped(
 
 	services := ListLocationAttributesServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewListLocationAttributesUseCase(repositories, services)

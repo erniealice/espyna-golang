@@ -19,8 +19,8 @@ type GetCollectionPlanListPageDataRepositories struct {
 
 type GetCollectionPlanListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetCollectionPlanListPageDataUseCase handles the business logic for getting collection plan list page data

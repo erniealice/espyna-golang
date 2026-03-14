@@ -37,10 +37,10 @@ import (
 	"context"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for list resources test cases

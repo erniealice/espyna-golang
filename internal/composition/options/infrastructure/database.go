@@ -320,6 +320,14 @@ func createTableConfig(dbType string) appConfig.DatabaseTableConfig {
 		StageTemplate:    GetEnv(prefix+"STAGE_TEMPLATE", "stage_template"),
 		ActivityTemplate: GetEnv(prefix+"ACTIVITY_TEMPLATE", "activity_template"),
 
+		// Operation tables/collections
+		Job:              GetEnv(prefix+"JOB", "job"),
+		JobPhase:         GetEnv(prefix+"JOB_PHASE", "job_phase"),
+		JobTask:          GetEnv(prefix+"JOB_TASK", "job_task"),
+		JobTemplate:      GetEnv(prefix+"JOB_TEMPLATE", "job_template"),
+		JobTemplatePhase: GetEnv(prefix+"JOB_TEMPLATE_PHASE", "job_template_phase"),
+		JobTemplateTask:  GetEnv(prefix+"JOB_TEMPLATE_TASK", "job_template_task"),
+
 		// Subscription tables/collections
 		Plan:                  GetEnv(prefix+"PLAN", "plan"),
 		PlanAttribute:         GetEnv(prefix+"PLAN_ATTRIBUTE", "plan_attribute"),

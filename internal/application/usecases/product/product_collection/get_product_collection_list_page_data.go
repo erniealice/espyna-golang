@@ -19,8 +19,8 @@ type GetProductCollectionListPageDataRepositories struct {
 
 type GetProductCollectionListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetProductCollectionListPageDataUseCase handles the business logic for getting product collection list page data

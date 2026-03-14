@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // GenericExecutor wraps a standard use case Execute method to implement

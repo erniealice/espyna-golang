@@ -18,8 +18,8 @@ type ListPlanAttributesRepositories struct {
 // ListPlanAttributesServices groups all business service dependencies
 type ListPlanAttributesServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListPlanAttributesUseCase handles the business logic for listing plan attributes

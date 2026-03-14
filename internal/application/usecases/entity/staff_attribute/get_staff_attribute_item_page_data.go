@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
 
@@ -21,8 +21,8 @@ type GetStaffAttributeItemPageDataRepositories struct {
 // GetStaffAttributeItemPageDataServices groups all business service dependencies
 type GetStaffAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetStaffAttributeItemPageDataUseCase handles the business logic for getting staff attribute item page data
@@ -52,8 +52,8 @@ func NewGetStaffAttributeItemPageDataUseCaseUngrouped(staffAttributeRepo staffat
 
 	services := GetStaffAttributeItemPageDataServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewGetStaffAttributeItemPageDataUseCase(repositories, services)

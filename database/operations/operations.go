@@ -13,11 +13,11 @@ type (
 )
 
 var (
-	NewProtobufTimestamp   = internal.NewProtobufTimestamp
-	ConvertToProtobufMap   = internal.ConvertToProtobufMap
-	NewProtobufMapper      = internal.NewProtobufMapper
-	TimestampFromTime      = internal.TimestampFromTime
-	ParseTimestamp         = internal.ParseTimestamp
+	NewProtobufTimestamp = internal.NewProtobufTimestamp
+	ConvertToProtobufMap = internal.ConvertToProtobufMap
+	NewProtobufMapper    = internal.NewProtobufMapper
+	TimestampFromTime    = internal.TimestampFromTime
+	ParseTimestamp       = internal.ParseTimestamp
 )
 
 // Generic protobuf conversion wrappers (generic funcs cannot be assigned to vars).
@@ -39,9 +39,9 @@ var NewQueryBuilder = internal.NewQueryBuilder
 
 // Transaction context helpers
 var (
-	WithTransaction                   = internal.WithTransaction
-	GetTransactionFromContext         = internal.GetTransactionFromContext
-	WithTransactionManager            = internal.WithTransactionManager
-	GetTransactionManagerFromContext   = internal.GetTransactionManagerFromContext
-	IsTransactionContext              = internal.IsTransactionContext
+	WithTransaction                  = internal.WithTransaction
+	GetTransactionFromContext        = internal.GetTransactionFromContext
+	WithTransactionManager           = internal.WithTransactionManager
+	GetTransactionManagerFromContext = internal.GetTransactionManagerFromContext
+	IsTransactionContext             = internal.IsTransactionContext
 )

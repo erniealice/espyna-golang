@@ -19,8 +19,8 @@ type DeletePlanAttributeRepositories struct {
 // DeletePlanAttributeServices groups all business service dependencies
 type DeletePlanAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeletePlanAttributeUseCase handles the business logic for deleting plan attributes

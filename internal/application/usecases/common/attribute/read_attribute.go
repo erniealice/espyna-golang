@@ -62,7 +62,7 @@ func (uc *ReadAttributeUseCase) Execute(ctx context.Context, req *attributepb.Re
 		return nil, err
 	}
 
-		// Input validation
+	// Input validation
 	if err := uc.validateInput(req); err != nil {
 		return nil, err
 	}

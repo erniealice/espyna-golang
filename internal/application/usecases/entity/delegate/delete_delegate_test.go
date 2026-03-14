@@ -36,11 +36,11 @@ import (
 	"context"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/entity"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for delete delegate test cases

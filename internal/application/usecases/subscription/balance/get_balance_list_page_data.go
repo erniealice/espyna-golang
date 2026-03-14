@@ -19,8 +19,8 @@ type GetBalanceListPageDataRepositories struct {
 
 type GetBalanceListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetBalanceListPageDataUseCase handles the business logic for getting balance list page data

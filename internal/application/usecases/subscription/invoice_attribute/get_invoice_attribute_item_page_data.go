@@ -20,8 +20,8 @@ type GetInvoiceAttributeItemPageDataRepositories struct {
 // GetInvoiceAttributeItemPageDataServices groups all business service dependencies
 type GetInvoiceAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetInvoiceAttributeItemPageDataUseCase handles the business logic for getting invoice attribute item page data

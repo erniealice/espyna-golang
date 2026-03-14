@@ -18,8 +18,8 @@ type ListBalanceAttributesRepositories struct {
 // ListBalanceAttributesServices groups all business service dependencies
 type ListBalanceAttributesServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListBalanceAttributesUseCase handles the business logic for listing balance attributes

@@ -22,8 +22,8 @@ type UpdateSubscriptionRepositories struct {
 
 type UpdateSubscriptionServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdateSubscriptionUseCase handles the business logic for updating subscriptions

@@ -18,8 +18,8 @@ type ListSubscriptionAttributesRepositories struct {
 // ListSubscriptionAttributesServices groups all business service dependencies
 type ListSubscriptionAttributesServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ListSubscriptionAttributesUseCase handles the business logic for listing subscription attributes

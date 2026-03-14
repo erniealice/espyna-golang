@@ -19,8 +19,8 @@ type ReadInvoiceAttributeRepositories struct {
 // ReadInvoiceAttributeServices groups all business service dependencies
 type ReadInvoiceAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadInvoiceAttributeUseCase handles the business logic for reading invoice attributes

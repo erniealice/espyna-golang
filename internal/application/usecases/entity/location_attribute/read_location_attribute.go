@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
 
@@ -18,8 +18,8 @@ type ReadLocationAttributeRepositories struct {
 // ReadLocationAttributeServices groups all business service dependencies
 type ReadLocationAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService // Current: Database transactions
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService // Current: Database transactions
+	TranslationService   ports.TranslationService
 }
 
 // ReadLocationAttributeUseCase handles the business logic for reading location attributes
@@ -51,8 +51,8 @@ func NewReadLocationAttributeUseCaseUngrouped(
 
 	services := ReadLocationAttributeServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewReadLocationAttributeUseCase(repositories, services)

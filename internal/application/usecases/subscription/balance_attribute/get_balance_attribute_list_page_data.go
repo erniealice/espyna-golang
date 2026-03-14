@@ -18,8 +18,8 @@ type GetBalanceAttributeListPageDataRepositories struct {
 // GetBalanceAttributeListPageDataServices groups all business service dependencies
 type GetBalanceAttributeListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetBalanceAttributeListPageDataUseCase handles the business logic for getting balance attribute list page data

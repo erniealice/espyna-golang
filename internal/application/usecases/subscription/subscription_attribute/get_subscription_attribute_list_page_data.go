@@ -18,8 +18,8 @@ type GetSubscriptionAttributeListPageDataRepositories struct {
 // GetSubscriptionAttributeListPageDataServices groups all business service dependencies
 type GetSubscriptionAttributeListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetSubscriptionAttributeListPageDataUseCase handles the business logic for getting subscription attribute list page data

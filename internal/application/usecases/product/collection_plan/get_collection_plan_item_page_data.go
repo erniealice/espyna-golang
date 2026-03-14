@@ -17,8 +17,8 @@ type GetCollectionPlanItemPageDataRepositories struct {
 
 type GetCollectionPlanItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetCollectionPlanItemPageDataUseCase handles the business logic for getting collection plan item page data

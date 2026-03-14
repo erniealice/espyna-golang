@@ -60,7 +60,6 @@ func (uc *CreateSubscriptionAttributeUseCase) Execute(ctx context.Context, req *
 		return nil, err
 	}
 
-
 	// Business logic and enrichment
 	if err := uc.enrichSubscriptionAttributeData(req.Data); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")

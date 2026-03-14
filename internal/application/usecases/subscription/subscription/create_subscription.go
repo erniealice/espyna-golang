@@ -22,9 +22,9 @@ type CreateSubscriptionRepositories struct {
 
 type CreateSubscriptionServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
-	IDService          ports.IDService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
+	IDService            ports.IDService
 }
 
 // CreateSubscriptionUseCase handles the business logic for creating subscriptions

@@ -179,15 +179,15 @@ func (uc *CreateCategoryUseCase) validateBusinessRules(category *categorypb.Cate
 
 	// Validate module is one of the allowed values
 	allowedModules := map[string]bool{
-		"client":    true,
-		"product":   true,
-		"location":  true,
-		"event":     true,
-		"payment":   true,
+		"client":       true,
+		"product":      true,
+		"location":     true,
+		"event":        true,
+		"payment":      true,
 		"subscription": true,
-		"workflow":  true,
-		"staff":     true,
-		"delegate":  true,
+		"workflow":     true,
+		"staff":        true,
+		"delegate":     true,
 	}
 	if !allowedModules[category.Module] {
 		return fmt.Errorf("category module must be one of: client, product, location, event, payment, subscription, workflow, staff, delegate")

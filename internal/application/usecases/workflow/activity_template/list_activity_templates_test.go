@@ -38,10 +38,10 @@ import (
 	"fmt"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for list activity templates test cases

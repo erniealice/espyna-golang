@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	schedulerpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/scheduler"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func init() {

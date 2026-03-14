@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
@@ -26,8 +26,8 @@ type UpdateGroupAttributeRepositories struct {
 // UpdateGroupAttributeServices groups all business service dependencies
 type UpdateGroupAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdateGroupAttributeUseCase handles the business logic for updating group attributes
@@ -63,8 +63,8 @@ func NewUpdateGroupAttributeUseCaseUngrouped(
 
 	services := UpdateGroupAttributeServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewUpdateGroupAttributeUseCase(repositories, services)

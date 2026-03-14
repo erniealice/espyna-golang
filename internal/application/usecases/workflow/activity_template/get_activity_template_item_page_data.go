@@ -19,8 +19,8 @@ type GetActivityTemplateItemPageDataRepositories struct {
 
 type GetActivityTemplateItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetActivityTemplateItemPageDataUseCase handles the business logic for getting activity template item page data

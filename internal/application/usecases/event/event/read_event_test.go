@@ -33,10 +33,10 @@ import (
 	"context"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mockEvent "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/event"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for read event test cases

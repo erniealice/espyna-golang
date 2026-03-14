@@ -32,13 +32,13 @@ package plan
 import (
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
 	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/subscription"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // createTestDeletePlanUseCase is a helper function to create the use case with mock dependencies

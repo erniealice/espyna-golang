@@ -102,13 +102,15 @@ type DatabaseTableConfig struct {
 	// Integration
 	IntegrationPayment string
 	// Product
-	Product, ProductVariant, Collection, CollectionAttribute, CollectionParent, CollectionPlan  string
-	PriceList, PriceProduct, ProductAttribute, ProductCollection, ProductPlan, Resource         string
-	ProductOption, ProductOptionValue, ProductVariantOption, ProductVariantImage                 string
+	Product, ProductVariant, Collection, CollectionAttribute, CollectionParent, CollectionPlan string
+	PriceList, PriceProduct, ProductAttribute, ProductCollection, ProductPlan, Resource        string
+	ProductOption, ProductOptionValue, ProductVariantOption, ProductVariantImage               string
 	// Record
 	Record string
 	// Workflow
 	Workflow, WorkflowTemplate, Stage, Activity, StageTemplate, ActivityTemplate string
+	// Operation
+	Job, JobPhase, JobTask, JobTemplate, JobTemplatePhase, JobTemplateTask string
 	// Session
 	Session string
 	// Revenue domain
@@ -215,6 +217,10 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		Workflow: "workflow", WorkflowTemplate: "workflow_template",
 		Stage: "stage", Activity: "activity",
 		StageTemplate: "stage_template", ActivityTemplate: "activity_template",
+		// Operation
+		Job: "job", JobPhase: "job_phase", JobTask: "job_task",
+		JobTemplate: "job_template", JobTemplatePhase: "job_template_phase",
+		JobTemplateTask: "job_template_task",
 		// Session
 		Session: "session",
 		// Revenue domain
@@ -226,7 +232,7 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		// Inventory domain
 		InventoryItem: "inventory_item", InventoryAttribute: "inventory_attribute",
 		InventoryTransaction: "inventory_transaction",
-		InventorySerial: "inventory_serial", InventoryDepreciation: "inventory_depreciation",
+		InventorySerial:      "inventory_serial", InventoryDepreciation: "inventory_depreciation",
 		InventorySerialHistory: "inventory_serial_history",
 		// Treasury domain
 		TreasuryCollection: "treasury_collection", TreasuryDisbursement: "treasury_disbursement",

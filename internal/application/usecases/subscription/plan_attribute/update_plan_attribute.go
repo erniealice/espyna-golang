@@ -25,8 +25,8 @@ type UpdatePlanAttributeRepositories struct {
 // UpdatePlanAttributeServices groups all business service dependencies
 type UpdatePlanAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdatePlanAttributeUseCase handles the business logic for updating plan attributes

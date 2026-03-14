@@ -31,14 +31,14 @@ const (
 
 // Transaction error constructors
 var (
-	NewTransactionError           = internal.NewTransactionError
-	NewTransactionErrorWithCause  = internal.NewTransactionErrorWithCause
-	NewTransactionErrorWithID     = internal.NewTransactionErrorWithID
-	WrapTransactionError          = internal.WrapTransactionError
-	IsTransactionError            = internal.IsTransactionError
-	GetTransactionError           = internal.GetTransactionError
-	IsRetryableTransactionError   = internal.IsRetryableTransactionError
-	NewTransactionErrorHandler    = internal.NewTransactionErrorHandler
+	NewTransactionError          = internal.NewTransactionError
+	NewTransactionErrorWithCause = internal.NewTransactionErrorWithCause
+	NewTransactionErrorWithID    = internal.NewTransactionErrorWithID
+	WrapTransactionError         = internal.WrapTransactionError
+	IsTransactionError           = internal.IsTransactionError
+	GetTransactionError          = internal.GetTransactionError
+	IsRetryableTransactionError  = internal.IsRetryableTransactionError
+	NewTransactionErrorHandler   = internal.NewTransactionErrorHandler
 )
 
 // Database error types

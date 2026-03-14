@@ -19,8 +19,8 @@ type ReadPlanAttributeRepositories struct {
 // ReadPlanAttributeServices groups all business service dependencies
 type ReadPlanAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // ReadPlanAttributeUseCase handles the business logic for reading plan attributes

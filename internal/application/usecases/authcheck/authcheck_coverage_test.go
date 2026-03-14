@@ -17,9 +17,9 @@ import (
 //   - authcheck:   the authcheck package itself (not a use case)
 //   - contextutil: utility package, not a use case
 //   - integration: external service adapters (email, payment, scheduler, tabular)
-//                  that don't need permission checks
+//     that don't need permission checks
 //   - common:      cross-domain helpers (attribute, category) that are called by
-//                  other use cases and don't carry AuthorizationService
+//     other use cases and don't carry AuthorizationService
 var skipDirs = map[string]bool{
 	"authcheck":   true,
 	"contextutil": true,

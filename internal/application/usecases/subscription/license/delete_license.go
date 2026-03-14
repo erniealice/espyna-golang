@@ -7,8 +7,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
@@ -54,7 +54,6 @@ func (uc *DeleteLicenseUseCase) Execute(ctx context.Context, req *licensepb.Dele
 		ports.EntityLicense, ports.ActionDelete); err != nil {
 		return nil, err
 	}
-
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {

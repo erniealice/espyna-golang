@@ -19,8 +19,8 @@ type DeleteSubscriptionAttributeRepositories struct {
 // DeleteSubscriptionAttributeServices groups all business service dependencies
 type DeleteSubscriptionAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteSubscriptionAttributeUseCase handles the business logic for deleting subscription attributes

@@ -48,7 +48,6 @@ func (uc *GetPricePlanListPageDataUseCase) Execute(ctx context.Context, req *pri
 		return nil, err
 	}
 
-
 	// Input validation
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", "Request is required for price plan list page data"))

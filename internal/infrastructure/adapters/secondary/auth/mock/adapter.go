@@ -8,10 +8,10 @@ import (
 	"log"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // =============================================================================

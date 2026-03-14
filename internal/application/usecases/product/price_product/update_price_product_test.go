@@ -36,7 +36,6 @@ import (
 	"context"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
@@ -44,6 +43,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/product"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for update price product test cases

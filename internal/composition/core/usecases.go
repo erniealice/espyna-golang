@@ -22,10 +22,11 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 
 	domain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
@@ -73,6 +74,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	ledgerUC, err := uci.initializeLedgerUseCases(container)
 	if err != nil {
 		ledgerUC = &ledger.LedgerUseCases{}
+	}
+
+	operationUC, err := uci.initializeOperationUseCases(container)
+	if err != nil {
+		operationUC = &operation.OperationUseCases{}
 	}
 
 	treasuryUC, err := uci.initializeTreasuryUseCases(container)
@@ -125,6 +131,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		expenditureUC,
 		inventoryUC,
 		ledgerUC,
+		operationUC,
 		treasuryUC,
 		productUC,
 		revenueUC,
@@ -256,6 +263,34 @@ func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*
 	fmt.Printf("✅ Ledger domain initialized successfully: %v\n", ledgerUseCases != nil)
 
 	return ledgerUseCases, nil
+}
+
+// initializeOperationUseCases initializes Operation domain use cases.
+func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container) (*operation.OperationUseCases, error) {
+	fmt.Printf("⚙️ Initializing Operation use cases...\n")
+
+	repos, err := domain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Operation database provider not available: %v\n", err)
+		return &operation.OperationUseCases{}, nil
+	}
+	fmt.Printf("✅ Got operation repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
+
+	operationUseCases, err := initializers.InitializeOperation(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize operation use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Operation domain initialized successfully: %v\n", operationUseCases != nil)
+
+	return operationUseCases, nil
 }
 
 // initializeTreasuryUseCases initializes Treasury domain use cases (legacy entities removed)

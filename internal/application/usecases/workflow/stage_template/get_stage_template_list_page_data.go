@@ -21,8 +21,8 @@ type GetStageTemplateListPageDataRepositories struct {
 
 type GetStageTemplateListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetStageTemplateListPageDataUseCase handles the business logic for getting stage template list page data

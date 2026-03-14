@@ -343,10 +343,10 @@ func TestResolveSimple_WithMultipleRecipients(t *testing.T) {
 
 	workflowContext := map[string]any{
 		"input": map[string]any{
-			"primary_email":   "john@example.com",
-			"primary_name":    "John",
-			"cc_email":        "manager@example.com",
-			"cc_name":         "Manager",
+			"primary_email": "john@example.com",
+			"primary_name":  "John",
+			"cc_email":      "manager@example.com",
+			"cc_name":       "Manager",
 		},
 	}
 
@@ -435,7 +435,7 @@ func TestResolveSimple_EmailWorkflowScenario(t *testing.T) {
 	// Simulate the actual workflow context structure from subscription_payment_webhook.yaml
 	workflowContext := map[string]any{
 		"input": map[string]any{
-			"email_subject":      "Payment Confirmation",
+			"email_subject":       "Payment Confirmation",
 			"email_template_html": "<h1>Hello {{client_first_name}}</h1>",
 		},
 		"stage": map[string]any{

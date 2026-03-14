@@ -33,11 +33,11 @@ import (
 	"fmt"
 	"testing"
 
-	copyatestutil "leapfor.xyz/copya/golang/testutil"
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/workflow"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
+	copyatestutil "leapfor.xyz/copya/golang/testutil"
 )
 
 // Type alias for list workflows test cases

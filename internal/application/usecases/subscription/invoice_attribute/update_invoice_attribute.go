@@ -25,8 +25,8 @@ type UpdateInvoiceAttributeRepositories struct {
 // UpdateInvoiceAttributeServices groups all business service dependencies
 type UpdateInvoiceAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // UpdateInvoiceAttributeUseCase handles the business logic for updating invoice attributes

@@ -46,29 +46,29 @@ const (
 
 // Product domain
 const (
-	Collection          = "collection"
-	CollectionAttribute = "collection_attribute"
-	CollectionPlan      = "collection_plan"
-	PriceList           = "price_list"
-	PriceProduct        = "price_product"
-	Product             = "product"
-	ProductAttribute    = "product_attribute"
-	ProductCollection   = "product_collection"
-	ProductOption       = "product_option"
-	ProductOptionValue  = "product_option_value"
-	ProductPlan         = "product_plan"
-	ProductVariant      = "product_variant"
-	ProductVariantImage = "product_variant_image"
+	Collection           = "collection"
+	CollectionAttribute  = "collection_attribute"
+	CollectionPlan       = "collection_plan"
+	PriceList            = "price_list"
+	PriceProduct         = "price_product"
+	Product              = "product"
+	ProductAttribute     = "product_attribute"
+	ProductCollection    = "product_collection"
+	ProductOption        = "product_option"
+	ProductOptionValue   = "product_option_value"
+	ProductPlan          = "product_plan"
+	ProductVariant       = "product_variant"
+	ProductVariantImage  = "product_variant_image"
 	ProductVariantOption = "product_variant_option"
-	Resource            = "resource"
+	Resource             = "resource"
 )
 
 // Revenue domain
 const (
-	Revenue         = "revenue"
+	Revenue          = "revenue"
 	RevenueAttribute = "revenue_attribute"
-	RevenueCategory = "revenue_category"
-	RevenueLineItem = "revenue_line_item"
+	RevenueCategory  = "revenue_category"
+	RevenueLineItem  = "revenue_line_item"
 )
 
 // Expenditure domain
@@ -130,4 +130,20 @@ const (
 	StageTemplate    = "stage_template"
 	Activity         = "activity"
 	ActivityTemplate = "activity_template"
+)
+
+// Operation domain
+const (
+	JobTemplate       = "job_template"
+	JobTemplatePhase  = "job_template_phase"
+	JobTemplateTask   = "job_template_task"
+	Job               = "job"
+	JobPhase          = "job_phase"
+	JobTask           = "job_task"
+	JobActivity       = "job_activity"
+	ActivityLabor     = "activity_labor"
+	ActivityMaterial  = "activity_material"
+	ActivityExpense   = "activity_expense"
+	JobSettlement     = "job_settlement"
+	InventoryMovement = "inventory_movement"
 )

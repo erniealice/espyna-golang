@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt" // Add fmt import
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 )
 
@@ -18,8 +18,8 @@ type DeleteLocationAttributeRepositories struct {
 // DeleteLocationAttributeServices groups all business service dependencies
 type DeleteLocationAttributeServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // DeleteLocationAttributeUseCase handles the business logic for deleting location attributes
@@ -53,8 +53,8 @@ func NewDeleteLocationAttributeUseCaseUngrouped(
 
 	services := DeleteLocationAttributeServices{
 		AuthorizationService: nil,
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
 	}
 
 	return NewDeleteLocationAttributeUseCase(repositories, services)

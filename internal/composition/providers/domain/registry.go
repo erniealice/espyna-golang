@@ -19,6 +19,7 @@ type Registry struct {
 	product      *ProductRepositories
 	inventory    *InventoryRepositories
 	event        *EventRepositories
+	operation    *OperationRepositories
 	workflow     *WorkflowRepositories
 	common       *CommonRepositories
 
@@ -83,6 +84,12 @@ func (r *Registry) InitializeAll() error {
 	r.event, err = NewEventRepositories(r.dbProvider, r.dbTableConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create event repositories: %w", err)
+	}
+
+	// Initialize operation repositories
+	r.operation, err = NewOperationRepositories(r.dbProvider, r.dbTableConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create operation repositories: %w", err)
 	}
 
 	// Initialize workflow repositories
@@ -182,6 +189,21 @@ func (r *Registry) GetEvent() (*EventRepositories, error) {
 		}
 	}
 	return r.event, nil
+}
+
+// GetOperation returns operation repositories (lazy init if needed)
+func (r *Registry) GetOperation() (*OperationRepositories, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.operation == nil {
+		var err error
+		r.operation, err = NewOperationRepositories(r.dbProvider, r.dbTableConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r.operation, nil
 }
 
 // GetWorkflow returns workflow repositories (lazy init if needed)

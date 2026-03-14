@@ -18,8 +18,8 @@ type GetCollectionAttributeItemPageDataRepositories struct {
 
 type GetCollectionAttributeItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetCollectionAttributeItemPageDataUseCase handles the business logic for getting product attribute item page data

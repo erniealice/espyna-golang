@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	storagecommon "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/common"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // =============================================================================

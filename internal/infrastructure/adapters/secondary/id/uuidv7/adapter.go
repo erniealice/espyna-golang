@@ -5,9 +5,9 @@ package uuidv7
 import (
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	"github.com/google/uuid"
 )
 
 // =============================================================================

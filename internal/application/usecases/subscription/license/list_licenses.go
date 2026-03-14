@@ -47,7 +47,6 @@ func (uc *ListLicensesUseCase) Execute(ctx context.Context, req *licensepb.ListL
 		return nil, err
 	}
 
-
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

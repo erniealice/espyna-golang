@@ -19,8 +19,8 @@ type GetWorkflowTemplateListPageDataRepositories struct {
 
 type GetWorkflowTemplateListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
 }
 
 // GetWorkflowTemplateListPageDataUseCase handles the business logic for getting workflow template list page data

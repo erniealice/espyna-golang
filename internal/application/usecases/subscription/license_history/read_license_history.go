@@ -48,7 +48,6 @@ func (uc *ReadLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehi
 		return nil, err
 	}
 
-
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

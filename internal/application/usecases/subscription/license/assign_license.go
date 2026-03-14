@@ -8,8 +8,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/license_history"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"

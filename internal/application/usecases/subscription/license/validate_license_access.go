@@ -20,8 +20,8 @@ type ValidateLicenseAccessRepositories struct {
 // ValidateLicenseAccessServices groups all business service dependencies
 type ValidateLicenseAccessServices struct {
 	AuthorizationService ports.AuthorizationService
-	TransactionService ports.TransactionService // Database transactions
-	TranslationService ports.TranslationService // i18n error messages
+	TransactionService   ports.TransactionService // Database transactions
+	TranslationService   ports.TranslationService // i18n error messages
 }
 
 // ValidateLicenseAccessUseCase handles the business logic for validating license access

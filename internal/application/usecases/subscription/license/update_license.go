@@ -51,7 +51,6 @@ func (uc *UpdateLicenseUseCase) Execute(ctx context.Context, req *licensepb.Upda
 		return nil, err
 	}
 
-
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

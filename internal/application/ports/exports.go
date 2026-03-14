@@ -315,13 +315,13 @@ const (
 	EntityInventorySerialHistory = security.EntityInventorySerialHistory
 
 	// Product Domain
-	EntityCollection          = security.EntityCollection
-	EntityCollectionAttribute = security.EntityCollectionAttribute
-	EntityCollectionPlan      = security.EntityCollectionPlan
-	EntityPriceList           = security.EntityPriceList
-	EntityPriceProduct        = security.EntityPriceProduct
-	EntityProduct             = security.EntityProduct
-	EntityProductAttribute    = security.EntityProductAttribute
+	EntityCollection           = security.EntityCollection
+	EntityCollectionAttribute  = security.EntityCollectionAttribute
+	EntityCollectionPlan       = security.EntityCollectionPlan
+	EntityPriceList            = security.EntityPriceList
+	EntityPriceProduct         = security.EntityPriceProduct
+	EntityProduct              = security.EntityProduct
+	EntityProductAttribute     = security.EntityProductAttribute
 	EntityProductCollection    = security.EntityProductCollection
 	EntityProductOption        = security.EntityProductOption
 	EntityProductOptionValue   = security.EntityProductOptionValue
@@ -359,4 +359,18 @@ const (
 	EntityAssetRevaluation     = security.EntityAssetRevaluation
 	EntityAssetMaintenance     = security.EntityAssetMaintenance
 	EntityAssetComponent       = security.EntityAssetComponent
+
+	// Operation Domain
+	EntityJobTemplate       = security.EntityJobTemplate
+	EntityJobTemplatePhase  = security.EntityJobTemplatePhase
+	EntityJobTemplateTask   = security.EntityJobTemplateTask
+	EntityJob               = security.EntityJob
+	EntityJobPhase          = security.EntityJobPhase
+	EntityJobTask           = security.EntityJobTask
+	EntityJobActivity       = security.EntityJobActivity
+	EntityActivityLabor     = security.EntityActivityLabor
+	EntityActivityMaterial  = security.EntityActivityMaterial
+	EntityActivityExpense   = security.EntityActivityExpense
+	EntityJobSettlement     = security.EntityJobSettlement
+	EntityInventoryMovement = security.EntityInventoryMovement
 )

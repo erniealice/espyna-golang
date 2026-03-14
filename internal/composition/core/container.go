@@ -40,11 +40,11 @@ type Services struct {
 	Translation    contracts.Service           // Translation/i18n service
 	Transaction    contracts.Service           // Transaction management service
 	IDGen          contracts.Service           // ID generation service (UUID v7, etc.)
-	Email          ports.EmailProvider          // Email provider service (Gmail, SendGrid, etc.)
-	Payment        ports.PaymentProvider        // Payment provider service (AsiaPay, Stripe, etc.)
-	Scheduler      ports.SchedulerProvider      // Scheduler provider service (Calendly, etc.)
-	Tabular        ports.TabularSourceProvider  // Tabular data provider (Google Sheets, etc.)
-	WorkflowEngine ports.WorkflowEngineService  // Orchestration engine service
+	Email          ports.EmailProvider         // Email provider service (Gmail, SendGrid, etc.)
+	Payment        ports.PaymentProvider       // Payment provider service (AsiaPay, Stripe, etc.)
+	Scheduler      ports.SchedulerProvider     // Scheduler provider service (Calendly, etc.)
+	Tabular        ports.TabularSourceProvider // Tabular data provider (Google Sheets, etc.)
+	WorkflowEngine ports.WorkflowEngineService // Orchestration engine service
 }
 
 // MockService provides a default mock implementation of the Service interface

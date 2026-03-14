@@ -48,7 +48,6 @@ func (uc *ReadCollectionUseCase) Execute(ctx context.Context, req *collectionpb.
 		return nil, err
 	}
 
-
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
 		return nil, err

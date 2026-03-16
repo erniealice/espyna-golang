@@ -111,6 +111,9 @@ type DatabaseTableConfig struct {
 	Workflow, WorkflowTemplate, Stage, Activity, StageTemplate, ActivityTemplate string
 	// Operation
 	Job, JobPhase, JobTask, JobTemplate, JobTemplatePhase, JobTemplateTask string
+	// Operation — Layer 7: Outcome
+	OutcomeCriteria, CriteriaThreshold, CriteriaOption, TemplateTaskCriteria string
+	TaskOutcome, TaskOutcomeCheck, PhaseOutcomeSummary, JobOutcomeSummary    string
 	// Session
 	Session string
 	// Revenue domain
@@ -221,6 +224,11 @@ func DefaultDatabaseTableConfig() *DatabaseTableConfig {
 		Job: "job", JobPhase: "job_phase", JobTask: "job_task",
 		JobTemplate: "job_template", JobTemplatePhase: "job_template_phase",
 		JobTemplateTask: "job_template_task",
+		// Operation — Layer 7: Outcome
+		OutcomeCriteria: "outcome_criteria", CriteriaThreshold: "criteria_threshold",
+		CriteriaOption: "criteria_option", TemplateTaskCriteria: "template_task_criteria",
+		TaskOutcome: "task_outcome", TaskOutcomeCheck: "task_outcome_check",
+		PhaseOutcomeSummary: "phase_outcome_summary", JobOutcomeSummary: "job_outcome_summary",
 		// Session
 		Session: "session",
 		// Revenue domain

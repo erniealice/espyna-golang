@@ -198,6 +198,12 @@ var NewNoOpTranslationService = domain.NewNoOpTranslationService
 // Ledger types
 type LedgerReportingService = domain.LedgerReportingService
 
+// Evaluation types
+type (
+	OutcomeEvaluationService = domain.OutcomeEvaluationService
+	EvaluationResult         = domain.EvaluationResult
+)
+
 // =============================================================================
 // SECURITY PORTS (Authorization)
 // =============================================================================
@@ -373,4 +379,14 @@ const (
 	EntityActivityExpense   = security.EntityActivityExpense
 	EntityJobSettlement     = security.EntityJobSettlement
 	EntityInventoryMovement = security.EntityInventoryMovement
+
+	// Operation Domain — Layer 7: Outcome
+	EntityOutcomeCriteria      = security.EntityOutcomeCriteria
+	EntityCriteriaThreshold    = security.EntityCriteriaThreshold
+	EntityCriteriaOption       = security.EntityCriteriaOption
+	EntityTemplateTaskCriteria = security.EntityTemplateTaskCriteria
+	EntityTaskOutcome          = security.EntityTaskOutcome
+	EntityTaskOutcomeCheck     = security.EntityTaskOutcomeCheck
+	EntityPhaseOutcomeSummary  = security.EntityPhaseOutcomeSummary
+	EntityJobOutcomeSummary    = security.EntityJobOutcomeSummary
 )

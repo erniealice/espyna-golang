@@ -1,6 +1,6 @@
 //go:build postgresql
 
-package inventory_movement
+package operation
 
 import (
 	"context"

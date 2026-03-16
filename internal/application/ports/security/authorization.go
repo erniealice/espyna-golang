@@ -233,4 +233,14 @@ const (
 	EntityActivityExpense   = "activity_expense"
 	EntityJobSettlement     = "job_settlement"
 	EntityInventoryMovement = "inventory_movement"
+
+	// Operation Domain — Layer 7: Outcome (8 entities)
+	EntityOutcomeCriteria      = "outcome_criteria"
+	EntityCriteriaThreshold    = "criteria_threshold"
+	EntityCriteriaOption       = "criteria_option"
+	EntityTemplateTaskCriteria = "template_task_criteria"
+	EntityTaskOutcome          = "task_outcome"
+	EntityTaskOutcomeCheck     = "task_outcome_check"
+	EntityPhaseOutcomeSummary  = "phase_outcome_summary"
+	EntityJobOutcomeSummary    = "job_outcome_summary"
 )

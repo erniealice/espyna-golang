@@ -147,3 +147,15 @@ const (
 	JobSettlement     = "job_settlement"
 	InventoryMovement = "inventory_movement"
 )
+
+// Operation domain — Layer 7: Outcome
+const (
+	OutcomeCriteria      = "outcome_criteria"
+	CriteriaThreshold    = "criteria_threshold"
+	CriteriaOption       = "criteria_option"
+	TemplateTaskCriteria = "template_task_criteria"
+	TaskOutcome          = "task_outcome"
+	TaskOutcomeCheck     = "task_outcome_check"
+	PhaseOutcomeSummary  = "phase_outcome_summary"
+	JobOutcomeSummary    = "job_outcome_summary"
+)

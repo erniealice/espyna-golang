@@ -1,6 +1,6 @@
 //go:build postgresql
 
-package job_settlement
+package operation
 
 import (
 	"context"

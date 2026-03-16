@@ -8,6 +8,14 @@ import (
 	jobTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template"
 	jobTemplatePhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template_phase"
 	jobTemplateTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template_task"
+	outcomeCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/outcome_criteria"
+	criteriaThresholdUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_threshold"
+	criteriaOptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_option"
+	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/template_task_criteria"
+	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome"
+	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome_check"
+	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/phase_outcome_summary"
+	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_outcome_summary"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -19,26 +27,50 @@ import (
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
+	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
+	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
+	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
+	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
+	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
+	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 )
 
 // OperationRepositories contains all operation domain repositories
 type OperationRepositories struct {
-	Job              jobpb.JobDomainServiceServer
-	JobPhase         jobphasepb.JobPhaseDomainServiceServer
-	JobTask          jobtaskpb.JobTaskDomainServiceServer
-	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
-	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
-	JobTemplateTask  jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	Job                  jobpb.JobDomainServiceServer
+	JobPhase             jobphasepb.JobPhaseDomainServiceServer
+	JobTask              jobtaskpb.JobTaskDomainServiceServer
+	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
+	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
+	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
+	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
+	TemplateTaskCriteria templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer
+	TaskOutcome          taskoutcomepb.TaskOutcomeDomainServiceServer
+	TaskOutcomeCheck     taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
+	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
+	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
 }
 
 // OperationUseCases contains all operation-related use cases
 type OperationUseCases struct {
-	Job              *jobUseCases.UseCases
-	JobPhase         *jobPhaseUseCases.UseCases
-	JobTask          *jobTaskUseCases.UseCases
-	JobTemplate      *jobTemplateUseCases.UseCases
-	JobTemplatePhase *jobTemplatePhaseUseCases.UseCases
-	JobTemplateTask  *jobTemplateTaskUseCases.UseCases
+	Job                  *jobUseCases.UseCases
+	JobPhase             *jobPhaseUseCases.UseCases
+	JobTask              *jobTaskUseCases.UseCases
+	JobTemplate          *jobTemplateUseCases.UseCases
+	JobTemplatePhase     *jobTemplatePhaseUseCases.UseCases
+	JobTemplateTask      *jobTemplateTaskUseCases.UseCases
+	OutcomeCriteria      *outcomeCriteriaUseCases.UseCases
+	CriteriaThreshold    *criteriaThresholdUseCases.UseCases
+	CriteriaOption       *criteriaOptionUseCases.UseCases
+	TemplateTaskCriteria *templateTaskCriteriaUseCases.UseCases
+	TaskOutcome          *taskOutcomeUseCases.UseCases
+	TaskOutcomeCheck     *taskOutcomeCheckUseCases.UseCases
+	PhaseOutcomeSummary  *phaseOutcomeSummaryUseCases.UseCases
+	JobOutcomeSummary    *jobOutcomeSummaryUseCases.UseCases
 }
 
 // NewUseCases creates all operation use cases with proper constructor injection
@@ -109,12 +141,100 @@ func NewUseCases(
 		},
 	)
 
+	outcomeCriteriaUC := outcomeCriteriaUseCases.NewUseCases(
+		outcomeCriteriaUseCases.OutcomeCriteriaRepositories{OutcomeCriteria: repos.OutcomeCriteria},
+		outcomeCriteriaUseCases.OutcomeCriteriaServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	criteriaThresholdUC := criteriaThresholdUseCases.NewUseCases(
+		criteriaThresholdUseCases.CriteriaThresholdRepositories{CriteriaThreshold: repos.CriteriaThreshold},
+		criteriaThresholdUseCases.CriteriaThresholdServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	criteriaOptionUC := criteriaOptionUseCases.NewUseCases(
+		criteriaOptionUseCases.CriteriaOptionRepositories{CriteriaOption: repos.CriteriaOption},
+		criteriaOptionUseCases.CriteriaOptionServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	templateTaskCriteriaUC := templateTaskCriteriaUseCases.NewUseCases(
+		templateTaskCriteriaUseCases.TemplateTaskCriteriaRepositories{TemplateTaskCriteria: repos.TemplateTaskCriteria},
+		templateTaskCriteriaUseCases.TemplateTaskCriteriaServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	taskOutcomeUC := taskOutcomeUseCases.NewUseCases(
+		taskOutcomeUseCases.TaskOutcomeRepositories{TaskOutcome: repos.TaskOutcome},
+		taskOutcomeUseCases.TaskOutcomeServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	taskOutcomeCheckUC := taskOutcomeCheckUseCases.NewUseCases(
+		taskOutcomeCheckUseCases.TaskOutcomeCheckRepositories{TaskOutcomeCheck: repos.TaskOutcomeCheck},
+		taskOutcomeCheckUseCases.TaskOutcomeCheckServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	phaseOutcomeSummaryUC := phaseOutcomeSummaryUseCases.NewUseCases(
+		phaseOutcomeSummaryUseCases.PhaseOutcomeSummaryRepositories{PhaseOutcomeSummary: repos.PhaseOutcomeSummary},
+		phaseOutcomeSummaryUseCases.PhaseOutcomeSummaryServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	jobOutcomeSummaryUC := jobOutcomeSummaryUseCases.NewUseCases(
+		jobOutcomeSummaryUseCases.JobOutcomeSummaryRepositories{JobOutcomeSummary: repos.JobOutcomeSummary},
+		jobOutcomeSummaryUseCases.JobOutcomeSummaryServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
 	return &OperationUseCases{
-		Job:              jobUC,
-		JobPhase:         jobPhaseUC,
-		JobTask:          jobTaskUC,
-		JobTemplate:      jobTemplateUC,
-		JobTemplatePhase: jobTemplatePhaseUC,
-		JobTemplateTask:  jobTemplateTaskUC,
+		Job:                  jobUC,
+		JobPhase:             jobPhaseUC,
+		JobTask:              jobTaskUC,
+		JobTemplate:          jobTemplateUC,
+		JobTemplatePhase:     jobTemplatePhaseUC,
+		JobTemplateTask:      jobTemplateTaskUC,
+		OutcomeCriteria:      outcomeCriteriaUC,
+		CriteriaThreshold:    criteriaThresholdUC,
+		CriteriaOption:       criteriaOptionUC,
+		TemplateTaskCriteria: templateTaskCriteriaUC,
+		TaskOutcome:          taskOutcomeUC,
+		TaskOutcomeCheck:     taskOutcomeCheckUC,
+		PhaseOutcomeSummary:  phaseOutcomeSummaryUC,
+		JobOutcomeSummary:    jobOutcomeSummaryUC,
 	}
 }

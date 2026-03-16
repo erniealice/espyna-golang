@@ -1,0 +1,701 @@
+//go:build postgresql
+
+package operation
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
+
+	"google.golang.org/protobuf/encoding/protojson"
+
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
+)
+
+func init() {
+	registry.RegisterRepositoryFactory("postgresql", entityid.TaskOutcome, func(conn any, tableName string) (any, error) {
+		db, ok := conn.(*sql.DB)
+		if !ok {
+			return nil, fmt.Errorf("postgres task_outcome repository requires *sql.DB, got %T", conn)
+		}
+		dbOps := postgresCore.NewPostgresOperations(db)
+		return NewPostgresTaskOutcomeRepository(dbOps, tableName), nil
+	})
+}
+
+// PostgresTaskOutcomeRepository implements task_outcome CRUD operations using PostgreSQL
+type PostgresTaskOutcomeRepository struct {
+	pb.UnimplementedTaskOutcomeDomainServiceServer
+	dbOps     interfaces.DatabaseOperation
+	db        *sql.DB
+	tableName string
+}
+
+// NewPostgresTaskOutcomeRepository creates a new PostgreSQL task_outcome repository
+func NewPostgresTaskOutcomeRepository(dbOps interfaces.DatabaseOperation, tableName string) pb.TaskOutcomeDomainServiceServer {
+	if tableName == "" {
+		tableName = "task_outcome"
+	}
+
+	var db *sql.DB
+	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
+		db = pgOps.GetDB()
+	}
+
+	return &PostgresTaskOutcomeRepository{
+		dbOps:     dbOps,
+		db:        db,
+		tableName: tableName,
+	}
+}
+
+// CreateTaskOutcome creates a new task_outcome record
+func (r *PostgresTaskOutcomeRepository) CreateTaskOutcome(ctx context.Context, req *pb.CreateTaskOutcomeRequest) (*pb.CreateTaskOutcomeResponse, error) {
+	if req.Data == nil {
+		return nil, fmt.Errorf("task outcome data is required")
+	}
+
+	jsonData, err := protojson.Marshal(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	convertMillisToTime(data, "dateCreated")
+	convertMillisToTime(data, "dateModified")
+	convertMillisToTime(data, "recordedDate")
+	convertMillisToTime(data, "reviewedDate")
+
+	result, err := r.dbOps.Create(ctx, r.tableName, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task outcome: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	outcome := &pb.TaskOutcome{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, outcome); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &pb.CreateTaskOutcomeResponse{
+		Success: true,
+		Data:    []*pb.TaskOutcome{outcome},
+	}, nil
+}
+
+// ReadTaskOutcome retrieves a task_outcome record by ID
+func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req *pb.ReadTaskOutcomeRequest) (*pb.ReadTaskOutcomeResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("task outcome ID is required")
+	}
+
+	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read task outcome: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	outcome := &pb.TaskOutcome{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, outcome); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &pb.ReadTaskOutcomeResponse{
+		Success: true,
+		Data:    []*pb.TaskOutcome{outcome},
+	}, nil
+}
+
+// UpdateTaskOutcome updates a task_outcome record
+func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcome(ctx context.Context, req *pb.UpdateTaskOutcomeRequest) (*pb.UpdateTaskOutcomeResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("task outcome ID is required")
+	}
+
+	jsonData, err := protojson.Marshal(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	convertMillisToTime(data, "dateCreated")
+	convertMillisToTime(data, "dateModified")
+	convertMillisToTime(data, "recordedDate")
+	convertMillisToTime(data, "reviewedDate")
+
+	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update task outcome: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	outcome := &pb.TaskOutcome{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, outcome); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &pb.UpdateTaskOutcomeResponse{
+		Success: true,
+		Data:    []*pb.TaskOutcome{outcome},
+	}, nil
+}
+
+// DeleteTaskOutcome deletes a task_outcome record (soft delete)
+func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcome(ctx context.Context, req *pb.DeleteTaskOutcomeRequest) (*pb.DeleteTaskOutcomeResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("task outcome ID is required")
+	}
+
+	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete task outcome: %w", err)
+	}
+
+	return &pb.DeleteTaskOutcomeResponse{
+		Success: true,
+	}, nil
+}
+
+// ListTaskOutcomes lists task_outcome records with optional filters
+func (r *PostgresTaskOutcomeRepository) ListTaskOutcomes(ctx context.Context, req *pb.ListTaskOutcomesRequest) (*pb.ListTaskOutcomesResponse, error) {
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list task outcomes: %w", err)
+	}
+
+	var outcomes []*pb.TaskOutcome
+	for _, result := range listResult.Data {
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			log.Printf("WARN: json.Marshal task_outcome row: %v", err)
+			continue
+		}
+
+		outcome := &pb.TaskOutcome{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, outcome); err != nil {
+			log.Printf("WARN: protojson unmarshal task_outcome: %v", err)
+			continue
+		}
+		outcomes = append(outcomes, outcome)
+	}
+
+	return &pb.ListTaskOutcomesResponse{
+		Success: true,
+		Data:    outcomes,
+	}, nil
+}
+
+// GetTaskOutcomeListPageData retrieves task outcomes with pagination, filtering, sorting, and search
+func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
+	ctx context.Context,
+	req *pb.GetTaskOutcomeListPageDataRequest,
+) (*pb.GetTaskOutcomeListPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get task outcome list page data request is required")
+	}
+
+	searchPattern := ""
+	if req.Search != nil && req.Search.Query != "" {
+		searchPattern = "%" + req.Search.Query + "%"
+	}
+
+	limit := int32(50)
+	offset := int32(0)
+	page := int32(1)
+	if req.Pagination != nil {
+		if req.Pagination.Limit > 0 {
+			limit = req.Pagination.Limit
+		}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
+			if offsetPag.Page > 0 {
+				page = offsetPag.Page
+				offset = (page - 1) * limit
+			}
+		}
+	}
+
+	sortField := "to_.date_created"
+	sortOrder := "DESC"
+	if req.Sort != nil && len(req.Sort.Fields) > 0 {
+		sortField = req.Sort.Fields[0].Field
+		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
+			sortOrder = "ASC"
+		}
+	}
+
+	toColumns := `
+		to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
+		to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+		to_.pass_fail_value, to_.determination, to_.determination_source,
+		to_.determination_note, to_.auto_proposed_determination,
+		to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+		to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+		to_.active, to_.date_created, to_.date_modified
+	`
+
+	query := `
+		WITH enriched AS (
+			SELECT ` + toColumns + `
+			FROM task_outcome to_
+			WHERE to_.active = true
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       to_.determination_note ILIKE $1)
+		),
+		counted AS (
+			SELECT COUNT(*) as total FROM enriched
+		)
+		SELECT
+			e.*, c.total
+		FROM enriched e, counted c
+		ORDER BY ` + sortField + ` ` + sortOrder + `
+		LIMIT $2 OFFSET $3;
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query task outcome list page data: %w", err)
+	}
+	defer rows.Close()
+
+	var outcomes []*pb.TaskOutcome
+	var totalCount int64
+
+	for rows.Next() {
+		outcome, cnt, err := scanTaskOutcomeRowWithTotal(rows)
+		if err != nil {
+			return nil, err
+		}
+		totalCount = cnt
+		outcomes = append(outcomes, outcome)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating task outcome rows: %w", err)
+	}
+
+	totalPages := int32(0)
+	if limit > 0 {
+		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	}
+
+	hasNext := page < totalPages
+	hasPrev := page > 1
+
+	return &pb.GetTaskOutcomeListPageDataResponse{
+		TaskOutcomeList: outcomes,
+		Pagination: &commonpb.PaginationResponse{
+			TotalItems:  int32(totalCount),
+			CurrentPage: &page,
+			TotalPages:  &totalPages,
+			HasNext:     hasNext,
+			HasPrev:     hasPrev,
+		},
+		Success: true,
+	}, nil
+}
+
+// GetTaskOutcomeItemPageData retrieves a single task outcome with enriched data
+func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeItemPageData(
+	ctx context.Context,
+	req *pb.GetTaskOutcomeItemPageDataRequest,
+) (*pb.GetTaskOutcomeItemPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get task outcome item page data request is required")
+	}
+	if req.TaskOutcomeId == "" {
+		return nil, fmt.Errorf("task outcome ID is required")
+	}
+
+	query := `
+		SELECT
+			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
+			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.determination_note, to_.auto_proposed_determination,
+			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			to_.active, to_.date_created, to_.date_modified
+		FROM task_outcome to_
+		WHERE to_.id = $1 AND to_.active = true
+	`
+
+	row := r.db.QueryRowContext(ctx, query, req.TaskOutcomeId)
+
+	outcome, err := scanTaskOutcomeSingleRow(row)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("task outcome with ID '%s' not found", req.TaskOutcomeId)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query task outcome item page data: %w", err)
+	}
+
+	return &pb.GetTaskOutcomeItemPageDataResponse{
+		TaskOutcome: outcome,
+		Success:     true,
+	}, nil
+}
+
+// ListByJobTask retrieves all task outcomes for a given job task
+func (r *PostgresTaskOutcomeRepository) ListByJobTask(
+	ctx context.Context,
+	req *pb.ListTaskOutcomesByJobTaskRequest,
+) (*pb.ListTaskOutcomesByJobTaskResponse, error) {
+	if req == nil || req.JobTaskId == "" {
+		return nil, fmt.Errorf("job task ID is required")
+	}
+
+	query := `
+		SELECT
+			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
+			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.determination_note, to_.auto_proposed_determination,
+			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			to_.active, to_.date_created, to_.date_modified
+		FROM task_outcome to_
+		WHERE to_.job_task_id = $1 AND to_.active = true
+		ORDER BY to_.date_created DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, req.JobTaskId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list task outcomes by job task: %w", err)
+	}
+	defer rows.Close()
+
+	outcomes, err := scanTaskOutcomeRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.ListTaskOutcomesByJobTaskResponse{
+		TaskOutcomes: outcomes,
+		Success:      true,
+	}, nil
+}
+
+// ListByJobPhase retrieves all task outcomes for a given job phase via JOIN with job_task
+func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
+	ctx context.Context,
+	req *pb.ListTaskOutcomesByJobPhaseRequest,
+) (*pb.ListTaskOutcomesByJobPhaseResponse, error) {
+	if req == nil || req.JobPhaseId == "" {
+		return nil, fmt.Errorf("job phase ID is required")
+	}
+
+	query := `
+		SELECT
+			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
+			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.determination_note, to_.auto_proposed_determination,
+			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			to_.active, to_.date_created, to_.date_modified
+		FROM task_outcome to_
+		JOIN job_task jt ON to_.job_task_id = jt.id
+		WHERE jt.job_phase_id = $1 AND to_.active = true
+		ORDER BY to_.date_created DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, req.JobPhaseId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list task outcomes by job phase: %w", err)
+	}
+	defer rows.Close()
+
+	outcomes, err := scanTaskOutcomeRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.ListTaskOutcomesByJobPhaseResponse{
+		TaskOutcomes: outcomes,
+		Success:      true,
+	}, nil
+}
+
+// ListByJob retrieves all task outcomes for a given job via multi-JOIN with job_task
+func (r *PostgresTaskOutcomeRepository) ListByJob(
+	ctx context.Context,
+	req *pb.ListTaskOutcomesByJobRequest,
+) (*pb.ListTaskOutcomesByJobResponse, error) {
+	if req == nil || req.JobId == "" {
+		return nil, fmt.Errorf("job ID is required")
+	}
+
+	query := `
+		SELECT
+			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
+			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.determination_note, to_.auto_proposed_determination,
+			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			to_.active, to_.date_created, to_.date_modified
+		FROM task_outcome to_
+		JOIN job_task jt ON to_.job_task_id = jt.id
+		WHERE jt.job_id = $1 AND to_.active = true
+		ORDER BY to_.date_created DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, req.JobId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list task outcomes by job: %w", err)
+	}
+	defer rows.Close()
+
+	outcomes, err := scanTaskOutcomeRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.ListTaskOutcomesByJobResponse{
+		TaskOutcomes: outcomes,
+		Success:      true,
+	}, nil
+}
+
+// scanTOFields is a shared scanner for all task_outcome SELECT columns
+func scanTOFields(scanFn func(dest ...any) error) (
+	id string, jobTaskID string, criteriaVersionID string,
+	criteriaType string, isAdHoc bool,
+	numericValue sql.NullFloat64, textValue sql.NullString,
+	categoricalValue sql.NullString, passFailValue sql.NullBool,
+	determination string, determinationSource string,
+	determinationNote sql.NullString, autoProposedDetermination sql.NullString,
+	recordedBy string, recordedDate sql.NullInt64,
+	reviewedBy sql.NullString, reviewedDate sql.NullInt64,
+	attachmentIdsStr string, revisionOfId sql.NullString,
+	revisionNumber int32, active bool,
+	dateCreated sql.NullInt64, dateModified sql.NullInt64, err error,
+) {
+	err = scanFn(
+		&id, &jobTaskID, &criteriaVersionID,
+		&criteriaType, &isAdHoc,
+		&numericValue, &textValue,
+		&categoricalValue, &passFailValue,
+		&determination, &determinationSource,
+		&determinationNote, &autoProposedDetermination,
+		&recordedBy, &recordedDate,
+		&reviewedBy, &reviewedDate,
+		&attachmentIdsStr, &revisionOfId,
+		&revisionNumber, &active,
+		&dateCreated, &dateModified,
+	)
+	return
+}
+
+// scanTaskOutcomeRows scans multiple rows into TaskOutcome protos
+func scanTaskOutcomeRows(rows *sql.Rows) ([]*pb.TaskOutcome, error) {
+	var outcomes []*pb.TaskOutcome
+	for rows.Next() {
+		id, jobTaskID, criteriaVersionID, criteriaType, isAdHoc,
+			numericValue, textValue, categoricalValue, passFailValue,
+			determination, determinationSource, determinationNote, autoProposedDetermination,
+			recordedBy, recordedDate, reviewedBy, reviewedDate,
+			attachmentIdsStr, revisionOfId, revisionNumber, active,
+			dateCreated, dateModified, err := scanTOFields(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan task outcome row: %w", err)
+		}
+		outcomes = append(outcomes, buildTaskOutcome(
+			id, jobTaskID, criteriaVersionID, criteriaType, isAdHoc,
+			numericValue, textValue, categoricalValue, passFailValue,
+			determination, determinationSource, determinationNote, autoProposedDetermination,
+			recordedBy, recordedDate, reviewedBy, reviewedDate,
+			attachmentIdsStr, revisionOfId, revisionNumber, active,
+			dateCreated, dateModified))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating task outcome rows: %w", err)
+	}
+	return outcomes, nil
+}
+
+// scanTaskOutcomeRowWithTotal scans a row with a total count column appended
+func scanTaskOutcomeRowWithTotal(rows *sql.Rows) (*pb.TaskOutcome, int64, error) {
+	var (
+		id                        string
+		jobTaskID                 string
+		criteriaVersionID         string
+		criteriaType              string
+		isAdHoc                   bool
+		numericValue              sql.NullFloat64
+		textValue                 sql.NullString
+		categoricalValue          sql.NullString
+		passFailValue             sql.NullBool
+		determination             string
+		determinationSource       string
+		determinationNote         sql.NullString
+		autoProposedDetermination sql.NullString
+		recordedBy                string
+		recordedDate              sql.NullInt64
+		reviewedBy                sql.NullString
+		reviewedDate              sql.NullInt64
+		attachmentIdsStr          string
+		revisionOfId              sql.NullString
+		revisionNumber            int32
+		active                    bool
+		dateCreated               sql.NullInt64
+		dateModified              sql.NullInt64
+		total                     int64
+	)
+
+	err := rows.Scan(
+		&id, &jobTaskID, &criteriaVersionID,
+		&criteriaType, &isAdHoc,
+		&numericValue, &textValue,
+		&categoricalValue, &passFailValue,
+		&determination, &determinationSource,
+		&determinationNote, &autoProposedDetermination,
+		&recordedBy, &recordedDate,
+		&reviewedBy, &reviewedDate,
+		&attachmentIdsStr, &revisionOfId,
+		&revisionNumber, &active,
+		&dateCreated, &dateModified, &total,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to scan task outcome row: %w", err)
+	}
+
+	outcome := buildTaskOutcome(
+		id, jobTaskID, criteriaVersionID, criteriaType, isAdHoc,
+		numericValue, textValue, categoricalValue, passFailValue,
+		determination, determinationSource, determinationNote, autoProposedDetermination,
+		recordedBy, recordedDate, reviewedBy, reviewedDate,
+		attachmentIdsStr, revisionOfId, revisionNumber, active,
+		dateCreated, dateModified)
+	return outcome, total, nil
+}
+
+// scanTaskOutcomeSingleRow scans a single sql.Row into a TaskOutcome proto
+func scanTaskOutcomeSingleRow(row *sql.Row) (*pb.TaskOutcome, error) {
+	id, jobTaskID, criteriaVersionID, criteriaType, isAdHoc,
+		numericValue, textValue, categoricalValue, passFailValue,
+		determination, determinationSource, determinationNote, autoProposedDetermination,
+		recordedBy, recordedDate, reviewedBy, reviewedDate,
+		attachmentIdsStr, revisionOfId, revisionNumber, active,
+		dateCreated, dateModified, err := scanTOFields(row.Scan)
+	if err != nil {
+		return nil, err
+	}
+	return buildTaskOutcome(
+		id, jobTaskID, criteriaVersionID, criteriaType, isAdHoc,
+		numericValue, textValue, categoricalValue, passFailValue,
+		determination, determinationSource, determinationNote, autoProposedDetermination,
+		recordedBy, recordedDate, reviewedBy, reviewedDate,
+		attachmentIdsStr, revisionOfId, revisionNumber, active,
+		dateCreated, dateModified), nil
+}
+
+func buildTaskOutcome(
+	id string, jobTaskID string, criteriaVersionID string,
+	criteriaType string, isAdHoc bool,
+	numericValue sql.NullFloat64, textValue sql.NullString,
+	categoricalValue sql.NullString, passFailValue sql.NullBool,
+	determination string, determinationSource string,
+	determinationNote sql.NullString, autoProposedDetermination sql.NullString,
+	recordedBy string, recordedDate sql.NullInt64,
+	reviewedBy sql.NullString, reviewedDate sql.NullInt64,
+	attachmentIdsStr string, revisionOfId sql.NullString,
+	revisionNumber int32, active bool,
+	dateCreated sql.NullInt64, dateModified sql.NullInt64,
+) *pb.TaskOutcome {
+	outcome := &pb.TaskOutcome{
+		Id:                  id,
+		Active:              active,
+		JobTaskId:           jobTaskID,
+		CriteriaVersionId:   criteriaVersionID,
+		CriteriaType:        enumspb.CriteriaType(enumspb.CriteriaType_value[criteriaType]),
+		IsAdHoc:             isAdHoc,
+		Determination:       enumspb.Determination(enumspb.Determination_value[determination]),
+		DeterminationSource: enumspb.DeterminationSource(enumspb.DeterminationSource_value[determinationSource]),
+		RecordedBy:          recordedBy,
+		RevisionNumber:      revisionNumber,
+	}
+
+	if numericValue.Valid {
+		outcome.NumericValue = &numericValue.Float64
+	}
+	if textValue.Valid {
+		outcome.TextValue = &textValue.String
+	}
+	if categoricalValue.Valid {
+		outcome.CategoricalValue = &categoricalValue.String
+	}
+	if passFailValue.Valid {
+		outcome.PassFailValue = &passFailValue.Bool
+	}
+	if determinationNote.Valid {
+		outcome.DeterminationNote = &determinationNote.String
+	}
+	if autoProposedDetermination.Valid {
+		v := enumspb.Determination(enumspb.Determination_value[autoProposedDetermination.String])
+		outcome.AutoProposedDetermination = &v
+	}
+	if recordedDate.Valid {
+		outcome.RecordedDate = &recordedDate.Int64
+	}
+	if reviewedBy.Valid {
+		outcome.ReviewedBy = &reviewedBy.String
+	}
+	if reviewedDate.Valid {
+		outcome.ReviewedDate = &reviewedDate.Int64
+	}
+	if attachmentIdsStr != "" {
+		var ids []string
+		if err := json.Unmarshal([]byte(attachmentIdsStr), &ids); err == nil {
+			outcome.AttachmentIds = ids
+		}
+	}
+	if revisionOfId.Valid {
+		outcome.RevisionOfId = &revisionOfId.String
+	}
+	if dateCreated.Valid {
+		outcome.DateCreated = &dateCreated.Int64
+		dcStr := time.UnixMilli(dateCreated.Int64).Format(time.RFC3339)
+		outcome.DateCreatedString = &dcStr
+	}
+	if dateModified.Valid {
+		outcome.DateModified = &dateModified.Int64
+		dmStr := time.UnixMilli(dateModified.Int64).Format(time.RFC3339)
+		outcome.DateModifiedString = &dmStr
+	}
+
+	return outcome
+}

@@ -15,7 +15,7 @@ type IntegrationPaymentRepository = integrationPorts.IntegrationPaymentRepositor
 // NewIntegrationPaymentRepository creates the integration payment repository from the database provider
 func NewIntegrationPaymentRepository(
 	dbProvider contracts.Provider,
-	tableConfig *registry.DatabaseTableConfig,
+	tableConfig *registry.TableConfig,
 ) (IntegrationPaymentRepository, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider is nil")
@@ -34,12 +34,7 @@ func NewIntegrationPaymentRepository(
 	conn := repoCreator.GetConnection()
 
 	// Create the repository using the registry
-	collectionName := tableConfig.IntegrationPayment
-	if collectionName == "" {
-		collectionName = "integration_payment"
-	}
-
-	repo, err := repoCreator.CreateRepository(entityid.IntegrationPayment, conn, collectionName)
+	repo, err := repoCreator.CreateRepository(entityid.IntegrationPayment, conn, tableConfig.TableName(entityid.IntegrationPayment))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create integration_payment repository: %w", err)
 	}

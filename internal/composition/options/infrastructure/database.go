@@ -3,8 +3,6 @@ package infrastructure
 import (
 	"fmt"
 	"strings"
-
-	appConfig "github.com/erniealice/espyna-golang/internal/composition/config"
 )
 
 // =============================================================================
@@ -171,14 +169,6 @@ func WithPostgresDatabase(config PostgresDatabaseConfig) ContainerOption {
 			return fmt.Errorf("container does not implement SetDatabaseConfig method")
 		}
 
-		// Load and set database table configuration from environment
-		tableConfig := createTableConfig("POSTGRES")
-		if tableSetter, ok := c.(DatabaseTableConfigSetter); ok {
-			tableSetter.SetDatabaseTableConfig(&tableConfig)
-		} else {
-			return fmt.Errorf("container does not implement SetDatabaseTableConfig method")
-		}
-
 		fmt.Printf("🐘 Configured PostgreSQL database: %s:%d\n", config.Host, config.Port)
 		return nil
 	}
@@ -195,13 +185,6 @@ func WithFirestoreDatabase(config FirestoreDatabaseConfig) ContainerOption {
 			setter.SetDatabaseConfig(DatabaseConfig{Firestore: &config})
 		} else {
 			return fmt.Errorf("container does not implement SetDatabaseConfig method")
-		}
-
-		tableConfig := createTableConfig("FIRESTORE")
-		if tableSetter, ok := c.(DatabaseTableConfigSetter); ok {
-			tableSetter.SetDatabaseTableConfig(&tableConfig)
-		} else {
-			return fmt.Errorf("container does not implement SetDatabaseTableConfig method")
 		}
 
 		fmt.Printf("🔥 Configured Firestore database: %s\n", config.ProjectID)
@@ -227,118 +210,3 @@ func WithMockDatabase(config MockDatabaseConfig) ContainerOption {
 	}
 }
 
-// WithDatabaseTableConfig sets the database table configuration
-func WithDatabaseTableConfig(config appConfig.DatabaseTableConfig) ContainerOption {
-	return func(c Container) error {
-		if setter, ok := c.(DatabaseTableConfigSetter); ok {
-			setter.SetDatabaseTableConfig(&config)
-		} else {
-			return fmt.Errorf("container does not implement SetDatabaseTableConfig method")
-		}
-		return nil
-	}
-}
-
-// createTableConfig creates table/collection configuration for a specific database type
-func createTableConfig(dbType string) appConfig.DatabaseTableConfig {
-	var prefix string
-	switch dbType {
-	case "POSTGRES":
-		prefix = "LEAPFOR_DATABASE_POSTGRES_TABLE_"
-	case "FIRESTORE":
-		prefix = "LEAPFOR_DATABASE_FIRESTORE_COLLECTION_"
-	default:
-		prefix = "LEAPFOR_DATABASE_DEFAULT_"
-	}
-
-	return appConfig.DatabaseTableConfig{
-		// Common tables/collections
-		Attribute: GetEnv(prefix+"ATTRIBUTE", "attribute"),
-
-		// Entity tables/collections
-		Client:            GetEnv(prefix+"CLIENT", "client"),
-		ClientAttribute:   GetEnv(prefix+"CLIENT_ATTRIBUTE", "client_attribute"),
-		Admin:             GetEnv(prefix+"ADMIN", "admin"),
-		Manager:           GetEnv(prefix+"MANAGER", "manager"),
-		Staff:             GetEnv(prefix+"STAFF", "staff"),
-		StaffAttribute:    GetEnv(prefix+"STAFF_ATTRIBUTE", "staff_attribute"),
-		Delegate:          GetEnv(prefix+"DELEGATE", "delegate"),
-		DelegateAttribute: GetEnv(prefix+"DELEGATE_ATTRIBUTE", "delegate_attribute"),
-		DelegateClient:    GetEnv(prefix+"DELEGATE_CLIENT", "delegate_client"),
-		Group:             GetEnv(prefix+"GROUP", "group"),
-		GroupAttribute:    GetEnv(prefix+"GROUP_ATTRIBUTE", "group_attribute"),
-		Location:          GetEnv(prefix+"LOCATION", "location"),
-		LocationAttribute: GetEnv(prefix+"LOCATION_ATTRIBUTE", "location_attribute"),
-		Permission:        GetEnv(prefix+"PERMISSION", "permission"),
-		Role:              GetEnv(prefix+"ROLE", "role"),
-		RolePermission:    GetEnv(prefix+"ROLE_PERMISSION", "role_permission"),
-		User:              GetEnv(prefix+"USER", "user"),
-		Workspace:         GetEnv(prefix+"WORKSPACE", "workspace"),
-		WorkspaceClient:   GetEnv(prefix+"WORKSPACE_CLIENT", "workspace_client"),
-		WorkspaceUser:     GetEnv(prefix+"WORKSPACE_USER", "workspace_user"),
-		WorkspaceUserRole: GetEnv(prefix+"WORKSPACE_USER_ROLE", "workspace_user_role"),
-
-		// Event tables/collections
-		Event:          GetEnv(prefix+"EVENT", "event"),
-		EventAttribute: GetEnv(prefix+"EVENT_ATTRIBUTE", "event_attribute"),
-		EventClient:    GetEnv(prefix+"EVENT_CLIENT", "event_client"),
-		EventProduct:   GetEnv(prefix+"EVENT_PRODUCT", "event_product"),
-		EventSettings:  GetEnv(prefix+"EVENT_SETTINGS", "event_settings"),
-
-		// Framework tables/collections
-		Framework: GetEnv(prefix+"FRAMEWORK", "framework"),
-		Objective: GetEnv(prefix+"OBJECTIVE", "objective"),
-		Task:      GetEnv(prefix+"TASK", "task"),
-
-		// Payment tables/collections
-		Payment:                     GetEnv(prefix+"PAYMENT", "payment"),
-		PaymentAttribute:            GetEnv(prefix+"PAYMENT_ATTRIBUTE", "payment_attribute"),
-		PaymentMethod:               GetEnv(prefix+"PAYMENT_METHOD", "payment_method"),
-		PaymentProfile:              GetEnv(prefix+"PAYMENT_PROFILE", "payment_profile"),
-		PaymentProfilePaymentMethod: GetEnv(prefix+"PAYMENT_PROFILE_PAYMENT_METHOD", "payment_profile_payment_method"),
-
-		// Product tables/collections
-		Product:             GetEnv(prefix+"PRODUCT", "product"),
-		Collection:          GetEnv(prefix+"COLLECTION", "collection"),
-		CollectionAttribute: GetEnv(prefix+"COLLECTION_ATTRIBUTE", "collection_attribute"),
-		CollectionParent:    GetEnv(prefix+"COLLECTION_PARENT", "collection_parent"),
-		CollectionPlan:      GetEnv(prefix+"COLLECTION_PLAN", "collection_plan"),
-		PriceProduct:        GetEnv(prefix+"PRICE_PRODUCT", "price_product"),
-		ProductAttribute:    GetEnv(prefix+"PRODUCT_ATTRIBUTE", "product_attribute"),
-		ProductCollection:   GetEnv(prefix+"PRODUCT_COLLECTION", "product_collection"),
-		ProductPlan:         GetEnv(prefix+"PRODUCT_PLAN", "product_plan"),
-		Resource:            GetEnv(prefix+"RESOURCE", "resource"),
-
-		// Record tables/collections
-		Record: GetEnv(prefix+"RECORD", "record"),
-
-		// Workflow tables/collections
-		Workflow:         GetEnv(prefix+"WORKFLOW", "workflow"),
-		WorkflowTemplate: GetEnv(prefix+"WORKFLOW_TEMPLATE", "workflow_template"),
-		Stage:            GetEnv(prefix+"STAGE", "stage"),
-		Activity:         GetEnv(prefix+"ACTIVITY", "activity"),
-		StageTemplate:    GetEnv(prefix+"STAGE_TEMPLATE", "stage_template"),
-		ActivityTemplate: GetEnv(prefix+"ACTIVITY_TEMPLATE", "activity_template"),
-
-		// Operation tables/collections
-		Job:              GetEnv(prefix+"JOB", "job"),
-		JobPhase:         GetEnv(prefix+"JOB_PHASE", "job_phase"),
-		JobTask:          GetEnv(prefix+"JOB_TASK", "job_task"),
-		JobTemplate:      GetEnv(prefix+"JOB_TEMPLATE", "job_template"),
-		JobTemplatePhase: GetEnv(prefix+"JOB_TEMPLATE_PHASE", "job_template_phase"),
-		JobTemplateTask:  GetEnv(prefix+"JOB_TEMPLATE_TASK", "job_template_task"),
-
-		// Subscription tables/collections
-		Plan:                  GetEnv(prefix+"PLAN", "plan"),
-		PlanAttribute:         GetEnv(prefix+"PLAN_ATTRIBUTE", "plan_attribute"),
-		PlanLocation:          GetEnv(prefix+"PLAN_LOCATION", "plan_location"),
-		PlanSettings:          GetEnv(prefix+"PLAN_SETTINGS", "plan_settings"),
-		Balance:               GetEnv(prefix+"BALANCE", "balance"),
-		BalanceAttribute:      GetEnv(prefix+"BALANCE_ATTRIBUTE", "balance_attribute"),
-		Invoice:               GetEnv(prefix+"INVOICE", "invoice"),
-		InvoiceAttribute:      GetEnv(prefix+"INVOICE_ATTRIBUTE", "invoice_attribute"),
-		PricePlan:             GetEnv(prefix+"PRICE_PLAN", "price_plan"),
-		Subscription:          GetEnv(prefix+"SUBSCRIPTION", "subscription"),
-		SubscriptionAttribute: GetEnv(prefix+"SUBSCRIPTION_ATTRIBUTE", "subscription_attribute"),
-	}
-}

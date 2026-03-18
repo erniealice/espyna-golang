@@ -28,7 +28,7 @@ type EventRepositories struct {
 }
 
 // NewEventRepositories creates and returns a new set of EventRepositories
-func NewEventRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*EventRepositories, error) {
+func NewEventRepositories(dbProvider contracts.Provider, tableConfig *registry.TableConfig) (*EventRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
 	}
@@ -40,23 +40,23 @@ func NewEventRepositories(dbProvider contracts.Provider, dbTableConfig *registry
 
 	conn := repoCreator.GetConnection()
 
-	// Create each repository individually using configured table names directly from dbTableConfig
-	eventRepo, err := repoCreator.CreateRepository(entityid.Event, conn, dbTableConfig.Event)
+	// Create each repository individually using configured table names from tableConfig
+	eventRepo, err := repoCreator.CreateRepository(entityid.Event, conn, tableConfig.TableName(entityid.Event))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event repository: %w", err)
 	}
 
-	eventAttributeRepo, err := repoCreator.CreateRepository(entityid.EventAttribute, conn, dbTableConfig.EventAttribute)
+	eventAttributeRepo, err := repoCreator.CreateRepository(entityid.EventAttribute, conn, tableConfig.TableName(entityid.EventAttribute))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event_attribute repository: %w", err)
 	}
 
-	eventClientRepo, err := repoCreator.CreateRepository(entityid.EventClient, conn, dbTableConfig.EventClient)
+	eventClientRepo, err := repoCreator.CreateRepository(entityid.EventClient, conn, tableConfig.TableName(entityid.EventClient))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event_client repository: %w", err)
 	}
 
-	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, dbTableConfig.Client)
+	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, tableConfig.TableName(entityid.Client))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client repository: %w", err)
 	}

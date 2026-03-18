@@ -27,7 +27,7 @@ type WorkflowRepositories struct {
 }
 
 // NewWorkflowRepositories creates and returns a new set of WorkflowRepositories
-func NewWorkflowRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*WorkflowRepositories, error) {
+func NewWorkflowRepositories(dbProvider contracts.Provider, tableConfig *registry.TableConfig) (*WorkflowRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
 	}
@@ -39,33 +39,33 @@ func NewWorkflowRepositories(dbProvider contracts.Provider, dbTableConfig *regis
 
 	conn := repoCreator.GetConnection()
 
-	// Create each repository individually using configured table names directly from dbTableConfig
-	workflowRepo, err := repoCreator.CreateRepository(entityid.Workflow, conn, dbTableConfig.Workflow)
+	// Create each repository individually using configured table names from tableConfig
+	workflowRepo, err := repoCreator.CreateRepository(entityid.Workflow, conn, tableConfig.TableName(entityid.Workflow))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create workflow repository: %w", err)
 	}
 
-	workflowTemplateRepo, err := repoCreator.CreateRepository(entityid.WorkflowTemplate, conn, dbTableConfig.WorkflowTemplate)
+	workflowTemplateRepo, err := repoCreator.CreateRepository(entityid.WorkflowTemplate, conn, tableConfig.TableName(entityid.WorkflowTemplate))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create workflow_template repository: %w", err)
 	}
 
-	stageRepo, err := repoCreator.CreateRepository(entityid.Stage, conn, dbTableConfig.Stage)
+	stageRepo, err := repoCreator.CreateRepository(entityid.Stage, conn, tableConfig.TableName(entityid.Stage))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stage repository: %w", err)
 	}
 
-	stageTemplateRepo, err := repoCreator.CreateRepository(entityid.StageTemplate, conn, dbTableConfig.StageTemplate)
+	stageTemplateRepo, err := repoCreator.CreateRepository(entityid.StageTemplate, conn, tableConfig.TableName(entityid.StageTemplate))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stage_template repository: %w", err)
 	}
 
-	activityRepo, err := repoCreator.CreateRepository(entityid.Activity, conn, dbTableConfig.Activity)
+	activityRepo, err := repoCreator.CreateRepository(entityid.Activity, conn, tableConfig.TableName(entityid.Activity))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activity repository: %w", err)
 	}
 
-	activityTemplateRepo, err := repoCreator.CreateRepository(entityid.ActivityTemplate, conn, dbTableConfig.ActivityTemplate)
+	activityTemplateRepo, err := repoCreator.CreateRepository(entityid.ActivityTemplate, conn, tableConfig.TableName(entityid.ActivityTemplate))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activity_template repository: %w", err)
 	}

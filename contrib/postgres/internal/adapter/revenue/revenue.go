@@ -275,7 +275,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.location_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name
-			FROM revenue rv
+			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true
 			LEFT JOIN location l ON rv.location_id = l.id AND l.active = true
 			WHERE rv.active = true
@@ -456,7 +456,7 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 				rv.location_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name
-			FROM revenue rv
+			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true
 			LEFT JOIN location l ON rv.location_id = l.id AND l.active = true
 			WHERE rv.id = $1 AND rv.active = true

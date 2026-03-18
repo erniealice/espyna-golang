@@ -1,4 +1,24 @@
-
+// Package postgres is the PostgreSQL adapter's self-registration entry point.
+//
+// init() registers three things with the espyna registry:
+//   - Provider factory (NewPostgresAdapter)
+//   - BuildFromEnv builder (reads POSTGRES_* env vars, returns initialized adapter)
+//   - TableConfigBuilder (buildPgTableConfig — scans POSTGRES_TABLE_* env vars via entityid.All)
+//
+// The 145+ entity adapters in subdirectories (entity/, product/, revenue/, etc.)
+// each have their own init() that calls registry.RegisterRepositoryFactory to
+// register a "postgresql:<entityid>" factory.
+//
+// Adding a new PostgreSQL entity adapter:
+//   1. Create an adapter file in the appropriate subdomain directory.
+//   2. Add an init() that calls registry.RegisterRepositoryFactory("postgresql", entityid.X, factory).
+//   3. Blank-import the adapter package in the consumer binary so init() fires.
+//
+// Table name resolution: buildPgTableConfig() iterates entityid.All, checking
+// POSTGRES_TABLE_{ENTITY} env vars for overrides, and stores them in TableConfig.
+//
+// Import order matters: adapter packages must be blank-imported in the consumer
+// binary for their init() registrations to execute.
 package postgres
 
 import (
@@ -8,13 +28,15 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/erniealice/espyna-golang/ports"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 )
 
@@ -36,113 +58,21 @@ func init() {
 
 // buildPgTableConfig creates table config from POSTGRES_TABLE_* environment variables.
 // This allows PostgreSQL-specific table naming without the container knowing about it.
-func buildPgTableConfig() *registry.DatabaseTableConfig {
+func buildPgTableConfig() *registry.TableConfig {
 	prefix := getEnv("POSTGRES_TABLE_PREFIX", "")
-	return &registry.DatabaseTableConfig{
-		// Common
-		Attribute: prefix + getPostgresTableEnv("ATTRIBUTE", "attribute"),
-		// Entity
-		Client:            prefix + getPostgresTableEnv("CLIENT", "client"),
-		ClientAttribute:   prefix + getPostgresTableEnv("CLIENT_ATTRIBUTE", "client_attribute"),
-		Admin:             prefix + getPostgresTableEnv("ADMIN", "admin"),
-		Manager:           prefix + getPostgresTableEnv("MANAGER", "manager"),
-		Staff:             prefix + getPostgresTableEnv("STAFF", "staff"),
-		StaffAttribute:    prefix + getPostgresTableEnv("STAFF_ATTRIBUTE", "staff_attribute"),
-		Delegate:          prefix + getPostgresTableEnv("DELEGATE", "delegate"),
-		DelegateAttribute: prefix + getPostgresTableEnv("DELEGATE_ATTRIBUTE", "delegate_attribute"),
-		DelegateClient:    prefix + getPostgresTableEnv("DELEGATE_CLIENT", "delegate_client"),
-		Group:             prefix + getPostgresTableEnv("GROUP", "group"),
-		GroupAttribute:    prefix + getPostgresTableEnv("GROUP_ATTRIBUTE", "group_attribute"),
-		Location:          prefix + getPostgresTableEnv("LOCATION", "location"),
-		LocationAttribute: prefix + getPostgresTableEnv("LOCATION_ATTRIBUTE", "location_attribute"),
-		Permission:        prefix + getPostgresTableEnv("PERMISSION", "permission"),
-		Role:              prefix + getPostgresTableEnv("ROLE", "role"),
-		RolePermission:    prefix + getPostgresTableEnv("ROLE_PERMISSION", "role_permission"),
-		User:              prefix + getPostgresTableEnv("USER", "user"),
-		Workspace:         prefix + getPostgresTableEnv("WORKSPACE", "workspace"),
-		WorkspaceClient:   prefix + getPostgresTableEnv("WORKSPACE_CLIENT", "workspace_client"),
-		WorkspaceUser:     prefix + getPostgresTableEnv("WORKSPACE_USER", "workspace_user"),
-		WorkspaceUserRole: prefix + getPostgresTableEnv("WORKSPACE_USER_ROLE", "workspace_user_role"),
-		// Event
-		Event:          prefix + getPostgresTableEnv("EVENT", "event"),
-		EventAttribute: prefix + getPostgresTableEnv("EVENT_ATTRIBUTE", "event_attribute"),
-		EventClient:    prefix + getPostgresTableEnv("EVENT_CLIENT", "event_client"),
-		EventProduct:   prefix + getPostgresTableEnv("EVENT_PRODUCT", "event_product"),
-		EventSettings:  prefix + getPostgresTableEnv("EVENT_SETTINGS", "event_settings"),
-		// Framework
-		Framework: prefix + getPostgresTableEnv("FRAMEWORK", "framework"),
-		Objective: prefix + getPostgresTableEnv("OBJECTIVE", "objective"),
-		Task:      prefix + getPostgresTableEnv("TASK", "task"),
-		// Payment
-		Payment:                     prefix + getPostgresTableEnv("PAYMENT", "payment"),
-		PaymentAttribute:            prefix + getPostgresTableEnv("PAYMENT_ATTRIBUTE", "payment_attribute"),
-		PaymentMethod:               prefix + getPostgresTableEnv("PAYMENT_METHOD", "payment_method"),
-		PaymentProfile:              prefix + getPostgresTableEnv("PAYMENT_PROFILE", "payment_profile"),
-		PaymentProfilePaymentMethod: prefix + getPostgresTableEnv("PAYMENT_PROFILE_PAYMENT_METHOD", "payment_profile_payment_method"),
-		// Product
-		Product:              prefix + getPostgresTableEnv("PRODUCT", "product"),
-		ProductVariant:       prefix + getPostgresTableEnv("PRODUCT_VARIANT", "product_variant"),
-		Collection:           prefix + getPostgresTableEnv("COLLECTION", "collection"),
-		CollectionAttribute:  prefix + getPostgresTableEnv("COLLECTION_ATTRIBUTE", "collection_attribute"),
-		CollectionParent:     prefix + getPostgresTableEnv("COLLECTION_PARENT", "collection_parent"),
-		CollectionPlan:       prefix + getPostgresTableEnv("COLLECTION_PLAN", "collection_plan"),
-		PriceList:            prefix + getPostgresTableEnv("PRICE_LIST", "price_list"),
-		PriceProduct:         prefix + getPostgresTableEnv("PRICE_PRODUCT", "price_product"),
-		ProductAttribute:     prefix + getPostgresTableEnv("PRODUCT_ATTRIBUTE", "product_attribute"),
-		ProductCollection:    prefix + getPostgresTableEnv("PRODUCT_COLLECTION", "product_collection"),
-		ProductOption:        prefix + getPostgresTableEnv("PRODUCT_OPTION", "product_option"),
-		ProductOptionValue:   prefix + getPostgresTableEnv("PRODUCT_OPTION_VALUE", "product_option_value"),
-		ProductPlan:          prefix + getPostgresTableEnv("PRODUCT_PLAN", "product_plan"),
-		ProductVariantOption: prefix + getPostgresTableEnv("PRODUCT_VARIANT_OPTION", "product_variant_option"),
-		ProductVariantImage:  prefix + getPostgresTableEnv("PRODUCT_VARIANT_IMAGE", "product_variant_image"),
-		Resource:             prefix + getPostgresTableEnv("RESOURCE", "resource"),
-		// Record
-		Record: prefix + getPostgresTableEnv("RECORD", "record"),
-		// Workflow
-		Workflow:         prefix + getPostgresTableEnv("WORKFLOW", "workflow"),
-		WorkflowTemplate: prefix + getPostgresTableEnv("WORKFLOW_TEMPLATE", "workflow_template"),
-		Stage:            prefix + getPostgresTableEnv("STAGE", "stage"),
-		Activity:         prefix + getPostgresTableEnv("ACTIVITY", "activity"),
-		StageTemplate:    prefix + getPostgresTableEnv("STAGE_TEMPLATE", "stage_template"),
-		ActivityTemplate: prefix + getPostgresTableEnv("ACTIVITY_TEMPLATE", "activity_template"),
-		// Session
-		Session: prefix + getPostgresTableEnv("SESSION", "session"),
-		// Revenue domain
-		Revenue:          prefix + getPostgresTableEnv("REVENUE", "revenue"),
-		RevenueAttribute: prefix + getPostgresTableEnv("REVENUE_ATTRIBUTE", "revenue_attribute"),
-		RevenueLineItem:  prefix + getPostgresTableEnv("REVENUE_LINE_ITEM", "revenue_line_item"),
-		RevenueCategory:  prefix + getPostgresTableEnv("REVENUE_CATEGORY", "revenue_category"),
-		// Expenditure domain
-		Expenditure:          prefix + getPostgresTableEnv("EXPENDITURE", "expenditure"),
-		ExpenditureAttribute: prefix + getPostgresTableEnv("EXPENDITURE_ATTRIBUTE", "expenditure_attribute"),
-		ExpenditureLineItem:  prefix + getPostgresTableEnv("EXPENDITURE_LINE_ITEM", "expenditure_line_item"),
-		ExpenditureCategory:  prefix + getPostgresTableEnv("EXPENDITURE_CATEGORY", "expenditure_category"),
-		// Inventory domain
-		InventoryItem:          prefix + getPostgresTableEnv("INVENTORY_ITEM", "inventory_item"),
-		InventoryAttribute:     prefix + getPostgresTableEnv("INVENTORY_ATTRIBUTE", "inventory_attribute"),
-		InventoryTransaction:   prefix + getPostgresTableEnv("INVENTORY_TRANSACTION", "inventory_transaction"),
-		InventorySerial:        prefix + getPostgresTableEnv("INVENTORY_SERIAL", "inventory_serial"),
-		InventoryDepreciation:  prefix + getPostgresTableEnv("INVENTORY_DEPRECIATION", "inventory_depreciation"),
-		InventorySerialHistory: prefix + getPostgresTableEnv("INVENTORY_SERIAL_HISTORY", "inventory_serial_history"),
-		// Treasury domain
-		TreasuryCollection:   prefix + getPostgresTableEnv("TREASURY_COLLECTION", "treasury_collection"),
-		TreasuryDisbursement: prefix + getPostgresTableEnv("TREASURY_DISBURSEMENT", "treasury_disbursement"),
-		// Ledger domain
-		DocumentTemplate: prefix + getPostgresTableEnv("DOCUMENT_TEMPLATE", "document_template"),
-		Attachment:       prefix + getPostgresTableEnv("ATTACHMENT", "attachment"),
-		// Subscription
-		Plan:                  prefix + getPostgresTableEnv("PLAN", "plan"),
-		PlanAttribute:         prefix + getPostgresTableEnv("PLAN_ATTRIBUTE", "plan_attribute"),
-		PlanLocation:          prefix + getPostgresTableEnv("PLAN_LOCATION", "plan_location"),
-		PlanSettings:          prefix + getPostgresTableEnv("PLAN_SETTINGS", "plan_settings"),
-		Balance:               prefix + getPostgresTableEnv("BALANCE", "balance"),
-		BalanceAttribute:      prefix + getPostgresTableEnv("BALANCE_ATTRIBUTE", "balance_attribute"),
-		Invoice:               prefix + getPostgresTableEnv("INVOICE", "invoice"),
-		InvoiceAttribute:      prefix + getPostgresTableEnv("INVOICE_ATTRIBUTE", "invoice_attribute"),
-		PricePlan:             prefix + getPostgresTableEnv("PRICE_PLAN", "price_plan"),
-		Subscription:          prefix + getPostgresTableEnv("SUBSCRIPTION", "subscription"),
-		SubscriptionAttribute: prefix + getPostgresTableEnv("SUBSCRIPTION_ATTRIBUTE", "subscription_attribute"),
+	overrides := make(map[string]string)
+	for _, entity := range entityid.All {
+		envKey := "POSTGRES_TABLE_" + toEnvKey(entity)
+		if val := os.Getenv(envKey); val != "" {
+			overrides[entity] = val
+		}
 	}
+	return registry.NewTableConfig(prefix, overrides)
+}
+
+// toEnvKey converts a snake_case entity ID to UPPER_CASE for env var lookup.
+func toEnvKey(entity string) string {
+	return strings.ToUpper(entity)
 }
 
 // getPostgresTableEnv reads POSTGRES_TABLE_{suffix} or returns the default.

@@ -1,3 +1,24 @@
+// database.go contains four co-located registries that together form espyna's
+// database self-registration system:
+//
+// 1. Database Provider Registry — registers provider factories (postgresql,
+//    firestore, mock) along with config transformers and BuildFromEnv builders.
+//
+// 2. Table Config — map-based table name resolution. Defaults come from entityid
+//    constants; overrides come from env vars. Each provider registers a
+//    TableConfigBuilder via init() that scans provider-specific env vars.
+//
+// 3. Repository Factory Registry — maps "provider:entity" composite keys to
+//    factory functions. Each entity adapter self-registers in its init().
+//    The composition layer calls CreateRepository() to obtain typed repos.
+//
+// 4. Database Operations Factory Registry — maps a provider name to a
+//    DatabaseOperation factory for raw CRUD operations (Create, Read, Update,
+//    Delete, List, Query).
+//
+// Data flow at boot time:
+//   App boots -> BuildDatabaseTableConfig(provider) -> TableConfig
+//   -> domain providers call CreateRepository(entityid.X, conn, tableConfig.TableName(entityid.X))
 package registry
 
 import (
@@ -79,64 +100,8 @@ func RegisterDatabaseProvider(name string, factory func() ports.DatabaseProvider
 //
 // =============================================================================
 
-// DatabaseTableConfig holds database table/collection names.
-// This is defined here to avoid circular imports with composition/config.
-type DatabaseTableConfig struct {
-	// Common
-	Attribute, AttributeValue, Category string
-	// Entity
-	Client, ClientAttribute, ClientCategory                            string
-	Admin, Manager, Staff, StaffAttribute                              string
-	Supplier, SupplierAttribute, SupplierCategory                      string
-	Delegate, DelegateAttribute, DelegateClient                        string
-	Group, GroupAttribute, Location, LocationAttribute                 string
-	Permission, Role, RolePermission                                   string
-	User, Workspace, WorkspaceClient, WorkspaceUser, WorkspaceUserRole string
-	// Event
-	Event, EventAttribute, EventClient, EventProduct, EventSettings string
-	// Framework
-	Framework, Objective, Task string
-	// Payment
-	Payment, PaymentAttribute, PaymentMethod, PaymentProfile string
-	PaymentProfilePaymentMethod                              string
-	// Integration
-	IntegrationPayment string
-	// Product
-	Product, ProductVariant, Collection, CollectionAttribute, CollectionParent, CollectionPlan string
-	PriceList, PriceProduct, ProductAttribute, ProductCollection, ProductPlan, Resource        string
-	ProductOption, ProductOptionValue, ProductVariantOption, ProductVariantImage               string
-	// Record
-	Record string
-	// Workflow
-	Workflow, WorkflowTemplate, Stage, Activity, StageTemplate, ActivityTemplate string
-	// Operation
-	Job, JobPhase, JobTask, JobTemplate, JobTemplatePhase, JobTemplateTask string
-	// Operation — Layer 7: Outcome
-	OutcomeCriteria, CriteriaThreshold, CriteriaOption, TemplateTaskCriteria string
-	TaskOutcome, TaskOutcomeCheck, PhaseOutcomeSummary, JobOutcomeSummary    string
-	// Session
-	Session string
-	// Revenue domain
-	Revenue, RevenueAttribute, RevenueLineItem, RevenueCategory string
-	// Expenditure domain
-	Expenditure, ExpenditureAttribute, ExpenditureLineItem, ExpenditureCategory string
-	// Inventory domain
-	InventoryItem, InventoryAttribute, InventoryTransaction string
-	InventorySerial, InventoryDepreciation                  string
-	InventorySerialHistory                                  string
-	// Treasury domain
-	TreasuryCollection, TreasuryDisbursement string
-	// Ledger domain
-	DocumentTemplate string
-	Attachment       string
-	// Subscription
-	Plan, PlanAttribute, PlanLocation, PlanSettings      string
-	Balance, BalanceAttribute, Invoice, InvoiceAttribute string
-	PricePlan, Subscription, SubscriptionAttribute       string
-}
-
 // TableConfigBuilder creates table config from environment variables.
-type TableConfigBuilder func() *DatabaseTableConfig
+type TableConfigBuilder func() *TableConfig
 
 // tableConfigRegistry holds registered table config builders
 var tableConfigBuilders = struct {
@@ -168,91 +133,67 @@ func GetDatabaseTableConfigBuilder(providerName string) (TableConfigBuilder, boo
 }
 
 // BuildDatabaseTableConfig creates table config using the registered builder.
-func BuildDatabaseTableConfig(providerName string) (*DatabaseTableConfig, error) {
+func BuildDatabaseTableConfig(providerName string) (*TableConfig, error) {
 	builder, exists := GetDatabaseTableConfigBuilder(providerName)
 	if !exists {
 		// Fallback to default config
-		return DefaultDatabaseTableConfig(), nil
+		return NewDefaultTableConfig(), nil
 	}
 	return builder(), nil
 }
 
-// DefaultDatabaseTableConfig returns sensible defaults for table names.
-func DefaultDatabaseTableConfig() *DatabaseTableConfig {
-	return &DatabaseTableConfig{
-		// Common
-		Attribute:      "attribute",
-		AttributeValue: "attribute_value",
-		Category:       "category",
-		// Entity
-		Client: "client", ClientAttribute: "client_attribute", ClientCategory: "client_category",
-		Admin: "admin", Manager: "manager",
-		Staff: "staff", StaffAttribute: "staff_attribute",
-		Supplier: "supplier", SupplierAttribute: "supplier_attribute", SupplierCategory: "supplier_category",
-		Delegate: "delegate", DelegateAttribute: "delegate_attribute", DelegateClient: "delegate_client",
-		Group: "group", GroupAttribute: "group_attribute",
-		Location: "location", LocationAttribute: "location_attribute",
-		Permission: "permission", Role: "role", RolePermission: "role_permission",
-		User: "user", Workspace: "workspace", WorkspaceClient: "workspace_client",
-		WorkspaceUser: "workspace_user", WorkspaceUserRole: "workspace_user_role",
-		// Event
-		Event: "event", EventAttribute: "event_attribute", EventClient: "event_client",
-		EventProduct: "event_product", EventSettings: "event_settings",
-		// Framework
-		Framework: "framework", Objective: "objective", Task: "task",
-		// Payment
-		Payment: "payment", PaymentAttribute: "payment_attribute",
-		PaymentMethod: "payment_method", PaymentProfile: "payment_profile",
-		PaymentProfilePaymentMethod: "payment_profile_payment_method",
-		// Integration
-		IntegrationPayment: "integration_payment",
-		// Product
-		Product: "product", ProductVariant: "product_variant",
-		Collection: "collection", CollectionAttribute: "collection_attribute",
-		CollectionParent: "collection_parent", CollectionPlan: "collection_plan",
-		PriceList: "price_list", PriceProduct: "price_product", ProductAttribute: "product_attribute",
-		ProductCollection: "product_collection", ProductPlan: "product_plan", Resource: "resource",
-		ProductOption: "product_option", ProductOptionValue: "product_option_value",
-		ProductVariantOption: "product_variant_option", ProductVariantImage: "product_variant_image",
-		// Record
-		Record: "record",
-		// Workflow
-		Workflow: "workflow", WorkflowTemplate: "workflow_template",
-		Stage: "stage", Activity: "activity",
-		StageTemplate: "stage_template", ActivityTemplate: "activity_template",
-		// Operation
-		Job: "job", JobPhase: "job_phase", JobTask: "job_task",
-		JobTemplate: "job_template", JobTemplatePhase: "job_template_phase",
-		JobTemplateTask: "job_template_task",
-		// Operation — Layer 7: Outcome
-		OutcomeCriteria: "outcome_criteria", CriteriaThreshold: "criteria_threshold",
-		CriteriaOption: "criteria_option", TemplateTaskCriteria: "template_task_criteria",
-		TaskOutcome: "task_outcome", TaskOutcomeCheck: "task_outcome_check",
-		PhaseOutcomeSummary: "phase_outcome_summary", JobOutcomeSummary: "job_outcome_summary",
-		// Session
-		Session: "session",
-		// Revenue domain
-		Revenue: "revenue", RevenueAttribute: "revenue_attribute",
-		RevenueLineItem: "revenue_line_item", RevenueCategory: "revenue_category",
-		// Expenditure domain
-		Expenditure: "expenditure", ExpenditureAttribute: "expenditure_attribute",
-		ExpenditureLineItem: "expenditure_line_item", ExpenditureCategory: "expenditure_category",
-		// Inventory domain
-		InventoryItem: "inventory_item", InventoryAttribute: "inventory_attribute",
-		InventoryTransaction: "inventory_transaction",
-		InventorySerial:      "inventory_serial", InventoryDepreciation: "inventory_depreciation",
-		InventorySerialHistory: "inventory_serial_history",
-		// Treasury domain
-		TreasuryCollection: "treasury_collection", TreasuryDisbursement: "treasury_disbursement",
-		// Ledger domain
-		DocumentTemplate: "document_template",
-		Attachment:       "attachment",
-		// Subscription
-		Plan: "plan", PlanAttribute: "plan_attribute", PlanLocation: "plan_location", PlanSettings: "plan_settings",
-		Balance: "balance", BalanceAttribute: "balance_attribute",
-		Invoice: "invoice", InvoiceAttribute: "invoice_attribute",
-		PricePlan: "price_plan", Subscription: "subscription", SubscriptionAttribute: "subscription_attribute",
+// =============================================================================
+// Table Config (Map-Based)
+// =============================================================================
+
+// TableConfig resolves entity names to table/collection names.
+// Default: entityid constant value IS the table name. Overrides stored in map.
+type TableConfig struct {
+	prefix    string
+	overrides map[string]string
+}
+
+// NewTableConfig creates a TableConfig with an optional prefix and overrides.
+// Only entities with non-default table names need entries in overrides.
+func NewTableConfig(prefix string, overrides map[string]string) *TableConfig {
+	if overrides == nil {
+		overrides = make(map[string]string)
 	}
+	return &TableConfig{prefix: prefix, overrides: overrides}
+}
+
+// NewDefaultTableConfig creates a TableConfig with no prefix and no overrides.
+// All table names default to their entityid constant values.
+func NewDefaultTableConfig() *TableConfig {
+	return &TableConfig{overrides: make(map[string]string)}
+}
+
+// TableName returns the table/collection name for an entity.
+// If an override exists, returns prefix + override. Otherwise returns prefix + entity.
+func (tc *TableConfig) TableName(entity string) string {
+	if tc == nil {
+		return entity
+	}
+	if override, ok := tc.overrides[entity]; ok {
+		return tc.prefix + override
+	}
+	return tc.prefix + entity
+}
+
+// SetOverride sets a custom table name for an entity.
+func (tc *TableConfig) SetOverride(entity, tableName string) {
+	if tc.overrides == nil {
+		tc.overrides = make(map[string]string)
+	}
+	tc.overrides[entity] = tableName
+}
+
+// Prefix returns the table name prefix.
+func (tc *TableConfig) Prefix() string {
+	if tc == nil {
+		return ""
+	}
+	return tc.prefix
 }
 
 // =============================================================================

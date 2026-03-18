@@ -1,3 +1,22 @@
+// manager.go defines Manager, the bridge between infrastructure registries and
+// domain composition.
+//
+// On creation (NewManager), Manager:
+//   1. Initializes core providers from env vars via the provider registry
+//      (database, auth, storage, ID).
+//   2. Builds a TableConfig from the active database provider's registered
+//      TableConfigBuilder (env var -> registry.BuildDatabaseTableConfig(name) ->
+//      TableConfig with env-var overrides).
+//
+// Manager stores: database, auth, storage, server, ID providers and the resolved
+// TableConfig. GetDBTableConfig() returns the TableConfig used by all domain
+// providers for table name resolution.
+//
+// Provider initialization chain:
+//   env var -> registry.BuildFromEnv(providerName) -> provider instance
+//
+// Table config chain:
+//   provider name -> registry.BuildDatabaseTableConfig(providerName) -> TableConfig
 package providers
 
 import (
@@ -32,7 +51,7 @@ type Manager struct {
 	providerRegistry *Registry
 
 	// Database table configuration (obtained from registry based on active provider)
-	dbTableConfig *registry.DatabaseTableConfig
+	dbTableConfig *registry.TableConfig
 
 	// Health monitoring
 	healthCheckInterval time.Duration
@@ -68,7 +87,7 @@ func NewManager() (*Manager, error) {
 		manager.dbTableConfig = tableConfig
 	} else {
 		// Fallback to default if no database provider
-		manager.dbTableConfig = registry.DefaultDatabaseTableConfig()
+		manager.dbTableConfig = registry.NewDefaultTableConfig()
 	}
 
 	return manager, nil
@@ -223,7 +242,7 @@ func (m *Manager) SetIDProvider(provider contracts.Provider) {
 }
 
 // GetDBTableConfig returns the database table configuration
-func (m *Manager) GetDBTableConfig() *registry.DatabaseTableConfig {
+func (m *Manager) GetDBTableConfig() *registry.TableConfig {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.dbTableConfig

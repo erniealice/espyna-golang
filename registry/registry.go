@@ -1,4 +1,20 @@
-// Package registry re-exports internal registry types and functions for use by contrib sub-modules.
+// Package registry is the public API surface for espyna's self-registration system.
+// It re-exports types and functions from internal/infrastructure/registry so that
+// consumers (apps, contrib adapters) import this package and never the internal one.
+//
+// Major registry subsystems exposed here:
+//   - Database Provider: factory, config transformer, BuildFromEnv for each DB backend
+//   - Table Config: map-based table/collection name resolution with env-var overrides
+//   - Repository Factory: "provider:entity" keyed factories, self-registered via init()
+//   - Database Operations Factory: provider-keyed raw CRUD operation factories
+//   - Storage: provider factory, config transformer, BuildFromEnv
+//   - Auth: provider factory, config transformer, BuildFromEnv
+//   - Email: provider factory, config transformer, BuildFromEnv
+//   - Tabular: provider factory, config transformer, BuildFromEnv
+//   - Server: provider factory, BuildFromEnv
+//   - Ledger Reporting: factory for ledger report generators
+//
+// Note: entityid constants live in registry/entityid/ (separate package, no dependency on this one).
 package registry
 
 import (
@@ -44,14 +60,23 @@ var (
 // Database Table Config Registry
 // =============================================================================
 
-type DatabaseTableConfig = internal.DatabaseTableConfig
 type TableConfigBuilder = internal.TableConfigBuilder
 
 var (
 	RegisterDatabaseTableConfigBuilder = internal.RegisterDatabaseTableConfigBuilder
 	GetDatabaseTableConfigBuilder      = internal.GetDatabaseTableConfigBuilder
 	BuildDatabaseTableConfig           = internal.BuildDatabaseTableConfig
-	DefaultDatabaseTableConfig         = internal.DefaultDatabaseTableConfig
+)
+
+// =============================================================================
+// Table Config (Map-Based)
+// =============================================================================
+
+type TableConfig = internal.TableConfig
+
+var (
+	NewTableConfig        = internal.NewTableConfig
+	NewDefaultTableConfig = internal.NewDefaultTableConfig
 )
 
 // =============================================================================

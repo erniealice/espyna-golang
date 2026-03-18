@@ -25,11 +25,11 @@ type Registry struct {
 
 	// Database provider and config needed for lazy initialization
 	dbProvider    contracts.Provider
-	dbTableConfig *registry.DatabaseTableConfig
+	dbTableConfig *registry.TableConfig
 }
 
 // NewRegistry creates a new domain registry
-func NewRegistry(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) *Registry {
+func NewRegistry(dbProvider contracts.Provider, dbTableConfig *registry.TableConfig) *Registry {
 	return &Registry{
 		dbProvider:    dbProvider,
 		dbTableConfig: dbTableConfig,

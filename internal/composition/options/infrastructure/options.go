@@ -29,11 +29,6 @@ type DatabaseConfigSetter interface {
 	SetDatabaseConfig(config interface{})
 }
 
-// DatabaseTableConfigSetter defines methods for setting database table configuration
-type DatabaseTableConfigSetter interface {
-	SetDatabaseTableConfig(config interface{})
-}
-
 // AuthConfigSetter defines methods for setting auth configuration
 type AuthConfigSetter interface {
 	SetAuthConfig(config interface{})

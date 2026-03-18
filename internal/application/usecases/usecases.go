@@ -10,6 +10,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -31,6 +32,7 @@ import (
 // - Revenue:      4 entities (Revenue, RevenueLineItem, RevenueCategory, RevenueAttribute)
 // - Subscription: 6 entities (Plan, Subscription, Invoice, Balance, etc.)
 // - Workflow:     3 entities (Workflow, StageTemplate, ActivityTemplate)
+// - Payroll:      2 entities (PayrollRun, PayrollRemittance)
 type Aggregate struct {
 	Common       *common.CommonUseCases
 	Entity       *entity.EntityUseCases
@@ -39,6 +41,7 @@ type Aggregate struct {
 	Inventory    *inventory.InventoryUseCases
 	Ledger       *ledger.LedgerUseCases
 	Operation    *operation.OperationUseCases
+	Payroll      *payroll.PayrollUseCases
 	Treasury     *treasury.TreasuryUseCases
 	Product      *product.ProductUseCases
 	Revenue      *revenue.RevenueUseCases
@@ -60,6 +63,7 @@ func NewAggregate(
 	inventoryUC *inventory.InventoryUseCases,
 	ledgerUC *ledger.LedgerUseCases,
 	operationUC *operation.OperationUseCases,
+	payrollUC *payroll.PayrollUseCases,
 	treasuryUC *treasury.TreasuryUseCases,
 	productUC *product.ProductUseCases,
 	revenueUC *revenue.RevenueUseCases,
@@ -75,6 +79,7 @@ func NewAggregate(
 		Inventory:    inventoryUC,
 		Ledger:       ledgerUC,
 		Operation:    operationUC,
+		Payroll:      payrollUC,
 		Treasury:     treasuryUC,
 		Product:      productUC,
 		Revenue:      revenueUC,
@@ -95,6 +100,7 @@ func NewEmptyAggregate() *Aggregate {
 		Inventory:    &inventory.InventoryUseCases{},
 		Ledger:       &ledger.LedgerUseCases{},
 		Operation:    &operation.OperationUseCases{},
+		Payroll:      &payroll.PayrollUseCases{},
 		Treasury:     &treasury.TreasuryUseCases{},
 		Product:      &product.ProductUseCases{},
 		Revenue:      &revenue.RevenueUseCases{},

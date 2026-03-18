@@ -19,7 +19,7 @@ type CommonRepositories struct {
 }
 
 // NewCommonRepositories creates and returns a new set of CommonRepositories
-func NewCommonRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*CommonRepositories, error) {
+func NewCommonRepositories(dbProvider contracts.Provider, tableConfig *registry.TableConfig) (*CommonRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
 	}
@@ -34,15 +34,15 @@ func NewCommonRepositories(dbProvider contracts.Provider, dbTableConfig *registr
 	repos := &CommonRepositories{}
 
 	// Create attribute repository (optional — may not have a factory registered)
-	attributeRepo, err := repoCreator.CreateRepository(entityid.Attribute, conn, dbTableConfig.Attribute)
+	attributeRepo, err := repoCreator.CreateRepository(entityid.Attribute, conn, tableConfig.TableName(entityid.Attribute))
 	if err != nil {
 		fmt.Printf("⚠️  Attribute repository not available: %v\n", err)
 	} else {
 		repos.Attribute = attributeRepo.(attributepb.AttributeDomainServiceServer)
 	}
 
-	// Create category repository using configured table name from dbTableConfig
-	categoryRepo, err := repoCreator.CreateRepository(entityid.Category, conn, dbTableConfig.Category)
+	// Create category repository using configured table name from tableConfig
+	categoryRepo, err := repoCreator.CreateRepository(entityid.Category, conn, tableConfig.TableName(entityid.Category))
 	if err != nil {
 		fmt.Printf("⚠️  Category repository not available: %v\n", err)
 	} else {

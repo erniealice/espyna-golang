@@ -16,8 +16,20 @@ func InitializeLedger(
 ) (*ledger.LedgerUseCases, error) {
 	return ledger.NewUseCases(
 		ledger.LedgerRepositories{
+			// Existing document repositories
 			DocumentTemplate: repos.DocumentTemplate,
 			Attachment:       repos.Attachment,
+
+			// Chart of Accounts repositories
+			Account:                  repos.Account,
+			AccountGroup:             repos.AccountGroup,
+			AccountTemplate:          repos.AccountTemplate,
+			JournalEntry:             repos.JournalEntry,
+			JournalLine:              repos.JournalLine,
+			FiscalPeriod:             repos.FiscalPeriod,
+			RecurringJournalTemplate: repos.RecurringJournalTemplate,
+			EquityAccount:            repos.EquityAccount,
+			EquityTransaction:        repos.EquityTransaction,
 		},
 		authSvc,
 		txSvc,

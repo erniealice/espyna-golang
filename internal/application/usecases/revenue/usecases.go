@@ -6,6 +6,7 @@ import (
 	revenueAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_attribute"
 	revenueCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_category"
 	revenueLineItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_line_item"
+	deferredRevenueUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/deferred_revenue"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -15,6 +16,7 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
 
 // RevenueRepositories contains all revenue domain repositories
@@ -23,6 +25,7 @@ type RevenueRepositories struct {
 	RevenueLineItem  revenuelineitempb.RevenueLineItemDomainServiceServer
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
+	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
 }
 
 // RevenueUseCases contains all revenue-related use cases
@@ -31,6 +34,7 @@ type RevenueUseCases struct {
 	RevenueLineItem  *revenueLineItemUseCases.UseCases
 	RevenueCategory  *revenueCategoryUseCases.UseCases
 	RevenueAttribute *revenueAttributeUseCases.UseCases
+	DeferredRevenue  *deferredRevenueUseCases.UseCases
 }
 
 // NewUseCases creates all revenue use cases with proper constructor injection
@@ -89,10 +93,23 @@ func NewUseCases(
 		},
 	)
 
+	deferredRevenueUC := deferredRevenueUseCases.NewUseCases(
+		deferredRevenueUseCases.DeferredRevenueRepositories{
+			DeferredRevenue: repos.DeferredRevenue,
+		},
+		deferredRevenueUseCases.DeferredRevenueServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
 	return &RevenueUseCases{
 		Revenue:          revenueUC,
 		RevenueLineItem:  revenueLineItemUC,
 		RevenueCategory:  revenueCategoryUC,
 		RevenueAttribute: revenueAttributeUC,
+		DeferredRevenue:  deferredRevenueUC,
 	}
 }

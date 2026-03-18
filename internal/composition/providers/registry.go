@@ -68,7 +68,7 @@ func NewRegistry() *Registry {
 
 // InitializeAll initializes all sub-registries from environment.
 // Each provider reads its own configuration from environment variables.
-func (r *Registry) InitializeAll(dbTableConfig *registry.DatabaseTableConfig) error {
+func (r *Registry) InitializeAll(dbTableConfig *registry.TableConfig) error {
 	// Initialize infrastructure providers first (database, auth, storage, id)
 	if err := r.infrastructure.InitializeAll(); err != nil {
 		return fmt.Errorf("failed to initialize infrastructure providers: %w", err)

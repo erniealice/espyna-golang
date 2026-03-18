@@ -16,8 +16,17 @@ func InitializeTreasury(
 ) (*treasury.TreasuryUseCases, error) {
 	return treasury.NewUseCases(
 		treasury.TreasuryRepositories{
+			// Existing treasury repositories
 			Collection:   repos.Collection,
 			Disbursement: repos.Disbursement,
+
+			// Loans & Petty Cash repositories
+			Loan:                   repos.Loan,
+			LoanPayment:            repos.LoanPayment,
+			SecurityDeposit:        repos.SecurityDeposit,
+			PettyCashFund:          repos.PettyCashFund,
+			PettyCashVoucher:       repos.PettyCashVoucher,
+			PettyCashReplenishment: repos.PettyCashReplenishment,
 		},
 		authSvc,
 		txSvc,

@@ -8,6 +8,7 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/entity"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/event"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/expenditure"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/payroll"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/integrations"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/inventory_attribute"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/inventory_depreciation"

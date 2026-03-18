@@ -12,6 +12,7 @@ import (
 	expenditureattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
 	expenditurecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
+	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
@@ -20,10 +21,13 @@ type ExpenditureRepositories struct {
 	ExpenditureLineItem  expenditurelineitempb.ExpenditureLineItemDomainServiceServer
 	ExpenditureCategory  expenditurecategorypb.ExpenditureCategoryDomainServiceServer
 	ExpenditureAttribute expenditureattributepb.ExpenditureAttributeDomainServiceServer
+	Prepayment           prepaymentpb.PrepaymentDomainServiceServer
 }
 
-// NewExpenditureRepositories creates and returns a new set of ExpenditureRepositories
-func NewExpenditureRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*ExpenditureRepositories, error) {
+// NewExpenditureRepositories creates and returns a new set of ExpenditureRepositories.
+// Individual repository failures are logged but do not prevent other repositories
+// from being created (graceful degradation per-repository).
+func NewExpenditureRepositories(dbProvider contracts.Provider, tableConfig *registry.TableConfig) (*ExpenditureRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
 	}
@@ -34,31 +38,38 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, dbTableConfig *re
 	}
 
 	conn := repoCreator.GetConnection()
+	repos := &ExpenditureRepositories{}
+	var skipped []string
 
-	expenditureRepo, err := repoCreator.CreateRepository(entityid.Expenditure, conn, dbTableConfig.Expenditure)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create expenditure repository: %w", err)
+	// Helper: try to create a repository, log and skip on failure
+	tryCreate := func(entity string) interface{} {
+		repo, err := repoCreator.CreateRepository(entity, conn, tableConfig.TableName(entity))
+		if err != nil {
+			skipped = append(skipped, entity)
+			return nil
+		}
+		return repo
 	}
 
-	expenditureLineItemRepo, err := repoCreator.CreateRepository(entityid.ExpenditureLineItem, conn, dbTableConfig.ExpenditureLineItem)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create expenditure_line_item repository: %w", err)
+	if r := tryCreate(entityid.Expenditure); r != nil {
+		repos.Expenditure = r.(expenditurepb.ExpenditureDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ExpenditureLineItem); r != nil {
+		repos.ExpenditureLineItem = r.(expenditurelineitempb.ExpenditureLineItemDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ExpenditureCategory); r != nil {
+		repos.ExpenditureCategory = r.(expenditurecategorypb.ExpenditureCategoryDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ExpenditureAttribute); r != nil {
+		repos.ExpenditureAttribute = r.(expenditureattributepb.ExpenditureAttributeDomainServiceServer)
+	}
+	if r := tryCreate(entityid.Prepayment); r != nil {
+		repos.Prepayment = r.(prepaymentpb.PrepaymentDomainServiceServer)
 	}
 
-	expenditureCategoryRepo, err := repoCreator.CreateRepository(entityid.ExpenditureCategory, conn, dbTableConfig.ExpenditureCategory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create expenditure_category repository: %w", err)
+	if len(skipped) > 0 {
+		fmt.Printf("⚠️  Expenditure repos skipped (no adapter registered): %v\n", skipped)
 	}
 
-	expenditureAttributeRepo, err := repoCreator.CreateRepository(entityid.ExpenditureAttribute, conn, dbTableConfig.ExpenditureAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create expenditure_attribute repository: %w", err)
-	}
-
-	return &ExpenditureRepositories{
-		Expenditure:          expenditureRepo.(expenditurepb.ExpenditureDomainServiceServer),
-		ExpenditureLineItem:  expenditureLineItemRepo.(expenditurelineitempb.ExpenditureLineItemDomainServiceServer),
-		ExpenditureCategory:  expenditureCategoryRepo.(expenditurecategorypb.ExpenditureCategoryDomainServiceServer),
-		ExpenditureAttribute: expenditureAttributeRepo.(expenditureattributepb.ExpenditureAttributeDomainServiceServer),
-	}, nil
+	return repos, nil
 }

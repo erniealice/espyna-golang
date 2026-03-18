@@ -39,7 +39,7 @@ type SubscriptionRepositories struct {
 }
 
 // NewSubscriptionRepositories creates and returns a new set of SubscriptionRepositories
-func NewSubscriptionRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*SubscriptionRepositories, error) {
+func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *registry.TableConfig) (*SubscriptionRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
 	}
@@ -51,65 +51,65 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, dbTableConfig *r
 
 	conn := repoCreator.GetConnection()
 
-	// Create each repository individually using configured table names directly from dbTableConfig
-	balanceRepo, err := repoCreator.CreateRepository(entityid.Balance, conn, dbTableConfig.Balance)
+	// Create each repository individually using configured table names from tableConfig
+	balanceRepo, err := repoCreator.CreateRepository(entityid.Balance, conn, tableConfig.TableName(entityid.Balance))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create balance repository: %w", err)
 	}
 
 	// Create cross-domain client repository (needed by CreateSubscription use case)
-	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, dbTableConfig.Client)
+	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, tableConfig.TableName(entityid.Client))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client repository: %w", err)
 	}
 
-	invoiceRepo, err := repoCreator.CreateRepository(entityid.Invoice, conn, dbTableConfig.Invoice)
+	invoiceRepo, err := repoCreator.CreateRepository(entityid.Invoice, conn, tableConfig.TableName(entityid.Invoice))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invoice repository: %w", err)
 	}
 
-	planRepo, err := repoCreator.CreateRepository(entityid.Plan, conn, dbTableConfig.Plan)
+	planRepo, err := repoCreator.CreateRepository(entityid.Plan, conn, tableConfig.TableName(entityid.Plan))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create plan repository: %w", err)
 	}
 
-	planSettingsRepo, err := repoCreator.CreateRepository(entityid.PlanSettings, conn, dbTableConfig.PlanSettings)
+	planSettingsRepo, err := repoCreator.CreateRepository(entityid.PlanSettings, conn, tableConfig.TableName(entityid.PlanSettings))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create plan_settings repository: %w", err)
 	}
 
-	pricePlanRepo, err := repoCreator.CreateRepository(entityid.PricePlan, conn, dbTableConfig.PricePlan)
+	pricePlanRepo, err := repoCreator.CreateRepository(entityid.PricePlan, conn, tableConfig.TableName(entityid.PricePlan))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create price_plan repository: %w", err)
 	}
 
-	subscriptionRepo, err := repoCreator.CreateRepository(entityid.Subscription, conn, dbTableConfig.Subscription)
+	subscriptionRepo, err := repoCreator.CreateRepository(entityid.Subscription, conn, tableConfig.TableName(entityid.Subscription))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subscription repository: %w", err)
 	}
 
-	balanceAttributeRepo, err := repoCreator.CreateRepository(entityid.BalanceAttribute, conn, dbTableConfig.BalanceAttribute)
+	balanceAttributeRepo, err := repoCreator.CreateRepository(entityid.BalanceAttribute, conn, tableConfig.TableName(entityid.BalanceAttribute))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create balance_attribute repository: %w", err)
 	}
 
-	invoiceAttributeRepo, err := repoCreator.CreateRepository(entityid.InvoiceAttribute, conn, dbTableConfig.InvoiceAttribute)
+	invoiceAttributeRepo, err := repoCreator.CreateRepository(entityid.InvoiceAttribute, conn, tableConfig.TableName(entityid.InvoiceAttribute))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invoice_attribute repository: %w", err)
 	}
 
-	planAttributeRepo, err := repoCreator.CreateRepository(entityid.PlanAttribute, conn, dbTableConfig.PlanAttribute)
+	planAttributeRepo, err := repoCreator.CreateRepository(entityid.PlanAttribute, conn, tableConfig.TableName(entityid.PlanAttribute))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create plan_attribute repository: %w", err)
 	}
 
-	subscriptionAttributeRepo, err := repoCreator.CreateRepository(entityid.SubscriptionAttribute, conn, dbTableConfig.SubscriptionAttribute)
+	subscriptionAttributeRepo, err := repoCreator.CreateRepository(entityid.SubscriptionAttribute, conn, tableConfig.TableName(entityid.SubscriptionAttribute))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subscription_attribute repository: %w", err)
 	}
 
 	var attributeServer attributepb.AttributeDomainServiceServer
-	attributeRepo, err := repoCreator.CreateRepository(entityid.Attribute, conn, dbTableConfig.Attribute)
+	attributeRepo, err := repoCreator.CreateRepository(entityid.Attribute, conn, tableConfig.TableName(entityid.Attribute))
 	if err == nil {
 		attributeServer = attributeRepo.(attributepb.AttributeDomainServiceServer)
 	}

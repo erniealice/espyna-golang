@@ -8,6 +8,7 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Revenue domain
+	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
@@ -20,10 +21,13 @@ type RevenueRepositories struct {
 	RevenueLineItem  revenuelineitempb.RevenueLineItemDomainServiceServer
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
+	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
 }
 
-// NewRevenueRepositories creates and returns a new set of RevenueRepositories
-func NewRevenueRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*RevenueRepositories, error) {
+// NewRevenueRepositories creates and returns a new set of RevenueRepositories.
+// Individual repository failures are logged but do not prevent other repositories
+// from being created (graceful degradation per-repository).
+func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry.TableConfig) (*RevenueRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
 	}
@@ -34,31 +38,38 @@ func NewRevenueRepositories(dbProvider contracts.Provider, dbTableConfig *regist
 	}
 
 	conn := repoCreator.GetConnection()
+	repos := &RevenueRepositories{}
+	var skipped []string
 
-	revenueRepo, err := repoCreator.CreateRepository(entityid.Revenue, conn, dbTableConfig.Revenue)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create revenue repository: %w", err)
+	// Helper: try to create a repository, log and skip on failure
+	tryCreate := func(entity string) interface{} {
+		repo, err := repoCreator.CreateRepository(entity, conn, tableConfig.TableName(entity))
+		if err != nil {
+			skipped = append(skipped, entity)
+			return nil
+		}
+		return repo
 	}
 
-	revenueLineItemRepo, err := repoCreator.CreateRepository(entityid.RevenueLineItem, conn, dbTableConfig.RevenueLineItem)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create revenue_line_item repository: %w", err)
+	if r := tryCreate(entityid.Revenue); r != nil {
+		repos.Revenue = r.(revenuepb.RevenueDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RevenueLineItem); r != nil {
+		repos.RevenueLineItem = r.(revenuelineitempb.RevenueLineItemDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RevenueCategory); r != nil {
+		repos.RevenueCategory = r.(revenuecategorypb.RevenueCategoryDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RevenueAttribute); r != nil {
+		repos.RevenueAttribute = r.(revenueattributepb.RevenueAttributeDomainServiceServer)
+	}
+	if r := tryCreate(entityid.DeferredRevenue); r != nil {
+		repos.DeferredRevenue = r.(deferredrevenuepb.DeferredRevenueDomainServiceServer)
 	}
 
-	revenueCategoryRepo, err := repoCreator.CreateRepository(entityid.RevenueCategory, conn, dbTableConfig.RevenueCategory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create revenue_category repository: %w", err)
+	if len(skipped) > 0 {
+		fmt.Printf("⚠️  Revenue repos skipped (no adapter registered): %v\n", skipped)
 	}
 
-	revenueAttributeRepo, err := repoCreator.CreateRepository(entityid.RevenueAttribute, conn, dbTableConfig.RevenueAttribute)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create revenue_attribute repository: %w", err)
-	}
-
-	return &RevenueRepositories{
-		Revenue:          revenueRepo.(revenuepb.RevenueDomainServiceServer),
-		RevenueLineItem:  revenueLineItemRepo.(revenuelineitempb.RevenueLineItemDomainServiceServer),
-		RevenueCategory:  revenueCategoryRepo.(revenuecategorypb.RevenueCategoryDomainServiceServer),
-		RevenueAttribute: revenueAttributeRepo.(revenueattributepb.RevenueAttributeDomainServiceServer),
-	}, nil
+	return repos, nil
 }

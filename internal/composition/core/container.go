@@ -270,7 +270,7 @@ func (c *Container) Initialize() error {
 		return fmt.Errorf("failed to create provider manager: %w", err)
 	}
 	c.providers = providerManager
-	fmt.Printf("✅ Provider manager initialized (table config: %s)\n", providerManager.GetDBTableConfig().Client)
+	fmt.Printf("✅ Provider manager initialized (table config: %s)\n", providerManager.GetDBTableConfig().TableName("client"))
 
 	// Initialize email provider from environment
 	fmt.Printf("📧 Initializing email provider...\n")
@@ -530,7 +530,7 @@ func (c *Container) GetSchedulerProvider() ports.SchedulerProvider {
 }
 
 // GetDBTableConfig returns the database table configuration directly
-func (c *Container) GetDBTableConfig() *registry.DatabaseTableConfig {
+func (c *Container) GetDBTableConfig() *registry.TableConfig {
 	if c.providers == nil {
 		return nil
 	}

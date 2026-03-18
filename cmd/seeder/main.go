@@ -16,6 +16,7 @@ import (
 	dbinterfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/seeders"
 	workflowseeder "github.com/erniealice/espyna-golang/internal/infrastructure/seeders/workflow"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"leapfor.xyz/vya"
@@ -196,9 +197,9 @@ func runSeeder(opts seeders.Options) error {
 	}
 
 	fmt.Printf("Using collections:\n")
-	fmt.Printf("  - WorkflowTemplate: %s\n", tableConfig.WorkflowTemplate)
-	fmt.Printf("  - StageTemplate:    %s\n", tableConfig.StageTemplate)
-	fmt.Printf("  - ActivityTemplate: %s\n", tableConfig.ActivityTemplate)
+	fmt.Printf("  - WorkflowTemplate: %s\n", tableConfig.TableName(entityid.WorkflowTemplate))
+	fmt.Printf("  - StageTemplate:    %s\n", tableConfig.TableName(entityid.StageTemplate))
+	fmt.Printf("  - ActivityTemplate: %s\n", tableConfig.TableName(entityid.ActivityTemplate))
 	fmt.Println()
 
 	// Seed templates using database operations
@@ -222,7 +223,7 @@ func runSeeder(opts seeders.Options) error {
 			continue
 		}
 
-		_, err = dbOps.Create(ctx, tableConfig.WorkflowTemplate, workflowData)
+		_, err = dbOps.Create(ctx, tableConfig.TableName(entityid.WorkflowTemplate), workflowData)
 		if err != nil {
 			seedErrors = append(seedErrors, fmt.Sprintf("%s: %v", tmpl.ID, err))
 			continue
@@ -241,7 +242,7 @@ func runSeeder(opts seeders.Options) error {
 				continue
 			}
 
-			_, err = dbOps.Create(ctx, tableConfig.StageTemplate, stageData)
+			_, err = dbOps.Create(ctx, tableConfig.TableName(entityid.StageTemplate), stageData)
 			if err != nil {
 				seedErrors = append(seedErrors, fmt.Sprintf("%s/stage/%s: %v", tmpl.ID, stageDef.Name, err))
 				stageSuccess = false
@@ -259,7 +260,7 @@ func runSeeder(opts seeders.Options) error {
 					continue
 				}
 
-				_, err = dbOps.Create(ctx, tableConfig.ActivityTemplate, activityData)
+				_, err = dbOps.Create(ctx, tableConfig.TableName(entityid.ActivityTemplate), activityData)
 				if err != nil {
 					seedErrors = append(seedErrors, fmt.Sprintf("%s/stage/%s/activity/%s: %v", tmpl.ID, stageDef.Name, activityDef.Name, err))
 				}

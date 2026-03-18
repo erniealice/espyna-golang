@@ -1,3 +1,20 @@
+// usecases.go defines UseCaseInitializer, the orchestrator that wires domain
+// repositories into use cases during application startup.
+//
+// For each domain, it:
+//   1. Calls domain.New{Domain}Repositories() to create repos from the registry
+//      (no switch statements — repos come from self-registered factory functions).
+//   2. Calls initializers.Initialize{Domain}() to build use cases from repos + services.
+//
+// The providerManager supplies: database provider, table config, auth, ID, and
+// translation services.
+//
+// Initialization order: Common domain is initialized first because it provides
+// cross-domain dependencies (e.g., Attribute). All other domains are independent.
+//
+// Graceful degradation: most domains fall back to empty structs on failure, so the
+// app can start with partial functionality. The Product domain is the exception —
+// it panics on failure because the application cannot operate without it.
 package core
 
 import (
@@ -23,6 +40,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -119,6 +137,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		workflowUC = &workflow.WorkflowUseCases{}
 	}
 
+	payrollUC, err := uci.initializePayrollUseCases(container)
+	if err != nil {
+		payrollUC = &payroll.PayrollUseCases{}
+	}
+
 	// Initialize integration use cases (email, payment providers, etc.)
 	// These are provider-based use cases, not domain-based
 	integrationUC := uci.initializeIntegrationUseCases(container)
@@ -132,6 +155,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		inventoryUC,
 		ledgerUC,
 		operationUC,
+		payrollUC,
 		treasuryUC,
 		productUC,
 		revenueUC,
@@ -496,6 +520,34 @@ func (uci *UseCaseInitializer) initializeWorkflowUseCases(container *Container) 
 	fmt.Printf("✅ Workflow domain initialized successfully: %v\n", workflowUseCases != nil)
 
 	return workflowUseCases, nil
+}
+
+// initializePayrollUseCases initializes Payroll domain use cases (2 entities: PayrollRun, PayrollRemittance)
+func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (*payroll.PayrollUseCases, error) {
+	fmt.Printf("💼 Initializing Payroll use cases...\n")
+
+	repos, err := domain.NewPayrollRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Payroll database provider not available: %v\n", err)
+		return &payroll.PayrollUseCases{}, nil
+	}
+	fmt.Printf("✅ Got payroll repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
+
+	payrollUseCases, err := initializers.InitializePayroll(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize payroll use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Payroll domain initialized successfully: %v\n", payrollUseCases != nil)
+
+	return payrollUseCases, nil
 }
 
 // getServices is a helper to extract services from container with proper type checking

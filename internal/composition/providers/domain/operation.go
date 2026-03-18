@@ -42,7 +42,7 @@ type OperationRepositories struct {
 }
 
 // NewOperationRepositories creates and returns a new set of OperationRepositories.
-func NewOperationRepositories(dbProvider contracts.Provider, dbTableConfig *registry.DatabaseTableConfig) (*OperationRepositories, error) {
+func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *registry.TableConfig) (*OperationRepositories, error) {
 	if dbProvider == nil {
 		return nil, fmt.Errorf("database provider not initialized")
 	}
@@ -54,72 +54,72 @@ func NewOperationRepositories(dbProvider contracts.Provider, dbTableConfig *regi
 
 	conn := repoCreator.GetConnection()
 
-	jobRepo, err := repoCreator.CreateRepository(entityid.Job, conn, dbTableConfig.Job)
+	jobRepo, err := repoCreator.CreateRepository(entityid.Job, conn, tableConfig.TableName(entityid.Job))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job repository: %w", err)
 	}
 
-	jobPhaseRepo, err := repoCreator.CreateRepository(entityid.JobPhase, conn, dbTableConfig.JobPhase)
+	jobPhaseRepo, err := repoCreator.CreateRepository(entityid.JobPhase, conn, tableConfig.TableName(entityid.JobPhase))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_phase repository: %w", err)
 	}
 
-	jobTaskRepo, err := repoCreator.CreateRepository(entityid.JobTask, conn, dbTableConfig.JobTask)
+	jobTaskRepo, err := repoCreator.CreateRepository(entityid.JobTask, conn, tableConfig.TableName(entityid.JobTask))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_task repository: %w", err)
 	}
 
-	jobTemplateRepo, err := repoCreator.CreateRepository(entityid.JobTemplate, conn, dbTableConfig.JobTemplate)
+	jobTemplateRepo, err := repoCreator.CreateRepository(entityid.JobTemplate, conn, tableConfig.TableName(entityid.JobTemplate))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_template repository: %w", err)
 	}
 
-	jobTemplatePhaseRepo, err := repoCreator.CreateRepository(entityid.JobTemplatePhase, conn, dbTableConfig.JobTemplatePhase)
+	jobTemplatePhaseRepo, err := repoCreator.CreateRepository(entityid.JobTemplatePhase, conn, tableConfig.TableName(entityid.JobTemplatePhase))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_template_phase repository: %w", err)
 	}
 
-	jobTemplateTaskRepo, err := repoCreator.CreateRepository(entityid.JobTemplateTask, conn, dbTableConfig.JobTemplateTask)
+	jobTemplateTaskRepo, err := repoCreator.CreateRepository(entityid.JobTemplateTask, conn, tableConfig.TableName(entityid.JobTemplateTask))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_template_task repository: %w", err)
 	}
 
-	outcomeCriteriaRepo, err := repoCreator.CreateRepository(entityid.OutcomeCriteria, conn, dbTableConfig.OutcomeCriteria)
+	outcomeCriteriaRepo, err := repoCreator.CreateRepository(entityid.OutcomeCriteria, conn, tableConfig.TableName(entityid.OutcomeCriteria))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create outcome_criteria repository: %w", err)
 	}
 
-	criteriaThresholdRepo, err := repoCreator.CreateRepository(entityid.CriteriaThreshold, conn, dbTableConfig.CriteriaThreshold)
+	criteriaThresholdRepo, err := repoCreator.CreateRepository(entityid.CriteriaThreshold, conn, tableConfig.TableName(entityid.CriteriaThreshold))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create criteria_threshold repository: %w", err)
 	}
 
-	criteriaOptionRepo, err := repoCreator.CreateRepository(entityid.CriteriaOption, conn, dbTableConfig.CriteriaOption)
+	criteriaOptionRepo, err := repoCreator.CreateRepository(entityid.CriteriaOption, conn, tableConfig.TableName(entityid.CriteriaOption))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create criteria_option repository: %w", err)
 	}
 
-	templateTaskCriteriaRepo, err := repoCreator.CreateRepository(entityid.TemplateTaskCriteria, conn, dbTableConfig.TemplateTaskCriteria)
+	templateTaskCriteriaRepo, err := repoCreator.CreateRepository(entityid.TemplateTaskCriteria, conn, tableConfig.TableName(entityid.TemplateTaskCriteria))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create template_task_criteria repository: %w", err)
 	}
 
-	taskOutcomeRepo, err := repoCreator.CreateRepository(entityid.TaskOutcome, conn, dbTableConfig.TaskOutcome)
+	taskOutcomeRepo, err := repoCreator.CreateRepository(entityid.TaskOutcome, conn, tableConfig.TableName(entityid.TaskOutcome))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task_outcome repository: %w", err)
 	}
 
-	taskOutcomeCheckRepo, err := repoCreator.CreateRepository(entityid.TaskOutcomeCheck, conn, dbTableConfig.TaskOutcomeCheck)
+	taskOutcomeCheckRepo, err := repoCreator.CreateRepository(entityid.TaskOutcomeCheck, conn, tableConfig.TableName(entityid.TaskOutcomeCheck))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task_outcome_check repository: %w", err)
 	}
 
-	phaseOutcomeSummaryRepo, err := repoCreator.CreateRepository(entityid.PhaseOutcomeSummary, conn, dbTableConfig.PhaseOutcomeSummary)
+	phaseOutcomeSummaryRepo, err := repoCreator.CreateRepository(entityid.PhaseOutcomeSummary, conn, tableConfig.TableName(entityid.PhaseOutcomeSummary))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create phase_outcome_summary repository: %w", err)
 	}
 
-	jobOutcomeSummaryRepo, err := repoCreator.CreateRepository(entityid.JobOutcomeSummary, conn, dbTableConfig.JobOutcomeSummary)
+	jobOutcomeSummaryRepo, err := repoCreator.CreateRepository(entityid.JobOutcomeSummary, conn, tableConfig.TableName(entityid.JobOutcomeSummary))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_outcome_summary repository: %w", err)
 	}

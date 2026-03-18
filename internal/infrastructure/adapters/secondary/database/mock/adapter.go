@@ -29,7 +29,7 @@ func init() {
 	)
 	registry.RegisterDatabaseBuildFromEnv("mock", buildFromEnv)
 	// Mock adapter uses default table names - no need for custom env vars
-	registry.RegisterDatabaseTableConfigBuilder("mock", registry.DefaultDatabaseTableConfig)
+	registry.RegisterDatabaseTableConfigBuilder("mock", registry.NewDefaultTableConfig)
 }
 
 // buildFromEnv creates and initializes a Mock adapter from environment variables.

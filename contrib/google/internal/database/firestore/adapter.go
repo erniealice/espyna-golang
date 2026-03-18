@@ -35,84 +35,97 @@ func init() {
 
 // buildTableConfig creates table config from FIRESTORE_TABLE_* environment variables.
 // This allows Firestore-specific collection naming without the container knowing about it.
-func buildTableConfig() *registry.DatabaseTableConfig {
+func buildTableConfig() *registry.TableConfig {
 	prefix := os.Getenv("FIRESTORE_TABLE_PREFIX")
-	return &registry.DatabaseTableConfig{
+	overrides := make(map[string]string)
+
+	// Map of entityid constant → env var suffix → default value
+	// Only entries with non-default env overrides will be added.
+	entityEnvMap := map[string]string{
 		// Common
-		Attribute: prefix + getFirestoreTableEnv("ATTRIBUTE", "attribute"),
+		"attribute": "ATTRIBUTE",
 		// Entity
-		Client:            prefix + getFirestoreTableEnv("CLIENT", "client"),
-		ClientAttribute:   prefix + getFirestoreTableEnv("CLIENT_ATTRIBUTE", "client_attribute"),
-		Admin:             prefix + getFirestoreTableEnv("ADMIN", "admin"),
-		Manager:           prefix + getFirestoreTableEnv("MANAGER", "manager"),
-		Staff:             prefix + getFirestoreTableEnv("STAFF", "staff"),
-		StaffAttribute:    prefix + getFirestoreTableEnv("STAFF_ATTRIBUTE", "staff_attribute"),
-		Delegate:          prefix + getFirestoreTableEnv("DELEGATE", "delegate"),
-		DelegateAttribute: prefix + getFirestoreTableEnv("DELEGATE_ATTRIBUTE", "delegate_attribute"),
-		DelegateClient:    prefix + getFirestoreTableEnv("DELEGATE_CLIENT", "delegate_client"),
-		Group:             prefix + getFirestoreTableEnv("GROUP", "group"),
-		GroupAttribute:    prefix + getFirestoreTableEnv("GROUP_ATTRIBUTE", "group_attribute"),
-		Location:          prefix + getFirestoreTableEnv("LOCATION", "location"),
-		LocationAttribute: prefix + getFirestoreTableEnv("LOCATION_ATTRIBUTE", "location_attribute"),
-		Permission:        prefix + getFirestoreTableEnv("PERMISSION", "permission"),
-		Role:              prefix + getFirestoreTableEnv("ROLE", "role"),
-		RolePermission:    prefix + getFirestoreTableEnv("ROLE_PERMISSION", "role_permission"),
-		User:              prefix + getFirestoreTableEnv("USER", "user"),
-		Workspace:         prefix + getFirestoreTableEnv("WORKSPACE", "workspace"),
-		WorkspaceClient:   prefix + getFirestoreTableEnv("WORKSPACE_CLIENT", "workspace_client"),
-		WorkspaceUser:     prefix + getFirestoreTableEnv("WORKSPACE_USER", "workspace_user"),
-		WorkspaceUserRole: prefix + getFirestoreTableEnv("WORKSPACE_USER_ROLE", "workspace_user_role"),
+		"client":              "CLIENT",
+		"client_attribute":    "CLIENT_ATTRIBUTE",
+		"admin":               "ADMIN",
+		"manager":             "MANAGER",
+		"staff":               "STAFF",
+		"staff_attribute":     "STAFF_ATTRIBUTE",
+		"delegate":            "DELEGATE",
+		"delegate_attribute":  "DELEGATE_ATTRIBUTE",
+		"delegate_client":     "DELEGATE_CLIENT",
+		"group":               "GROUP",
+		"group_attribute":     "GROUP_ATTRIBUTE",
+		"location":            "LOCATION",
+		"location_attribute":  "LOCATION_ATTRIBUTE",
+		"permission":          "PERMISSION",
+		"role":                "ROLE",
+		"role_permission":     "ROLE_PERMISSION",
+		"user":                "USER",
+		"workspace":           "WORKSPACE",
+		"workspace_client":    "WORKSPACE_CLIENT",
+		"workspace_user":      "WORKSPACE_USER",
+		"workspace_user_role": "WORKSPACE_USER_ROLE",
 		// Event
-		Event:          prefix + getFirestoreTableEnv("EVENT", "event"),
-		EventAttribute: prefix + getFirestoreTableEnv("EVENT_ATTRIBUTE", "event_attribute"),
-		EventClient:    prefix + getFirestoreTableEnv("EVENT_CLIENT", "event_client"),
-		EventProduct:   prefix + getFirestoreTableEnv("EVENT_PRODUCT", "event_product"),
-		EventSettings:  prefix + getFirestoreTableEnv("EVENT_SETTINGS", "event_settings"),
+		"event":           "EVENT",
+		"event_attribute": "EVENT_ATTRIBUTE",
+		"event_client":    "EVENT_CLIENT",
+		"event_product":   "EVENT_PRODUCT",
+		"event_settings":  "EVENT_SETTINGS",
 		// Framework
-		Framework: prefix + getFirestoreTableEnv("FRAMEWORK", "framework"),
-		Objective: prefix + getFirestoreTableEnv("OBJECTIVE", "objective"),
-		Task:      prefix + getFirestoreTableEnv("TASK", "task"),
+		"framework": "FRAMEWORK",
+		"objective": "OBJECTIVE",
+		"task":      "TASK",
 		// Payment
-		Payment:                     prefix + getFirestoreTableEnv("PAYMENT", "payment"),
-		PaymentAttribute:            prefix + getFirestoreTableEnv("PAYMENT_ATTRIBUTE", "payment_attribute"),
-		PaymentMethod:               prefix + getFirestoreTableEnv("PAYMENT_METHOD", "payment_method"),
-		PaymentProfile:              prefix + getFirestoreTableEnv("PAYMENT_PROFILE", "payment_profile"),
-		PaymentProfilePaymentMethod: prefix + getFirestoreTableEnv("PAYMENT_PROFILE_PAYMENT_METHOD", "payment_profile_payment_method"),
+		"payment":                        "PAYMENT",
+		"payment_attribute":              "PAYMENT_ATTRIBUTE",
+		"payment_method":                 "PAYMENT_METHOD",
+		"payment_profile":                "PAYMENT_PROFILE",
+		"payment_profile_payment_method": "PAYMENT_PROFILE_PAYMENT_METHOD",
 		// Integration
-		IntegrationPayment: prefix + getFirestoreTableEnv("INTEGRATION_PAYMENT", "integration_payment"),
+		"integration_payment": "INTEGRATION_PAYMENT",
 		// Product
-		Product:             prefix + getFirestoreTableEnv("PRODUCT", "product"),
-		Collection:          prefix + getFirestoreTableEnv("COLLECTION", "collection"),
-		CollectionAttribute: prefix + getFirestoreTableEnv("COLLECTION_ATTRIBUTE", "collection_attribute"),
-		CollectionParent:    prefix + getFirestoreTableEnv("COLLECTION_PARENT", "collection_parent"),
-		CollectionPlan:      prefix + getFirestoreTableEnv("COLLECTION_PLAN", "collection_plan"),
-		PriceProduct:        prefix + getFirestoreTableEnv("PRICE_PRODUCT", "price_product"),
-		ProductAttribute:    prefix + getFirestoreTableEnv("PRODUCT_ATTRIBUTE", "product_attribute"),
-		ProductCollection:   prefix + getFirestoreTableEnv("PRODUCT_COLLECTION", "product_collection"),
-		ProductPlan:         prefix + getFirestoreTableEnv("PRODUCT_PLAN", "product_plan"),
-		Resource:            prefix + getFirestoreTableEnv("RESOURCE", "resource"),
+		"product":              "PRODUCT",
+		"collection":           "COLLECTION",
+		"collection_attribute": "COLLECTION_ATTRIBUTE",
+		"collection_parent":    "COLLECTION_PARENT",
+		"collection_plan":      "COLLECTION_PLAN",
+		"price_product":        "PRICE_PRODUCT",
+		"product_attribute":    "PRODUCT_ATTRIBUTE",
+		"product_collection":   "PRODUCT_COLLECTION",
+		"product_plan":         "PRODUCT_PLAN",
+		"resource":             "RESOURCE",
 		// Record
-		Record: prefix + getFirestoreTableEnv("RECORD", "record"),
+		"record": "RECORD",
 		// Workflow
-		Workflow:         prefix + getFirestoreTableEnv("WORKFLOW", "workflow"),
-		WorkflowTemplate: prefix + getFirestoreTableEnv("WORKFLOW_TEMPLATE", "workflow_template"),
-		Stage:            prefix + getFirestoreTableEnv("STAGE", "stage"),
-		Activity:         prefix + getFirestoreTableEnv("ACTIVITY", "activity"),
-		StageTemplate:    prefix + getFirestoreTableEnv("STAGE_TEMPLATE", "stage_template"),
-		ActivityTemplate: prefix + getFirestoreTableEnv("ACTIVITY_TEMPLATE", "activity_template"),
+		"workflow":          "WORKFLOW",
+		"workflow_template": "WORKFLOW_TEMPLATE",
+		"stage":             "STAGE",
+		"activity":          "ACTIVITY",
+		"stage_template":    "STAGE_TEMPLATE",
+		"activity_template": "ACTIVITY_TEMPLATE",
 		// Subscription
-		Plan:                  prefix + getFirestoreTableEnv("PLAN", "plan"),
-		PlanAttribute:         prefix + getFirestoreTableEnv("PLAN_ATTRIBUTE", "plan_attribute"),
-		PlanLocation:          prefix + getFirestoreTableEnv("PLAN_LOCATION", "plan_location"),
-		PlanSettings:          prefix + getFirestoreTableEnv("PLAN_SETTINGS", "plan_settings"),
-		Balance:               prefix + getFirestoreTableEnv("BALANCE", "balance"),
-		BalanceAttribute:      prefix + getFirestoreTableEnv("BALANCE_ATTRIBUTE", "balance_attribute"),
-		Invoice:               prefix + getFirestoreTableEnv("INVOICE", "invoice"),
-		InvoiceAttribute:      prefix + getFirestoreTableEnv("INVOICE_ATTRIBUTE", "invoice_attribute"),
-		PricePlan:             prefix + getFirestoreTableEnv("PRICE_PLAN", "price_plan"),
-		Subscription:          prefix + getFirestoreTableEnv("SUBSCRIPTION", "subscription"),
-		SubscriptionAttribute: prefix + getFirestoreTableEnv("SUBSCRIPTION_ATTRIBUTE", "subscription_attribute"),
+		"plan":                    "PLAN",
+		"plan_attribute":          "PLAN_ATTRIBUTE",
+		"plan_location":           "PLAN_LOCATION",
+		"plan_settings":           "PLAN_SETTINGS",
+		"balance":                 "BALANCE",
+		"balance_attribute":       "BALANCE_ATTRIBUTE",
+		"invoice":                 "INVOICE",
+		"invoice_attribute":       "INVOICE_ATTRIBUTE",
+		"price_plan":              "PRICE_PLAN",
+		"subscription":            "SUBSCRIPTION",
+		"subscription_attribute":  "SUBSCRIPTION_ATTRIBUTE",
 	}
+
+	for entity, envSuffix := range entityEnvMap {
+		tableName := getFirestoreTableEnv(envSuffix, entity)
+		if tableName != entity {
+			overrides[entity] = tableName
+		}
+	}
+
+	return registry.NewTableConfig(prefix, overrides)
 }
 
 // getFirestoreTableEnv reads collection name from environment variables.

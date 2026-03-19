@@ -22,6 +22,7 @@ func InitializeOperation(
 			JobTemplate:      repos.JobTemplate,
 			JobTemplatePhase: repos.JobTemplatePhase,
 			JobTemplateTask:  repos.JobTemplateTask,
+			JobActivity:      repos.JobActivity,
 		},
 		authSvc,
 		txSvc,

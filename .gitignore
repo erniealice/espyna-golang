@@ -4,3 +4,8 @@ dump/*
 
 !scripts/build
 *.json
+
+# Test artifacts
+node_modules/
+playwright-report/
+test-results/

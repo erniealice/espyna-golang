@@ -84,7 +84,7 @@ func (r *PostgresUserRepository) CreateUser(ctx context.Context, req *userpb.Cre
 	}
 
 	user := &userpb.User{}
-	if err := protojson.Unmarshal(resultJSON, user); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, user); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -112,7 +112,7 @@ func (r *PostgresUserRepository) ReadUser(ctx context.Context, req *userpb.ReadU
 	}
 
 	user := &userpb.User{}
-	if err := protojson.Unmarshal(resultJSON, user); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, user); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -151,7 +151,7 @@ func (r *PostgresUserRepository) UpdateUser(ctx context.Context, req *userpb.Upd
 	}
 
 	user := &userpb.User{}
-	if err := protojson.Unmarshal(resultJSON, user); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, user); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -201,7 +201,7 @@ func (r *PostgresUserRepository) ListUsers(ctx context.Context, req *userpb.List
 		}
 
 		user := &userpb.User{}
-		if err := protojson.Unmarshal(resultJSON, user); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, user); err != nil {
 			// Log error and continue with next item
 			continue
 		}

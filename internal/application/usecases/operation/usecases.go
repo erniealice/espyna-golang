@@ -16,12 +16,14 @@ import (
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome_check"
 	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/phase_outcome_summary"
 	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_outcome_summary"
+	jobActivityUseCases "github.com/erniealice/espyna-golang/operation/job_activity"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Protobuf domain services for operation repositories
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
@@ -45,6 +47,7 @@ type OperationRepositories struct {
 	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
 	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobActivity          jobactivitypb.JobActivityDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
 	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
@@ -63,6 +66,7 @@ type OperationUseCases struct {
 	JobTemplate          *jobTemplateUseCases.UseCases
 	JobTemplatePhase     *jobTemplatePhaseUseCases.UseCases
 	JobTemplateTask      *jobTemplateTaskUseCases.UseCases
+	JobActivity          *jobActivityUseCases.UseCases
 	OutcomeCriteria      *outcomeCriteriaUseCases.UseCases
 	CriteriaThreshold    *criteriaThresholdUseCases.UseCases
 	CriteriaOption       *criteriaOptionUseCases.UseCases
@@ -134,6 +138,16 @@ func NewUseCases(
 	jobTemplateTaskUC := jobTemplateTaskUseCases.NewUseCases(
 		jobTemplateTaskUseCases.JobTemplateTaskRepositories{JobTemplateTask: repos.JobTemplateTask},
 		jobTemplateTaskUseCases.JobTemplateTaskServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	jobActivityUC := jobActivityUseCases.NewUseCases(
+		jobActivityUseCases.JobActivityRepositories{JobActivity: repos.JobActivity},
+		jobActivityUseCases.JobActivityServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,
 			TranslationService:   i18nSvc,
@@ -228,6 +242,7 @@ func NewUseCases(
 		JobTemplate:          jobTemplateUC,
 		JobTemplatePhase:     jobTemplatePhaseUC,
 		JobTemplateTask:      jobTemplateTaskUC,
+		JobActivity:          jobActivityUC,
 		OutcomeCriteria:      outcomeCriteriaUC,
 		CriteriaThreshold:    criteriaThresholdUC,
 		CriteriaOption:       criteriaOptionUC,

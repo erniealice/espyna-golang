@@ -10,6 +10,7 @@ import (
 	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
 	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
@@ -25,20 +26,21 @@ import (
 
 // OperationRepositories contains all operation domain repositories.
 type OperationRepositories struct {
-	Job                 jobpb.JobDomainServiceServer
-	JobPhase            jobphasepb.JobPhaseDomainServiceServer
-	JobTask             jobtaskpb.JobTaskDomainServiceServer
-	JobTemplate         jobtemplatepb.JobTemplateDomainServiceServer
-	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
-	JobTemplateTask     jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
-	OutcomeCriteria     outcomecriteriapb.OutcomeCriteriaDomainServiceServer
-	CriteriaThreshold   criteriathresholdpb.CriteriaThresholdDomainServiceServer
-	CriteriaOption      criteriaoptionpb.CriteriaOptionDomainServiceServer
+	Job                  jobpb.JobDomainServiceServer
+	JobPhase             jobphasepb.JobPhaseDomainServiceServer
+	JobTask              jobtaskpb.JobTaskDomainServiceServer
+	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
+	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobActivity          jobactivitypb.JobActivityDomainServiceServer
+	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
+	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
+	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
 	TemplateTaskCriteria templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer
-	TaskOutcome         taskoutcomepb.TaskOutcomeDomainServiceServer
-	TaskOutcomeCheck    taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
-	PhaseOutcomeSummary phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
-	JobOutcomeSummary   joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
+	TaskOutcome          taskoutcomepb.TaskOutcomeDomainServiceServer
+	TaskOutcomeCheck     taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
+	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
+	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
 }
 
 // NewOperationRepositories creates and returns a new set of OperationRepositories.
@@ -82,6 +84,11 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	jobTemplateTaskRepo, err := repoCreator.CreateRepository(entityid.JobTemplateTask, conn, tableConfig.TableName(entityid.JobTemplateTask))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_template_task repository: %w", err)
+	}
+
+	jobActivityRepo, err := repoCreator.CreateRepository(entityid.JobActivity, conn, tableConfig.TableName(entityid.JobActivity))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create job_activity repository: %w", err)
 	}
 
 	outcomeCriteriaRepo, err := repoCreator.CreateRepository(entityid.OutcomeCriteria, conn, tableConfig.TableName(entityid.OutcomeCriteria))
@@ -131,6 +138,7 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		JobTemplate:          jobTemplateRepo.(jobtemplatepb.JobTemplateDomainServiceServer),
 		JobTemplatePhase:     jobTemplatePhaseRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer),
 		JobTemplateTask:      jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
+		JobActivity:          jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
 		OutcomeCriteria:      outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),
 		CriteriaThreshold:    criteriaThresholdRepo.(criteriathresholdpb.CriteriaThresholdDomainServiceServer),
 		CriteriaOption:       criteriaOptionRepo.(criteriaoptionpb.CriteriaOptionDomainServiceServer),

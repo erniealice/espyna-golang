@@ -242,7 +242,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 		}
 	}
 
-	sortField := "jt.date_created"
+	sortField := "e.date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
 		sortField = req.Sort.Fields[0].Field

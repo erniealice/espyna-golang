@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
+	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 )
 
 // PostgresJobActivityRepository implements job_activity CRUD operations using PostgreSQL
@@ -190,10 +191,161 @@ func (r *PostgresJobActivityRepository) ListJobActivities(ctx context.Context, r
 	}, nil
 }
 
-// GetJobActivityListPageData retrieves paginated job activity list with joins
+// GetJobActivityListPageData retrieves paginated job activity list with job join
 func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.Context, req *pb.GetJobActivityListPageDataRequest) (*pb.GetJobActivityListPageDataResponse, error) {
-	// TODO: Implement CTE-based paginated query with job join
-	return nil, fmt.Errorf("GetJobActivityListPageData not yet implemented")
+	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
+	if !ok {
+		return nil, fmt.Errorf("database operations does not support raw SQL queries")
+	}
+
+	query := fmt.Sprintf(`
+		WITH enriched AS (
+			SELECT
+				ja.id,
+				ja.job_id,
+				ja.job_task_id,
+				ja.entry_type,
+				ja.quantity,
+				ja.unit_cost,
+				ja.total_cost,
+				ja.currency,
+				ja.entry_date,
+				ja.description,
+				ja.billable_status,
+				ja.approval_status,
+				ja.posting_status,
+				ja.posted_by,
+				ja.date_posted,
+				ja.reversal_of_id,
+				ja.created_by,
+				ja.date_created,
+				ja.active,
+				j.name AS job_name
+			FROM %s ja
+			LEFT JOIN job j ON j.id = ja.job_id
+			WHERE ja.active = true
+		),
+		counted AS (
+			SELECT COUNT(*) AS total FROM enriched
+		)
+		SELECT
+			e.*,
+			c.total
+		FROM enriched e, counted c
+		ORDER BY e.date_created DESC
+	`, r.tableName)
+
+	rows, err := db.GetDB().QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query job activity list page data: %w", err)
+	}
+	defer rows.Close()
+
+	var activities []*pb.JobActivity
+
+	for rows.Next() {
+		var (
+			id             string
+			jobId          string
+			jobTaskId      sql.NullString
+			entryType      string
+			quantity       float64
+			unitCost       float64
+			totalCost      float64
+			currency       string
+			entryDate      sql.NullTime
+			description    sql.NullString
+			billableStatus string
+			approvalStatus string
+			postingStatus  string
+			postedBy       sql.NullString
+			datePosted     sql.NullTime
+			reversalOfId   sql.NullString
+			createdBy      sql.NullString
+			dateCreated    sql.NullTime
+			active         bool
+			jobName        sql.NullString
+			total          int64
+		)
+
+		if err := rows.Scan(
+			&id, &jobId, &jobTaskId, &entryType, &quantity, &unitCost, &totalCost,
+			&currency, &entryDate, &description, &billableStatus, &approvalStatus,
+			&postingStatus, &postedBy, &datePosted, &reversalOfId, &createdBy,
+			&dateCreated, &active, &jobName, &total,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan job activity row: %w", err)
+		}
+
+		_ = total // totalCount available for pagination if needed
+
+		activity := &pb.JobActivity{
+			Id:        id,
+			JobId:     jobId,
+			Quantity:  quantity,
+			UnitCost:  unitCost,
+			TotalCost: totalCost,
+			Currency:  currency,
+			Active:    active,
+		}
+
+		if v, ok := pb.EntryType_value[entryType]; ok {
+			activity.EntryType = pb.EntryType(v)
+		}
+		if v, ok := pb.BillableStatus_value[billableStatus]; ok {
+			activity.BillableStatus = pb.BillableStatus(v)
+		}
+		if v, ok := pb.ActivityApprovalStatus_value[approvalStatus]; ok {
+			activity.ApprovalStatus = pb.ActivityApprovalStatus(v)
+		}
+		if v, ok := pb.ActivityPostingStatus_value[postingStatus]; ok {
+			activity.PostingStatus = pb.ActivityPostingStatus(v)
+		}
+
+		if jobTaskId.Valid {
+			activity.JobTaskId = &jobTaskId.String
+		}
+		if description.Valid {
+			activity.Description = &description.String
+		}
+		if postedBy.Valid {
+			activity.PostedBy = &postedBy.String
+		}
+		if reversalOfId.Valid {
+			activity.ReversalOfId = &reversalOfId.String
+		}
+		if createdBy.Valid {
+			activity.CreatedBy = &createdBy.String
+		}
+		if entryDate.Valid {
+			ts := entryDate.Time.Unix()
+			activity.EntryDate = &ts
+			eds := entryDate.Time.Format("2006-01-02")
+			activity.EntryDateString = &eds
+		}
+		if datePosted.Valid {
+			ts := datePosted.Time.Unix()
+			activity.DatePosted = &ts
+		}
+		if dateCreated.Valid {
+			ts := dateCreated.Time.Unix()
+			activity.DateCreated = &ts
+		}
+		if jobName.Valid {
+			activity.Job = &jobpb.Job{Name: jobName.String}
+		}
+
+		activities = append(activities, activity)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating job activity rows: %w", err)
+	}
+
+	return &pb.GetJobActivityListPageDataResponse{
+		JobActivityList: activities,
+		Success:         true,
+	}, nil
 }
 
 // GetJobActivityItemPageData retrieves a single job activity with all related data

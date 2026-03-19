@@ -16,6 +16,17 @@ type authProviderOperations interface {
 	IsEnabled() bool
 }
 
+// databaseAuthOperations defines the extended operations available with db_auth provider.
+type databaseAuthOperations interface {
+	Register(ctx context.Context, email, password, firstName, lastName, mobileNumber string) (string, error)
+	Login(ctx context.Context, email, password string) (string, *authpb.Identity, error)
+	RequestPasswordReset(ctx context.Context, email string) (string, error)
+	ExecutePasswordReset(ctx context.Context, token, newPassword string) error
+	CreateSession(ctx context.Context, userID string) (string, error)
+	ValidateSession(ctx context.Context, token string) (string, error)
+	InvalidateSession(ctx context.Context, token string) error
+}
+
 // authServiceOperations defines the auth service operations
 type authServiceOperations interface {
 	VerifyToken(ctx context.Context, req *authpb.ValidateJwtTokenRequest) (*authpb.ValidateJwtTokenResponse, error)
@@ -207,6 +218,78 @@ func (a *AuthAdapter) ValidateAndExtractToken(ctx context.Context, token string)
 	}
 
 	return resp.Token, nil
+}
+
+// --- Database Auth Methods ---
+
+// Register creates a new user account with the given credentials.
+// Only supported by db_auth provider. Returns ErrNotSupported for other providers.
+func (a *AuthAdapter) Register(ctx context.Context, email, password, firstName, lastName, mobileNumber string) (string, error) {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return "", fmt.Errorf("register not supported by %s provider", a.Name())
+	}
+	return dbAuth.Register(ctx, email, password, firstName, lastName, mobileNumber)
+}
+
+// Login authenticates a user with email/password and returns a session token + identity.
+// Only supported by db_auth provider.
+func (a *AuthAdapter) Login(ctx context.Context, email, password string) (string, *authpb.Identity, error) {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return "", nil, fmt.Errorf("login not supported by %s provider", a.Name())
+	}
+	return dbAuth.Login(ctx, email, password)
+}
+
+// RequestPasswordReset generates a reset token for the given email.
+// Returns the raw token (caller sends it via email). Only supported by db_auth provider.
+func (a *AuthAdapter) RequestPasswordReset(ctx context.Context, email string) (string, error) {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return "", fmt.Errorf("password reset not supported by %s provider", a.Name())
+	}
+	return dbAuth.RequestPasswordReset(ctx, email)
+}
+
+// ExecutePasswordReset validates a reset token and sets a new password.
+// Only supported by db_auth provider.
+func (a *AuthAdapter) ExecutePasswordReset(ctx context.Context, token, newPassword string) error {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return fmt.Errorf("password reset not supported by %s provider", a.Name())
+	}
+	return dbAuth.ExecutePasswordReset(ctx, token, newPassword)
+}
+
+// CreateSession creates a new session for the given user.
+// Only supported by db_auth provider.
+func (a *AuthAdapter) CreateSession(ctx context.Context, userID string) (string, error) {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return "", fmt.Errorf("session management not supported by %s provider", a.Name())
+	}
+	return dbAuth.CreateSession(ctx, userID)
+}
+
+// ValidateSession checks if a session token is valid and returns the user ID.
+// Only supported by db_auth provider.
+func (a *AuthAdapter) ValidateSession(ctx context.Context, token string) (string, error) {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return "", fmt.Errorf("session management not supported by %s provider", a.Name())
+	}
+	return dbAuth.ValidateSession(ctx, token)
+}
+
+// InvalidateSession marks a session as inactive.
+// Only supported by db_auth provider.
+func (a *AuthAdapter) InvalidateSession(ctx context.Context, token string) error {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return fmt.Errorf("session management not supported by %s provider", a.Name())
+	}
+	return dbAuth.InvalidateSession(ctx, token)
 }
 
 // --- Re-export error codes for consumer convenience ---

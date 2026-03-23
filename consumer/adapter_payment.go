@@ -42,7 +42,8 @@ Usage:
 // PaymentAdapter provides technology-agnostic access to payment gateways.
 // It wraps the PaymentProvider interface and works with AsiaPay, Stripe, PayMaya, etc.
 type PaymentAdapter struct {
-	provider  ports.PaymentProvider
+	provider  ports.PaymentProvider              // primary (first provider, for backwards compat)
+	providers map[string]ports.PaymentProvider   // all registered providers
 	container *Container
 }
 
@@ -53,13 +54,31 @@ func NewPaymentAdapterFromContainer(container *Container) *PaymentAdapter {
 		return nil
 	}
 
-	provider := container.GetPaymentProvider()
-	if provider == nil {
-		return nil
+	providers := container.GetPaymentProviders()
+
+	// Backwards compat: if no multi-provider map, fall back to single provider
+	if len(providers) == 0 {
+		single := container.GetPaymentProvider()
+		if single == nil {
+			return nil
+		}
+		return &PaymentAdapter{
+			provider:  single,
+			providers: map[string]ports.PaymentProvider{single.Name(): single},
+			container: container,
+		}
+	}
+
+	// Set primary to first provider
+	var primary ports.PaymentProvider
+	for _, p := range providers {
+		primary = p
+		break
 	}
 
 	return &PaymentAdapter{
-		provider:  provider,
+		provider:  primary,
+		providers: providers,
 		container: container,
 	}
 }
@@ -279,6 +298,45 @@ func (a *PaymentAdapter) CreateSubscriptionCheckout(ctx context.Context, amount 
 		OrderRef:       paymentID,
 		Description:    description,
 	})
+}
+
+// --- Multi-provider methods ---
+
+// ForProvider returns a specific payment provider by name.
+// Returns nil if the provider is not registered.
+// Usage: adapter.ForProvider("maya").CreateCheckoutSession(ctx, req)
+func (a *PaymentAdapter) ForProvider(name string) ports.PaymentProvider {
+	if a.providers == nil {
+		return nil
+	}
+	return a.providers[name]
+}
+
+// ProviderNames returns the names of all registered payment providers.
+func (a *PaymentAdapter) ProviderNames() []string {
+	if a.providers == nil {
+		return nil
+	}
+	names := make([]string, 0, len(a.providers))
+	for name := range a.providers {
+		names = append(names, name)
+	}
+	return names
+}
+
+// AllHealthy checks health of all registered payment providers.
+// Returns a map of provider name → error (nil means healthy).
+func (a *PaymentAdapter) AllHealthy(ctx context.Context) map[string]error {
+	result := make(map[string]error)
+	for name, p := range a.providers {
+		result[name] = p.IsHealthy(ctx)
+	}
+	return result
+}
+
+// ProviderCount returns the number of registered payment providers.
+func (a *PaymentAdapter) ProviderCount() int {
+	return len(a.providers)
 }
 
 // --- Re-export types for consumer convenience ---

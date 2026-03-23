@@ -178,6 +178,22 @@ type (
 	TabularSelection      = integration.TabularSelection
 )
 
+// Fulfillment types
+type (
+	FulfillmentProvider        = integration.FulfillmentProvider
+	FulfillmentQuoteRequest    = integration.FulfillmentQuoteRequest
+	FulfillmentQuoteResponse   = integration.FulfillmentQuoteResponse
+	CreateDeliveryRequest      = integration.CreateDeliveryRequest
+	CreateDeliveryResponse     = integration.CreateDeliveryResponse
+	CancelDeliveryRequest      = integration.CancelDeliveryRequest
+	CancelDeliveryResponse     = integration.CancelDeliveryResponse
+	TrackDeliveryRequest       = integration.TrackDeliveryRequest
+	TrackDeliveryResponse      = integration.TrackDeliveryResponse
+	FulfillmentWebhookRequest  = integration.FulfillmentWebhookRequest
+	FulfillmentWebhookResponse = integration.FulfillmentWebhookResponse
+	FulfillmentAddress         = integration.Address
+)
+
 // =============================================================================
 // DOMAIN PORTS (Workflow, Translation)
 // =============================================================================
@@ -294,10 +310,14 @@ const (
 	EntityWorkspaceUserRole = security.EntityWorkspaceUserRole
 
 	// Event Domain
-	EntityEvent          = security.EntityEvent
-	EntityEventAttribute = security.EntityEventAttribute
-	EntityEventClient    = security.EntityEventClient
-	EntityEventProduct   = security.EntityEventProduct
+	EntityEvent            = security.EntityEvent
+	EntityEventAttendee    = security.EntityEventAttendee
+	EntityEventAttribute   = security.EntityEventAttribute
+	EntityEventClient      = security.EntityEventClient
+	EntityEventOccurrence  = security.EntityEventOccurrence
+	EntityEventProduct     = security.EntityEventProduct
+	EntityEventRecurrence  = security.EntityEventRecurrence
+	EntityEventResource    = security.EntityEventResource
 
 	// Framework Domain
 	EntityFramework = security.EntityFramework

@@ -366,14 +366,9 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 		LIMIT $2 OFFSET $3
 	`
 
-	// Get DB connection from dbOps interface
-	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
-	if !ok {
-		return nil, fmt.Errorf("database operations does not support raw SQL queries")
-	}
-
 	// Execute query
-	rows, err := db.GetDB().QueryContext(ctx, query,
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query,
 		searchQuery,   // $1
 		limit,         // $2
 		offset,        // $3
@@ -574,13 +569,8 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		WHERE d.id = $1 AND d.active = true
 	`
 
-	// Get DB connection from dbOps interface
-	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
-	if !ok {
-		return nil, fmt.Errorf("database operations does not support raw SQL queries")
-	}
-
 	// Execute query
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	var (
 		id                  string
 		userId              string
@@ -593,7 +583,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		delegateClientsJSON []byte
 	)
 
-	err := db.GetDB().QueryRowContext(ctx, query, req.DelegateId).Scan(
+	err := exec.QueryRowContext(ctx, query, req.DelegateId).Scan(
 		&id,
 		&userId,
 		&active,

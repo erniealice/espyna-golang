@@ -6,6 +6,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
@@ -33,11 +34,13 @@ import (
 // - Subscription: 6 entities (Plan, Subscription, Invoice, Balance, etc.)
 // - Workflow:     3 entities (Workflow, StageTemplate, ActivityTemplate)
 // - Payroll:      2 entities (PayrollRun, PayrollRemittance)
+// - Fulfillment:  1 entity (Fulfillment — placeholder, use cases pending)
 type Aggregate struct {
 	Common       *common.CommonUseCases
 	Entity       *entity.EntityUseCases
 	Event        *event.EventUseCases
 	Expenditure  *expenditure.ExpenditureUseCases
+	Fulfillment  *fulfillment.UseCases
 	Inventory    *inventory.InventoryUseCases
 	Ledger       *ledger.LedgerUseCases
 	Operation    *operation.OperationUseCases
@@ -60,6 +63,7 @@ func NewAggregate(
 	entityUC *entity.EntityUseCases,
 	eventUC *event.EventUseCases,
 	expenditureUC *expenditure.ExpenditureUseCases,
+	fulfillmentUC *fulfillment.UseCases,
 	inventoryUC *inventory.InventoryUseCases,
 	ledgerUC *ledger.LedgerUseCases,
 	operationUC *operation.OperationUseCases,
@@ -76,6 +80,7 @@ func NewAggregate(
 		Entity:       entityUC,
 		Event:        eventUC,
 		Expenditure:  expenditureUC,
+		Fulfillment:  fulfillmentUC,
 		Inventory:    inventoryUC,
 		Ledger:       ledgerUC,
 		Operation:    operationUC,
@@ -97,6 +102,7 @@ func NewEmptyAggregate() *Aggregate {
 		Entity:       &entity.EntityUseCases{},
 		Event:        &event.EventUseCases{},
 		Expenditure:  &expenditure.ExpenditureUseCases{},
+		Fulfillment:  &fulfillment.UseCases{},
 		Inventory:    &inventory.InventoryUseCases{},
 		Ledger:       &ledger.LedgerUseCases{},
 		Operation:    &operation.OperationUseCases{},

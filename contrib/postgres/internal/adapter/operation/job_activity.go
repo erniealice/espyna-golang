@@ -10,8 +10,10 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	pgaudit "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/audit"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
@@ -21,8 +23,9 @@ import (
 // PostgresJobActivityRepository implements job_activity CRUD operations using PostgreSQL
 type PostgresJobActivityRepository struct {
 	pb.UnimplementedJobActivityDomainServiceServer
-	dbOps     interfaces.DatabaseOperation
-	tableName string
+	dbOps        interfaces.DatabaseOperation
+	tableName    string
+	auditService infraports.AuditService
 }
 
 func init() {
@@ -45,6 +48,13 @@ func NewPostgresJobActivityRepository(dbOps interfaces.DatabaseOperation, tableN
 		dbOps:     dbOps,
 		tableName: tableName,
 	}
+}
+
+// WithAuditService returns the repository with an audit service attached.
+// Existing callers that omit audit remain unaffected (nil-safe).
+func (r *PostgresJobActivityRepository) WithAuditService(svc infraports.AuditService) *PostgresJobActivityRepository {
+	r.auditService = svc
+	return r
 }
 
 // CreateJobActivity creates a new job activity
@@ -566,6 +576,20 @@ func (r *PostgresJobActivityRepository) SubmitForApproval(ctx context.Context, r
 		return nil, fmt.Errorf("failed to submit activity for approval: %w", err)
 	}
 
+	if r.auditService != nil {
+		_ = pgaudit.DiffAndLog(ctx, r.auditService, pgaudit.DiffAndLogRequest{
+			EntityType:     "job_activity",
+			EntityID:       id,
+			Domain:         "fayna",
+			Action:         2, // UPDATE
+			PermissionCode: "job_activity:update",
+			UseCase:        "SubmitForApproval",
+			MethodName:     "SubmitForApproval",
+			OldData:        map[string]any{"approval_status": "ACTIVITY_APPROVAL_STATUS_DRAFT"},
+			NewData:        map[string]any{"approval_status": "ACTIVITY_APPROVAL_STATUS_SUBMITTED"},
+		})
+	}
+
 	// Re-read the updated activity
 	readResp, err := r.ReadJobActivity(ctx, &pb.ReadJobActivityRequest{Data: &pb.JobActivity{Id: id}})
 	if err != nil {
@@ -609,6 +633,20 @@ func (r *PostgresJobActivityRepository) ApproveActivity(ctx context.Context, req
 		return nil, fmt.Errorf("failed to approve activity: %w", err)
 	}
 
+	if r.auditService != nil {
+		_ = pgaudit.DiffAndLog(ctx, r.auditService, pgaudit.DiffAndLogRequest{
+			EntityType:     "job_activity",
+			EntityID:       id,
+			Domain:         "fayna",
+			Action:         2, // UPDATE
+			PermissionCode: "job_activity:update",
+			UseCase:        "ApproveActivity",
+			MethodName:     "ApproveActivity",
+			OldData:        map[string]any{"approval_status": "ACTIVITY_APPROVAL_STATUS_SUBMITTED"},
+			NewData:        map[string]any{"approval_status": "ACTIVITY_APPROVAL_STATUS_APPROVED"},
+		})
+	}
+
 	readResp, err := r.ReadJobActivity(ctx, &pb.ReadJobActivityRequest{Data: &pb.JobActivity{Id: id}})
 	if err != nil {
 		return nil, err
@@ -649,6 +687,20 @@ func (r *PostgresJobActivityRepository) RejectActivity(ctx context.Context, req 
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to reject activity: %w", err)
+	}
+
+	if r.auditService != nil {
+		_ = pgaudit.DiffAndLog(ctx, r.auditService, pgaudit.DiffAndLogRequest{
+			EntityType:     "job_activity",
+			EntityID:       id,
+			Domain:         "fayna",
+			Action:         2, // UPDATE
+			PermissionCode: "job_activity:update",
+			UseCase:        "RejectActivity",
+			MethodName:     "RejectActivity",
+			OldData:        map[string]any{"approval_status": "ACTIVITY_APPROVAL_STATUS_SUBMITTED"},
+			NewData:        map[string]any{"approval_status": "ACTIVITY_APPROVAL_STATUS_REJECTED"},
+		})
 	}
 
 	readResp, err := r.ReadJobActivity(ctx, &pb.ReadJobActivityRequest{Data: &pb.JobActivity{Id: id}})
@@ -699,6 +751,20 @@ func (r *PostgresJobActivityRepository) PostActivity(ctx context.Context, req *p
 		return nil, fmt.Errorf("failed to post activity: %w", err)
 	}
 
+	if r.auditService != nil {
+		_ = pgaudit.DiffAndLog(ctx, r.auditService, pgaudit.DiffAndLogRequest{
+			EntityType:     "job_activity",
+			EntityID:       id,
+			Domain:         "fayna",
+			Action:         2, // UPDATE
+			PermissionCode: "job_activity:update",
+			UseCase:        "PostActivity",
+			MethodName:     "PostActivity",
+			OldData:        map[string]any{"posting_status": "ACTIVITY_POSTING_STATUS_UNPOSTED"},
+			NewData:        map[string]any{"posting_status": "ACTIVITY_POSTING_STATUS_POSTED", "posted_by": req.PostedBy},
+		})
+	}
+
 	readResp, err := r.ReadJobActivity(ctx, &pb.ReadJobActivityRequest{Data: &pb.JobActivity{Id: id}})
 	if err != nil {
 		return nil, err
@@ -742,6 +808,20 @@ func (r *PostgresJobActivityRepository) ReverseActivity(ctx context.Context, req
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to reverse activity: %w", err)
+	}
+
+	if r.auditService != nil {
+		_ = pgaudit.DiffAndLog(ctx, r.auditService, pgaudit.DiffAndLogRequest{
+			EntityType:     "job_activity",
+			EntityID:       id,
+			Domain:         "fayna",
+			Action:         2, // UPDATE
+			PermissionCode: "job_activity:update",
+			UseCase:        "ReverseActivity",
+			MethodName:     "ReverseActivity",
+			OldData:        map[string]any{"posting_status": "ACTIVITY_POSTING_STATUS_POSTED"},
+			NewData:        map[string]any{"posting_status": "ACTIVITY_POSTING_STATUS_REVERSED"},
+		})
 	}
 
 	readResp, err := r.ReadJobActivity(ctx, &pb.ReadJobActivityRequest{Data: &pb.JobActivity{Id: id}})

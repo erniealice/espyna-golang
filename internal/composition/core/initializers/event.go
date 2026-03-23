@@ -18,9 +18,15 @@ func InitializeEvent(
 	// Use the domain's constructor which properly handles all use case creation
 	return event.NewEventUseCases(
 		repos.Event,
+		repos.EventAttendee,
 		repos.EventAttribute,
 		repos.EventClient,
+		repos.EventOccurrence,
+		repos.EventProduct,
+		repos.EventRecurrence,
+		repos.EventResource,
 		repos.Client,
+		repos.Product,
 		authSvc,
 		txSvc,
 		i18nSvc,

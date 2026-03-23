@@ -191,6 +191,11 @@ func (pt *PostgreSQLTransaction) State() interfaces.TransactionState {
 	return pt.state
 }
 
+// GetTx returns the underlying *sql.Tx for use by transaction-aware operations.
+func (pt *PostgreSQLTransaction) GetTx() *sql.Tx {
+	return pt.tx
+}
+
 // ID returns a unique identifier for this transaction
 func (pt *PostgreSQLTransaction) ID() string {
 	return pt.id

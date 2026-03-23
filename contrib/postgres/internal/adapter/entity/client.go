@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -65,7 +66,6 @@ func init() {
 type PostgresClientRepository struct {
 	clientpb.UnimplementedClientDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -75,15 +75,8 @@ func NewPostgresClientRepository(dbOps interfaces.DatabaseOperation, tableName s
 		tableName = "client" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresClientRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -161,7 +154,8 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 		WHERE c.id = $1 AND c.active = true
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.Data.Id)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.Data.Id)
 
 	var (
 		id               string
@@ -399,6 +393,16 @@ func (r *DBClientRepository) Create(ctx context.Context, req *clientpb.CreateCli
 }
 */
 
+// clientSortAllowlist maps external sort field names to safe SQL column references.
+var clientSortAllowlist = map[string]string{
+	"date_created":     "c.date_created",
+	"date_modified":    "c.date_modified",
+	"u.first_name":     "u.first_name",
+	"u.last_name":      "u.last_name",
+	"u.email_address":  "u.email_address",
+	"u.mobile_number":  "u.mobile_number",
+}
+
 // GetClientListPageData retrieves clients with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresClientRepository) GetClientListPageData(
 	ctx context.Context,
@@ -406,12 +410,6 @@ func (r *PostgresClientRepository) GetClientListPageData(
 ) (*clientpb.GetClientListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("get client list page data request is required")
-	}
-
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
 	}
 
 	// Default pagination values
@@ -422,7 +420,6 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		// Handle offset pagination
 		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
 			if offsetPag.Page > 0 {
 				page = offsetPag.Page
@@ -431,67 +428,71 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
+	// Allowlist-validated sort
+	sortCol := "c.date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
+		f := req.Sort.Fields[0]
+		if col, ok := clientSortAllowlist[f.Field]; ok {
+			sortCol = col
+		}
+		if f.Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
 	}
 
-	// CTE Query - Single round-trip with enriched user data
+	// Build filter/search WHERE clauses starting at $1
+	searchFields := []string{"u.first_name", "u.last_name", "u.email_address", "c.internal_id"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+
+	whereSQL := ""
+	if len(filterClauses) > 0 {
+		whereSQL = "WHERE " + strings.Join(filterClauses, " AND ")
+	}
+
+	// LIMIT/OFFSET are the next two params after filter args
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	filterArgs = append(filterArgs, limit, offset)
+
+	// CTE Query - Single round-trip with COUNT(*) OVER() window function
 	// Performance Notes:
 	// - INDEX RECOMMENDATION: Create index on client.user_id (foreign key)
 	// - INDEX RECOMMENDATION: Create index on user.first_name, user.last_name, user.email_address for search performance
 	// - INDEX RECOMMENDATION: Create index on client.active for filtering active records
 	// - INDEX RECOMMENDATION: Create index on client.date_created for default sorting
 	// - INDEX RECOMMENDATION: Create index on client.internal_id for search
-	query := `
-		WITH enriched AS (
-			SELECT
-				c.id,
-				c.user_id,
-				c.active,
-				c.internal_id,
-				c.date_created,
-				c.date_modified,
-				-- CRM fields
-				c.company_name,
-				c.customer_type,
-				c.date_of_birth,
-				c.street_address,
-				c.city,
-				c.province,
-				c.postal_code,
-				c.notes,
-				-- User fields (1:1 relationship) - NO JSONB in domain model, direct fields
-				u.id as user_id_value,
-				u.first_name as user_first_name,
-				u.last_name as user_last_name,
-				u.email_address as user_email_address,
-				u.mobile_number as user_phone_number
-			FROM client c
-			LEFT JOIN "user" u ON c.user_id = u.id
-			WHERE ($1::text IS NULL OR $1::text = '' OR
-				   u.first_name ILIKE $1 OR
-				   u.last_name ILIKE $1 OR
-				   u.email_address ILIKE $1 OR
-				   c.internal_id ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
-		)
+	query := fmt.Sprintf(`
 		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
-	`
+			c.id,
+			c.user_id,
+			c.active,
+			c.internal_id,
+			c.date_created,
+			c.date_modified,
+			c.company_name,
+			c.customer_type,
+			c.date_of_birth,
+			c.street_address,
+			c.city,
+			c.province,
+			c.postal_code,
+			c.notes,
+			u.id as user_id_value,
+			u.first_name as user_first_name,
+			u.last_name as user_last_name,
+			u.email_address as user_email_address,
+			u.mobile_number as user_phone_number,
+			COUNT(*) OVER() AS total_count
+		FROM client c
+		LEFT JOIN "user" u ON c.user_id = u.id
+		%s
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d
+	`, whereSQL, sortCol, sortOrder, limitIdx, offsetIdx)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, filterArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query client list page data: %w", err)
 	}
@@ -672,7 +673,8 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.ClientId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.ClientId)
 
 	var (
 		id                 string
@@ -801,7 +803,8 @@ func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, cli
 		ORDER BY cat.name ASC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, clientId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, clientId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load client categories: %w", err)
 	}
@@ -887,7 +890,8 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 		pattern = "%" + req.Query + "%"
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, pattern, limit)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, pattern, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search clients by name: %w", err)
 	}

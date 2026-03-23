@@ -12,6 +12,7 @@ import (
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -33,9 +34,10 @@ func init() {
 // PostgresJobRepository implements job CRUD operations using PostgreSQL
 type PostgresJobRepository struct {
 	pb.UnimplementedJobDomainServiceServer
-	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB
-	tableName string
+	dbOps        interfaces.DatabaseOperation
+	db           *sql.DB
+	tableName    string
+	auditService infraports.AuditService
 }
 
 // NewPostgresJobRepository creates a new PostgreSQL job repository
@@ -54,6 +56,13 @@ func NewPostgresJobRepository(dbOps interfaces.DatabaseOperation, tableName stri
 		db:        db,
 		tableName: tableName,
 	}
+}
+
+// WithAuditService returns the repository with an audit service attached.
+// Existing callers that omit audit remain unaffected (nil-safe).
+func (r *PostgresJobRepository) WithAuditService(svc infraports.AuditService) *PostgresJobRepository {
+	r.auditService = svc
+	return r
 }
 
 // CreateJob creates a new job record
@@ -733,6 +742,19 @@ func (r *PostgresJobRepository) UpdateJobStatus(
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to update job status: %w", err)
+	}
+
+	if r.auditService != nil {
+		_ = infraports.DiffAndLog(ctx, r.auditService, infraports.DiffAndLogRequest{
+			EntityType:     "job",
+			EntityID:       id,
+			Domain:         "fayna",
+			Action:         2, // UPDATE
+			PermissionCode: "job:update",
+			UseCase:        "UpdateJobStatus",
+			MethodName:     "UpdateJobStatus",
+			NewData:        map[string]any{"status": newStatus},
+		})
 	}
 
 	// Re-read the updated job

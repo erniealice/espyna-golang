@@ -33,3 +33,43 @@ func CreatePaymentProvider() (ports.PaymentProvider, error) {
 
 	return providerInstance, nil
 }
+
+// CreatePaymentProviders creates all payment providers specified in CONFIG_PAYMENT_PROVIDER.
+// Supports comma-separated values (e.g., "asiapay,maya,paypal").
+// All providers are active simultaneously — the domain layer picks per-operation.
+// Returns a map keyed by provider name.
+func CreatePaymentProviders() (map[string]ports.PaymentProvider, error) {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv("CONFIG_PAYMENT_PROVIDER")))
+	if raw == "" || raw == "mock" {
+		raw = "mock_payment"
+	}
+
+	names := strings.Split(raw, ",")
+	providers := make(map[string]ports.PaymentProvider)
+
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		// Normalize
+		if name == "mock" {
+			name = "mock_payment"
+		}
+
+		provider, err := registry.BuildPaymentProviderFromEnv(name)
+		if err != nil {
+			fmt.Printf("⚠️ Failed to initialize payment provider '%s': %v\n", name, err)
+			continue
+		}
+		if provider != nil {
+			providers[name] = provider
+		}
+	}
+
+	if len(providers) == 0 {
+		return nil, fmt.Errorf("no payment providers could be initialized from CONFIG_PAYMENT_PROVIDER=%s", raw)
+	}
+
+	return providers, nil
+}

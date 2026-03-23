@@ -38,7 +38,6 @@ func init() {
 type PostgresClientCategoryRepository struct {
 	clientcategorypb.UnimplementedClientCategoryDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -48,15 +47,8 @@ func NewPostgresClientCategoryRepository(dbOps interfaces.DatabaseOperation, tab
 		tableName = "client_category" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresClientCategoryRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -291,7 +283,8 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query client_category list page data: %w", err)
 	}
@@ -410,7 +403,8 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 		LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.ClientCategoryId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.ClientCategoryId)
 
 	var (
 		id                 string

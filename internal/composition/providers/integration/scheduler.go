@@ -33,3 +33,42 @@ func CreateSchedulerProvider() (ports.SchedulerProvider, error) {
 
 	return providerInstance, nil
 }
+
+// CreateSchedulerProviders creates all scheduler providers specified in CONFIG_SCHEDULER_PROVIDER.
+// Supports comma-separated values (e.g., "calendly,google_calendar").
+// All providers are active simultaneously — the domain layer picks per-operation.
+// Returns a map keyed by provider name.
+func CreateSchedulerProviders() (map[string]ports.SchedulerProvider, error) {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv("CONFIG_SCHEDULER_PROVIDER")))
+	if raw == "" || raw == "mock" {
+		raw = "mock_scheduler"
+	}
+
+	names := strings.Split(raw, ",")
+	providers := make(map[string]ports.SchedulerProvider)
+
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if name == "mock" {
+			name = "mock_scheduler"
+		}
+
+		provider, err := registry.BuildSchedulerProviderFromEnv(name)
+		if err != nil {
+			fmt.Printf("⚠️ Failed to initialize scheduler provider '%s': %v\n", name, err)
+			continue
+		}
+		if provider != nil {
+			providers[name] = provider
+		}
+	}
+
+	if len(providers) == 0 {
+		return nil, fmt.Errorf("no scheduler providers could be initialized from CONFIG_SCHEDULER_PROVIDER=%s", raw)
+	}
+
+	return providers, nil
+}

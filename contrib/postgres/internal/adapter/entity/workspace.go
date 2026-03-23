@@ -38,7 +38,6 @@ func init() {
 type PostgresWorkspaceRepository struct {
 	workspacepb.UnimplementedWorkspaceDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -48,15 +47,8 @@ func NewPostgresWorkspaceRepository(dbOps interfaces.DatabaseOperation, tableNam
 		tableName = "workspace" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresWorkspaceRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -288,7 +280,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query workspace list page data: %w", err)
 	}
@@ -411,7 +404,8 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 		LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.WorkspaceId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.WorkspaceId)
 
 	var (
 		id                 string

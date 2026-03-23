@@ -34,7 +34,6 @@ func init() {
 type PostgresSupplierRepository struct {
 	supplierpb.UnimplementedSupplierDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -44,15 +43,8 @@ func NewPostgresSupplierRepository(dbOps interfaces.DatabaseOperation, tableName
 		tableName = "supplier" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresSupplierRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -139,7 +131,8 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		WHERE s.id = $1 AND s.active = true
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.Data.Id)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.Data.Id)
 
 	var (
 		id                 string
@@ -410,7 +403,8 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query supplier list page data: %w", err)
 	}
@@ -582,7 +576,8 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.SupplierId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.SupplierId)
 
 	var (
 		id                 string
@@ -690,7 +685,8 @@ func (r *PostgresSupplierRepository) loadSupplierCategories(ctx context.Context,
 		ORDER BY cat.name ASC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, supplierId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, supplierId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load supplier categories: %w", err)
 	}

@@ -12,9 +12,18 @@ import (
 	_ "github.com/lib/pq"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/model"
+	"github.com/erniealice/espyna-golang/database/operations"
 	"github.com/erniealice/espyna-golang/registry"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
+
+// dbExecutor abstracts *sql.DB and *sql.Tx for uniform query execution.
+type dbExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
 
 func init() {
 	// Register database operations factory for postgres
@@ -29,7 +38,8 @@ func init() {
 
 // PostgresOperations implements DatabaseOperation for PostgreSQL
 type PostgresOperations struct {
-	db *sql.DB
+	db           *sql.DB
+	auditService infraports.AuditService // optional — nil = audit disabled
 }
 
 // NewPostgresOperations creates a new PostgreSQL operations instance
@@ -37,6 +47,12 @@ func NewPostgresOperations(db *sql.DB) interfaces.DatabaseOperation {
 	return &PostgresOperations{
 		db: db,
 	}
+}
+
+// NewPostgresOperationsWithAudit creates a PostgreSQL operations instance with audit logging enabled.
+// When auditSvc is non-nil, Create/Update/Delete will call DiffAndLog after each successful mutation.
+func NewPostgresOperationsWithAudit(db *sql.DB, auditSvc infraports.AuditService) *PostgresOperations {
+	return &PostgresOperations{db: db, auditService: auditSvc}
 }
 
 // Create creates a new record in the specified table
@@ -96,7 +112,7 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 	)
 
 	// Execute query
-	row := p.db.QueryRowContext(ctx, query, values...)
+	row := p.getExecutor(ctx).QueryRowContext(ctx, query, values...)
 
 	// Scan result
 	result, err := p.scanRowToMap(row, resultColumns)
@@ -106,6 +122,19 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 			"POSTGRES_CREATE_FAILED",
 			500,
 		)
+	}
+
+	if p.auditService != nil {
+		if err := infraports.DiffAndLog(ctx, p.auditService, infraports.DiffAndLogRequest{
+			EntityType: tableName,
+			EntityID:   fmt.Sprintf("%v", result["id"]),
+			Domain:     tableName,
+			Action:     1,  // INSERT
+			MethodName: "PostgresOperations.Create",
+			NewData:    result,
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
@@ -122,7 +151,7 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 
 	query := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
 
-	row := p.db.QueryRowContext(ctx, query, id)
+	row := p.getExecutor(ctx).QueryRowContext(ctx, query, id)
 
 	// Get column names
 	resultColumns, err := p.getTableColumns(ctx, tableName)
@@ -179,7 +208,7 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	// Check if record exists (query without active filter so we can update
 	// inactive records too, e.g. re-activating a soft-deleted record).
 	existQuery := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
-	existRow := p.db.QueryRowContext(ctx, existQuery, id)
+	existRow := p.getExecutor(ctx).QueryRowContext(ctx, existQuery, id)
 	existing, err := p.scanRowToMap(existRow, resultColumns)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -231,7 +260,7 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	)
 
 	// Execute query
-	row := p.db.QueryRowContext(ctx, query, values...)
+	row := p.getExecutor(ctx).QueryRowContext(ctx, query, values...)
 
 	// Scan result
 	result, err := p.scanRowToMap(row, resultColumns)
@@ -241,6 +270,20 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 			"POSTGRES_UPDATE_FAILED",
 			500,
 		)
+	}
+
+	if p.auditService != nil {
+		if err := infraports.DiffAndLog(ctx, p.auditService, infraports.DiffAndLogRequest{
+			EntityType: tableName,
+			EntityID:   id,
+			Domain:     tableName,
+			Action:     2,  // UPDATE
+			MethodName: "PostgresOperations.Update",
+			OldData:    existing,
+			NewData:    result,
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
@@ -262,7 +305,7 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 		tableName,
 	)
 
-	result, err := p.db.ExecContext(ctx, query, now, id)
+	result, err := p.getExecutor(ctx).ExecContext(ctx, query, now, id)
 	if err != nil {
 		return model.NewDatabaseError(
 			fmt.Sprintf("failed to delete record: %v", err),
@@ -284,6 +327,18 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 		return model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
 	}
 
+	if p.auditService != nil {
+		if err := infraports.DiffAndLog(ctx, p.auditService, infraports.DiffAndLogRequest{
+			EntityType: tableName,
+			EntityID:   id,
+			Domain:     tableName,
+			Action:     3,  // DELETE
+			MethodName: "PostgresOperations.Delete",
+		}); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -298,7 +353,7 @@ func (p *PostgresOperations) HardDelete(ctx context.Context, tableName string, i
 
 	query := fmt.Sprintf("DELETE FROM \"%s\" WHERE id = $1", tableName)
 
-	result, err := p.db.ExecContext(ctx, query, id)
+	result, err := p.getExecutor(ctx).ExecContext(ctx, query, id)
 	if err != nil {
 		return model.NewDatabaseError(
 			fmt.Sprintf("failed to hard delete record: %v", err),
@@ -342,6 +397,26 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 		paramIndex = nextIndex
 	}
 
+	// Search — ILIKE OR block across declared search fields
+	if params != nil && params.Search != nil && params.Search.Query != "" {
+		query := "%" + params.Search.Query + "%"
+		fields := params.Search.GetOptions().GetSearchFields()
+		if len(fields) == 0 {
+			return nil, model.NewDatabaseError(
+				"search requires SearchOptions.search_fields",
+				"MISSING_SEARCH_FIELDS",
+				400,
+			)
+		}
+		var likeClauses []string
+		for _, col := range fields {
+			values = append(values, query)
+			likeClauses = append(likeClauses, fmt.Sprintf("%s ILIKE $%d", col, paramIndex))
+			paramIndex++
+		}
+		whereConditions = append(whereConditions, "("+strings.Join(likeClauses, " OR ")+")")
+	}
+
 	// Build ORDER BY clause
 	orderByClause := "ORDER BY date_created DESC" // Default ordering
 	if params != nil && params.Sort != nil && len(params.Sort.Fields) > 0 {
@@ -373,7 +448,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	)
 
 	var totalItems int32
-	err := p.db.QueryRowContext(ctx, countQuery, values...).Scan(&totalItems)
+	err := p.getExecutor(ctx).QueryRowContext(ctx, countQuery, values...).Scan(&totalItems)
 	if err != nil {
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to count records: %v", err),
@@ -409,7 +484,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	values = append(values, limit, offset)
 
 	// Execute query
-	rows, err := p.db.QueryContext(ctx, query, values...)
+	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, values...)
 	if err != nil {
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to list records: %v", err),
@@ -581,7 +656,7 @@ func (p *PostgresOperations) Query(ctx context.Context, tableName string, queryB
 	}
 
 	// Execute query
-	rows, err := p.db.QueryContext(ctx, query, values...)
+	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, values...)
 	if err != nil {
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to execute query: %v", err),
@@ -691,6 +766,50 @@ func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterReq
 				conditions = append(conditions, condition)
 				values = append(values, vals...)
 				paramIndex = nextIndex
+			}
+
+		case *commonpb.TypedFilter_MoneyFilter:
+			mf := ft.MoneyFilter
+			col := filter.Field
+			switch mf.Operator {
+			case commonpb.MoneyOperator_MONEY_EQUALS:
+				conditions = append(conditions, fmt.Sprintf("%s = $%d", col, paramIndex))
+				values = append(values, mf.Amount)
+				paramIndex++
+			case commonpb.MoneyOperator_MONEY_LESS_THAN:
+				conditions = append(conditions, fmt.Sprintf("%s < $%d", col, paramIndex))
+				values = append(values, mf.Amount)
+				paramIndex++
+			case commonpb.MoneyOperator_MONEY_GREATER_THAN:
+				conditions = append(conditions, fmt.Sprintf("%s > $%d", col, paramIndex))
+				values = append(values, mf.Amount)
+				paramIndex++
+			case commonpb.MoneyOperator_MONEY_LESS_THAN_OR_EQUAL:
+				conditions = append(conditions, fmt.Sprintf("%s <= $%d", col, paramIndex))
+				values = append(values, mf.Amount)
+				paramIndex++
+			case commonpb.MoneyOperator_MONEY_GREATER_THAN_OR_EQUAL:
+				conditions = append(conditions, fmt.Sprintf("%s >= $%d", col, paramIndex))
+				values = append(values, mf.Amount)
+				paramIndex++
+			case commonpb.MoneyOperator_MONEY_BETWEEN:
+				conditions = append(conditions, fmt.Sprintf("%s BETWEEN $%d AND $%d", col, paramIndex, paramIndex+1))
+				values = append(values, mf.Amount, mf.AmountTo)
+				paramIndex += 2
+			}
+
+		case *commonpb.TypedFilter_StatusFilter:
+			sf := ft.StatusFilter
+			if len(sf.Values) > 0 {
+				placeholders := make([]string, len(sf.Values))
+				for i, v := range sf.Values {
+					placeholders[i] = fmt.Sprintf("$%d", paramIndex)
+					values = append(values, v)
+					paramIndex++
+				}
+				conditions = append(conditions, fmt.Sprintf(
+					"%s IN (%s)", filter.Field, strings.Join(placeholders, ", "),
+				))
 			}
 		}
 	}
@@ -850,7 +969,7 @@ func (p *PostgresOperations) getTableColumns(ctx context.Context, tableName stri
 		ORDER BY ordinal_position
 	`
 
-	rows, err := p.db.QueryContext(ctx, query, tableName)
+	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -938,8 +1057,8 @@ func generateUUID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
-// WithTransaction executes a function within a database transaction
-func (p *PostgresOperations) WithTransaction(ctx context.Context, fn func(*sql.Tx) error) error {
+// RunWithTransaction executes a function within a database transaction
+func (p *PostgresOperations) RunWithTransaction(ctx context.Context, fn func(*sql.Tx) error) error {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.NewDatabaseError(
@@ -971,10 +1090,39 @@ func (p *PostgresOperations) WithTransaction(ctx context.Context, fn func(*sql.T
 	return nil
 }
 
+// WithTransaction returns a DatabaseOperation that routes all queries through
+// the transaction stored in ctx. Implements interfaces.TransactionAware.
+func (p *PostgresOperations) WithTransaction(ctx context.Context) interfaces.DatabaseOperation {
+	return p
+}
+
+// SupportsTransactions implements interfaces.TransactionAware.
+func (p *PostgresOperations) SupportsTransactions() bool {
+	return true
+}
+
 // GetDB returns the underlying database connection
 // This is used for executing raw SQL queries in repository implementations
 func (p *PostgresOperations) GetDB() *sql.DB {
 	return p.db
+}
+
+// getExecutor returns *sql.Tx if one is active in ctx, otherwise *sql.DB.
+func (p *PostgresOperations) getExecutor(ctx context.Context) dbExecutor {
+	tx, ok := operations.GetTransactionFromContext(ctx)
+	if ok {
+		if pgTx, ok := tx.(*PostgreSQLTransaction); ok && pgTx.State() == interfaces.TransactionStatePending {
+			return pgTx.GetTx()
+		}
+	}
+	return p.db
+}
+
+// GetExecutor returns *sql.Tx if one is active in ctx, otherwise *sql.DB.
+// Entity adapters that build raw SQL (CTEs, JOINs) must call this instead
+// of holding their own *sql.DB reference.
+func (p *PostgresOperations) GetExecutor(ctx context.Context) dbExecutor {
+	return p.getExecutor(ctx)
 }
 
 // serializeValue converts map and slice values to JSON bytes so the SQL

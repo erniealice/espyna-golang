@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
@@ -26,8 +27,9 @@ func init() {
 
 // PostgresIntegrationPaymentRepository implements IntegrationPaymentRepository using PostgreSQL
 type PostgresIntegrationPaymentRepository struct {
-	db        *sql.DB
-	tableName string
+	db           *sql.DB
+	tableName    string
+	auditService infraports.AuditService
 }
 
 // NewPostgresIntegrationPaymentRepository creates a new Postgres integration payment repository
@@ -39,6 +41,12 @@ func NewPostgresIntegrationPaymentRepository(db *sql.DB, tableName string) *Post
 		db:        db,
 		tableName: tableName,
 	}
+}
+
+// WithAuditService returns a copy of the repository with an audit service attached.
+func (r *PostgresIntegrationPaymentRepository) WithAuditService(svc infraports.AuditService) *PostgresIntegrationPaymentRepository {
+	r.auditService = svc
+	return r
 }
 
 // LogWebhook saves parsed webhook data to the integration_payment table
@@ -71,6 +79,33 @@ func (r *PostgresIntegrationPaymentRepository) LogWebhook(ctx context.Context, r
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to log webhook: %w", err)
+	}
+
+	if r.auditService != nil {
+		_ = infraports.DiffAndLog(ctx, r.auditService, infraports.DiffAndLogRequest{
+			EntityType:     "integration_payment",
+			EntityID:       id,
+			Domain:         "centymo",
+			Action:         1, // INSERT
+			PermissionCode: "payment:create",
+			UseCase:        "LogWebhook",
+			MethodName:     "LogWebhook",
+			NewData: map[string]any{
+				"id":                   id,
+				"payment_id":           data.PaymentId,
+				"provider_id":          data.ProviderId,
+				"provider_ref":         data.ProviderRef,
+				"provider_payment_ref": data.ProviderPaymentRef,
+				"payment_status":       data.PaymentStatus,
+				"amount":               data.Amount,
+				"currency":             data.Currency,
+				"payment_method":       data.PaymentMethod,
+				"response_code":        data.ResponseCode,
+				"order_ref":            data.OrderRef,
+				"content_type":         data.ContentType,
+				"action":               data.Action,
+			},
+		})
 	}
 
 	return &paymentpb.LogWebhookResponse{

@@ -33,7 +33,6 @@ func init() {
 type PostgresLocationRepository struct {
 	locationpb.UnimplementedLocationDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB
 	tableName string
 }
 
@@ -43,14 +42,8 @@ func NewPostgresLocationRepository(dbOps interfaces.DatabaseOperation, tableName
 		tableName = "location" // default fallback
 	}
 
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresLocationRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -288,7 +281,8 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %w", err)
 	}
@@ -430,7 +424,8 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		WHERE l.id = $1
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.LocationId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.LocationId)
 
 	var (
 		id                 string

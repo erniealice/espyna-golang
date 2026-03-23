@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -231,12 +232,6 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 		return nil, fmt.Errorf("get inventory item list page data request is required")
 	}
 
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
 	// Default pagination values
 	limit := int32(50)
 	offset := int32(0)
@@ -245,7 +240,6 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		// Handle offset pagination
 		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
 			if offsetPag.Page > 0 {
 				page = offsetPag.Page
@@ -254,15 +248,39 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "ii.date_created"
+	// Sort with allowlist validation
+	sortAllowlist := map[string]string{
+		"product_name":  "p.name",
+		"quantity":      "ii.quantity_on_hand",
+		"status":        "ii.active",
+		"date_created":  "ii.date_created",
+		"date_modified": "ii.date_modified",
+		"sku":           "ii.sku",
+	}
+	sortCol := "ii.date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
+		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
+			sortCol = col
+		}
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
 	}
+
+	// Build parameterized WHERE clauses via shared helper (starts at $1)
+	searchFields := []string{"p.name", "ii.sku"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+
+	var whereStr string
+	if len(filterClauses) > 0 {
+		whereStr = " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	// Parameterized LIMIT/OFFSET come after filter args
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
 
 	// CTE Query - Single round-trip with product join for parent product name
 	query := `
@@ -282,27 +300,17 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 				ii.reorder_level,
 				ii.unit_of_measure,
 				COALESCE(p.item_type, '') as item_type,
-				COALESCE(p.name, '') as product_name
+				COALESCE(p.name, '') as product_name,
+				COUNT(*) OVER() AS total_count
 			FROM inventory_item ii
 			LEFT JOIN product p ON ii.product_id = p.id AND p.active = true
-			WHERE ii.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       ii.name ILIKE $1 OR
-			       ii.sku ILIKE $1 OR
-			       p.name ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
+			WHERE ii.active = true` + whereStr + `
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
-	`
+		SELECT * FROM enriched
+		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
+		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inventory item list page data: %w", err)
 	}

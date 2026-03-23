@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -266,12 +267,6 @@ func (r *PostgresProductRepository) GetProductListPageData(
 		return nil, fmt.Errorf("get product list page data request is required")
 	}
 
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
 	// Default pagination values
 	limit := int32(50)
 	offset := int32(0)
@@ -280,7 +275,6 @@ func (r *PostgresProductRepository) GetProductListPageData(
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		// Handle offset pagination
 		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
 			if offsetPag.Page > 0 {
 				page = offsetPag.Page
@@ -289,15 +283,38 @@ func (r *PostgresProductRepository) GetProductListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
+	// Sort with allowlist validation
+	sortAllowlist := map[string]string{
+		"name":          "p.name",
+		"sku":           "p.name", // product table has no sku; fall back to name
+		"status":        "p.active",
+		"date_created":  "p.date_created",
+		"date_modified": "p.date_modified",
+	}
+	sortCol := "p.date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
+		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
+			sortCol = col
+		}
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
 	}
+
+	// Build parameterized WHERE clauses via shared helper (starts at $1)
+	searchFields := []string{"p.name", "p.sku", "p.description"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+
+	var whereStr string
+	if len(filterClauses) > 0 {
+		whereStr = " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	// Parameterized LIMIT/OFFSET come after filter args
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
 
 	// CTE Query - Single round-trip with three separate aggregations for relationships
 	// Performance Notes:
@@ -361,28 +378,19 @@ func (r *PostgresProductRepository) GetProductListPageData(
 				p.currency,
 				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
 				COALESCE(pca.collections, '[]'::jsonb) as product_collections,
-				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
+				COALESCE(ppa.plans, '[]'::jsonb) as product_plans,
+				COUNT(*) OVER() AS total_count
 			FROM product p
 			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
 			LEFT JOIN product_collections_agg pca ON p.id = pca.product_id
 			LEFT JOIN product_plans_agg ppa ON p.id = ppa.product_id
-			WHERE p.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       p.name ILIKE $1 OR
-			       p.description ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
+			WHERE p.active = true` + whereStr + `
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
-	`
+		SELECT * FROM enriched
+		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
+		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query product list page data: %w", err)
 	}
@@ -440,21 +448,19 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			product.Description = description
 		}
 
-		// Handle date fields
-
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		product.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		product.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			product.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			product.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		product.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		product.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			product.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			product.DateModifiedString = &dmStr
+		}
 
 		// Note: The aggregated relationship data (productAttributes, productCollections, productPlans)
 		// is available in JSONB format but not directly mapped to the Product protobuf structure

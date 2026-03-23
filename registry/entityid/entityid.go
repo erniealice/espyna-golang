@@ -78,9 +78,14 @@ const (
 
 // Event domain
 const (
-	Event          = "event"
-	EventAttribute = "event_attribute"
-	EventClient    = "event_client"
+	Event            = "event"
+	EventAttendee    = "event_attendee"
+	EventAttribute   = "event_attribute"
+	EventClient      = "event_client"
+	EventOccurrence  = "event_occurrence"
+	EventProduct     = "event_product"
+	EventRecurrence  = "event_recurrence"
+	EventResource    = "event_resource"
 )
 
 // Product domain
@@ -260,7 +265,10 @@ var EntityEntities = []string{
 }
 
 // EventEntities lists all entity IDs in the Event domain.
-var EventEntities = []string{Event, EventAttribute, EventClient}
+var EventEntities = []string{
+	Event, EventAttendee, EventAttribute, EventClient,
+	EventOccurrence, EventProduct, EventRecurrence, EventResource,
+}
 
 // ProductEntities lists all entity IDs in the Product domain.
 var ProductEntities = []string{
@@ -341,6 +349,18 @@ var LedgerAccountingEntities = []string{
 // PayrollEntities lists all entity IDs in the Payroll domain.
 var PayrollEntities = []string{PayrollRun, PayrollRemittance}
 
+// Fulfillment domain
+const (
+	Fulfillment            = "fulfillment"
+	FulfillmentItem        = "fulfillment_item"
+	FulfillmentStatusEvent = "fulfillment_status_event"
+	FulfillmentReturn      = "fulfillment_return"
+	FulfillmentReturnItem  = "fulfillment_return_item"
+)
+
+// FulfillmentEntities lists all entity IDs in the Fulfillment domain.
+var FulfillmentEntities = []string{Fulfillment, FulfillmentItem, FulfillmentStatusEvent, FulfillmentReturn, FulfillmentReturnItem}
+
 // ---------------------------------------------------------------------------
 // Consolidated slice
 // ---------------------------------------------------------------------------
@@ -366,5 +386,6 @@ func buildAll() []string {
 	all = append(all, OperationOutcomeEntities...)
 	all = append(all, LedgerAccountingEntities...)
 	all = append(all, PayrollEntities...)
+	all = append(all, FulfillmentEntities...)
 	return all
 }

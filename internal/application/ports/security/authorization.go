@@ -147,11 +147,15 @@ const (
 	EntityWorkspaceUser     = "workspace_user"
 	EntityWorkspaceUserRole = "workspace_user_role"
 
-	// Event Domain (4 entities)
-	EntityEvent          = "event"
-	EntityEventAttribute = "event_attribute"
-	EntityEventClient    = "event_client"
-	EntityEventProduct   = "event_product"
+	// Event Domain (8 entities)
+	EntityEvent            = "event"
+	EntityEventAttendee    = "event_attendee"
+	EntityEventAttribute   = "event_attribute"
+	EntityEventClient      = "event_client"
+	EntityEventOccurrence  = "event_occurrence"
+	EntityEventProduct     = "event_product"
+	EntityEventRecurrence  = "event_recurrence"
+	EntityEventResource    = "event_resource"
 
 	// Framework Domain (3 entities)
 	EntityFramework = "framework"

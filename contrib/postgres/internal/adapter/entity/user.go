@@ -7,6 +7,7 @@ import (
 	"time"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -32,7 +33,6 @@ func init() {
 type PostgresUserRepository struct {
 	userpb.UnimplementedUserDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB
 	tableName string
 }
 
@@ -42,14 +42,8 @@ func NewPostgresUserRepository(dbOps interfaces.DatabaseOperation, tableName str
 		tableName = "user" // default fallback
 	}
 
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresUserRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -213,14 +207,21 @@ func (r *PostgresUserRepository) ListUsers(ctx context.Context, req *userpb.List
 	}, nil
 }
 
+// userSortAllowlist maps external sort field names to safe SQL column references.
+var userSortAllowlist = map[string]string{
+	"first_name":    "first_name",
+	"last_name":     "last_name",
+	"email_address": "email_address",
+	"date_created":  "date_created",
+	"date_modified": "date_modified",
+}
+
 func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *userpb.GetUserListPageDataRequest) (*userpb.GetUserListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
+
+	// Default pagination values
 	limit, offset, page := int32(50), int32(0), int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
@@ -231,19 +232,50 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
+
+	// Allowlist-validated sort
+	sortCol := "date_created"
+	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
+		f := req.Sort.Fields[0]
+		if col, ok := userSortAllowlist[f.Field]; ok {
+			sortCol = col
+		}
+		if f.Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
 	}
-	query := `WITH enriched AS (SELECT id, first_name, last_name, email_address, active, date_created, date_modified FROM "user" WHERE ($1::text IS NULL OR $1::text = '' OR first_name ILIKE $1 OR last_name ILIKE $1 OR email_address ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+
+	// Build filter/search WHERE clauses starting at $1
+	searchFields := []string{"first_name", "last_name", "email_address"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+
+	whereSQL := ""
+	if len(filterClauses) > 0 {
+		whereSQL = "WHERE " + strings.Join(filterClauses, " AND ")
+	}
+
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	filterArgs = append(filterArgs, limit, offset)
+
+	query := fmt.Sprintf(`
+		SELECT
+			id, first_name, last_name, email_address, active, date_created, date_modified,
+			COUNT(*) OVER() AS total_count
+		FROM "user"
+		%s
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d
+	`, whereSQL, sortCol, sortOrder, limitIdx, offsetIdx)
+
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, filterArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	defer rows.Close()
+
 	var users []*userpb.User
 	var totalCount int64
 	for rows.Next() {
@@ -257,21 +289,38 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 		totalCount = total
 		user := &userpb.User{Id: id, FirstName: firstName, LastName: lastName, EmailAddress: emailAddress, Active: active}
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		user.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		user.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			user.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			user.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		user.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		user.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			user.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			user.DateModifiedString = &dmStr
+		}
 		users = append(users, user)
 	}
-	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
-	return &userpb.GetUserListPageDataResponse{UserList: users, Pagination: &commonpb.PaginationResponse{TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages, HasNext: page < totalPages, HasPrev: page > 1}, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user rows: %w", err)
+	}
+
+	totalPages := int32(0)
+	if limit > 0 {
+		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	}
+	return &userpb.GetUserListPageDataResponse{
+		UserList: users,
+		Pagination: &commonpb.PaginationResponse{
+			TotalItems:  int32(totalCount),
+			CurrentPage: &page,
+			TotalPages:  &totalPages,
+			HasNext:     page < totalPages,
+			HasPrev:     page > 1,
+		},
+		Success: true,
+	}, nil
 }
 
 func (r *PostgresUserRepository) GetUserItemPageData(ctx context.Context, req *userpb.GetUserItemPageDataRequest) (*userpb.GetUserItemPageDataResponse, error) {
@@ -279,7 +328,8 @@ func (r *PostgresUserRepository) GetUserItemPageData(ctx context.Context, req *u
 		return nil, fmt.Errorf("user ID required")
 	}
 	query := `SELECT id, first_name, last_name, email_address, active, date_created, date_modified FROM "user" WHERE id = $1`
-	row := r.db.QueryRowContext(ctx, query, req.UserId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.UserId)
 	var id, firstName, lastName, emailAddress string
 	var active bool
 	var dateCreated, dateModified time.Time

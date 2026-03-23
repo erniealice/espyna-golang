@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -226,11 +227,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		return nil, fmt.Errorf("get revenue list page data request is required")
 	}
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
+	// Default pagination values
 	limit := int32(50)
 	offset := int32(0)
 	page := int32(1)
@@ -246,14 +243,39 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		}
 	}
 
-	sortField := "rv.date_created"
+	// Sort with allowlist validation
+	sortAllowlist := map[string]string{
+		"reference_number": "rv.reference_number",
+		"total_amount":     "rv.total_amount",
+		"status":           "rv.status",
+		"date_created":     "rv.date_created",
+		"date_modified":    "rv.date_modified",
+		"client_name":      "c.name",
+	}
+	sortCol := "rv.date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
+		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
+			sortCol = col
+		}
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
 	}
+
+	// Build parameterized WHERE clauses via shared helper (starts at $1)
+	searchFields := []string{"rv.reference_number", "c.name"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+
+	var whereStr string
+	if len(filterClauses) > 0 {
+		whereStr = " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	// Parameterized LIMIT/OFFSET come after filter args
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
 
 	query := `
 		WITH enriched AS (
@@ -274,29 +296,18 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.revenue_category_id,
 				rv.location_id,
 				COALESCE(c.name, '') as client_name,
-				COALESCE(l.name, '') as location_name
+				COALESCE(l.name, '') as location_name,
+				COUNT(*) OVER() AS total_count
 			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true
 			LEFT JOIN location l ON rv.location_id = l.id AND l.active = true
-			WHERE rv.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       rv.name ILIKE $1 OR
-			       rv.reference_number ILIKE $1 OR
-			       rv.status ILIKE $1 OR
-			       c.name ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
+			WHERE rv.active = true` + whereStr + `
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
-	`
+		SELECT * FROM enriched
+		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
+		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query revenue list page data: %w", err)
 	}
@@ -354,12 +365,12 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		totalCount = total
 
 		revenue := &revenuepb.Revenue{
-			Id:              id,
-			Active:          active,
-			Name:            name,
-			TotalAmount:     totalAmount,
-			ReferenceNumber: referenceNumber,
-			Notes:           notes,
+			Id:                id,
+			Active:            active,
+			Name:              name,
+			TotalAmount:       totalAmount,
+			ReferenceNumber:   referenceNumber,
+			Notes:             notes,
 			RevenueCategoryId: revenueCategoryID,
 		}
 

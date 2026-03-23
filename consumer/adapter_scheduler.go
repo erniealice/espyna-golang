@@ -42,7 +42,8 @@ Usage:
 // SchedulerAdapter provides technology-agnostic access to scheduling services.
 // It wraps the SchedulerProvider interface and works with Calendly, Google Calendar, etc.
 type SchedulerAdapter struct {
-	provider  ports.SchedulerProvider
+	provider  ports.SchedulerProvider              // primary (first, backwards compat)
+	providers map[string]ports.SchedulerProvider   // all registered providers
 	container *Container
 }
 
@@ -53,13 +54,29 @@ func NewSchedulerAdapterFromContainer(container *Container) *SchedulerAdapter {
 		return nil
 	}
 
-	provider := container.GetSchedulerProvider()
-	if provider == nil {
-		return nil
+	providers := container.GetSchedulerProviders()
+
+	if len(providers) == 0 {
+		single := container.GetSchedulerProvider()
+		if single == nil {
+			return nil
+		}
+		return &SchedulerAdapter{
+			provider:  single,
+			providers: map[string]ports.SchedulerProvider{single.Name(): single},
+			container: container,
+		}
+	}
+
+	var primary ports.SchedulerProvider
+	for _, p := range providers {
+		primary = p
+		break
 	}
 
 	return &SchedulerAdapter{
-		provider:  provider,
+		provider:  primary,
+		providers: providers,
 		container: container,
 	}
 }
@@ -363,6 +380,43 @@ func (a *SchedulerAdapter) GetCapabilities() []schedulerpb.SchedulerCapability {
 		return nil
 	}
 	return a.provider.GetCapabilities()
+}
+
+// --- Multi-provider methods ---
+
+// ForProvider returns a specific scheduler provider by name.
+// Returns nil if the provider is not registered.
+func (a *SchedulerAdapter) ForProvider(name string) ports.SchedulerProvider {
+	if a.providers == nil {
+		return nil
+	}
+	return a.providers[name]
+}
+
+// ProviderNames returns the names of all registered scheduler providers.
+func (a *SchedulerAdapter) ProviderNames() []string {
+	if a.providers == nil {
+		return nil
+	}
+	names := make([]string, 0, len(a.providers))
+	for name := range a.providers {
+		names = append(names, name)
+	}
+	return names
+}
+
+// AllHealthy checks health of all registered scheduler providers.
+func (a *SchedulerAdapter) AllHealthy(ctx context.Context) map[string]error {
+	result := make(map[string]error)
+	for name, p := range a.providers {
+		result[name] = p.IsHealthy(ctx)
+	}
+	return result
+}
+
+// ProviderCount returns the number of registered scheduler providers.
+func (a *SchedulerAdapter) ProviderCount() int {
+	return len(a.providers)
 }
 
 // --- Re-export types for consumer convenience ---

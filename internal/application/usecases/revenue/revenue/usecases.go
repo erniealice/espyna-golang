@@ -20,11 +20,12 @@ type RevenueServices struct {
 
 // UseCases contains all revenue-related use cases
 type UseCases struct {
-	CreateRevenue *CreateRevenueUseCase
-	ReadRevenue   *ReadRevenueUseCase
-	UpdateRevenue *UpdateRevenueUseCase
-	DeleteRevenue *DeleteRevenueUseCase
-	ListRevenues  *ListRevenuesUseCase
+	CreateRevenue            *CreateRevenueUseCase
+	ReadRevenue              *ReadRevenueUseCase
+	UpdateRevenue            *UpdateRevenueUseCase
+	DeleteRevenue            *DeleteRevenueUseCase
+	ListRevenues             *ListRevenuesUseCase
+	GetRevenueListPageData   *GetRevenueListPageDataUseCase
 }
 
 // NewUseCases creates a new collection of revenue use cases
@@ -68,11 +69,19 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	getListPageDataRepos := GetRevenueListPageDataRepositories(repositories)
+	getListPageDataServices := GetRevenueListPageDataServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
-		CreateRevenue: NewCreateRevenueUseCase(createRepos, createServices),
-		ReadRevenue:   NewReadRevenueUseCase(readRepos, readServices),
-		UpdateRevenue: NewUpdateRevenueUseCase(updateRepos, updateServices),
-		DeleteRevenue: NewDeleteRevenueUseCase(deleteRepos, deleteServices),
-		ListRevenues:  NewListRevenuesUseCase(listRepos, listServices),
+		CreateRevenue:          NewCreateRevenueUseCase(createRepos, createServices),
+		ReadRevenue:            NewReadRevenueUseCase(readRepos, readServices),
+		UpdateRevenue:          NewUpdateRevenueUseCase(updateRepos, updateServices),
+		DeleteRevenue:          NewDeleteRevenueUseCase(deleteRepos, deleteServices),
+		ListRevenues:           NewListRevenuesUseCase(listRepos, listServices),
+		GetRevenueListPageData: NewGetRevenueListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
 	}
 }

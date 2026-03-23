@@ -38,7 +38,6 @@ func init() {
 type PostgresWorkspaceUserRoleRepository struct {
 	workspaceuserrolepb.UnimplementedWorkspaceUserRoleDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -48,15 +47,8 @@ func NewPostgresWorkspaceUserRoleRepository(dbOps interfaces.DatabaseOperation, 
 		tableName = "workspace_user_role" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresWorkspaceUserRoleRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -246,7 +238,8 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 	}
 
 	query := `WITH enriched AS (SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM workspace_user_role WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR workspace_user_id ILIKE $1 OR role_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -287,7 +280,8 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleItemPageData(c
 		return nil, fmt.Errorf("workspace user role ID required")
 	}
 	query := `SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM workspace_user_role WHERE id = $1 AND active = true`
-	row := r.db.QueryRowContext(ctx, query, req.WorkspaceUserRoleId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserRoleId)
 	var id, workspaceUserId, roleId string
 	var active bool
 	var dateCreated, dateModified time.Time

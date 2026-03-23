@@ -224,3 +224,14 @@ var (
 	RegisterLedgerReportingFactory = internal.RegisterLedgerReportingFactory
 	GetLedgerReportingFactory      = internal.GetLedgerReportingFactory
 )
+
+// =============================================================================
+// Audit Service Factory Registry
+// =============================================================================
+
+var (
+	RegisterAuditServiceFactory            = internal.RegisterAuditServiceFactory
+	GetAuditServiceFactory                 = internal.GetAuditServiceFactory
+	RegisterAuditEnabledOperationsFactory  = internal.RegisterAuditEnabledOperationsFactory
+	GetAuditEnabledOperationsFactory       = internal.GetAuditEnabledOperationsFactory
+)

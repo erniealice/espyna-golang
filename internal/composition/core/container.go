@@ -45,6 +45,12 @@ type Services struct {
 	Scheduler      ports.SchedulerProvider     // Scheduler provider service (Calendly, etc.)
 	Tabular        ports.TabularSourceProvider // Tabular data provider (Google Sheets, etc.)
 	WorkflowEngine ports.WorkflowEngineService // Orchestration engine service
+
+	// Multi-provider registries — all configured providers are active simultaneously.
+	// Legacy single fields above are set to the first provider for backwards compat.
+	PaymentProviders     map[string]ports.PaymentProvider
+	SchedulerProviders   map[string]ports.SchedulerProvider
+	FulfillmentProviders map[string]ports.FulfillmentProvider
 }
 
 // MockService provides a default mock implementation of the Service interface
@@ -281,22 +287,52 @@ func (c *Container) Initialize() error {
 		fmt.Printf("✅ Email provider initialized: %s\n", provider.Name())
 	}
 
-	// Initialize payment provider from environment
-	fmt.Printf("💳 Initializing payment provider...\n")
-	if provider, err := integration.CreatePaymentProvider(); err != nil {
-		fmt.Printf("⚠️ Failed to initialize payment provider: %v\n", err)
-	} else if provider != nil {
-		c.services.Payment = provider
-		fmt.Printf("✅ Payment provider initialized: %s\n", provider.Name())
+	// Initialize payment providers from environment (supports multiple comma-separated)
+	fmt.Printf("💳 Initializing payment providers...\n")
+	if providers, err := integration.CreatePaymentProviders(); err != nil {
+		fmt.Printf("⚠️ Failed to initialize payment providers: %v\n", err)
+	} else if len(providers) > 0 {
+		c.services.PaymentProviders = providers
+		// Set legacy single field to first provider for backwards compat
+		for _, p := range providers {
+			c.services.Payment = p
+			break
+		}
+		names := make([]string, 0, len(providers))
+		for name := range providers {
+			names = append(names, name)
+		}
+		fmt.Printf("✅ Payment providers initialized: %v\n", names)
 	}
 
-	// Initialize scheduler provider from environment
-	fmt.Printf("📅 Initializing scheduler provider...\n")
-	if provider, err := integration.CreateSchedulerProvider(); err != nil {
-		fmt.Printf("⚠️ Failed to initialize scheduler provider: %v\n", err)
-	} else if provider != nil {
-		c.services.Scheduler = provider
-		fmt.Printf("✅ Scheduler provider initialized: %s\n", provider.Name())
+	// Initialize scheduler providers from environment (supports multiple comma-separated)
+	fmt.Printf("📅 Initializing scheduler providers...\n")
+	if providers, err := integration.CreateSchedulerProviders(); err != nil {
+		fmt.Printf("⚠️ Failed to initialize scheduler providers: %v\n", err)
+	} else if len(providers) > 0 {
+		c.services.SchedulerProviders = providers
+		for _, p := range providers {
+			c.services.Scheduler = p
+			break
+		}
+		names := make([]string, 0, len(providers))
+		for name := range providers {
+			names = append(names, name)
+		}
+		fmt.Printf("✅ Scheduler providers initialized: %v\n", names)
+	}
+
+	// Initialize fulfillment providers from environment (supports multiple comma-separated)
+	fmt.Printf("🚚 Initializing fulfillment providers...\n")
+	if providers, err := integration.CreateFulfillmentProviders(); err != nil {
+		fmt.Printf("⚠️ Failed to initialize fulfillment providers: %v\n", err)
+	} else if len(providers) > 0 {
+		c.services.FulfillmentProviders = providers
+		names := make([]string, 0, len(providers))
+		for name := range providers {
+			names = append(names, name)
+		}
+		fmt.Printf("✅ Fulfillment providers initialized: %v\n", names)
 	}
 
 	// Initialize tabular provider from environment (Google Sheets, etc.)
@@ -527,6 +563,57 @@ func (c *Container) GetSchedulerProvider() ports.SchedulerProvider {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.services.Scheduler
+}
+
+// GetPaymentProviders returns all registered payment providers
+func (c *Container) GetPaymentProviders() map[string]ports.PaymentProvider {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.services.PaymentProviders
+}
+
+// GetPaymentProviderByName returns a specific payment provider by name
+func (c *Container) GetPaymentProviderByName(name string) ports.PaymentProvider {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.services.PaymentProviders == nil {
+		return nil
+	}
+	return c.services.PaymentProviders[name]
+}
+
+// GetSchedulerProviders returns all registered scheduler providers
+func (c *Container) GetSchedulerProviders() map[string]ports.SchedulerProvider {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.services.SchedulerProviders
+}
+
+// GetSchedulerProviderByName returns a specific scheduler provider by name
+func (c *Container) GetSchedulerProviderByName(name string) ports.SchedulerProvider {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.services.SchedulerProviders == nil {
+		return nil
+	}
+	return c.services.SchedulerProviders[name]
+}
+
+// GetFulfillmentProviders returns all registered fulfillment providers
+func (c *Container) GetFulfillmentProviders() map[string]ports.FulfillmentProvider {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.services.FulfillmentProviders
+}
+
+// GetFulfillmentProviderByName returns a specific fulfillment provider by name
+func (c *Container) GetFulfillmentProviderByName(name string) ports.FulfillmentProvider {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.services.FulfillmentProviders == nil {
+		return nil
+	}
+	return c.services.FulfillmentProviders[name]
 }
 
 // GetDBTableConfig returns the database table configuration directly

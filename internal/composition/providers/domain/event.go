@@ -10,21 +10,35 @@ import (
 	// Protobuf domain services - Entity domain
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 
+	// Protobuf domain services - Product domain
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+
 	// Protobuf domain services - Event domain
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	eventAttendeepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attendee"
 	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
+	eventOccurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_occurrence"
+	eventProductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
+	eventRecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
+	eventResourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_resource"
 )
 
 // EventRepositories contains all event domain repositories and cross-domain dependencies
-// Event domain: Event, EventAttribute, EventClient (3 entities)
-// Cross-domain: Client (needed by EventClient use case)
+// Event domain: Event, EventAttendee, EventAttribute, EventClient, EventOccurrence, EventProduct, EventRecurrence, EventResource (8 entities)
+// Cross-domain: Client (needed by EventClient), Product (needed by EventProduct)
 type EventRepositories struct {
-	Event          eventpb.EventDomainServiceServer
-	EventAttribute eventattributepb.EventAttributeDomainServiceServer
-	EventClient    eventclientpb.EventClientDomainServiceServer
-	// Cross-domain dependency from Entity domain
-	Client clientpb.ClientDomainServiceServer
+	Event           eventpb.EventDomainServiceServer
+	EventAttendee   eventAttendeepb.EventAttendeeDomainServiceServer
+	EventAttribute  eventattributepb.EventAttributeDomainServiceServer
+	EventClient     eventclientpb.EventClientDomainServiceServer
+	EventOccurrence eventOccurrencepb.EventOccurrenceDomainServiceServer
+	EventProduct    eventProductpb.EventProductDomainServiceServer
+	EventRecurrence eventRecurrencepb.EventRecurrenceDomainServiceServer
+	EventResource   eventResourcepb.EventResourceDomainServiceServer
+	// Cross-domain dependencies
+	Client  clientpb.ClientDomainServiceServer
+	Product productpb.ProductDomainServiceServer
 }
 
 // NewEventRepositories creates and returns a new set of EventRepositories
@@ -40,10 +54,15 @@ func NewEventRepositories(dbProvider contracts.Provider, tableConfig *registry.T
 
 	conn := repoCreator.GetConnection()
 
-	// Create each repository individually using configured table names from tableConfig
+	// Event domain repositories
 	eventRepo, err := repoCreator.CreateRepository(entityid.Event, conn, tableConfig.TableName(entityid.Event))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event repository: %w", err)
+	}
+
+	eventAttendeeRepo, err := repoCreator.CreateRepository(entityid.EventAttendee, conn, tableConfig.TableName(entityid.EventAttendee))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event_attendee repository: %w", err)
 	}
 
 	eventAttributeRepo, err := repoCreator.CreateRepository(entityid.EventAttribute, conn, tableConfig.TableName(entityid.EventAttribute))
@@ -56,16 +75,47 @@ func NewEventRepositories(dbProvider contracts.Provider, tableConfig *registry.T
 		return nil, fmt.Errorf("failed to create event_client repository: %w", err)
 	}
 
+	eventOccurrenceRepo, err := repoCreator.CreateRepository(entityid.EventOccurrence, conn, tableConfig.TableName(entityid.EventOccurrence))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event_occurrence repository: %w", err)
+	}
+
+	eventProductRepo, err := repoCreator.CreateRepository(entityid.EventProduct, conn, tableConfig.TableName(entityid.EventProduct))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event_product repository: %w", err)
+	}
+
+	eventRecurrenceRepo, err := repoCreator.CreateRepository(entityid.EventRecurrence, conn, tableConfig.TableName(entityid.EventRecurrence))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event_recurrence repository: %w", err)
+	}
+
+	eventResourceRepo, err := repoCreator.CreateRepository(entityid.EventResource, conn, tableConfig.TableName(entityid.EventResource))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event_resource repository: %w", err)
+	}
+
+	// Cross-domain repositories
 	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, tableConfig.TableName(entityid.Client))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client repository: %w", err)
 	}
 
-	// Type assert each repository to its interface
+	productRepo, err := repoCreator.CreateRepository(entityid.Product, conn, tableConfig.TableName(entityid.Product))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product repository: %w", err)
+	}
+
 	return &EventRepositories{
-		Event:          eventRepo.(eventpb.EventDomainServiceServer),
-		EventAttribute: eventAttributeRepo.(eventattributepb.EventAttributeDomainServiceServer),
-		EventClient:    eventClientRepo.(eventclientpb.EventClientDomainServiceServer),
-		Client:         clientRepo.(clientpb.ClientDomainServiceServer),
+		Event:           eventRepo.(eventpb.EventDomainServiceServer),
+		EventAttendee:   eventAttendeeRepo.(eventAttendeepb.EventAttendeeDomainServiceServer),
+		EventAttribute:  eventAttributeRepo.(eventattributepb.EventAttributeDomainServiceServer),
+		EventClient:     eventClientRepo.(eventclientpb.EventClientDomainServiceServer),
+		EventOccurrence: eventOccurrenceRepo.(eventOccurrencepb.EventOccurrenceDomainServiceServer),
+		EventProduct:    eventProductRepo.(eventProductpb.EventProductDomainServiceServer),
+		EventRecurrence: eventRecurrenceRepo.(eventRecurrencepb.EventRecurrenceDomainServiceServer),
+		EventResource:   eventResourceRepo.(eventResourcepb.EventResourceDomainServiceServer),
+		Client:          clientRepo.(clientpb.ClientDomainServiceServer),
+		Product:         productRepo.(productpb.ProductDomainServiceServer),
 	}, nil
 }

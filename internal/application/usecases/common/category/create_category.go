@@ -188,9 +188,10 @@ func (uc *CreateCategoryUseCase) validateBusinessRules(category *categorypb.Cate
 		"workflow":     true,
 		"staff":        true,
 		"delegate":     true,
+		"supplier":     true,
 	}
 	if !allowedModules[category.Module] {
-		return fmt.Errorf("category module must be one of: client, product, location, event, payment, subscription, workflow, staff, delegate")
+		return fmt.Errorf("category module must be one of: client, product, location, event, payment, subscription, workflow, staff, delegate, supplier")
 	}
 
 	// Validate parent_id if provided

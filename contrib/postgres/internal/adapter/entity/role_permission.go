@@ -38,7 +38,6 @@ func init() {
 type PostgresRolePermissionRepository struct {
 	rolepermissionpb.UnimplementedRolePermissionDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -48,15 +47,8 @@ func NewPostgresRolePermissionRepository(dbOps interfaces.DatabaseOperation, tab
 		tableName = "role_permission" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresRolePermissionRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -285,7 +277,8 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 		LIMIT $1 OFFSET $2;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query role permission list page data: %w", err)
 	}
@@ -398,7 +391,8 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionItemPageData(
 		LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.RolePermissionId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.RolePermissionId)
 
 	var (
 		id                 string

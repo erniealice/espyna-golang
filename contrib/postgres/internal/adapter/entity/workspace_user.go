@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -76,7 +77,6 @@ func init() {
 type PostgresWorkspaceUserRepository struct {
 	workspaceuserpb.UnimplementedWorkspaceUserDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -86,15 +86,8 @@ func NewPostgresWorkspaceUserRepository(dbOps interfaces.DatabaseOperation, tabl
 		tableName = "workspace_user" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresWorkspaceUserRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -235,7 +228,8 @@ func (r *PostgresWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Context
 		ORDER BY wu.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workspace users: %w", err)
 	}
@@ -315,6 +309,15 @@ func derefStr(s *string) string {
 	return ""
 }
 
+// workspaceUserSortAllowlist maps external sort field names to safe SQL column references.
+var workspaceUserSortAllowlist = map[string]string{
+	"date_created":    "wu.date_created",
+	"date_modified":   "wu.date_modified",
+	"u.first_name":    "u.first_name",
+	"u.last_name":     "u.last_name",
+	"u.email_address": "u.email_address",
+}
+
 // GetWorkspaceUserListPageData retrieves workspace users with advanced filtering, sorting, searching, and pagination using CTE
 // CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
@@ -330,7 +333,6 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 	if req.Filters != nil && len(req.Filters.Filters) > 0 {
 		for _, filter := range req.Filters.Filters {
 			if filter.Field == "workspace_id" {
-				// Extract value from string filter (the most common case for workspace_id)
 				if stringFilter := filter.GetStringFilter(); stringFilter != nil {
 					workspaceID = stringFilter.Value
 					break
@@ -342,12 +344,6 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		return nil, fmt.Errorf("workspace_id filter is required for multi-tenancy")
 	}
 
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
 	// Default pagination values
 	limit := int32(50)
 	offset := int32(0)
@@ -356,7 +352,6 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		// Handle offset pagination
 		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
 			if offsetPag.Page > 0 {
 				page = offsetPag.Page
@@ -365,17 +360,53 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
+	// Allowlist-validated sort
+	sortCol := "wu.date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
+		f := req.Sort.Fields[0]
+		if col, ok := workspaceUserSortAllowlist[f.Field]; ok {
+			sortCol = col
+		}
+		if f.Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
 	}
 
-	// CTE Query - Single round-trip with enriched user data and aggregated workspace_user_role relationships
+	// workspace_id is always $1; filter/search params start at $2
+	// Strip the workspace_id filter from req.Filters before passing to BuildFilterWhere
+	// to avoid duplicating it in the WHERE clause.
+	var filteredReqFilters *commonpb.FilterRequest
+	if req.Filters != nil {
+		var nonWorkspaceFilters []*commonpb.TypedFilter
+		for _, f := range req.Filters.Filters {
+			if f.Field != "workspace_id" {
+				nonWorkspaceFilters = append(nonWorkspaceFilters, f)
+			}
+		}
+		if len(nonWorkspaceFilters) > 0 {
+			filteredReqFilters = &commonpb.FilterRequest{Filters: nonWorkspaceFilters}
+		}
+	}
+
+	searchFields := []string{"u.first_name", "u.last_name", "u.email_address"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+
+	// Hard WHERE conditions: always active + workspace_id
+	hardWhere := "wu.active = true AND wu.workspace_id = $1"
+	extraWhere := ""
+	if len(filterClauses) > 0 {
+		extraWhere = " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	// Build full args: workspaceID first, then filter args, then limit/offset
+	allArgs := []any{workspaceID}
+	allArgs = append(allArgs, filterArgs...)
+	allArgs = append(allArgs, limit, offset)
+
+	// CTE Query - Single round-trip with JSONB role aggregation and COUNT(*) OVER() window function
 	// Performance Notes:
 	// - INDEX RECOMMENDATION: Create index on workspace_user.workspace_id (CRITICAL for multi-tenancy)
 	// - INDEX RECOMMENDATION: Create index on workspace_user.user_id (foreign key)
@@ -386,7 +417,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 	// - INDEX RECOMMENDATION: Create index on user.first_name, user.last_name, user.email_address for search performance
 	// - INDEX RECOMMENDATION: Create index on workspace_user.active for filtering active records
 	// - INDEX RECOMMENDATION: Create index on workspace_user.date_created for default sorting
-	query := `
+	query := fmt.Sprintf(`
 		WITH user_roles_agg AS (
 			SELECT
 				wur.workspace_user_id,
@@ -412,46 +443,32 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			JOIN role r ON wur.role_id = r.id
 			WHERE wur.active = true AND r.active = true
 			GROUP BY wur.workspace_user_id
-		),
-		enriched AS (
-			SELECT
-				wu.id,
-				wu.workspace_id,
-				wu.user_id,
-				wu.active,
-				wu.date_created,
-				wu.date_modified,
-				-- User fields (1:1 relationship) - Direct fields for protobuf mapping
-				u.id as user_id_value,
-				u.first_name as user_first_name,
-				u.last_name as user_last_name,
-				u.email_address as user_email_address,
-				u.mobile_number as user_phone_number,
-				u.active as user_active,
-				-- Workspace user roles (many-to-many via junction table)
-				COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles
-			FROM workspace_user wu
-			LEFT JOIN "user" u ON wu.user_id = u.id AND u.active = true
-			LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
-			WHERE wu.active = true
-			  AND wu.workspace_id = $1
-			  AND ($2::text IS NULL OR $2::text = '' OR
-				   u.first_name ILIKE $2 OR
-				   u.last_name ILIKE $2 OR
-				   u.email_address ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
 		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $3 OFFSET $4;
-	`
+			wu.id,
+			wu.workspace_id,
+			wu.user_id,
+			wu.active,
+			wu.date_created,
+			wu.date_modified,
+			u.id as user_id_value,
+			u.first_name as user_first_name,
+			u.last_name as user_last_name,
+			u.email_address as user_email_address,
+			u.mobile_number as user_phone_number,
+			u.active as user_active,
+			COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles,
+			COUNT(*) OVER() AS total_count
+		FROM workspace_user wu
+		LEFT JOIN "user" u ON wu.user_id = u.id AND u.active = true
+		LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
+		WHERE %s%s
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d
+	`, hardWhere, extraWhere, sortCol, sortOrder, limitIdx, offsetIdx)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	exec2 := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec2.QueryContext(ctx, query, allArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query workspace user list page data: %w", err)
 	}
@@ -540,7 +557,6 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			var rolesData []map[string]interface{}
 			if err := json.Unmarshal(workspaceUserRolesJSON, &rolesData); err == nil {
 				for _, roleData := range rolesData {
-					// Convert map to WorkspaceUserRole protobuf
 					roleJSON, err := json.Marshal(roleData)
 					if err != nil {
 						continue
@@ -655,7 +671,8 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.WorkspaceUserId)
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserId)
 
 	var (
 		id                 string

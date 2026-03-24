@@ -2,19 +2,19 @@ package entity
 
 import (
 	"context"
-	"database/sql"
+
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 )
 
-// dbExecutor abstracts *sql.DB and *sql.Tx for uniform query execution.
-// Mirrors the interface in the core package (copied to avoid circular imports).
-type dbExecutor interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+// executorProvider provides a transaction-aware database executor.
+// PostgresOperations in the core package satisfies this interface via its
+// GetExecutor method, which returns interfaces.DBExecutor — the shared
+// exported type that avoids the "missing method GetExecutor" panic caused
+// by each package previously defining its own unexported dbExecutor copy.
+type executorProvider interface {
+	GetExecutor(ctx context.Context) interfaces.DBExecutor
 }
 
-// executorProvider provides a transaction-aware database executor.
-// PostgresOperations in the core package satisfies this interface.
-type executorProvider interface {
-	GetExecutor(ctx context.Context) dbExecutor
-}
+// dbExecutor is a package-local alias for the shared interface, so that
+// existing code inside this package can continue to use the short name.
+type dbExecutor = interfaces.DBExecutor

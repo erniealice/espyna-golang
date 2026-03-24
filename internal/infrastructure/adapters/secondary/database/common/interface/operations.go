@@ -2,9 +2,19 @@ package interfaces
 
 import (
 	"context"
+	"database/sql"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
+
+// DBExecutor abstracts *sql.DB and *sql.Tx for uniform query execution.
+// Using this shared interface avoids the "missing method GetExecutor" panic
+// that occurs when adapter packages each define their own unexported copy.
+type DBExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
 
 // ListParams contains standardized parameters for list operations
 // matching the proto request patterns (search, filters, sort, pagination)

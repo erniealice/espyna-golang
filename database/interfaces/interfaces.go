@@ -11,6 +11,7 @@ type (
 	TransactionAware  = internal.TransactionAware
 	ListParams        = internal.ListParams
 	ListResult        = internal.ListResult
+	DBExecutor        = internal.DBExecutor
 )
 
 // Query types

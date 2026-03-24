@@ -1121,7 +1121,10 @@ func (p *PostgresOperations) getExecutor(ctx context.Context) dbExecutor {
 // GetExecutor returns *sql.Tx if one is active in ctx, otherwise *sql.DB.
 // Entity adapters that build raw SQL (CTEs, JOINs) must call this instead
 // of holding their own *sql.DB reference.
-func (p *PostgresOperations) GetExecutor(ctx context.Context) dbExecutor {
+// The return type uses the shared interfaces.DBExecutor so that adapter
+// packages (e.g. the entity package) can type-assert dbOps to a common
+// executorProvider interface without each package defining its own copy.
+func (p *PostgresOperations) GetExecutor(ctx context.Context) interfaces.DBExecutor {
 	return p.getExecutor(ctx)
 }
 

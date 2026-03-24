@@ -245,14 +245,14 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 
 	// Sort with allowlist validation
 	sortAllowlist := map[string]string{
-		"reference_number": "rv.reference_number",
-		"total_amount":     "rv.total_amount",
-		"status":           "rv.status",
-		"date_created":     "rv.date_created",
-		"date_modified":    "rv.date_modified",
-		"client_name":      "c.name",
+		"reference_number": "reference_number",
+		"total_amount":     "total_amount",
+		"status":           "status",
+		"date_created":     "date_created",
+		"date_modified":    "date_modified",
+		"client_name":      "client_name",
 	}
-	sortCol := "rv.date_created"
+	sortCol := "date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
 		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
@@ -264,7 +264,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	}
 
 	// Build parameterized WHERE clauses via shared helper (starts at $1)
-	searchFields := []string{"rv.reference_number", "c.name"}
+	searchFields := []string{"rv.reference_number", "c.company_name"}
 	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
 
 	var whereStr string
@@ -295,7 +295,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.notes,
 				rv.revenue_category_id,
 				rv.location_id,
-				COALESCE(c.name, '') as client_name,
+				COALESCE(c.company_name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
 				COUNT(*) OVER() AS total_count
 			FROM ` + r.tableName + ` rv
@@ -465,7 +465,7 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 				rv.notes,
 				rv.revenue_category_id,
 				rv.location_id,
-				COALESCE(c.name, '') as client_name,
+				COALESCE(c.company_name, '') as client_name,
 				COALESCE(l.name, '') as location_name
 			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true

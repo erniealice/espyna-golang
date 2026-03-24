@@ -3,7 +3,7 @@
 **Date:** 2026-03-16
 **Branch:** `dev/20260316-centralize-table-constants`
 **Status:** Draft
-**Package:** espyna-golang-ryta
+**Package:** espyna-golang
 
 ---
 
@@ -134,7 +134,7 @@ var EntityEntities = []string{Admin, Client, ClientAttribute, ...}
 var All = buildAll() // concatenation of all domain slices
 ```
 
-- File: `packages/espyna-golang-ryta/registry/entityid/entityid.go`
+- File: `packages/espyna-golang/registry/entityid/entityid.go`
 - Zero breaking changes — only additions
 - Verify: `go build ./registry/entityid/`
 
@@ -224,8 +224,8 @@ Files:
 
 - `go build ./...` — full package build
 - `go vet ./...` — static analysis
-- Verify no remaining `DatabaseTableConfig` struct references: `grep -r 'DatabaseTableConfig' packages/espyna-golang-ryta/`
-- Verify `TableConfig.TableName()` used everywhere: `grep -r 'TableName(' packages/espyna-golang-ryta/`
+- Verify no remaining `DatabaseTableConfig` struct references: `grep -r 'DatabaseTableConfig' packages/espyna-golang/`
+- Verify `TableConfig.TableName()` used everywhere: `grep -r 'TableName(' packages/espyna-golang/`
 - Build all apps: `cd apps/retail-admin && go build -tags "google_uuidv7,mock_auth,mock_storage,noop,postgresql,vanilla" ./...`
 
 ---
@@ -234,28 +234,28 @@ Files:
 
 | File | Change | Phase |
 |------|--------|-------|
-| `packages/espyna-golang-ryta/registry/entityid/entityid.go` | Add domain slices + `All` | 1 |
-| `packages/espyna-golang-ryta/internal/infrastructure/registry/database.go` | Add `TableConfig` type (P2), remove old struct (P6) | 2, 6 |
-| `packages/espyna-golang-ryta/registry/registry.go` | Add new re-exports (P2), remove old (P6) | 2, 6 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/entity.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/product.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/subscription.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/common.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/event.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/workflow.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/revenue.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/inventory.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/expenditure.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/integration.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/ledger.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/treasury.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/operation.go` | Signature + callsites | 3 |
-| `packages/espyna-golang-ryta/internal/composition/providers/manager.go` | Type change + accessor | 4 |
-| `packages/espyna-golang-ryta/internal/composition/core/container.go` | Type references | 4 |
-| `packages/espyna-golang-ryta/internal/composition/core/usecases.go` | Pass new type to domain providers | 4 |
-| `packages/espyna-golang-ryta/contrib/postgres/internal/adapter/adapter.go` | Rewrite `buildPgTableConfig()` | 5 |
-| `packages/espyna-golang-ryta/internal/composition/config/application.go` | **Delete** | 6 |
-| `packages/espyna-golang-ryta/internal/composition/options/infrastructure/database.go` | Rewrite table config functions | 6 |
+| `packages/espyna-golang/registry/entityid/entityid.go` | Add domain slices + `All` | 1 |
+| `packages/espyna-golang/internal/infrastructure/registry/database.go` | Add `TableConfig` type (P2), remove old struct (P6) | 2, 6 |
+| `packages/espyna-golang/registry/registry.go` | Add new re-exports (P2), remove old (P6) | 2, 6 |
+| `packages/espyna-golang/internal/composition/providers/domain/entity.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/product.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/subscription.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/common.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/event.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/workflow.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/revenue.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/inventory.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/expenditure.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/integration.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/ledger.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/treasury.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/domain/operation.go` | Signature + callsites | 3 |
+| `packages/espyna-golang/internal/composition/providers/manager.go` | Type change + accessor | 4 |
+| `packages/espyna-golang/internal/composition/core/container.go` | Type references | 4 |
+| `packages/espyna-golang/internal/composition/core/usecases.go` | Pass new type to domain providers | 4 |
+| `packages/espyna-golang/contrib/postgres/internal/adapter/adapter.go` | Rewrite `buildPgTableConfig()` | 5 |
+| `packages/espyna-golang/internal/composition/config/application.go` | **Delete** | 6 |
+| `packages/espyna-golang/internal/composition/options/infrastructure/database.go` | Rewrite table config functions | 6 |
 
 ---
 

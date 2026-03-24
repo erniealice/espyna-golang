@@ -67,11 +67,11 @@ require (
 
 replace github.com/erniealice/espyna-golang => ../..
 
-replace github.com/erniealice/esqyma => ../../../esqyma-ryta
+replace github.com/erniealice/esqyma => ../../../esqyma
 
-replace github.com/erniealice/entydad-golang => ../../../entydad-golang-ryta
+replace github.com/erniealice/entydad-golang => ../../../entydad-golang
 
-replace github.com/erniealice/lyngua => ../../../lyngua-ryta
+replace github.com/erniealice/lyngua => ../../../lyngua
 
 replace leapfor.xyz/copya => ../../../../../master-monorepo-v2/packages/copya
 

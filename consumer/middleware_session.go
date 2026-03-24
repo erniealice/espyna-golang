@@ -17,7 +17,7 @@ const (
 	ContextKeySessionToken SessionContextKey = "session_token"
 
 	// DefaultSessionCookieName is the default cookie name for session tokens.
-	DefaultSessionCookieName = "ryta_session"
+	DefaultSessionCookieName = "ichizen_session"
 )
 
 // SessionMiddleware validates session cookies on protected routes.
@@ -33,7 +33,7 @@ type SessionMiddleware struct {
 	// Common: "/auth/", "/assets/", "/health"
 	ExcludePrefixes []string
 
-	// CookieName is the session cookie name (default: "ryta_session").
+	// CookieName is the session cookie name (default: "ichizen_session").
 	CookieName string
 
 	// CookieSecure sets the Secure flag on cookies (default: false, set true in production).

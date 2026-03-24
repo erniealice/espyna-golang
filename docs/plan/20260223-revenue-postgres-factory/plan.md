@@ -79,7 +79,7 @@ type PostgresRevenueRepository struct {
 ### Phase 1: Revenue Factory (critical path)
 
 1. **Create `revenue/revenue.go` factory** — implements `RevenueDomainServiceServer`
-   - File: `packages/espyna-golang-ryta/internal/infrastructure/adapters/secondary/database/postgres/revenue/revenue.go` **(NEW)**
+   - File: `packages/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/revenue/revenue.go` **(NEW)**
    - Follow `product_option.go` pattern exactly
    - Methods: CreateRevenue, ReadRevenue, UpdateRevenue, DeleteRevenue, ListRevenues
    - GetRevenueListPageData CTE: JOIN client for client_name, JOIN location for location_name
@@ -87,7 +87,7 @@ type PostgresRevenueRepository struct {
    - Revenue proto fields: id, date_created, date_modified, active, name, client_id, revenue_date, revenue_date_string, total_amount, currency, status, reference_number, notes, revenue_category_id, location_id, checkout_session_id, payment_provider, fulfillment_type, delivery_address
 
 2. **Create `revenue_line_item/revenue_line_item.go` factory** — implements `RevenueLineItemDomainServiceServer`
-   - File: `packages/espyna-golang-ryta/internal/infrastructure/adapters/secondary/database/postgres/revenue_line_item/revenue_line_item.go` **(NEW)**
+   - File: `packages/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/revenue_line_item/revenue_line_item.go` **(NEW)**
    - Methods: Create, Read, Update, Delete, List, GetListPageData, GetItemPageData
    - RevenueLineItem proto fields: id, date_created, date_modified, active, revenue_id, product_id, description, quantity, unit_price, total_price, notes, line_item_type, inventory_item_id, inventory_serial_id, price_list_id, variant_id, variant_label, location_id, cost_price
    - GetListPageData CTE: JOIN revenue, JOIN product for enriched display
@@ -95,17 +95,17 @@ type PostgresRevenueRepository struct {
 ### Phase 2: Supporting Revenue Factories
 
 3. **Create `revenue_category/revenue_category.go` factory** — implements `RevenueCategoryDomainServiceServer`
-   - File: `packages/espyna-golang-ryta/internal/infrastructure/adapters/secondary/database/postgres/revenue_category/revenue_category.go` **(NEW)**
+   - File: `packages/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/revenue_category/revenue_category.go` **(NEW)**
    - Standard CRUD + List (no GetListPageData/GetItemPageData needed initially)
 
 4. **Create `revenue_attribute/revenue_attribute.go` factory** — implements `RevenueAttributeDomainServiceServer`
-   - File: `packages/espyna-golang-ryta/internal/infrastructure/adapters/secondary/database/postgres/revenue_attribute/revenue_attribute.go` **(NEW)**
+   - File: `packages/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/revenue_attribute/revenue_attribute.go` **(NEW)**
    - Standard CRUD + List
 
 ### Phase 3: Fix Centymo Double-Division Bug
 
 5. **Fix amount conversion in centymo CheckoutService**
-   - File: `packages/centymo-golang-ryta/checkout/service.go:153`
+   - File: `packages/centymo-golang/checkout/service.go:153`
    - Current: `Amount: float64(req.TotalAmount) / 100.0` — WRONG (Maya adapter already divides by 100)
    - Fix: `Amount: float64(req.TotalAmount)` — pass centavos, let adapter convert
    - Same bug as the one just fixed in `checkout_post.go`
@@ -160,11 +160,11 @@ type PostgresRevenueRepository struct {
 
 | File | Change | Phase |
 |------|--------|-------|
-| `packages/espyna-golang-ryta/.../postgres/revenue/revenue.go` | **New file** — postgresql:revenue factory | 1 |
-| `packages/espyna-golang-ryta/.../postgres/revenue_line_item/revenue_line_item.go` | **New file** — postgresql:revenue_line_item factory | 1 |
-| `packages/espyna-golang-ryta/.../postgres/revenue_category/revenue_category.go` | **New file** — postgresql:revenue_category factory | 2 |
-| `packages/espyna-golang-ryta/.../postgres/revenue_attribute/revenue_attribute.go` | **New file** — postgresql:revenue_attribute factory | 2 |
-| `packages/centymo-golang-ryta/checkout/service.go` | Fix double /100 on Amount (line 153) | 3 |
+| `packages/espyna-golang/.../postgres/revenue/revenue.go` | **New file** — postgresql:revenue factory | 1 |
+| `packages/espyna-golang/.../postgres/revenue_line_item/revenue_line_item.go` | **New file** — postgresql:revenue_line_item factory | 1 |
+| `packages/espyna-golang/.../postgres/revenue_category/revenue_category.go` | **New file** — postgresql:revenue_category factory | 2 |
+| `packages/espyna-golang/.../postgres/revenue_attribute/revenue_attribute.go` | **New file** — postgresql:revenue_attribute factory | 2 |
+| `packages/centymo-golang/checkout/service.go` | Fix double /100 on Amount (line 153) | 3 |
 | `apps/retail-client/internal/composition/container.go` | Wire centymo CheckoutService via espyna UCs | 4 |
 | `apps/retail-client/internal/composition/views.go` | Remove PaymentUC param | 4 |
 | `apps/retail-client/internal/presentation/checkout/handler.go` | Remove PaymentIntegration struct | 4 |

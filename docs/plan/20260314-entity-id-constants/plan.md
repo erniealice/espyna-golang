@@ -3,7 +3,7 @@
 **Date:** 2026-03-14
 **Branch:** `dev/20260314-entity-id-constants`
 **Status:** Draft
-**Package:** espyna-golang-ryta
+**Package:** espyna-golang
 
 ---
 
@@ -27,7 +27,7 @@ Add a provider-agnostic `registry/entityid` package containing compile-time cons
 ### New package
 
 ```
-packages/espyna-golang-ryta/registry/entityid/
+packages/espyna-golang/registry/entityid/
 └── entityid.go          ← const-only, zero imports
 ```
 
@@ -69,9 +69,9 @@ Group constants by domain with comments matching the existing `DatabaseTableConf
 
 ### Phase 1: Create `registry/entityid` package
 
-- Create `packages/espyna-golang-ryta/registry/entityid/entityid.go` with all 51 entity key constants
+- Create `packages/espyna-golang/registry/entityid/entityid.go` with all 51 entity key constants
 - Constants grouped by domain: Common, Entity, Event, Product, Subscription, Revenue, Expenditure, Inventory, Treasury, Ledger, Integration, Workflow
-- Verify build: `cd packages/espyna-golang-ryta && go build ./registry/entityid/`
+- Verify build: `cd packages/espyna-golang && go build ./registry/entityid/`
 
 ### Phase 2: Migrate PostgreSQL adapters (69 files)
 
@@ -149,11 +149,11 @@ Replace hardcoded entity key strings in `CreateRepository` / `GetRepositoryFacto
 
 | File | Change | Phase |
 |------|--------|-------|
-| `packages/espyna-golang-ryta/registry/entityid/entityid.go` | **New file** — 51 entity key constants | 1 |
-| `packages/espyna-golang-ryta/contrib/postgres/internal/adapter/**/*.go` | Replace string → constant (69 files) | 2 |
-| `packages/espyna-golang-ryta/contrib/google/internal/database/firestore/**/*.go` | Replace string → constant (53 files) | 3 |
-| `packages/espyna-golang-ryta/internal/infrastructure/adapters/secondary/database/mock/**/*.go` | Replace string → constant (43 files) | 4 |
-| `packages/espyna-golang-ryta/internal/composition/providers/domain/*.go` | Replace string → constant (12 files) | 5 |
+| `packages/espyna-golang/registry/entityid/entityid.go` | **New file** — 51 entity key constants | 1 |
+| `packages/espyna-golang/contrib/postgres/internal/adapter/**/*.go` | Replace string → constant (69 files) | 2 |
+| `packages/espyna-golang/contrib/google/internal/database/firestore/**/*.go` | Replace string → constant (53 files) | 3 |
+| `packages/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/**/*.go` | Replace string → constant (43 files) | 4 |
+| `packages/espyna-golang/internal/composition/providers/domain/*.go` | Replace string → constant (12 files) | 5 |
 
 ---
 

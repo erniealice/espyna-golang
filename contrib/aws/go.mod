@@ -36,4 +36,4 @@ require (
 
 replace github.com/erniealice/espyna-golang => ../..
 
-replace github.com/erniealice/esqyma => ../../../esqyma-ryta
+replace github.com/erniealice/esqyma => ../../../esqyma

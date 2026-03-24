@@ -8,7 +8,7 @@
 
 ## Phase 1: Create `registry/entityid` package — NOT STARTED
 
-- [ ] Create `packages/espyna-golang-ryta/registry/entityid/entityid.go`
+- [ ] Create `packages/espyna-golang/registry/entityid/entityid.go`
 - [ ] Define all 51 entity key constants grouped by domain
 - [ ] Verify build: `go build ./registry/entityid/`
 
@@ -99,7 +99,7 @@ To continue this work:
 7. Update checkboxes and summary as you complete steps
 
 **Key files to read first:**
-- `packages/espyna-golang-ryta/registry/entityid/entityid.go` (if Phase 1 done)
-- `packages/espyna-golang-ryta/internal/infrastructure/registry/database.go:84-131` (DatabaseTableConfig for reference)
-- Sample adapter: `packages/espyna-golang-ryta/contrib/postgres/internal/adapter/entity/client.go`
-- Sample consumer: `packages/espyna-golang-ryta/internal/composition/providers/domain/entity.go`
+- `packages/espyna-golang/registry/entityid/entityid.go` (if Phase 1 done)
+- `packages/espyna-golang/internal/infrastructure/registry/database.go:84-131` (DatabaseTableConfig for reference)
+- Sample adapter: `packages/espyna-golang/contrib/postgres/internal/adapter/entity/client.go`
+- Sample consumer: `packages/espyna-golang/internal/composition/providers/domain/entity.go`

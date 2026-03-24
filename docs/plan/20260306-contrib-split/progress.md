@@ -37,7 +37,7 @@
 - [x] Move `reference/checker.go` → `contrib/postgres/reference/checker.go`
 - [x] Update all imports: ports, registry, database/interfaces, database/model, database/operations, database/transactions
 - [x] Remove `//go:build postgresql` tags from all 68+ moved files
-- [x] Add `use ./packages/espyna-golang-ryta/contrib/postgres` to `go.work`
+- [x] Add `use ./packages/espyna-golang/contrib/postgres` to `go.work`
 - [x] Update 4 app container.go files — add `import _ "github.com/erniealice/espyna-golang/contrib/postgres"`
 - [x] Update 4 app go.mod files — add require + replace for contrib/postgres
 - [x] Verify: `go build ./...` in contrib/postgres — PASS
@@ -59,7 +59,7 @@
 - [x] Fix replace directives: `leapfor.xyz/copya` needed 5 `../` levels (not 4) due to extra depth
 - [x] Fix import alias issues: sed mangled grpc `codes`/`status` imports in firestore/adapter.go
 - [x] Remove build tags from all moved files
-- [x] Add `use ./packages/espyna-golang-ryta/contrib/google` to `go.work`
+- [x] Add `use ./packages/espyna-golang/contrib/google` to `go.work`
 - [x] Verify: `go build ./...` in contrib/google — PASS (all 17 packages)
 
 ### Files Moved
@@ -84,7 +84,7 @@
 - [x] Move azure storage adapter to `contrib/azure/internal/adapter/`
 - [x] Create `contrib/azure/register.go` with init()
 - [x] Fixed 9 Azure SDK compilation bugs hidden behind build tags (API changes in azblob v1.6.2)
-- [x] Add `use ./packages/espyna-golang-ryta/contrib/azure` to `go.work`
+- [x] Add `use ./packages/espyna-golang/contrib/azure` to `go.work`
 - [x] Verify: `go build ./...` in contrib/azure — PASS
 
 ### Azure SDK Bugs Found & Fixed
@@ -101,7 +101,7 @@
 - [x] Create `contrib/aws/go.mod` with AWS SDK deps
 - [x] Move s3 storage adapter to `contrib/aws/internal/adapter/`
 - [x] Create `contrib/aws/register.go` with init()
-- [x] Add `use ./packages/espyna-golang-ryta/contrib/aws` to `go.work`
+- [x] Add `use ./packages/espyna-golang/contrib/aws` to `go.work`
 - [x] Verify: `go build ./...` in contrib/aws — PASS
 
 ---
@@ -209,11 +209,11 @@ All 6 phases are complete. The espyna-golang core module has zero cloud SDK and 
 
 ```bash
 # Build core espyna (should have 0 cloud/framework SDK deps)
-cd packages/espyna-golang-ryta && go build ./...
+cd packages/espyna-golang && go build ./...
 
 # Build all 6 contrib modules
 for mod in postgres google azure aws gin fiber; do
-  cd packages/espyna-golang-ryta/contrib/$mod && go build ./...
+  cd packages/espyna-golang/contrib/$mod && go build ./...
 done
 
 # Build service-admin (dev mode)

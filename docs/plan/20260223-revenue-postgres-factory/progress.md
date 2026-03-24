@@ -50,7 +50,7 @@
 ### Bug 1: Factory imports missing — FIXED
 - **Symptom:** Server log `Orders: raw SQL order service (revenue UCs not available)` — centymo not activated
 - **Root cause:** New factory packages not blank-imported in `postgres/imports.go` — `init()` never ran
-- **Fix:** Added 4 blank imports to `packages/espyna-golang-ryta/.../postgres/imports.go`:
+- **Fix:** Added 4 blank imports to `packages/espyna-golang/.../postgres/imports.go`:
   - `_ ".../postgres/revenue"`
   - `_ ".../postgres/revenue_attribute"`
   - `_ ".../postgres/revenue_category"`
@@ -119,26 +119,26 @@ Possible causes:
 **Key insight about Bug 4:** Looking at the factory code (line 90-92), `CreateRevenueResponse` is returned with `Data` but **no `Success: true`**. The centymo service checks `GetSuccess()` — this will return `false` by default! Compare with how other factories handle it (e.g. product_option).
 
 ### DB info
-- Database: `mono2` (NOT `ryta_retail`)
+- Database: `mono2` (NOT `ichizen_retail`)
 - revenue table: 15 columns (no checkout_session_id/payment_provider/fulfillment_type/delivery_address yet)
 - revenue_line_item: 14 columns (no price_list_id/variant_id/variant_label/location_id/cost_price yet)
 - revenue_category: 8 columns
 - revenue_attribute: 7 columns
 
 ### Files created across all sessions
-1. `packages/espyna-golang-ryta/.../postgres/revenue/revenue.go` (NEW — Phase 1)
-2. `packages/espyna-golang-ryta/.../postgres/revenue_line_item/revenue_line_item.go` (NEW — Phase 1)
-3. `packages/espyna-golang-ryta/.../postgres/revenue_category/revenue_category.go` (NEW — Phase 2)
-4. `packages/espyna-golang-ryta/.../postgres/revenue_attribute/revenue_attribute.go` (NEW — Phase 2)
+1. `packages/espyna-golang/.../postgres/revenue/revenue.go` (NEW — Phase 1)
+2. `packages/espyna-golang/.../postgres/revenue_line_item/revenue_line_item.go` (NEW — Phase 1)
+3. `packages/espyna-golang/.../postgres/revenue_category/revenue_category.go` (NEW — Phase 2)
+4. `packages/espyna-golang/.../postgres/revenue_attribute/revenue_attribute.go` (NEW — Phase 2)
 5. `apps/retail-client/internal/domain/order_checkout.go` (NEW — Phase 4 prep)
 
 ### Files modified across all sessions
-1. `packages/centymo-golang-ryta/checkout/service.go` — Phase 3 (double-division fix)
+1. `packages/centymo-golang/checkout/service.go` — Phase 3 (double-division fix)
 2. `apps/retail-client/internal/composition/container.go` — Phase 4 (centymo wiring)
 3. `apps/retail-client/internal/composition/views.go` — Phase 4 (ProcessWebhook replaces PaymentUC)
 4. `apps/retail-client/internal/presentation/checkout/handler.go` — Phase 4 (ProcessWebhookFunc replaces PaymentIntegration)
 5. `apps/retail-client/internal/presentation/checkout/checkout_post.go` — Phase 4 (removed manual Maya session)
 6. `apps/retail-client/internal/presentation/checkout/webhook.go` — Phase 4 (uses h.processWebhook)
 7. `apps/retail-client/internal/domain/order_checkout.go` — Phase 4 (UpdateOrderStatus + auth context)
-8. `packages/espyna-golang-ryta/.../postgres/imports.go` — Phase 5 Bug 1 (added 4 revenue factory imports)
-9. `packages/espyna-golang-ryta/.../postgres/revenue/revenue.go` — Phase 5 Bug 3 (convertMillisToTime)
+8. `packages/espyna-golang/.../postgres/imports.go` — Phase 5 Bug 1 (added 4 revenue factory imports)
+9. `packages/espyna-golang/.../postgres/revenue/revenue.go` — Phase 5 Bug 3 (convertMillisToTime)

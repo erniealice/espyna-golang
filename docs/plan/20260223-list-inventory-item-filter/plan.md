@@ -3,7 +3,7 @@
 **Date:** 2026-02-23
 **Branch:** `dev/20260223-list-inventory-item-filter`
 **Status:** Draft
-**App/Package:** espyna-golang-ryta (primary), centymo-golang-ryta (consumer)
+**App/Package:** espyna-golang (primary), centymo-golang (consumer)
 
 ---
 
@@ -17,12 +17,12 @@ The `ListInventorySerials` postgres adapter ignores the `InventoryItemId` field 
 
 ### Problem Statement
 
-The espyna generic `List()` at `packages/espyna-golang-ryta/.../postgres/core/operations.go:387` has:
+The espyna generic `List()` at `packages/espyna-golang/.../postgres/core/operations.go:387` has:
 ```go
 limit := int32(100) // Default limit
 ```
 
-And the `ListInventorySerials` adapter at `packages/espyna-golang-ryta/.../postgres/inventory_serial/inventory_serial.go:190` only passes `req.Filters` to the generic list — it **ignores** the `InventoryItemId` proto field:
+And the `ListInventorySerials` adapter at `packages/espyna-golang/.../postgres/inventory_serial/inventory_serial.go:190` only passes `req.Filters` to the generic list — it **ignores** the `InventoryItemId` proto field:
 ```go
 var params *interfaces.ListParams
 if req != nil && req.Filters != nil {
@@ -90,13 +90,13 @@ We could add a raw SQL `COUNT` query in the centymo view layer. This would bypas
 
 The adapter must convert `InventoryItemId` into a filter condition before calling `dbOps.List()`.
 
-- **Step 1:** In `packages/espyna-golang-ryta/internal/infrastructure/adapters/secondary/database/postgres/inventory_serial/inventory_serial.go:190`, update `ListInventorySerials` to check `req.InventoryItemId` and build a `FilterRequest` with a condition `inventory_item_id = ?`
-- **Step 2:** Check how `interfaces.ListParams.Filters` works — specifically how `FilterRequest` is structured (`packages/esqyma-ryta/pkg/schema/v1/domain/common/common.pb.go`) to add a field equality filter
+- **Step 1:** In `packages/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/inventory_serial/inventory_serial.go:190`, update `ListInventorySerials` to check `req.InventoryItemId` and build a `FilterRequest` with a condition `inventory_item_id = ?`
+- **Step 2:** Check how `interfaces.ListParams.Filters` works — specifically how `FilterRequest` is structured (`packages/esqyma/pkg/schema/v1/domain/common/common.pb.go`) to add a field equality filter
 - **Step 3:** If `FilterRequest` doesn't support simple field equality cleanly, add `inventory_item_id` as a direct SQL WHERE clause. The adapter already has access to `r.db` for direct queries (see `GetInventorySerialListPageData` at line 226)
 
 ### Phase 2: Fix ListInventoryTransactions postgres adapter (same pattern)
 
-- Apply the same fix to `packages/espyna-golang-ryta/internal/infrastructure/adapters/secondary/database/postgres/inventory_transaction/inventory_transaction.go:189`
+- Apply the same fix to `packages/espyna-golang/internal/infrastructure/adapters/secondary/database/postgres/inventory_transaction/inventory_transaction.go:189`
 - The `ListInventoryTransactionsRequest` also has an `InventoryItemId` field that is ignored
 
 ### Phase 3: Update variant stock tab to use filtered counts
@@ -122,13 +122,13 @@ Actually, the bulk approach in `buildStockTable` calls with an **empty** request
 
 | File | Change | Phase |
 |------|--------|-------|
-| `packages/espyna-golang-ryta/.../postgres/inventory_serial/inventory_serial.go` | Honor `InventoryItemId` in `ListInventorySerials` | 1 |
-| `packages/esqyma-ryta/pkg/schema/v1/domain/common/common.pb.go` | Read-only — understand `FilterRequest` structure | 1 |
-| `packages/espyna-golang-ryta/.../postgres/core/operations.go` | Read-only — understand `buildFilterConditions` | 1 |
-| `packages/espyna-golang-ryta/.../postgres/inventory_transaction/inventory_transaction.go` | Honor `InventoryItemId` in `ListInventoryTransactions` | 2 |
-| `packages/centymo-golang-ryta/views/product/detail/variant/page.go` | Update `buildStockTable` to count serials per-item | 3 |
-| `packages/centymo-golang-ryta/views/product/detail/variant/serial/page.go` | Verify — should work after Phase 1 | 4 |
-| `packages/centymo-golang-ryta/views/inventory/detail/page.go` | Verify — `loadSerials` should work after Phase 1 | 4 |
+| `packages/espyna-golang/.../postgres/inventory_serial/inventory_serial.go` | Honor `InventoryItemId` in `ListInventorySerials` | 1 |
+| `packages/esqyma/pkg/schema/v1/domain/common/common.pb.go` | Read-only — understand `FilterRequest` structure | 1 |
+| `packages/espyna-golang/.../postgres/core/operations.go` | Read-only — understand `buildFilterConditions` | 1 |
+| `packages/espyna-golang/.../postgres/inventory_transaction/inventory_transaction.go` | Honor `InventoryItemId` in `ListInventoryTransactions` | 2 |
+| `packages/centymo-golang/views/product/detail/variant/page.go` | Update `buildStockTable` to count serials per-item | 3 |
+| `packages/centymo-golang/views/product/detail/variant/serial/page.go` | Verify — should work after Phase 1 | 4 |
+| `packages/centymo-golang/views/inventory/detail/page.go` | Verify — `loadSerials` should work after Phase 1 | 4 |
 
 ---
 

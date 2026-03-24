@@ -3,7 +3,7 @@
 **Date:** 2026-03-06
 **Branch:** `dev/20260306-optional-cel`
 **Status:** Draft
-**Package:** espyna-golang-ryta
+**Package:** espyna-golang
 
 ---
 
@@ -86,13 +86,13 @@ type ConditionEvaluator interface {
 
 | File | Change | Phase |
 |------|--------|-------|
-| `packages/espyna-golang-ryta/internal/orchestration/engine/condition_evaluator.go` | **New file** — `ConditionEvaluator` interface | 1 |
-| `packages/espyna-golang-ryta/internal/orchestration/engine/cel_evaluator.go` | Add `//go:build cel` tag | 1 |
-| `packages/espyna-golang-ryta/internal/orchestration/engine/cel_evaluator_noop.go` | **New file** — noop stub with `//go:build !cel` | 1 |
-| `packages/espyna-golang-ryta/internal/orchestration/engine/execute_activity.go` | Change `*CELEvaluator` → `ConditionEvaluator` at lines 23, 27 | 1 |
-| `packages/espyna-golang-ryta/internal/orchestration/contracts/lifecycle.go` | Add `ModeNone` constant, update `IsValid()` | 2 |
-| `packages/espyna-golang-ryta/internal/composition/core/container.go` | Add `ModeNone` case at line 386 | 2 |
-| `packages/espyna-golang-ryta/.env.example` | Update comment on line 7 | 2 |
+| `packages/espyna-golang/internal/orchestration/engine/condition_evaluator.go` | **New file** — `ConditionEvaluator` interface | 1 |
+| `packages/espyna-golang/internal/orchestration/engine/cel_evaluator.go` | Add `//go:build cel` tag | 1 |
+| `packages/espyna-golang/internal/orchestration/engine/cel_evaluator_noop.go` | **New file** — noop stub with `//go:build !cel` | 1 |
+| `packages/espyna-golang/internal/orchestration/engine/execute_activity.go` | Change `*CELEvaluator` → `ConditionEvaluator` at lines 23, 27 | 1 |
+| `packages/espyna-golang/internal/orchestration/contracts/lifecycle.go` | Add `ModeNone` constant, update `IsValid()` | 2 |
+| `packages/espyna-golang/internal/composition/core/container.go` | Add `ModeNone` case at line 386 | 2 |
+| `packages/espyna-golang/.env.example` | Update comment on line 7 | 2 |
 | `apps/service-admin/.env` | Set `CONFIG_WORKFLOW_ENGINE_MODE=none` | 3 |
 
 ---
@@ -138,4 +138,4 @@ No sub-agents needed. Single session is sufficient.
 
 **Why not a separate Go module for the engine?**
 
-That would require `packages/espyna-golang-ryta/orchestration/engine/go.mod` — splitting espyna into sub-modules. While clean, it's a much larger refactor and breaks the current monorepo module graph. Build tags achieve the same compile-time isolation with zero structural changes.
+That would require `packages/espyna-golang/orchestration/engine/go.mod` — splitting espyna into sub-modules. While clean, it's a much larger refactor and breaks the current monorepo module graph. Build tags achieve the same compile-time isolation with zero structural changes.

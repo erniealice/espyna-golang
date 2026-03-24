@@ -34,12 +34,12 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/erniealice/entydad-golang => ../entydad-golang-ryta
+replace github.com/erniealice/entydad-golang => ../entydad-golang
 
 replace leapfor.xyz/copya => ../../../master-monorepo-v2/packages/copya
 
-replace github.com/erniealice/esqyma => ../esqyma-ryta
+replace github.com/erniealice/esqyma => ../esqyma
 
-replace github.com/erniealice/lyngua => ../lyngua-ryta
+replace github.com/erniealice/lyngua => ../lyngua
 
 replace leapfor.xyz/vya => ../../../master-monorepo-v2/packages/vya

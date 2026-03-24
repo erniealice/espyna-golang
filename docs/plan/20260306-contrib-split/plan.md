@@ -3,7 +3,7 @@
 **Date:** 2026-03-06
 **Branch:** `dev/20260306-contrib-split`
 **Status:** In Progress (Phases 0-5 complete, Phase 6 in progress)
-**Package:** espyna-golang-ryta
+**Package:** espyna-golang
 
 ---
 
@@ -67,36 +67,36 @@ Split heavy SDK adapters out of the core espyna-golang module into `contrib/` su
 Contrib modules can't import `internal/` packages across module boundaries. Create **type alias re-export packages** that expose internal interfaces publicly without breaking existing internal consumers.
 
 **0.1 Create `ports/` re-export package:**
-- New file: `packages/espyna-golang-ryta/ports/ports.go`
+- New file: `packages/espyna-golang/ports/ports.go`
 - Pattern: `type DatabaseProvider = ports.DatabaseProvider` for all port interfaces
 - Source: `internal/application/ports/exports.go` (362 lines of re-exports)
 
 **0.2 Create `registry/` re-export package:**
-- New file: `packages/espyna-golang-ryta/registry/registry.go`
+- New file: `packages/espyna-golang/registry/registry.go`
 - Re-export: `FactoryRegistry`, all `Register*`/`Get*`/`Build*` functions from `internal/infrastructure/registry/`
 - Re-export: `DatabaseTableConfig`, `RepositoryFactory`, `DatabaseOperationsFactory`, all related functions
 
 **0.3 Create `database/interfaces/` re-export package:**
-- New file: `packages/espyna-golang-ryta/database/interfaces/interfaces.go`
+- New file: `packages/espyna-golang/database/interfaces/interfaces.go`
 - Source: `internal/infrastructure/adapters/secondary/database/common/interface/` (operations.go, query.go, transactions.go)
 - Re-export: `DatabaseOperation`, `TransactionAware`, `QueryBuilder`, `QueryFilter`, `Transaction`, `TransactionManager`, etc.
 
 **0.4 Create `database/model/` re-export package:**
-- New file: `packages/espyna-golang-ryta/database/model/model.go`
+- New file: `packages/espyna-golang/database/model/model.go`
 - Source: `internal/infrastructure/adapters/secondary/database/common/model/`
 - Re-export: base models, errors, validation types
 
 **0.5 Create `database/operations/` re-export package:**
-- New file: `packages/espyna-golang-ryta/database/operations/operations.go`
+- New file: `packages/espyna-golang/database/operations/operations.go`
 - Source: `internal/infrastructure/adapters/secondary/database/common/operations/` (context.go, helpers.go, query_builder.go)
 - Re-export: `QueryBuilder` implementation, helpers
 
 **0.6 Create `database/transactions/` re-export package:**
-- New file: `packages/espyna-golang-ryta/database/transactions/transactions.go`
+- New file: `packages/espyna-golang/database/transactions/transactions.go`
 - Source: `internal/infrastructure/adapters/secondary/database/common/transactions/service_adapter.go`
 
 **0.7 Create `storage/helpers/` re-export package:**
-- New file: `packages/espyna-golang-ryta/storage/helpers/helpers.go`
+- New file: `packages/espyna-golang/storage/helpers/helpers.go`
 - Source: `internal/infrastructure/adapters/secondary/storage/common/helpers.go`
 - Re-export: `GenerateObjectID`, `DetectContentType`
 
@@ -111,7 +111,7 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 ### Phase 1: contrib/postgres
 
 **1.1 Create sub-module structure:**
-- New: `packages/espyna-golang-ryta/contrib/postgres/go.mod`
+- New: `packages/espyna-golang/contrib/postgres/go.mod`
   ```
   module github.com/erniealice/espyna-golang/contrib/postgres
   require (
@@ -121,7 +121,7 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
       github.com/golang-migrate/migrate/v4 v4.19.0
   )
   replace github.com/erniealice/espyna-golang => ../..
-  replace github.com/erniealice/esqyma => ../../../esqyma-ryta
+  replace github.com/erniealice/esqyma => ../../../esqyma
   ```
 
 **1.2 Move adapter code (68 files):**
@@ -152,7 +152,7 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 - Delete `consumer/adapter_ledger_noop.go`
 
 **1.8 Update go.work:**
-- Add `./packages/espyna-golang-ryta/contrib/postgres`
+- Add `./packages/espyna-golang/contrib/postgres`
 
 **1.9 Update consumer apps** (all 4: retail-admin, retail-client, service-admin, service-client):
 - Add: `import _ "github.com/erniealice/espyna-golang/contrib/postgres"` in container.go
@@ -160,7 +160,7 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 
 **1.10 Update app go.mod files:**
 - Add `require github.com/erniealice/espyna-golang/contrib/postgres v0.0.0`
-- Add `replace github.com/erniealice/espyna-golang/contrib/postgres => ../../packages/espyna-golang-ryta/contrib/postgres`
+- Add `replace github.com/erniealice/espyna-golang/contrib/postgres => ../../packages/espyna-golang/contrib/postgres`
 
 **1.11 Update run.ps1 scripts:**
 - Remove `postgresql` from tag generation (line ~36 in both scripts)
@@ -177,7 +177,7 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 ### Phase 2: contrib/google
 
 **2.1 Create sub-module:**
-- New: `packages/espyna-golang-ryta/contrib/google/go.mod` with Google Cloud + Firebase SDK deps
+- New: `packages/espyna-golang/contrib/google/go.mod` with Google Cloud + Firebase SDK deps
 
 **2.2 Move packages (75 files):**
 - `secondary/common/gcp/` → `contrib/google/internal/common/gcp/`
@@ -202,7 +202,7 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 
 **2.6 Remove build tags from moved files**
 
-**2.7 Update go.work:** Add `./packages/espyna-golang-ryta/contrib/google`
+**2.7 Update go.work:** Add `./packages/espyna-golang/contrib/google`
 
 **2.8 Verify:** `go build ./...` in core espyna + contrib/google
 
@@ -211,7 +211,7 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 ### Phase 3: contrib/azure
 
 **3.1 Create sub-module:**
-- New: `packages/espyna-golang-ryta/contrib/azure/go.mod` with Azure SDK deps
+- New: `packages/espyna-golang/contrib/azure/go.mod` with Azure SDK deps
 
 **3.2 Move:** `secondary/storage/azure/adapter.go` → `contrib/azure/internal/adapter/adapter.go`
 
@@ -221,14 +221,14 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 
 **3.5 Update imports, remove build tags**
 
-**3.6 Update go.work:** Add `./packages/espyna-golang-ryta/contrib/azure`
+**3.6 Update go.work:** Add `./packages/espyna-golang/contrib/azure`
 
 ---
 
 ### Phase 4: contrib/aws
 
 **4.1 Create sub-module:**
-- New: `packages/espyna-golang-ryta/contrib/aws/go.mod` with AWS SDK deps
+- New: `packages/espyna-golang/contrib/aws/go.mod` with AWS SDK deps
 
 **4.2 Move:** `secondary/storage/s3/adapter.go` → `contrib/aws/internal/adapter/adapter.go`
 
@@ -238,13 +238,13 @@ Contrib modules can't import `internal/` packages across module boundaries. Crea
 
 **4.5 Update imports, remove build tags**
 
-**4.6 Update go.work:** Add `./packages/espyna-golang-ryta/contrib/aws`
+**4.6 Update go.work:** Add `./packages/espyna-golang/contrib/aws`
 
 ---
 
 ### Phase 5: Clean Up Core go.mod
 
-**5.1 Remove cloud SDK deps from `packages/espyna-golang-ryta/go.mod`:**
+**5.1 Remove cloud SDK deps from `packages/espyna-golang/go.mod`:**
 - All `cloud.google.com/go/*` (15+ packages)
 - All `firebase.google.com/*`
 - All `google.golang.org/api/*`
@@ -286,7 +286,7 @@ Create re-export packages for composition internals needed by HTTP adapters:
 #### Phase 6a: contrib/gin
 
 **6a.1 Create sub-module:**
-- New: `packages/espyna-golang-ryta/contrib/gin/go.mod`
+- New: `packages/espyna-golang/contrib/gin/go.mod`
   ```
   module github.com/erniealice/espyna-golang/contrib/gin
   require (
@@ -307,7 +307,7 @@ Create re-export packages for composition internals needed by HTTP adapters:
 
 **6a.4 Remove `//go:build gin` tags from moved files**
 
-**6a.5 Update go.work:** Add `./packages/espyna-golang-ryta/contrib/gin`
+**6a.5 Update go.work:** Add `./packages/espyna-golang/contrib/gin`
 
 **6a.6 Remove from consumer:** `register_server_gin.go`
 
@@ -316,7 +316,7 @@ Create re-export packages for composition internals needed by HTTP adapters:
 #### Phase 6b: contrib/fiber
 
 **6b.1 Create sub-module:**
-- New: `packages/espyna-golang-ryta/contrib/fiber/go.mod`
+- New: `packages/espyna-golang/contrib/fiber/go.mod`
   ```
   module github.com/erniealice/espyna-golang/contrib/fiber
   require (
@@ -334,7 +334,7 @@ Create re-export packages for composition internals needed by HTTP adapters:
 
 **6b.3 Update imports, remove build tags**
 
-**6b.4 Update go.work:** Add `./packages/espyna-golang-ryta/contrib/fiber`
+**6b.4 Update go.work:** Add `./packages/espyna-golang/contrib/fiber`
 
 **6b.5 Remove from consumer:** `register_server_fiber.go`, `register_server_fiberv3.go`
 
@@ -376,24 +376,24 @@ The critical question is how deeply Gin/Fiber adapters couple to composition int
 
 | File | Change | Phase |
 |------|--------|-------|
-| `packages/espyna-golang-ryta/ports/ports.go` | **New** — re-export `internal/application/ports` | 0 |
-| `packages/espyna-golang-ryta/registry/registry.go` | **New** — re-export `internal/infrastructure/registry` | 0 |
-| `packages/espyna-golang-ryta/database/interfaces/interfaces.go` | **New** — re-export database interfaces | 0 |
-| `packages/espyna-golang-ryta/database/model/model.go` | **New** — re-export database models | 0 |
-| `packages/espyna-golang-ryta/database/operations/operations.go` | **New** — re-export query builder | 0 |
-| `packages/espyna-golang-ryta/database/transactions/transactions.go` | **New** — re-export transaction types | 0 |
-| `packages/espyna-golang-ryta/storage/helpers/helpers.go` | **New** — re-export storage helpers | 0 |
-| `packages/espyna-golang-ryta/internal/infrastructure/registry/ledger.go` | **New** — ledger registry functions | 0 |
-| `packages/espyna-golang-ryta/consumer/adapter_ledger.go` | Rewrite — use registry discovery instead of build tags | 0 |
-| `packages/espyna-golang-ryta/consumer/adapter_ledger_postgres.go` | **Delete** — moves to contrib/postgres | 1 |
-| `packages/espyna-golang-ryta/consumer/adapter_ledger_noop.go` | **Delete** — replaced by registry-based adapter | 0 |
-| `packages/espyna-golang-ryta/contrib/postgres/go.mod` | **New** — sub-module definition | 1 |
-| `packages/espyna-golang-ryta/contrib/postgres/register.go` | **New** — init() registration | 1 |
-| `packages/espyna-golang-ryta/contrib/postgres/ledger.go` | **New** — exported ledger factory | 1 |
-| `packages/espyna-golang-ryta/contrib/postgres/reference/checker.go` | **Move** from `reference/checker.go` | 1 |
-| `packages/espyna-golang-ryta/contrib/postgres/internal/adapter/` | **Move** — 68 files from postgres adapter dir | 1 |
-| `packages/espyna-golang-ryta/consumer/register_database_postgres.go` | **Delete** | 1 |
-| `packages/espyna-golang-ryta/reference/checker.go` | **Delete** (moved) | 1 |
+| `packages/espyna-golang/ports/ports.go` | **New** — re-export `internal/application/ports` | 0 |
+| `packages/espyna-golang/registry/registry.go` | **New** — re-export `internal/infrastructure/registry` | 0 |
+| `packages/espyna-golang/database/interfaces/interfaces.go` | **New** — re-export database interfaces | 0 |
+| `packages/espyna-golang/database/model/model.go` | **New** — re-export database models | 0 |
+| `packages/espyna-golang/database/operations/operations.go` | **New** — re-export query builder | 0 |
+| `packages/espyna-golang/database/transactions/transactions.go` | **New** — re-export transaction types | 0 |
+| `packages/espyna-golang/storage/helpers/helpers.go` | **New** — re-export storage helpers | 0 |
+| `packages/espyna-golang/internal/infrastructure/registry/ledger.go` | **New** — ledger registry functions | 0 |
+| `packages/espyna-golang/consumer/adapter_ledger.go` | Rewrite — use registry discovery instead of build tags | 0 |
+| `packages/espyna-golang/consumer/adapter_ledger_postgres.go` | **Delete** — moves to contrib/postgres | 1 |
+| `packages/espyna-golang/consumer/adapter_ledger_noop.go` | **Delete** — replaced by registry-based adapter | 0 |
+| `packages/espyna-golang/contrib/postgres/go.mod` | **New** — sub-module definition | 1 |
+| `packages/espyna-golang/contrib/postgres/register.go` | **New** — init() registration | 1 |
+| `packages/espyna-golang/contrib/postgres/ledger.go` | **New** — exported ledger factory | 1 |
+| `packages/espyna-golang/contrib/postgres/reference/checker.go` | **Move** from `reference/checker.go` | 1 |
+| `packages/espyna-golang/contrib/postgres/internal/adapter/` | **Move** — 68 files from postgres adapter dir | 1 |
+| `packages/espyna-golang/consumer/register_database_postgres.go` | **Delete** | 1 |
+| `packages/espyna-golang/reference/checker.go` | **Delete** (moved) | 1 |
 | `apps/retail-admin/internal/composition/container.go` | Add contrib/postgres import | 1 |
 | `apps/retail-client/internal/composition/container.go` | Add contrib/postgres import | 1 |
 | `apps/service-admin/internal/composition/container.go` | Add contrib/postgres import | 1 |
@@ -406,34 +406,34 @@ The critical question is how deeply Gin/Fiber adapters couple to composition int
 | `apps/service-admin/scripts/run.ps1` | Remove postgresql from tag generation | 1 |
 | `apps/retail-admin/scripts/run.ps1` | Remove postgresql from tag generation | 1 |
 | `go.work` | Add contrib/postgres, contrib/google, contrib/azure, contrib/aws | 1-4 |
-| `packages/espyna-golang-ryta/contrib/google/go.mod` | **New** — sub-module definition | 2 |
-| `packages/espyna-golang-ryta/contrib/google/register.go` | **New** — init() registration | 2 |
-| `packages/espyna-golang-ryta/contrib/google/internal/` | **Move** — ~75 files from Google adapters | 2 |
-| `packages/espyna-golang-ryta/consumer/register_auth_firebase.go` | **Delete** | 2 |
-| `packages/espyna-golang-ryta/consumer/register_database_firestore.go` | **Delete** | 2 |
-| `packages/espyna-golang-ryta/consumer/register_storage_gcs.go` | **Delete** | 2 |
-| `packages/espyna-golang-ryta/consumer/register_email_gmail.go` | **Delete** | 2 |
-| `packages/espyna-golang-ryta/consumer/register_tabular_googlesheets.go` | **Delete** | 2 |
-| `packages/espyna-golang-ryta/contrib/azure/go.mod` | **New** — sub-module definition | 3 |
-| `packages/espyna-golang-ryta/contrib/azure/register.go` | **New** — init() registration | 3 |
-| `packages/espyna-golang-ryta/contrib/azure/internal/adapter/adapter.go` | **Move** from azure storage adapter | 3 |
-| `packages/espyna-golang-ryta/consumer/register_storage_azure.go` | **Delete** | 3 |
-| `packages/espyna-golang-ryta/contrib/aws/go.mod` | **New** — sub-module definition | 4 |
-| `packages/espyna-golang-ryta/contrib/aws/register.go` | **New** — init() registration | 4 |
-| `packages/espyna-golang-ryta/contrib/aws/internal/adapter/adapter.go` | **Move** from s3 storage adapter | 4 |
-| `packages/espyna-golang-ryta/consumer/register_storage_s3.go` | **Delete** | 4 |
-| `packages/espyna-golang-ryta/go.mod` | Remove all cloud SDK deps | 5 |
-| `packages/espyna-golang-ryta/composition/contracts/contracts.go` | **New** — re-export composition contracts | 6.0 |
-| `packages/espyna-golang-ryta/composition/routing/routing.go` | **New** — re-export routing types | 6.0 |
-| `packages/espyna-golang-ryta/contrib/gin/go.mod` | **New** — sub-module definition | 6a |
-| `packages/espyna-golang-ryta/contrib/gin/register.go` | **New** — init() registration | 6a |
-| `packages/espyna-golang-ryta/contrib/gin/internal/adapter/` | **Move** — Gin adapter files | 6a |
-| `packages/espyna-golang-ryta/consumer/register_server_gin.go` | **Delete** | 6a |
-| `packages/espyna-golang-ryta/contrib/fiber/go.mod` | **New** — sub-module definition | 6b |
-| `packages/espyna-golang-ryta/contrib/fiber/register.go` | **New** — init() registration | 6b |
-| `packages/espyna-golang-ryta/contrib/fiber/internal/adapter/` | **Move** — Fiber adapter files | 6b |
-| `packages/espyna-golang-ryta/consumer/register_server_fiber.go` | **Delete** | 6b |
-| `packages/espyna-golang-ryta/consumer/register_server_fiberv3.go` | **Delete** | 6b |
+| `packages/espyna-golang/contrib/google/go.mod` | **New** — sub-module definition | 2 |
+| `packages/espyna-golang/contrib/google/register.go` | **New** — init() registration | 2 |
+| `packages/espyna-golang/contrib/google/internal/` | **Move** — ~75 files from Google adapters | 2 |
+| `packages/espyna-golang/consumer/register_auth_firebase.go` | **Delete** | 2 |
+| `packages/espyna-golang/consumer/register_database_firestore.go` | **Delete** | 2 |
+| `packages/espyna-golang/consumer/register_storage_gcs.go` | **Delete** | 2 |
+| `packages/espyna-golang/consumer/register_email_gmail.go` | **Delete** | 2 |
+| `packages/espyna-golang/consumer/register_tabular_googlesheets.go` | **Delete** | 2 |
+| `packages/espyna-golang/contrib/azure/go.mod` | **New** — sub-module definition | 3 |
+| `packages/espyna-golang/contrib/azure/register.go` | **New** — init() registration | 3 |
+| `packages/espyna-golang/contrib/azure/internal/adapter/adapter.go` | **Move** from azure storage adapter | 3 |
+| `packages/espyna-golang/consumer/register_storage_azure.go` | **Delete** | 3 |
+| `packages/espyna-golang/contrib/aws/go.mod` | **New** — sub-module definition | 4 |
+| `packages/espyna-golang/contrib/aws/register.go` | **New** — init() registration | 4 |
+| `packages/espyna-golang/contrib/aws/internal/adapter/adapter.go` | **Move** from s3 storage adapter | 4 |
+| `packages/espyna-golang/consumer/register_storage_s3.go` | **Delete** | 4 |
+| `packages/espyna-golang/go.mod` | Remove all cloud SDK deps | 5 |
+| `packages/espyna-golang/composition/contracts/contracts.go` | **New** — re-export composition contracts | 6.0 |
+| `packages/espyna-golang/composition/routing/routing.go` | **New** — re-export routing types | 6.0 |
+| `packages/espyna-golang/contrib/gin/go.mod` | **New** — sub-module definition | 6a |
+| `packages/espyna-golang/contrib/gin/register.go` | **New** — init() registration | 6a |
+| `packages/espyna-golang/contrib/gin/internal/adapter/` | **Move** — Gin adapter files | 6a |
+| `packages/espyna-golang/consumer/register_server_gin.go` | **Delete** | 6a |
+| `packages/espyna-golang/contrib/fiber/go.mod` | **New** — sub-module definition | 6b |
+| `packages/espyna-golang/contrib/fiber/register.go` | **New** — init() registration | 6b |
+| `packages/espyna-golang/contrib/fiber/internal/adapter/` | **Move** — Fiber adapter files | 6b |
+| `packages/espyna-golang/consumer/register_server_fiber.go` | **Delete** | 6b |
+| `packages/espyna-golang/consumer/register_server_fiberv3.go` | **Delete** | 6b |
 
 ---
 

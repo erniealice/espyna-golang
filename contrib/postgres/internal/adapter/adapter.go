@@ -266,11 +266,18 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 
 	a.config = pgConfig
 
-	connStr := fmt.Sprintf(
-		"host=%s port=%s dbname=%s user=%s password=%s sslmode=%s",
-		pgConfig.Host, pgConfig.Port, pgConfig.Name,
-		pgConfig.User, pgConfig.Password, pgConfig.SSLMode,
-	)
+	connParts := []string{
+		"host=" + pgConfig.Host,
+		"port=" + pgConfig.Port,
+		"dbname=" + pgConfig.Name,
+		"user=" + pgConfig.User,
+		"sslmode=" + pgConfig.SSLMode,
+		"connect_timeout=5",
+	}
+	if pgConfig.Password != "" {
+		connParts = append(connParts, "password="+pgConfig.Password)
+	}
+	connStr := strings.Join(connParts, " ")
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -278,9 +285,9 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 	}
 
 	db.SetMaxOpenConns(pgConfig.MaxConns)
-	db.SetMaxIdleConns(min(pgConfig.MaxConns/2, 5))
-	db.SetConnMaxLifetime(2 * time.Minute)
-	db.SetConnMaxIdleTime(10 * time.Second)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(30 * time.Second)
+	db.SetConnMaxIdleTime(5 * time.Second)
 
 	if err := db.Ping(); err != nil {
 		db.Close()

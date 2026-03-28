@@ -49,8 +49,9 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	readServices := ReadPricePlanServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	updateRepos := UpdatePricePlanRepositories(repositories)
@@ -64,16 +65,18 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	deleteServices := DeletePricePlanServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listRepos := ListPricePlansRepositories{
 		PricePlan: repositories.PricePlan,
 	}
 	listServices := ListPricePlansServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listPageDataRepos := GetPricePlanListPageDataRepositories{

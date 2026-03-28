@@ -1,6 +1,6 @@
 module github.com/erniealice/espyna-golang/contrib/google
 
-go 1.25.0
+go 1.25.1
 
 require (
 	cloud.google.com/go/firestore v1.18.0
@@ -73,6 +73,4 @@ replace github.com/erniealice/entydad-golang => ../../../entydad-golang
 
 replace github.com/erniealice/lyngua => ../../../lyngua
 
-replace leapfor.xyz/copya => ../../../../../master-monorepo-v2/packages/copya
 
-replace leapfor.xyz/vya => ../../../../../master-monorepo-v2/packages/vya

@@ -10,8 +10,6 @@ require (
 	golang.org/x/text v0.33.0
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.10
-	leapfor.xyz/copya v0.0.0
-	leapfor.xyz/vya v0.0.0
 )
 
 require (
@@ -36,10 +34,8 @@ require (
 
 replace github.com/erniealice/entydad-golang => ../entydad-golang
 
-replace leapfor.xyz/copya => ../../../master-monorepo-v2/packages/copya
 
 replace github.com/erniealice/esqyma => ../esqyma
 
 replace github.com/erniealice/lyngua => ../lyngua
 
-replace leapfor.xyz/vya => ../../../master-monorepo-v2/packages/vya

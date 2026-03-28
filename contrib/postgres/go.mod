@@ -1,6 +1,6 @@
 module github.com/erniealice/espyna-golang/contrib/postgres
 
-go 1.25.0
+go 1.25.1
 
 require (
 	github.com/erniealice/espyna-golang v0.0.0

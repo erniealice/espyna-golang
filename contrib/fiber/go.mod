@@ -44,6 +44,4 @@ replace github.com/erniealice/esqyma => ../../../esqyma
 
 replace github.com/erniealice/lyngua => ../../../lyngua
 
-replace leapfor.xyz/copya => ../../../../../master-monorepo-v2/packages/copya
 
-replace leapfor.xyz/vya => ../../../../../master-monorepo-v2/packages/vya

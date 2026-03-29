@@ -77,8 +77,9 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	listServices := ListPriceProductsServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
 	}
 
 	listPageDataRepos := GetPriceProductListPageDataRepositories{

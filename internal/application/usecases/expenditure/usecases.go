@@ -7,6 +7,8 @@ import (
 	expenditureCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_category"
 	expenditureLineItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_line_item"
 	prepaymentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/prepayment"
+	purchaseOrderUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/purchase_order"
+	purchaseOrderLineItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/purchase_order_line_item"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -17,24 +19,30 @@ import (
 	expenditurecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
+	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
+	purchaseorderlineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order_line_item"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
 type ExpenditureRepositories struct {
-	Expenditure          expenditurepb.ExpenditureDomainServiceServer
-	ExpenditureLineItem  expenditurelineitempb.ExpenditureLineItemDomainServiceServer
-	ExpenditureCategory  expenditurecategorypb.ExpenditureCategoryDomainServiceServer
-	ExpenditureAttribute expenditureattributepb.ExpenditureAttributeDomainServiceServer
-	Prepayment           prepaymentpb.PrepaymentDomainServiceServer
+	Expenditure           expenditurepb.ExpenditureDomainServiceServer
+	ExpenditureLineItem   expenditurelineitempb.ExpenditureLineItemDomainServiceServer
+	ExpenditureCategory   expenditurecategorypb.ExpenditureCategoryDomainServiceServer
+	ExpenditureAttribute  expenditureattributepb.ExpenditureAttributeDomainServiceServer
+	Prepayment            prepaymentpb.PrepaymentDomainServiceServer
+	PurchaseOrder         purchaseorderpb.PurchaseOrderDomainServiceServer
+	PurchaseOrderLineItem purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer
 }
 
 // ExpenditureUseCases contains all expenditure-related use cases
 type ExpenditureUseCases struct {
-	Expenditure          *expenditureUseCases.UseCases
-	ExpenditureLineItem  *expenditureLineItemUseCases.UseCases
-	ExpenditureCategory  *expenditureCategoryUseCases.UseCases
-	ExpenditureAttribute *expenditureAttributeUseCases.UseCases
-	Prepayment           *prepaymentUseCases.UseCases
+	Expenditure           *expenditureUseCases.UseCases
+	ExpenditureLineItem   *expenditureLineItemUseCases.UseCases
+	ExpenditureCategory   *expenditureCategoryUseCases.UseCases
+	ExpenditureAttribute  *expenditureAttributeUseCases.UseCases
+	Prepayment            *prepaymentUseCases.UseCases
+	PurchaseOrder         *purchaseOrderUseCases.UseCases
+	PurchaseOrderLineItem *purchaseOrderLineItemUseCases.UseCases
 }
 
 // NewUseCases creates all expenditure use cases with proper constructor injection
@@ -105,11 +113,37 @@ func NewUseCases(
 		},
 	)
 
+	purchaseOrderUC := purchaseOrderUseCases.NewUseCases(
+		purchaseOrderUseCases.PurchaseOrderRepositories{
+			PurchaseOrder: repos.PurchaseOrder,
+		},
+		purchaseOrderUseCases.PurchaseOrderServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	purchaseOrderLineItemUC := purchaseOrderLineItemUseCases.NewUseCases(
+		purchaseOrderLineItemUseCases.PurchaseOrderLineItemRepositories{
+			PurchaseOrderLineItem: repos.PurchaseOrderLineItem,
+		},
+		purchaseOrderLineItemUseCases.PurchaseOrderLineItemServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
 	return &ExpenditureUseCases{
-		Expenditure:          expenditureUC,
-		ExpenditureLineItem:  expenditureLineItemUC,
-		ExpenditureCategory:  expenditureCategoryUC,
-		ExpenditureAttribute: expenditureAttributeUC,
-		Prepayment:           prepaymentUC,
+		Expenditure:           expenditureUC,
+		ExpenditureLineItem:   expenditureLineItemUC,
+		ExpenditureCategory:   expenditureCategoryUC,
+		ExpenditureAttribute:  expenditureAttributeUC,
+		Prepayment:            prepaymentUC,
+		PurchaseOrder:         purchaseOrderUC,
+		PurchaseOrderLineItem: purchaseOrderLineItemUC,
 	}
 }

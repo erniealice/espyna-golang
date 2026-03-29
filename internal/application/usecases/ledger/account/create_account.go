@@ -144,6 +144,11 @@ func (uc *CreateAccountUseCase) enrichAccountData(account *accountpb.Account) er
 	account.DateModifiedString = &[]string{now.Format(time.RFC3339)}[0]
 	account.Active = true
 
+	// Default status to ACTIVE if not set (ACCOUNT_STATUS_UNSPECIFIED = 0 means not set)
+	if account.Status == accountpb.AccountStatus_ACCOUNT_STATUS_UNSPECIFIED {
+		account.Status = accountpb.AccountStatus_ACCOUNT_STATUS_ACTIVE
+	}
+
 	return nil
 }
 

@@ -134,16 +134,51 @@ func (uc *CreateJournalEntryUseCase) enrichJournalEntryData(entry *journalentryp
 		entry.Id = uc.services.IDService.GenerateID()
 	}
 
+	// Generate entry_number if not provided.
+	// Format: JE-YYYYMMDD-{6-char suffix from ID}.
+	// Uses a timestamp+ID-suffix approach to guarantee uniqueness without a DB sequence.
+	if entry.EntryNumber == "" {
+		datePrefix := now.UTC().Format("20060102")
+		idSuffix := entry.Id
+		if len(idSuffix) > 6 {
+			idSuffix = idSuffix[len(idSuffix)-6:]
+		}
+		entry.EntryNumber = fmt.Sprintf("JE-%s-%s", datePrefix, strings.ToUpper(idSuffix))
+	}
+
+	// Set source_type to MANUAL if not set (required NOT NULL column)
+	if entry.SourceType == journalentrypb.JournalSourceType_JOURNAL_SOURCE_TYPE_UNSPECIFIED {
+		entry.SourceType = journalentrypb.JournalSourceType_JOURNAL_SOURCE_TYPE_MANUAL
+	}
+
 	// Set status to DRAFT if not set
 	if entry.Status == journalentrypb.JournalEntryStatus_JOURNAL_ENTRY_STATUS_UNSPECIFIED {
 		entry.Status = journalentrypb.JournalEntryStatus_JOURNAL_ENTRY_STATUS_DRAFT
 	}
 
-	// Set entry date to now if not provided
+	// Set entry date — prefer EntryDateString (UI date picker "YYYY-MM-DD"), fallback to now.
 	if entry.EntryDate == 0 {
-		entry.EntryDate = now.UnixMilli()
-		s := now.Format(time.RFC3339)
-		entry.EntryDateString = &s
+		if entry.EntryDateString != nil && *entry.EntryDateString != "" {
+			// Parse UI date string (YYYY-MM-DD or RFC3339); use UTC midnight for the date.
+			parsed := false
+			for _, layout := range []string{"2006-01-02", time.RFC3339} {
+				if t, err := time.Parse(layout, *entry.EntryDateString); err == nil {
+					entry.EntryDate = t.UnixMilli()
+					parsed = true
+					break
+				}
+			}
+			if !parsed {
+				// Fallback: use current time if string is unparseable
+				entry.EntryDate = now.UnixMilli()
+				s := now.Format("2006-01-02")
+				entry.EntryDateString = &s
+			}
+		} else {
+			entry.EntryDate = now.UnixMilli()
+			s := now.Format("2006-01-02")
+			entry.EntryDateString = &s
+		}
 	}
 
 	// Set audit fields

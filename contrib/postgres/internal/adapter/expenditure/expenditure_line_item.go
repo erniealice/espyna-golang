@@ -73,6 +73,12 @@ func (r *PostgresExpenditureLineItemRepository) CreateExpenditureLineItem(ctx co
 	convertMillisToTime(data, "dateCreated", "date_created")
 	convertMillisToTime(data, "dateModified", "date_modified")
 
+	// Map proto totalPrice → DB column line_amount
+	if v, ok := data["totalPrice"]; ok {
+		data["line_amount"] = v
+		delete(data, "totalPrice")
+	}
+
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create expenditure line item: %w", err)
@@ -177,7 +183,8 @@ func (r *PostgresExpenditureLineItemRepository) DeleteExpenditureLineItem(ctx co
 	}, nil
 }
 
-// ListExpenditureLineItems lists expenditure line item records with optional filters
+// ListExpenditureLineItems lists expenditure line item records with optional filters.
+// Supports filtering by expenditure_id when req.ExpenditureId is set.
 func (r *PostgresExpenditureLineItemRepository) ListExpenditureLineItems(ctx context.Context, req *expenditurelineitempb.ListExpenditureLineItemsRequest) (*expenditurelineitempb.ListExpenditureLineItemsResponse, error) {
 	var params *interfaces.ListParams
 	if req != nil && req.Filters != nil {
@@ -188,8 +195,27 @@ func (r *PostgresExpenditureLineItemRepository) ListExpenditureLineItems(ctx con
 		return nil, fmt.Errorf("failed to list expenditure line items: %w", err)
 	}
 
+	// Optional filter by expenditure_id (applied client-side after generic List)
+	var expenditureIDFilter string
+	if req != nil && req.ExpenditureId != nil {
+		expenditureIDFilter = *req.ExpenditureId
+	}
+
 	var items []*expenditurelineitempb.ExpenditureLineItem
 	for _, result := range listResult.Data {
+		// Apply expenditure_id filter
+		if expenditureIDFilter != "" {
+			eid, _ := result["expenditure_id"].(string)
+			if eid != expenditureIDFilter {
+				continue
+			}
+		}
+
+		// Map DB column line_amount → proto field totalPrice so protojson can decode it
+		if v, ok := result["line_amount"]; ok {
+			result["totalPrice"] = v
+		}
+
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal expenditure line item row: %v", err)

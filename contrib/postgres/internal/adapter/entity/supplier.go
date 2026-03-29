@@ -136,7 +136,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 
 	var (
 		id                 string
-		userId             string
+		userId             *string
 		active             bool
 		internalId         *string
 		dateCreated        time.Time
@@ -416,7 +416,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 	for rows.Next() {
 		var (
 			id                 string
-			userId             string
+			userId             *string
 			active             bool
 			internalId         *string
 			dateCreated        time.Time
@@ -581,7 +581,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 
 	var (
 		id                 string
-		userId             string
+		userId             *string
 		active             bool
 		internalId         *string
 		dateCreated        time.Time
@@ -731,7 +731,7 @@ func (r *PostgresSupplierRepository) loadSupplierCategories(ctx context.Context,
 
 // buildSupplierFromScan constructs a Supplier protobuf from scanned SQL fields
 func buildSupplierFromScan(
-	id string, userId string, active bool, internalId *string,
+	id string, userId *string, active bool, internalId *string,
 	dateCreated time.Time, dateModified time.Time,
 	supplierType *string, companyName *string, taxId *string, registrationNumber *string,
 	streetAddress *string, city *string, province *string, postalCode *string, country *string,
@@ -742,8 +742,10 @@ func buildSupplierFromScan(
 ) *supplierpb.Supplier {
 	supplier := &supplierpb.Supplier{
 		Id:     id,
-		UserId: userId,
 		Active: active,
+	}
+	if userId != nil {
+		supplier.UserId = *userId
 	}
 
 	// Handle nullable fields

@@ -76,13 +76,13 @@ func (r *PostgresPriceListRepository) CreatePriceList(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to create price list: %w", err)
 	}
 
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	priceList := &pricelistpb.PriceList{}
-	if err := protojson.Unmarshal(resultJSON, priceList); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceList); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -102,13 +102,13 @@ func (r *PostgresPriceListRepository) ReadPriceList(ctx context.Context, req *pr
 		return nil, fmt.Errorf("failed to read price list: %w", err)
 	}
 
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	priceList := &pricelistpb.PriceList{}
-	if err := protojson.Unmarshal(resultJSON, priceList); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceList); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -138,13 +138,13 @@ func (r *PostgresPriceListRepository) UpdatePriceList(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to update price list: %w", err)
 	}
 
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	priceList := &pricelistpb.PriceList{}
-	if err := protojson.Unmarshal(resultJSON, priceList); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceList); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -182,13 +182,13 @@ func (r *PostgresPriceListRepository) ListPriceLists(ctx context.Context, req *p
 
 	var priceLists []*pricelistpb.PriceList
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			continue
 		}
 
 		priceList := &pricelistpb.PriceList{}
-		if err := protojson.Unmarshal(resultJSON, priceList); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceList); err != nil {
 			continue
 		}
 		priceLists = append(priceLists, priceList)

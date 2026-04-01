@@ -97,25 +97,114 @@ func (r *PostgresAccountRepository) CreateAccount(ctx context.Context, req *acco
 	}, nil
 }
 
-// ReadAccount retrieves an account by ID using common PostgreSQL operations.
+// ReadAccount retrieves an account by ID using a direct SQL query.
+// Uses manual field scanning (same approach as GetAccountItemPageData) to correctly
+// handle DB short-name enums (e.g. "ASSET") that protojson.Unmarshal cannot parse.
 func (r *PostgresAccountRepository) ReadAccount(ctx context.Context, req *accountpb.ReadAccountRequest) (*accountpb.ReadAccountResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("account ID is required")
 	}
 
-	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
+	if r.db == nil {
+		return nil, fmt.Errorf("database connection is not available")
+	}
+
+	query := `
+		SELECT
+			id, code, name, description, element, classification,
+			group_id, parent_id, cash_flow_activity, normal_balance,
+			is_system_account, is_contra, status, notes,
+			active, date_created, date_modified
+		FROM account
+		WHERE id = $1
+		LIMIT 1`
+
+	row := r.db.QueryRowContext(ctx, query, req.Data.Id)
+
+	var (
+		id               string
+		code             string
+		name             string
+		description      *string
+		element          string
+		classification   string
+		groupID          *string
+		parentID         *string
+		cashFlowActivity string
+		normalBalance    string
+		isSystemAccount  bool
+		isContra         bool
+		status           string
+		notes            *string
+		active           bool
+		dateCreated      time.Time
+		dateModified     time.Time
+	)
+
+	err := row.Scan(
+		&id,
+		&code,
+		&name,
+		&description,
+		&element,
+		&classification,
+		&groupID,
+		&parentID,
+		&cashFlowActivity,
+		&normalBalance,
+		&isSystemAccount,
+		&isContra,
+		&status,
+		&notes,
+		&active,
+		&dateCreated,
+		&dateModified,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("account with ID '%s' not found", req.Data.Id)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read account: %w", err)
 	}
 
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	account := &accountpb.Account{
+		Id:               id,
+		Code:             code,
+		Name:             name,
+		Element:          parseAccountElement(element),
+		Classification:   parseAccountClassification(classification),
+		CashFlowActivity: parseCashFlowActivity(cashFlowActivity),
+		NormalBalance:    parseNormalBalance(normalBalance),
+		IsSystemAccount:  isSystemAccount,
+		IsContra:         isContra,
+		Status:           parseAccountStatus(status),
+		Active:           active,
 	}
 
-	account := &accountpb.Account{}
-	if err := protojson.Unmarshal(resultJSON, account); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	if description != nil {
+		account.Description = description
+	}
+	if groupID != nil {
+		account.GroupId = groupID
+	}
+	if parentID != nil {
+		account.ParentId = parentID
+	}
+	if notes != nil {
+		account.Notes = notes
+	}
+
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		account.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		account.DateCreatedString = &dcStr
+	}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		account.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		account.DateModifiedString = &dmStr
 	}
 
 	return &accountpb.ReadAccountResponse{

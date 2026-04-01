@@ -85,13 +85,13 @@ func (r *PostgresProductPlanRepository) CreateProductPlan(ctx context.Context, r
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	productPlan := &productplanpb.ProductPlan{}
-	if err := protojson.Unmarshal(resultJSON, productPlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -113,13 +113,13 @@ func (r *PostgresProductPlanRepository) ReadProductPlan(ctx context.Context, req
 	}
 
 	// Convert result to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	productPlan := &productplanpb.ProductPlan{}
-	if err := protojson.Unmarshal(resultJSON, productPlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -152,13 +152,13 @@ func (r *PostgresProductPlanRepository) UpdateProductPlan(ctx context.Context, r
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	productPlan := &productplanpb.ProductPlan{}
-	if err := protojson.Unmarshal(resultJSON, productPlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -199,14 +199,14 @@ func (r *PostgresProductPlanRepository) ListProductPlans(ctx context.Context, re
 	// Convert results to protobuf slice using protojson
 	var productPlans []*productplanpb.ProductPlan
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
 			continue
 		}
 
 		productPlan := &productplanpb.ProductPlan{}
-		if err := protojson.Unmarshal(resultJSON, productPlan); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPlan); err != nil {
 			// Log error and continue with next item
 			continue
 		}

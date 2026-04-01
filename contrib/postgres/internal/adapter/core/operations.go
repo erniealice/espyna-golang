@@ -384,8 +384,25 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 		return nil, model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)
 	}
 
-	// Build WHERE clause
-	whereConditions := []string{"active = true"}
+	// Build WHERE clause.
+	// Default to active = true unless the caller supplies an explicit "active"
+	// BooleanFilter — in that case we honour the caller's value so that inactive
+	// records can be retrieved (e.g. inactive product/service list page).
+	hasActiveFilter := false
+	if params != nil && params.Filters != nil {
+		for _, f := range params.Filters.Filters {
+			if f.GetField() == "active" {
+				if _, ok := f.FilterType.(*commonpb.TypedFilter_BooleanFilter); ok {
+					hasActiveFilter = true
+					break
+				}
+			}
+		}
+	}
+	var whereConditions []string
+	if !hasActiveFilter {
+		whereConditions = []string{"active = true"}
+	}
 	values := []any{}
 	paramIndex := 1
 
@@ -987,7 +1004,7 @@ func (p *PostgresOperations) getTableColumns(ctx context.Context, tableName stri
 	return columns, rows.Err()
 }
 
-// scanRowToMap scans a single row into a map
+// scanRowToMap scans a single row into a map with snake_case keys (matching DB columns).
 func (p *PostgresOperations) scanRowToMap(row *sql.Row, columns []string) (map[string]any, error) {
 	values := make([]any, len(columns))
 	valuePtrs := make([]any, len(columns))
@@ -1008,7 +1025,7 @@ func (p *PostgresOperations) scanRowToMap(row *sql.Row, columns []string) (map[s
 	return result, nil
 }
 
-// scanRowsToMap scans a single row from *sql.Rows into a map
+// scanRowsToMap scans a single row from *sql.Rows into a map with snake_case keys.
 func (p *PostgresOperations) scanRowsToMap(rows *sql.Rows, columns []string) (map[string]any, error) {
 	values := make([]any, len(columns))
 	valuePtrs := make([]any, len(columns))
@@ -1168,4 +1185,29 @@ func camelToSnake(s string) string {
 		}
 	}
 	return string(result)
+}
+
+// snakeToCamel converts snake_case to camelCase.
+// This ensures DB column names (snake_case) map correctly to
+// protojson field names (camelCase) for protobuf unmarshalling.
+func snakeToCamel(s string) string {
+	parts := strings.Split(s, "_")
+	for i := 1; i < len(parts); i++ {
+		if len(parts[i]) > 0 {
+			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+// DenormalizeKeys converts all map keys from snake_case to camelCase.
+// This ensures PostgreSQL column names (snake_case) map correctly to
+// protojson field names (camelCase) for protobuf unmarshalling.
+// Exported for use by entity adapters that convert DB results to protobuf.
+func DenormalizeKeys(data map[string]any) map[string]any {
+	result := make(map[string]any, len(data))
+	for key, value := range data {
+		result[snakeToCamel(key)] = value
+	}
+	return result
 }

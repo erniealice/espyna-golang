@@ -86,13 +86,13 @@ func (r *PostgresPriceProductRepository) CreatePriceProduct(ctx context.Context,
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	priceProduct := &priceproductpb.PriceProduct{}
-	if err := protojson.Unmarshal(resultJSON, priceProduct); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceProduct); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -114,13 +114,13 @@ func (r *PostgresPriceProductRepository) ReadPriceProduct(ctx context.Context, r
 	}
 
 	// Convert result to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	priceProduct := &priceproductpb.PriceProduct{}
-	if err := protojson.Unmarshal(resultJSON, priceProduct); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceProduct); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -153,13 +153,13 @@ func (r *PostgresPriceProductRepository) UpdatePriceProduct(ctx context.Context,
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	priceProduct := &priceproductpb.PriceProduct{}
-	if err := protojson.Unmarshal(resultJSON, priceProduct); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceProduct); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -200,14 +200,14 @@ func (r *PostgresPriceProductRepository) ListPriceProducts(ctx context.Context, 
 	// Convert results to protobuf slice using protojson
 	var priceProducts []*priceproductpb.PriceProduct
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
 			continue
 		}
 
 		priceProduct := &priceproductpb.PriceProduct{}
-		if err := protojson.Unmarshal(resultJSON, priceProduct); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, priceProduct); err != nil {
 			// Log error and continue with next item
 			continue
 		}

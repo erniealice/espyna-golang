@@ -77,13 +77,13 @@ func (r *PostgresWorkspaceRepository) CreateWorkspace(ctx context.Context, req *
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	workspace := &workspacepb.Workspace{}
-	if err := protojson.Unmarshal(resultJSON, workspace); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspace); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -105,13 +105,13 @@ func (r *PostgresWorkspaceRepository) ReadWorkspace(ctx context.Context, req *wo
 	}
 
 	// Convert result to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	workspace := &workspacepb.Workspace{}
-	if err := protojson.Unmarshal(resultJSON, workspace); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspace); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -144,13 +144,13 @@ func (r *PostgresWorkspaceRepository) UpdateWorkspace(ctx context.Context, req *
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	workspace := &workspacepb.Workspace{}
-	if err := protojson.Unmarshal(resultJSON, workspace); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspace); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -191,14 +191,14 @@ func (r *PostgresWorkspaceRepository) ListWorkspaces(ctx context.Context, req *w
 	// Convert results to protobuf slice using protojson
 	var workspaces []*workspacepb.Workspace
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
 			continue
 		}
 
 		workspace := &workspacepb.Workspace{}
-		if err := protojson.Unmarshal(resultJSON, workspace); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspace); err != nil {
 			// Log error and continue with next item
 			continue
 		}

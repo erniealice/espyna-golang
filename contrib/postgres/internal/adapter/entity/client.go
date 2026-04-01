@@ -105,13 +105,13 @@ func (r *PostgresClientRepository) CreateClient(ctx context.Context, req *client
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	client := &clientpb.Client{}
-	if err := protojson.Unmarshal(resultJSON, client); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, client); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -282,13 +282,13 @@ func (r *PostgresClientRepository) UpdateClient(ctx context.Context, req *client
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	client := &clientpb.Client{}
-	if err := protojson.Unmarshal(resultJSON, client); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, client); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -331,14 +331,14 @@ func (r *PostgresClientRepository) ListClients(ctx context.Context, req *clientp
 	// Convert results to protobuf slice using protojson
 	var clients []*clientpb.Client
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
 			continue
 		}
 
 		client := &clientpb.Client{}
-		if err := protojson.Unmarshal(resultJSON, client); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, client); err != nil {
 			// Log error and continue with next item
 			continue
 		}

@@ -285,9 +285,9 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 	}
 
 	db.SetMaxOpenConns(pgConfig.MaxConns)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(30 * time.Second)
-	db.SetConnMaxIdleTime(5 * time.Second)
+	db.SetMaxIdleConns(pgConfig.MaxConns)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
 
 	if err := db.Ping(); err != nil {
 		db.Close()

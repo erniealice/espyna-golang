@@ -70,13 +70,13 @@ func (r *PostgresPlanRepository) CreatePlan(ctx context.Context, req *planpb.Cre
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	plan := &planpb.Plan{}
-	if err := protojson.Unmarshal(resultJSON, plan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, plan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -98,13 +98,13 @@ func (r *PostgresPlanRepository) ReadPlan(ctx context.Context, req *planpb.ReadP
 	}
 
 	// Convert result to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	plan := &planpb.Plan{}
-	if err := protojson.Unmarshal(resultJSON, plan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, plan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -137,13 +137,13 @@ func (r *PostgresPlanRepository) UpdatePlan(ctx context.Context, req *planpb.Upd
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	plan := &planpb.Plan{}
-	if err := protojson.Unmarshal(resultJSON, plan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, plan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -184,14 +184,14 @@ func (r *PostgresPlanRepository) ListPlans(ctx context.Context, req *planpb.List
 	// Convert results to protobuf slice using protojson
 	var plans []*planpb.Plan
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
 			continue
 		}
 
 		plan := &planpb.Plan{}
-		if err := protojson.Unmarshal(resultJSON, plan); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, plan); err != nil {
 			// Log error and continue with next item
 			continue
 		}

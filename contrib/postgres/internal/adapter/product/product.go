@@ -121,7 +121,7 @@ func (r *PostgresProductRepository) CreateProduct(ctx context.Context, req *prod
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
@@ -149,7 +149,7 @@ func (r *PostgresProductRepository) ReadProduct(ctx context.Context, req *produc
 	}
 
 	// Convert result to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
@@ -188,7 +188,7 @@ func (r *PostgresProductRepository) UpdateProduct(ctx context.Context, req *prod
 	}
 
 	// Convert result back to protobuf using protojson
-	resultJSON, err := json.Marshal(result)
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
@@ -235,7 +235,7 @@ func (r *PostgresProductRepository) ListProducts(ctx context.Context, req *produ
 	// Convert results to protobuf slice using protojson
 	var products []*productpb.Product
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			log.Printf("WARN: json.Marshal product row: %v", err)
 			continue

@@ -16,6 +16,12 @@ const (
 	// ContextKeySessionToken is the context key for the session token.
 	ContextKeySessionToken SessionContextKey = "session_token"
 
+	// ContextKeyWorkspaceID is the context key for the workspace ID.
+	ContextKeyWorkspaceID SessionContextKey = "workspace_id"
+
+	// ContextKeyWorkspaceUserID is the context key for the workspace user ID.
+	ContextKeyWorkspaceUserID SessionContextKey = "workspace_user_id"
+
 	// DefaultSessionCookieName is the default cookie name for session tokens.
 	DefaultSessionCookieName = "ichizen_session"
 )

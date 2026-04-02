@@ -44,3 +44,23 @@ func RequireUserIDFromContext(ctx context.Context) (string, error) {
 func HasUserInContext(ctx context.Context) bool {
 	return internalctx.HasUserInContext(ctx)
 }
+
+func GetWorkspaceIDFromContext(ctx context.Context) string {
+	return internalctx.ExtractWorkspaceIDFromContext(ctx)
+}
+
+func GetWorkspaceUserIDFromContext(ctx context.Context) string {
+	return internalctx.ExtractWorkspaceUserIDFromContext(ctx)
+}
+
+func WithSessionIdentity(ctx context.Context, userID, workspaceID, workspaceUserID, email string) context.Context {
+	return internalctx.WithSessionIdentity(ctx, userID, workspaceID, workspaceUserID, email)
+}
+
+func WithWorkspaceID(ctx context.Context, wsID string) context.Context {
+	return internalctx.WithWorkspaceID(ctx, wsID)
+}
+
+func WithWorkspaceUserID(ctx context.Context, wsUserID string) context.Context {
+	return internalctx.WithWorkspaceUserID(ctx, wsUserID)
+}

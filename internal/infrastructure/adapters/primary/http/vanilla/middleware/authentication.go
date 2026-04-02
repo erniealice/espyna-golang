@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
@@ -71,7 +72,7 @@ func (m *AuthenticationMiddleware) RequireAuth(next http.Handler) http.Handler {
 		}
 
 		// Add user information to request context
-		ctx := context.WithValue(r.Context(), "uid", resp.Identity.Id)
+		ctx := contextutil.WithUserID(r.Context(), resp.Identity.Id)
 		ctx = context.WithValue(ctx, "email", resp.Identity.Email)
 		ctx = context.WithValue(ctx, "identity", resp.Identity)
 		if resp.Token != nil && resp.Token.ExpiresAt != nil {
@@ -131,17 +132,16 @@ func (m *AuthenticationMiddleware) isAuthorizedAPIKey(r *http.Request) bool {
 
 // GetUserFromContext extracts user information from request context
 func GetUserFromContext(ctx context.Context) (uid string, email string, ok bool) {
-	uidVal := ctx.Value("uid")
+	uid = contextutil.ExtractUserIDFromContext(ctx)
 	emailVal := ctx.Value("email")
 
-	if uidVal == nil {
+	if uid == "" {
 		return "", "", false
 	}
 
-	uid, uidOk := uidVal.(string)
 	email, emailOk := emailVal.(string)
 
-	return uid, email, uidOk && emailOk
+	return uid, email, emailOk
 }
 
 // GetIdentityFromContext extracts the full identity from request context

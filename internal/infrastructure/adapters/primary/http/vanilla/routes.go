@@ -3,7 +3,6 @@
 package vanilla
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/composition/routing"
 )
@@ -137,8 +137,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 			fmt.Printf("🎯 [HANDLER EXEC] Executing route handler...\n")
 
 			// Add mock user context for testing (since we're using mock_auth)
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, "uid", "mock-user-12345")
+			ctx := contextutil.WithUserID(r.Context(), "mock-user-12345")
 			fmt.Printf("🔐 [AUTH] Added mock user context: mock-user-12345\n")
 
 			response, err := route.Handler.Execute(ctx, protobufRequest)

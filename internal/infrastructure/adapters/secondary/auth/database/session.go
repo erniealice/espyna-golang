@@ -49,6 +49,25 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+// toNullString converts an empty string to nil for nullable DB columns.
+func toNullString(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// resolveWorkspaceUser looks up the default workspace_user for a user.
+func (s *SessionService) resolveWorkspaceUser(ctx context.Context, userID string) (wsUserID, wsID string) {
+	_ = s.db.QueryRowContext(ctx,
+		`SELECT wu.id, wu.workspace_id FROM workspace_user wu
+		 WHERE wu.user_id = $1 AND wu.active = true
+		 ORDER BY wu.date_created ASC LIMIT 1`,
+		userID,
+	).Scan(&wsUserID, &wsID)
+	return
+}
+
 // CreateSession creates a new session for the given user and returns the token.
 func (s *SessionService) CreateSession(ctx context.Context, userID string) (string, error) {
 	id := uuid.New().String()
@@ -57,18 +76,31 @@ func (s *SessionService) CreateSession(ctx context.Context, userID string) (stri
 		return "", err
 	}
 
+	// Resolve workspace_user for default workspace
+	wsUserID, wsID := s.resolveWorkspaceUser(ctx, userID)
+
 	expiresAt := time.Now().Add(s.expiry)
 
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO "session" ("id", "user_id", "token", "created_at", "expires_at", "active")
-		 VALUES ($1, $2, $3, NOW(), $4, true)`,
-		id, userID, token, expiresAt,
+		`INSERT INTO "session" ("id", "user_id", "token", "workspace_user_id", "workspace_id", "created_at", "expires_at", "active")
+		 VALUES ($1, $2, $3, $4, $5, NOW(), $6, true)`,
+		id, userID, token, toNullString(wsUserID), toNullString(wsID), expiresAt,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %w", err)
 	}
 
 	return token, nil
+}
+
+// GetSessionWorkspaceContext returns the workspace_user_id and workspace_id for an active session.
+func (s *SessionService) GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string) {
+	_ = s.db.QueryRowContext(ctx,
+		`SELECT COALESCE("workspace_user_id", ''), COALESCE("workspace_id", '')
+		 FROM "session" WHERE "token" = $1 AND "active" = true AND "expires_at" > NOW()`,
+		token,
+	).Scan(&wsUserID, &wsID)
+	return
 }
 
 // ValidateSession checks if a session token is valid and returns the user ID.

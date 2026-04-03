@@ -16,8 +16,8 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 )
 
 func init() {

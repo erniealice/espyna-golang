@@ -1,21 +1,20 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -332,16 +331,16 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 
 	for rows.Next() {
 		var (
-			id                   string
-			workspaceId          *string
-			name                 string
-			description          string
-			color                string
-			active               bool
-			dateCreated          time.Time
-			dateModified         time.Time
-			rolePermissionsJSON  []byte
-			total                int64
+			id                  string
+			workspaceId         *string
+			name                string
+			description         string
+			color               string
+			active              bool
+			dateCreated         time.Time
+			dateModified        time.Time
+			rolePermissionsJSON []byte
+			total               int64
 		)
 
 		err := rows.Scan(
@@ -378,17 +377,17 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		role.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		role.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			role.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			role.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		role.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		role.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			role.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			role.DateModifiedString = &dmStr
+		}
 
 		// Parse role_permissions JSONB array
 		if len(rolePermissionsJSON) > 0 && string(rolePermissionsJSON) != "[]" {
@@ -497,15 +496,15 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.RoleId)
 
 	var (
-		id                   string
-		workspaceId          *string
-		name                 string
-		description          string
-		color                string
-		active               bool
-		dateCreated          time.Time
-		dateModified         time.Time
-		rolePermissionsJSON  []byte
+		id                  string
+		workspaceId         *string
+		name                string
+		description         string
+		color               string
+		active              bool
+		dateCreated         time.Time
+		dateModified        time.Time
+		rolePermissionsJSON []byte
 	)
 
 	err := row.Scan(
@@ -577,7 +576,6 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 		Success: true,
 	}, nil
 }
-
 
 // NewRoleRepository creates a new PostgreSQL role repository (old-style constructor)
 func NewRoleRepository(db *sql.DB, tableName string) rolepb.RoleDomainServiceServer {

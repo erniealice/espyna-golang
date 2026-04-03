@@ -1,23 +1,22 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -62,7 +61,6 @@ func init() {
 //   - Test with inactive client (should return not found)
 //   - Test with client having inactive user (user fields should be null)
 //   - Test timestamp parsing for date_created and date_modified
-//
 type PostgresClientRepository struct {
 	clientpb.UnimplementedClientDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
@@ -393,12 +391,12 @@ func (r *DBClientRepository) Create(ctx context.Context, req *clientpb.CreateCli
 
 // clientSortAllowlist maps external sort field names to safe SQL column references.
 var clientSortAllowlist = map[string]string{
-	"date_created":     "c.date_created",
-	"date_modified":    "c.date_modified",
-	"u.first_name":     "u.first_name",
-	"u.last_name":      "u.last_name",
-	"u.email_address":  "u.email_address",
-	"u.mobile_number":  "u.mobile_number",
+	"date_created":    "c.date_created",
+	"date_modified":   "c.date_modified",
+	"u.first_name":    "u.first_name",
+	"u.last_name":     "u.last_name",
+	"u.email_address": "u.email_address",
+	"u.mobile_number": "u.mobile_number",
 }
 
 // GetClientListPageData retrieves clients with advanced filtering, sorting, searching, and pagination using CTE
@@ -500,27 +498,27 @@ func (r *PostgresClientRepository) GetClientListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			userId             string
-			active             bool
-			internalId         *string
-			dateCreated        time.Time
-			dateModified       time.Time
+			id           string
+			userId       string
+			active       bool
+			internalId   *string
+			dateCreated  time.Time
+			dateModified time.Time
 			// CRM fields
-			name              *string
-			streetAddress     *string
-			city              *string
-			province          *string
-			postalCode        *string
-			notes             *string
-			paymentTermID     *string
+			name          *string
+			streetAddress *string
+			city          *string
+			province      *string
+			postalCode    *string
+			notes         *string
+			paymentTermID *string
 			// User fields
-			userIdValue       *string
-			userFirstName     *string
-			userLastName      *string
-			userEmailAddress  *string
-			userPhoneNumber   *string
-			total             int64
+			userIdValue      *string
+			userFirstName    *string
+			userLastName     *string
+			userEmailAddress *string
+			userPhoneNumber  *string
+			total            int64
 		)
 
 		err := rows.Scan(
@@ -672,27 +670,27 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.ClientId)
 
 	var (
-		id                 string
-		userId             string
-		active             bool
-		internalId         *string
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		userId       string
+		active       bool
+		internalId   *string
+		dateCreated  time.Time
+		dateModified time.Time
 		// CRM fields
-		name              *string
-		streetAddress     *string
-		city              *string
-		province          *string
-		postalCode        *string
-		notes             *string
-		categoryId        *string
-		paymentTermID     *string
+		name          *string
+		streetAddress *string
+		city          *string
+		province      *string
+		postalCode    *string
+		notes         *string
+		categoryId    *string
+		paymentTermID *string
 		// User fields
-		userIdValue       *string
-		userFirstName     *string
-		userLastName      *string
-		userEmailAddress  *string
-		userPhoneNumber   *string
+		userIdValue      *string
+		userFirstName    *string
+		userLastName     *string
+		userEmailAddress *string
+		userPhoneNumber  *string
 	)
 
 	err := row.Scan(
@@ -781,7 +779,6 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	}, nil
 }
 
-
 // loadClientCategories loads the category tags for a client via JOIN through client_category to category
 func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, clientId string) ([]*clientcategorypb.ClientCategory, error) {
 	query := `
@@ -807,11 +804,11 @@ func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, cli
 	var categories []*clientcategorypb.ClientCategory
 	for rows.Next() {
 		var (
-			ccId        string
-			ccClientId  string
-			ccCatId     string
-			catName     string
-			catDesc     *string
+			ccId       string
+			ccClientId string
+			ccCatId    string
+			catName    string
+			catDesc    *string
 		)
 		if err := rows.Scan(&ccId, &ccClientId, &ccCatId, &catName, &catDesc); err != nil {
 			return nil, fmt.Errorf("failed to scan client category row: %w", err)

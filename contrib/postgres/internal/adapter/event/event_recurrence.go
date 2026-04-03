@@ -1,4 +1,3 @@
-
 package event
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventrecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresEventRecurrenceRepository implements event recurrence CRUD operations using PostgreSQL

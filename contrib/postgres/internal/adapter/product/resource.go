@@ -1,4 +1,3 @@
-
 package product
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -299,14 +298,14 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			name               string
-			description        *string
-			productId          string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
-			total              int64
+			id           string
+			name         string
+			description  *string
+			productId    string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
+			total        int64
 		)
 
 		err := rows.Scan(
@@ -340,17 +339,17 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		resource.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		resource.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			resource.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			resource.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		resource.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		resource.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			resource.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			resource.DateModifiedString = &dmStr
+		}
 
 		resources = append(resources, resource)
 	}
@@ -411,13 +410,13 @@ func (r *PostgresResourceRepository) GetResourceItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.ResourceId)
 
 	var (
-		id                 string
-		name               string
-		description        *string
-		productId          string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		name         string
+		description  *string
+		productId    string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 	)
 
 	err := row.Scan(

@@ -1,9 +1,8 @@
-
 package postgres
 
 import (
-	"github.com/lib/pq"
 	"github.com/erniealice/espyna-golang/database/model"
+	"github.com/lib/pq"
 )
 
 // mapPostgresError maps a PostgreSQL-specific error to a common DatabaseError

@@ -1,4 +1,3 @@
-
 package payroll
 
 import (
@@ -7,11 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -82,6 +82,7 @@ func (r *PostgresPayrollRemittanceRepository) CreatePayrollRemittance(ctx contex
 		return nil, fmt.Errorf("failed to create payroll remittance: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -109,6 +110,7 @@ func (r *PostgresPayrollRemittanceRepository) ReadPayrollRemittance(ctx context.
 		return nil, fmt.Errorf("failed to read payroll remittance: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -152,6 +154,7 @@ func (r *PostgresPayrollRemittanceRepository) UpdatePayrollRemittance(ctx contex
 		return nil, fmt.Errorf("failed to update payroll remittance: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -197,6 +200,7 @@ func (r *PostgresPayrollRemittanceRepository) ListPayrollRemittances(ctx context
 
 	var payrollRemittances []*payrollremittancepb.PayrollRemittance
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "due_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal payroll remittance row: %v", err)
@@ -298,20 +302,20 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 
 	for rows.Next() {
 		var (
-			id                  string
-			dateCreated         int64
-			payrollRunID        string
-			remittanceTypeStr   string
-			amount              float64
-			dueDate             int64
-			dueDateString       *string
-			statusStr           string
-			filedAt             *int64
-			filedAtString       *string
-			paidAt              *int64
-			paidAtString        *string
-			referenceNumber     *string
-			total               int64
+			id                string
+			dateCreated       int64
+			payrollRunID      string
+			remittanceTypeStr string
+			amount            int64
+			dueDate           int64
+			dueDateString     *string
+			statusStr         string
+			filedAt           *int64
+			filedAtString     *string
+			paidAt            *int64
+			paidAtString      *string
+			referenceNumber   *string
+			total             int64
 		)
 
 		err := rows.Scan(
@@ -340,7 +344,6 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			Id:              id,
 			PayrollRunId:    payrollRunID,
 			Amount:          amount,
-			DueDateString:   dueDateString,
 			FiledAtString:   filedAtString,
 			PaidAtString:    paidAtString,
 			ReferenceNumber: referenceNumber,
@@ -354,7 +357,7 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 		}
 
 		if dueDate > 0 {
-			payrollRemittance.DueDate = dueDate
+			payrollRemittance.DueDate = time.UnixMilli(dueDate).UTC().Format("2006-01-02")
 		}
 		if filedAt != nil && *filedAt > 0 {
 			payrollRemittance.FiledAt = filedAt
@@ -412,6 +415,7 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceItemPageData(
 		return nil, fmt.Errorf("failed to read payroll remittance '%s': %w", req.PayrollRemittanceId, err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)

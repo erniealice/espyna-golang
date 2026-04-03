@@ -1,4 +1,3 @@
-
 package product
 
 import (
@@ -10,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -39,13 +38,9 @@ func init() {
 //   - CREATE INDEX idx_product_description ON product(description) - Search field (consider GIN index for full-text search)
 //   - CREATE INDEX idx_product_attribute_product_id ON product_attribute(product_id) - Junction table FK
 //   - CREATE INDEX idx_product_attribute_active ON product_attribute(active) - Junction table filter
-//   - CREATE INDEX idx_product_collection_product_id ON product_collection(product_id) - Junction table FK
-//   - CREATE INDEX idx_product_collection_collection_id ON product_collection(collection_id) - Junction table FK
-//   - CREATE INDEX idx_product_collection_active ON product_collection(active) - Junction table filter
 //   - CREATE INDEX idx_product_plan_product_id ON product_plan(product_id) - Junction table FK
 //   - CREATE INDEX idx_product_plan_plan_id ON product_plan(plan_id) - Junction table FK
 //   - CREATE INDEX idx_product_plan_active ON product_plan(active) - Junction table filter
-//   - CREATE INDEX idx_collection_active ON collection(active) - Related table filter
 //   - CREATE INDEX idx_plan_active ON plan(active) - Related table filter
 //
 // TODO: Add comprehensive tests for GetProductListPageData:
@@ -57,7 +52,6 @@ func init() {
 //   - Test with no matching results
 //   - Test with inactive products (should be filtered out)
 //   - Test with product_attributes aggregation (1:Many relationship)
-//   - Test with product_collections aggregation (Many:Many via junction)
 //   - Test with product_plans aggregation (Many:Many via junction)
 //   - Test with inactive related records (should be filtered out)
 //   - Test with null/empty aggregations (no related records)
@@ -68,7 +62,7 @@ func init() {
 //   - Test with non-existent product ID
 //   - Test with inactive product (should return not found)
 //   - Test with product having inactive attributes (should be filtered out)
-//   - Test with product having inactive collections/plans (should be filtered out)
+//   - Test with product having inactive plans (should be filtered out)
 //   - Test timestamp parsing for date_created and date_modified
 //   - Test nullable description field
 type PostgresProductRepository struct {
@@ -255,9 +249,8 @@ func (r *PostgresProductRepository) ListProducts(ctx context.Context, req *produ
 }
 
 // GetProductListPageData retrieves products with advanced filtering, sorting, searching, and pagination using CTE
-// This method aggregates three types of relationships:
+// This method aggregates two types of relationships:
 // - product_attribute (1:Many) - Direct attributes on the product
-// - product_collection (Many:Many via junction) - Collections the product belongs to
 // - product_plan (Many:Many via junction) - Plans associated with the product
 func (r *PostgresProductRepository) GetProductListPageData(
 	ctx context.Context,
@@ -316,12 +309,12 @@ func (r *PostgresProductRepository) GetProductListPageData(
 	offsetIdx := nextIdx + 1
 	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
 
-	// CTE Query - Single round-trip with three separate aggregations for relationships
+	// CTE Query - Single round-trip with two separate aggregations for relationships
 	// Performance Notes:
-	// - INDEX RECOMMENDATION: Create indexes on all junction table foreign keys (product_id, collection_id, plan_id)
+	// - INDEX RECOMMENDATION: Create indexes on all junction table foreign keys (product_id, plan_id)
 	// - INDEX RECOMMENDATION: Create indexes on active flags for all junction and related tables
 	// - INDEX RECOMMENDATION: Create index on product.name and product.description for search performance
-	// - Uses 3 separate CTEs to aggregate each relationship type independently
+	// - Uses 2 separate CTEs to aggregate each relationship type independently
 	// - COALESCE ensures empty arrays when no relationships exist (never NULL)
 	query := `
 		WITH
@@ -336,19 +329,6 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			FROM product_attribute pa
 			WHERE pa.active = true
 			GROUP BY pa.product_id
-		),
-		product_collections_agg AS (
-			SELECT
-				pc.product_id,
-				jsonb_agg(jsonb_build_object(
-					'id', pc.id,
-					'collection_id', pc.collection_id,
-					'sort_order', pc.sort_order
-				) ORDER BY pc.sort_order) as collections
-			FROM product_collection pc
-			JOIN collection c ON pc.collection_id = c.id
-			WHERE pc.active = true AND c.active = true
-			GROUP BY pc.product_id
 		),
 		product_plans_agg AS (
 			SELECT
@@ -377,12 +357,10 @@ func (r *PostgresProductRepository) GetProductListPageData(
 				p.price,
 				p.currency,
 				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
-				COALESCE(pca.collections, '[]'::jsonb) as product_collections,
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans,
 				COUNT(*) OVER() AS total_count
 			FROM product p
 			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
-			LEFT JOIN product_collections_agg pca ON p.id = pca.product_id
 			LEFT JOIN product_plans_agg ppa ON p.id = ppa.product_id
 			WHERE p.active = true` + whereStr + `
 		)
@@ -401,18 +379,17 @@ func (r *PostgresProductRepository) GetProductListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			dateCreated        time.Time
-			dateModified       time.Time
-			active             bool
-			name               string
-			description        *string
-			price              float64
-			currency           string
-			productAttributes  []byte // jsonb
-			productCollections []byte // jsonb
-			productPlans       []byte // jsonb
-			total              int64
+			id                string
+			dateCreated       time.Time
+			dateModified      time.Time
+			active            bool
+			name              string
+			description       *string
+			price             int64
+			currency          string
+			productAttributes []byte // jsonb
+			productPlans      []byte // jsonb
+			total             int64
 		)
 
 		err := rows.Scan(
@@ -425,7 +402,6 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			&price,
 			&currency,
 			&productAttributes,
-			&productCollections,
 			&productPlans,
 			&total,
 		)
@@ -462,10 +438,10 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			product.DateModifiedString = &dmStr
 		}
 
-		// Note: The aggregated relationship data (productAttributes, productCollections, productPlans)
+		// Note: The aggregated relationship data (productAttributes, productPlans)
 		// is available in JSONB format but not directly mapped to the Product protobuf structure
 		// in this list view. This is intentional as the Product message doesn't include these
-		// nested collections in its schema. If needed, these could be returned in a future
+		// nested relationships in its schema. If needed, these could be returned in a future
 		// enhanced response structure or processed separately.
 
 		products = append(products, product)
@@ -525,19 +501,6 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 			WHERE pa.active = true AND pa.product_id = $1
 			GROUP BY pa.product_id
 		),
-		product_collections_agg AS (
-			SELECT
-				pc.product_id,
-				jsonb_agg(jsonb_build_object(
-					'id', pc.id,
-					'collection_id', pc.collection_id,
-					'sort_order', pc.sort_order
-				) ORDER BY pc.sort_order) as collections
-			FROM product_collection pc
-			JOIN collection c ON pc.collection_id = c.id
-			WHERE pc.active = true AND c.active = true AND pc.product_id = $1
-			GROUP BY pc.product_id
-		),
 		product_plans_agg AS (
 			SELECT
 				pp.product_id,
@@ -565,11 +528,9 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 				p.price,
 				p.currency,
 				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
-				COALESCE(pca.collections, '[]'::jsonb) as product_collections,
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
 			FROM product p
 			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
-			LEFT JOIN product_collections_agg pca ON p.id = pca.product_id
 			LEFT JOIN product_plans_agg ppa ON p.id = ppa.product_id
 			WHERE p.id = $1 AND p.active = true
 		)
@@ -579,17 +540,16 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.ProductId)
 
 	var (
-		id                 string
-		dateCreated        time.Time
-		dateModified       time.Time
-		active             bool
-		name               string
-		description        *string
-		price              float64
-		currency           string
-		productAttributes  []byte // jsonb
-		productCollections []byte // jsonb
-		productPlans       []byte // jsonb
+		id                string
+		dateCreated       time.Time
+		dateModified      time.Time
+		active            bool
+		name              string
+		description       *string
+		price             int64
+		currency          string
+		productAttributes []byte // jsonb
+		productPlans      []byte // jsonb
 	)
 
 	err := row.Scan(
@@ -602,7 +562,6 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 		&price,
 		&currency,
 		&productAttributes,
-		&productCollections,
 		&productPlans,
 	)
 	if err == sql.ErrNoRows {
@@ -641,9 +600,9 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 		product.DateModifiedString = &dmStr
 	}
 
-	// Note: The aggregated relationship data (productAttributes, productCollections, productPlans)
+	// Note: The aggregated relationship data (productAttributes, productPlans)
 	// is available in JSONB format but not directly mapped to the Product protobuf structure.
-	// This is intentional as the Product message doesn't include these nested collections in
+	// This is intentional as the Product message doesn't include these nested relationships in
 	// its schema. If needed, these could be returned in a future enhanced response structure
 	// or processed separately for frontend consumption.
 

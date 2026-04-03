@@ -1,21 +1,20 @@
-
 package entity
 
 import (
 	"context"
 	"database/sql"
-	"time"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -54,8 +53,9 @@ func (r *PostgresUserRepository) CreateUser(ctx context.Context, req *userpb.Cre
 		return nil, fmt.Errorf("user data is required")
 	}
 
-	// Convert protobuf to map using protojson
-	jsonData, err := protojson.Marshal(req.Data)
+	// Emit unpopulated fields so false booleans are preserved instead of
+	// disappearing from the JSON payload and becoming NULL on insert/update.
+	jsonData, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
 	}
@@ -121,8 +121,9 @@ func (r *PostgresUserRepository) UpdateUser(ctx context.Context, req *userpb.Upd
 		return nil, fmt.Errorf("user ID is required")
 	}
 
-	// Convert protobuf to map using protojson
-	jsonData, err := protojson.Marshal(req.Data)
+	// Emit unpopulated fields so false booleans are preserved instead of
+	// disappearing from the JSON payload and becoming NULL on insert/update.
+	jsonData, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
 	}
@@ -353,7 +354,6 @@ func (r *PostgresUserRepository) GetUserItemPageData(ctx context.Context, req *u
 	}
 	return &userpb.GetUserItemPageDataResponse{User: user, Success: true}, nil
 }
-
 
 // NewUserRepository creates a new PostgreSQL user repository (old-style constructor)
 func NewUserRepository(db *sql.DB, tableName string) userpb.UserDomainServiceServer {

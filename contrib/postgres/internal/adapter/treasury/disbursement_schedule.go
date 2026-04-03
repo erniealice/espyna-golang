@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -10,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -76,6 +75,7 @@ func (r *PostgresDisbursementScheduleRepository) CreateDisbursementSchedule(ctx 
 		return nil, fmt.Errorf("failed to create disbursement schedule: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -103,6 +103,7 @@ func (r *PostgresDisbursementScheduleRepository) ReadDisbursementSchedule(ctx co
 		return nil, fmt.Errorf("failed to read disbursement schedule: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -140,6 +141,7 @@ func (r *PostgresDisbursementScheduleRepository) UpdateDisbursementSchedule(ctx 
 		return nil, fmt.Errorf("failed to update disbursement schedule: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -185,6 +187,7 @@ func (r *PostgresDisbursementScheduleRepository) ListDisbursementSchedules(ctx c
 
 	var schedules []*disbursementschedulepb.DisbursementSchedule
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			continue
@@ -284,21 +287,21 @@ func (r *PostgresDisbursementScheduleRepository) GetDisbursementScheduleListPage
 
 	for rows.Next() {
 		var (
-			id              string
-			dateCreated     time.Time
-			dateModified    time.Time
-			active          bool
-			expenditureID   string
-			sequence        int32
-			amount          int64
-			dueDate         int64
-			dueDateString   *string
-			status          string
-			paidAmount      *int64
-			paidDate        *int64
-			disbursementID  *string
-			paymentTermID   *string
-			total           int64
+			id             string
+			dateCreated    time.Time
+			dateModified   time.Time
+			active         bool
+			expenditureID  string
+			sequence       int32
+			amount         int64
+			dueDate        int64
+			dueDateString  *string
+			status         string
+			paidAmount     *int64
+			paidDate       *int64
+			disbursementID *string
+			paymentTermID  *string
+			total          int64
 		)
 
 		err := rows.Scan(
@@ -459,11 +462,11 @@ func buildDisbursementScheduleFromScan(
 		ExpenditureId: expenditureID,
 		Sequence:      sequence,
 		Amount:        amount,
-		DueDate:       dueDate,
+		DueDate:       time.UnixMilli(dueDate).UTC().Format("2006-01-02"),
 		Status:        status,
 	}
 
-	ds.DueDateString = dueDateString
+	ds.DueDate = time.UnixMilli(dueDate).UTC().Format("2006-01-02")
 	ds.PaidAmount = paidAmount
 	ds.PaidDate = paidDate
 	ds.DisbursementId = disbursementID

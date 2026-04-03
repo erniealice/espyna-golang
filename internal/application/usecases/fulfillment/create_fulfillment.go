@@ -14,7 +14,9 @@ import (
 
 // ---- CreateFulfillment ----
 
-type CreateFulfillmentRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type CreateFulfillmentRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type CreateFulfillmentServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -28,7 +30,9 @@ type CreateFulfillmentUseCase struct {
 
 // ---- GetFulfillment ----
 
-type GetFulfillmentRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type GetFulfillmentRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type GetFulfillmentServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService

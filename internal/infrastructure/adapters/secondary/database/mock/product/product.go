@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	datamock "leapfor.xyz/copya/golang"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	datamock "leapfor.xyz/copya/golang"
 )
 
 // MockProductRepository implements product.ProductRepository using stateful mock data
@@ -119,7 +119,6 @@ func (r *MockProductRepository) CreateProduct(ctx context.Context, req *productp
 		Description:        req.Data.Description,
 		Price:              req.Data.Price,
 		Currency:           req.Data.Currency,
-		ProductCollections: req.Data.ProductCollections,
 		DateCreated:        &[]int64{now.UnixMilli()}[0],
 		DateCreatedString:  &[]string{now.Format(time.RFC3339)}[0],
 		DateModified:       &[]int64{now.UnixMilli()}[0],
@@ -366,7 +365,7 @@ func (r *MockProductRepository) GetProductItemPageData(
 	}
 
 	// In a real implementation, you might:
-	// 1. Load related data (collection details, plan details)
+	// 1. Load related data (line details, plan details)
 	// 2. Apply access control checks
 	// 3. Format data for optimal frontend consumption
 	// 4. Add audit logging

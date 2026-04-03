@@ -1,4 +1,3 @@
-
 package revenue
 
 import (
@@ -12,8 +11,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -84,6 +83,7 @@ func (r *PostgresRevenueRepository) CreateRevenue(ctx context.Context, req *reve
 		return nil, fmt.Errorf("failed to create revenue: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "revenue_date", "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -111,6 +111,7 @@ func (r *PostgresRevenueRepository) ReadRevenue(ctx context.Context, req *revenu
 		return nil, fmt.Errorf("failed to read revenue: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "revenue_date", "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -154,6 +155,7 @@ func (r *PostgresRevenueRepository) UpdateRevenue(ctx context.Context, req *reve
 		return nil, fmt.Errorf("failed to update revenue: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "revenue_date", "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -199,6 +201,7 @@ func (r *PostgresRevenueRepository) ListRevenues(ctx context.Context, req *reven
 
 	var revenues []*revenuepb.Revenue
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "revenue_date", "due_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal revenue row: %v", err)
@@ -288,7 +291,6 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.active,
 				rv.name,
 				rv.client_id,
-				rv.revenue_date,
 				rv.revenue_date_string,
 				rv.total_amount,
 				rv.currency,
@@ -298,7 +300,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.revenue_category_id,
 				rv.location_id,
 				rv.payment_term_id,
-				rv.due_date,
+				rv.due_date_string,
+				rv.subscription_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
 				COUNT(*) OVER() AS total_count
@@ -328,9 +331,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			active            bool
 			name              string
 			clientID          *string
-			revenueDate       *time.Time
 			revenueDateString *string
-			totalAmount       float64
+			totalAmount       int64
 			currency          *string
 			status            *string
 			referenceNumber   *string
@@ -338,7 +340,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			revenueCategoryID *string
 			locationID        *string
 			paymentTermID     *string
-			dueDate           *int64
+			dueDateString     *string
+			subscriptionID    *string
 			clientName        string
 			locationName      string
 			total             int64
@@ -351,7 +354,6 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			&active,
 			&name,
 			&clientID,
-			&revenueDate,
 			&revenueDateString,
 			&totalAmount,
 			&currency,
@@ -361,7 +363,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			&revenueCategoryID,
 			&locationID,
 			&paymentTermID,
-			&dueDate,
+			&dueDateString,
+			&subscriptionID,
 			&clientName,
 			&locationName,
 			&total,
@@ -395,20 +398,16 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			revenue.Status = *status
 		}
 		if revenueDateString != nil {
-			revenue.RevenueDateString = revenueDateString
-		}
-		if revenueDate != nil && !revenueDate.IsZero() {
-			ts := revenueDate.UnixMilli()
-			revenue.RevenueDate = &ts
+			revenue.RevenueDate = revenueDateString
 		}
 		if paymentTermID != nil {
 			revenue.PaymentTermId = paymentTermID
 		}
-		if dueDate != nil && *dueDate != 0 {
-			revenue.DueDate = dueDate
-			t := time.UnixMilli(*dueDate).UTC()
-			dueDateStr := t.Format("2006-01-02")
-			revenue.DueDateString = &dueDateStr
+		if dueDateString != nil {
+			revenue.DueDate = dueDateString
+		}
+		if subscriptionID != nil {
+			revenue.SubscriptionId = subscriptionID
 		}
 
 		if !dateCreated.IsZero() {
@@ -473,7 +472,6 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 				rv.active,
 				rv.name,
 				rv.client_id,
-				rv.revenue_date,
 				rv.revenue_date_string,
 				rv.total_amount,
 				rv.currency,
@@ -483,7 +481,8 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 				rv.revenue_category_id,
 				rv.location_id,
 				rv.payment_term_id,
-				rv.due_date,
+				rv.due_date_string,
+				rv.subscription_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name
 			FROM ` + r.tableName + ` rv
@@ -503,9 +502,8 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		active            bool
 		name              string
 		clientID          *string
-		revenueDate       *time.Time
 		revenueDateString *string
-		totalAmount       float64
+		totalAmount       int64
 		currency          *string
 		status            *string
 		referenceNumber   *string
@@ -513,7 +511,8 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		revenueCategoryID *string
 		locationID        *string
 		paymentTermID     *string
-		dueDate           *int64
+		dueDateString     *string
+		subscriptionID    *string
 		clientName        string
 		locationName      string
 	)
@@ -525,7 +524,6 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		&active,
 		&name,
 		&clientID,
-		&revenueDate,
 		&revenueDateString,
 		&totalAmount,
 		&currency,
@@ -535,7 +533,8 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		&revenueCategoryID,
 		&locationID,
 		&paymentTermID,
-		&dueDate,
+		&dueDateString,
+		&subscriptionID,
 		&clientName,
 		&locationName,
 	)
@@ -547,12 +546,12 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	}
 
 	revenue := &revenuepb.Revenue{
-		Id:              id,
-		Active:          active,
-		Name:            name,
-		TotalAmount:     totalAmount,
-		ReferenceNumber: referenceNumber,
-		Notes:           notes,
+		Id:                id,
+		Active:            active,
+		Name:              name,
+		TotalAmount:       totalAmount,
+		ReferenceNumber:   referenceNumber,
+		Notes:             notes,
 		RevenueCategoryId: revenueCategoryID,
 	}
 
@@ -569,20 +568,16 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		revenue.Status = *status
 	}
 	if revenueDateString != nil {
-		revenue.RevenueDateString = revenueDateString
-	}
-	if revenueDate != nil && !revenueDate.IsZero() {
-		ts := revenueDate.UnixMilli()
-		revenue.RevenueDate = &ts
+		revenue.RevenueDate = revenueDateString
 	}
 	if paymentTermID != nil {
 		revenue.PaymentTermId = paymentTermID
 	}
-	if dueDate != nil && *dueDate != 0 {
-		revenue.DueDate = dueDate
-		t := time.UnixMilli(*dueDate).UTC()
-		dueDateStr := t.Format("2006-01-02")
-		revenue.DueDateString = &dueDateStr
+	if dueDateString != nil {
+		revenue.DueDate = dueDateString
+	}
+	if subscriptionID != nil {
+		revenue.SubscriptionId = subscriptionID
 	}
 
 	if !dateCreated.IsZero() {

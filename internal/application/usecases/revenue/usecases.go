@@ -2,11 +2,11 @@ package revenue
 
 import (
 	// Revenue use cases
+	deferredRevenueUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/deferred_revenue"
 	revenueUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue"
 	revenueAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_attribute"
 	revenueCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_category"
 	revenueLineItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_line_item"
-	deferredRevenueUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/deferred_revenue"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -15,11 +15,11 @@ import (
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 
 	// Protobuf domain services for revenue repositories
+	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
-	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
 
 // RevenueRepositories contains all revenue domain repositories

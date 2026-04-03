@@ -20,15 +20,15 @@ type AuditService interface {
 
 // AuditLogRequest contains all data for one audit event.
 type AuditLogRequest struct {
-	WorkspaceID    string            // tenant scope — required for multi-tenant queries
+	WorkspaceID    string // tenant scope — required for multi-tenant queries
 	EntityType     string
 	EntityID       string
-	Domain         string            // "centymo", "entydad", "fycha", "fayna"
-	Action         int32             // AuditAction enum value
-	PermissionCode string            // matches permission.permission_code
-	UseCase        string            // "SuspendClient", "AdjustInventory"
-	Reason         string            // optional user-supplied
-	MethodName     string            // Go method name (debug)
+	Domain         string // "centymo", "entydad", "fycha", "fayna"
+	Action         int32  // AuditAction enum value
+	PermissionCode string // matches permission.permission_code
+	UseCase        string // "SuspendClient", "AdjustInventory"
+	Reason         string // optional user-supplied
+	MethodName     string // Go method name (debug)
 	FieldChanges   []AuditFieldChange
 }
 
@@ -82,14 +82,14 @@ type DiffAndLogRequest struct {
 	WorkspaceID    string
 	EntityType     string
 	EntityID       string
-	Domain         string         // "centymo", "entydad", "fycha", "fayna"
-	Action         int32          // AuditAction enum value: 1=INSERT, 2=UPDATE, 3=DELETE
-	PermissionCode string         // "client:update"
-	UseCase        string         // "SuspendClient"
-	Reason         string         // optional
-	MethodName     string         // "UpdateClientStatus"
-	OldData        map[string]any // nil for INSERT
-	NewData        map[string]any // nil for DELETE
+	Domain         string          // "centymo", "entydad", "fycha", "fayna"
+	Action         int32           // AuditAction enum value: 1=INSERT, 2=UPDATE, 3=DELETE
+	PermissionCode string          // "client:update"
+	UseCase        string          // "SuspendClient"
+	Reason         string          // optional
+	MethodName     string          // "UpdateClientStatus"
+	OldData        map[string]any  // nil for INSERT
+	NewData        map[string]any  // nil for DELETE
 	ExcludedFields map[string]bool // fields to skip (e.g. password_hash)
 }
 

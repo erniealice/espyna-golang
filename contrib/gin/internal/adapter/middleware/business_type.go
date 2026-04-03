@@ -20,7 +20,7 @@ func BusinessTypeMiddleware(defaultBusinessType string) gin.HandlerFunc {
 		"education":        true,
 		"fitness_center":   true,
 		"office_leasing":   true,
-		"aesthetic_clinic":  true,
+		"aesthetic_clinic": true,
 		"general":          true,
 		"business":         true,
 	}

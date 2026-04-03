@@ -14,7 +14,6 @@ import (
 	eventResourceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_resource"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
-	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventAttendeepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attendee"
 	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
@@ -23,6 +22,7 @@ import (
 	eventProductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
 	eventRecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 	eventResourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_resource"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // EventUseCases contains all event-related use cases
@@ -56,10 +56,10 @@ func NewEventUseCases(
 ) *EventUseCases {
 	// Shared services for all use cases
 	sharedServices := struct {
-		Auth  ports.AuthorizationService
-		Tx    ports.TransactionService
-		I18n  ports.TranslationService
-		ID    ports.IDService
+		Auth ports.AuthorizationService
+		Tx   ports.TransactionService
+		I18n ports.TranslationService
+		ID   ports.IDService
 	}{authorizationService, transactionService, translationService, idService}
 
 	// Event (core)

@@ -360,7 +360,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryItemPageData(
 
 	return &pb.GetJobOutcomeSummaryItemPageDataResponse{
 		JobOutcomeSummary: summary,
-		Success:          true,
+		Success:           true,
 	}, nil
 }
 
@@ -402,7 +402,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 
 	return &pb.GetJobOutcomeSummaryByJobResponse{
 		JobOutcomeSummary: summary,
-		Success:          true,
+		Success:           true,
 	}, nil
 }
 

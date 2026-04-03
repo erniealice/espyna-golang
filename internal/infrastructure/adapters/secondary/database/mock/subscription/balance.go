@@ -343,7 +343,7 @@ func (r *MockBalanceRepository) mapToProtobufBalance(rawBalance map[string]any) 
 	}
 
 	if amount, ok := rawBalance["amount"].(float64); ok {
-		balance.Amount = amount
+		balance.Amount = int64(amount)
 	} else {
 		return nil, fmt.Errorf("missing or invalid amount field")
 	}

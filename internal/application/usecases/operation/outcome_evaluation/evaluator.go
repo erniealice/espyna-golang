@@ -3,13 +3,13 @@ package outcome_evaluation
 import (
 	"fmt"
 
+	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
+	optionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
+	thresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
 	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	criteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
-	thresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
-	optionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
-	checkpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	outcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
-	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
+	checkpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 )
 
 // evaluator is the internal interface all criterion evaluators implement.

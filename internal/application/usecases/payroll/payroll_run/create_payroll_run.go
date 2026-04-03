@@ -109,10 +109,10 @@ func (uc *CreatePayrollRunUseCase) validateInput(ctx context.Context, req *payro
 	if req.Data == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.data_required", "[ERR-DEFAULT] Payroll run data is required"))
 	}
-	if req.Data.PayPeriodStart == 0 {
+	if req.Data.PayPeriodStart == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.pay_period_start_required", "[ERR-DEFAULT] Pay period start date is required"))
 	}
-	if req.Data.PayPeriodEnd == 0 {
+	if req.Data.PayPeriodEnd == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.pay_period_end_required", "[ERR-DEFAULT] Pay period end date is required"))
 	}
 	return nil
@@ -138,7 +138,7 @@ func (uc *CreatePayrollRunUseCase) enrichPayrollRunData(run *payrollrunpb.Payrol
 
 func (uc *CreatePayrollRunUseCase) validateBusinessRules(ctx context.Context, run *payrollrunpb.PayrollRun) error {
 	// Pay period end must be after pay period start
-	if run.PayPeriodEnd > 0 && run.PayPeriodStart > 0 && run.PayPeriodEnd <= run.PayPeriodStart {
+	if run.PayPeriodEnd != "" && run.PayPeriodStart != "" && run.PayPeriodEnd <= run.PayPeriodStart {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.pay_period_end_before_start", "[ERR-DEFAULT] Pay period end must be after pay period start"))
 	}
 	return nil

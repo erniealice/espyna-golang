@@ -1,4 +1,3 @@
-
 package subscription
 
 import (
@@ -6,9 +5,9 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/firestore"
+	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/operations"
-	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
@@ -188,4 +187,3 @@ func (r *FirestoreSubscriptionRepository) ListSubscriptions(ctx context.Context,
 		Success: true,
 	}, nil
 }
-

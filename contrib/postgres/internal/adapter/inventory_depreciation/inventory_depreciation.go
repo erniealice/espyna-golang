@@ -1,4 +1,3 @@
-
 package inventory_depreciation
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventorydepreciationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_depreciation"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -86,6 +85,7 @@ func (r *PostgresInventoryDepreciationRepository) CreateInventoryDepreciation(ct
 	}
 
 	// Convert result back to protobuf using protojson
+	postgresCore.ConvertMillisToDateStr(result, "start_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -114,6 +114,7 @@ func (r *PostgresInventoryDepreciationRepository) ReadInventoryDepreciation(ctx 
 	}
 
 	// Convert result to protobuf using protojson
+	postgresCore.ConvertMillisToDateStr(result, "start_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -153,6 +154,7 @@ func (r *PostgresInventoryDepreciationRepository) UpdateInventoryDepreciation(ct
 	}
 
 	// Convert result back to protobuf using protojson
+	postgresCore.ConvertMillisToDateStr(result, "start_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -200,6 +202,7 @@ func (r *PostgresInventoryDepreciationRepository) ListInventoryDepreciations(ctx
 	// Convert results to protobuf slice using protojson
 	var inventoryDepreciations []*inventorydepreciationpb.InventoryDepreciation
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "start_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			// Log error and continue with next item
@@ -315,12 +318,12 @@ func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationListPa
 			active                  bool
 			inventoryItemID         string
 			method                  string
-			costBasis               float64
-			salvageValue            float64
+			costBasis               int64
+			salvageValue            int64
 			usefulLifeMonths        int32
 			startDate               string
-			accumulatedDepreciation float64
-			bookValue               float64
+			accumulatedDepreciation int64
+			bookValue               int64
 			inventoryItemName       string
 			total                   int64
 		)
@@ -454,12 +457,12 @@ func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationItemPa
 		active                  bool
 		inventoryItemID         string
 		method                  string
-		costBasis               float64
-		salvageValue            float64
+		costBasis               int64
+		salvageValue            int64
 		usefulLifeMonths        int32
 		startDate               string
-		accumulatedDepreciation float64
-		bookValue               float64
+		accumulatedDepreciation int64
+		bookValue               int64
 		inventoryItemName       string
 		inventoryItemSku        string
 	)

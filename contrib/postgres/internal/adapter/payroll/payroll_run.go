@@ -1,4 +1,3 @@
-
 package payroll
 
 import (
@@ -11,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -267,9 +266,7 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 				pr.date_modified,
 				pr.run_number,
 				pr.pay_period_start,
-				pr.pay_period_start_string,
 				pr.pay_period_end,
-				pr.pay_period_end_string,
 				pr.total_gross,
 				pr.total_deductions,
 				pr.total_net,
@@ -308,13 +305,11 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 			dateCreated          int64
 			dateModified         int64
 			runNumber            string
-			payPeriodStart       int64
-			payPeriodStartString *string
-			payPeriodEnd         int64
-			payPeriodEndString   *string
-			totalGross           float64
-			totalDeductions      float64
-			totalNet             float64
+			payPeriodStart       string
+			payPeriodEnd         string
+			totalGross           int64
+			totalDeductions      int64
+			totalNet             int64
 			employeeCount        int32
 			statusStr            string
 			approvedBy           *string
@@ -329,9 +324,7 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 			&dateModified,
 			&runNumber,
 			&payPeriodStart,
-			&payPeriodStartString,
 			&payPeriodEnd,
-			&payPeriodEndString,
 			&totalGross,
 			&totalDeductions,
 			&totalNet,
@@ -349,28 +342,22 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 		totalCount = total
 
 		payrollRun := &payrollrunpb.PayrollRun{
-			Id:                   id,
-			RunNumber:            runNumber,
-			TotalGross:           totalGross,
-			TotalDeductions:      totalDeductions,
-			TotalNet:             totalNet,
-			EmployeeCount:        employeeCount,
-			ApprovedBy:           approvedBy,
-			PayPeriodStartString: payPeriodStartString,
-			PayPeriodEndString:   payPeriodEndString,
-			PostedAtString:       postedAtString,
+			Id:              id,
+			RunNumber:       runNumber,
+			TotalGross:      totalGross,
+			TotalDeductions: totalDeductions,
+			TotalNet:        totalNet,
+			EmployeeCount:   employeeCount,
+			ApprovedBy:      approvedBy,
+			PostedAtString:  postedAtString,
 		}
 
 		if val, ok := payrollrunpb.PayrollRunStatus_value[statusStr]; ok {
 			payrollRun.Status = payrollrunpb.PayrollRunStatus(val)
 		}
 
-		if payPeriodStart > 0 {
-			payrollRun.PayPeriodStart = payPeriodStart
-		}
-		if payPeriodEnd > 0 {
-			payrollRun.PayPeriodEnd = payPeriodEnd
-		}
+		payrollRun.PayPeriodStart = payPeriodStart
+		payrollRun.PayPeriodEnd = payPeriodEnd
 		if postedAt != nil && *postedAt > 0 {
 			payrollRun.PostedAt = postedAt
 		}

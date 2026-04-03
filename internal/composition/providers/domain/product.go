@@ -12,14 +12,12 @@ import (
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 
 	// Protobuf domain services - Product domain
-	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
-	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
-	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
+	linepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
-	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
+	productlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_line"
 	productoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option"
 	productoptionvaluepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option_value"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
@@ -31,14 +29,12 @@ import (
 
 // ProductRepositories contains all product domain repositories and cross-domain dependencies
 type ProductRepositories struct {
-	Collection           collectionpb.CollectionDomainServiceServer
-	CollectionAttribute  collectionattributepb.CollectionAttributeDomainServiceServer
-	CollectionPlan       collectionplanpb.CollectionPlanDomainServiceServer
 	PriceList            pricelistpb.PriceListDomainServiceServer
 	PriceProduct         priceproductpb.PriceProductDomainServiceServer
 	Product              productpb.ProductDomainServiceServer
 	ProductAttribute     productattributepb.ProductAttributeDomainServiceServer
-	ProductCollection    productcollectionpb.ProductCollectionDomainServiceServer
+	Line                 linepb.LineDomainServiceServer
+	ProductLine          productlinepb.ProductLineDomainServiceServer
 	ProductOption        productoptionpb.ProductOptionDomainServiceServer
 	ProductOptionValue   productoptionvaluepb.ProductOptionValueDomainServiceServer
 	ProductPlan          productplanpb.ProductPlanDomainServiceServer
@@ -64,21 +60,6 @@ func NewProductRepositories(dbProvider contracts.Provider, tableConfig *registry
 	conn := repoCreator.GetConnection()
 
 	// Create each repository individually using configured table names from tableConfig
-	collectionRepo, err := repoCreator.CreateRepository(entityid.Collection, conn, tableConfig.TableName(entityid.Collection))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create collection repository: %w", err)
-	}
-
-	collectionAttributeRepo, err := repoCreator.CreateRepository(entityid.CollectionAttribute, conn, tableConfig.TableName(entityid.CollectionAttribute))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create collection_attribute repository: %w", err)
-	}
-
-	collectionPlanRepo, err := repoCreator.CreateRepository(entityid.CollectionPlan, conn, tableConfig.TableName(entityid.CollectionPlan))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create collection_plan repository: %w", err)
-	}
-
 	priceListRepo, err := repoCreator.CreateRepository(entityid.PriceList, conn, tableConfig.TableName(entityid.PriceList))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create price_list repository: %w", err)
@@ -99,9 +80,14 @@ func NewProductRepositories(dbProvider contracts.Provider, tableConfig *registry
 		return nil, fmt.Errorf("failed to create product_attribute repository: %w", err)
 	}
 
-	productCollectionRepo, err := repoCreator.CreateRepository(entityid.ProductCollection, conn, tableConfig.TableName(entityid.ProductCollection))
+	lineRepo, err := repoCreator.CreateRepository(entityid.Line, conn, tableConfig.TableName(entityid.Line))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create product_collection repository: %w", err)
+		return nil, fmt.Errorf("failed to create line repository: %w", err)
+	}
+
+	productLineRepo, err := repoCreator.CreateRepository(entityid.ProductLine, conn, tableConfig.TableName(entityid.ProductLine))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product_line repository: %w", err)
 	}
 
 	productOptionRepo, err := repoCreator.CreateRepository(entityid.ProductOption, conn, tableConfig.TableName(entityid.ProductOption))
@@ -150,14 +136,12 @@ func NewProductRepositories(dbProvider contracts.Provider, tableConfig *registry
 
 	// Type assert each repository to its interface
 	return &ProductRepositories{
-		Collection:           collectionRepo.(collectionpb.CollectionDomainServiceServer),
-		CollectionAttribute:  collectionAttributeRepo.(collectionattributepb.CollectionAttributeDomainServiceServer),
-		CollectionPlan:       collectionPlanRepo.(collectionplanpb.CollectionPlanDomainServiceServer),
 		PriceList:            priceListRepo.(pricelistpb.PriceListDomainServiceServer),
 		PriceProduct:         priceProductRepo.(priceproductpb.PriceProductDomainServiceServer),
 		Product:              productRepo.(productpb.ProductDomainServiceServer),
 		ProductAttribute:     productAttributeRepo.(productattributepb.ProductAttributeDomainServiceServer),
-		ProductCollection:    productCollectionRepo.(productcollectionpb.ProductCollectionDomainServiceServer),
+		Line:                 lineRepo.(linepb.LineDomainServiceServer),
+		ProductLine:          productLineRepo.(productlinepb.ProductLineDomainServiceServer),
 		ProductOption:        productOptionRepo.(productoptionpb.ProductOptionDomainServiceServer),
 		ProductOptionValue:   productOptionValueRepo.(productoptionvaluepb.ProductOptionValueDomainServiceServer),
 		ProductPlan:          productPlanRepo.(productplanpb.ProductPlanDomainServiceServer),

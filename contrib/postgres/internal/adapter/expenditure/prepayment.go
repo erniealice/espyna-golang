@@ -1,4 +1,3 @@
-
 package expenditure
 
 import (
@@ -10,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -82,6 +81,7 @@ func (r *PostgresPrepaymentRepository) CreatePrepayment(ctx context.Context, req
 		return nil, fmt.Errorf("failed to create prepayment: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -109,6 +109,7 @@ func (r *PostgresPrepaymentRepository) ReadPrepayment(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to read prepayment: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -152,6 +153,7 @@ func (r *PostgresPrepaymentRepository) UpdatePrepayment(ctx context.Context, req
 		return nil, fmt.Errorf("failed to update prepayment: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -197,6 +199,7 @@ func (r *PostgresPrepaymentRepository) ListPrepayments(ctx context.Context, req 
 
 	var prepayments []*prepaymentpb.Prepayment
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal prepayment row: %v", err)
@@ -268,9 +271,7 @@ func (r *PostgresPrepaymentRepository) GetPrepaymentListPageData(
 				p.total_amount,
 				p.remaining_amount,
 				p.start_date,
-				p.start_date_string,
 				p.end_date,
-				p.end_date_string,
 				p.amortization_months,
 				p.status,
 				p.account_id,
@@ -309,12 +310,10 @@ func (r *PostgresPrepaymentRepository) GetPrepaymentListPageData(
 			active             bool
 			description        string
 			vendorName         *string
-			totalAmount        float64
-			remainingAmount    float64
-			startDate          *int64
-			startDateString    *string
-			endDate            *int64
-			endDateString      *string
+			totalAmount        int64
+			remainingAmount    int64
+			startDate          *string
+			endDate            *string
 			amortizationMonths int32
 			statusStr          string
 			accountID          *string
@@ -332,9 +331,7 @@ func (r *PostgresPrepaymentRepository) GetPrepaymentListPageData(
 			&totalAmount,
 			&remainingAmount,
 			&startDate,
-			&startDateString,
 			&endDate,
-			&endDateString,
 			&amortizationMonths,
 			&statusStr,
 			&accountID,
@@ -357,18 +354,16 @@ func (r *PostgresPrepaymentRepository) GetPrepaymentListPageData(
 			AmortizationMonths: amortizationMonths,
 			AccountId:          accountID,
 			ExpenseAccountId:   expenseAccountID,
-			StartDateString:    startDateString,
-			EndDateString:      endDateString,
 		}
 
 		if val, ok := prepaymentpb.PrepaymentStatus_value[statusStr]; ok {
 			prepayment.Status = prepaymentpb.PrepaymentStatus(val)
 		}
 
-		if startDate != nil && *startDate > 0 {
+		if startDate != nil {
 			prepayment.StartDate = *startDate
 		}
-		if endDate != nil && *endDate > 0 {
+		if endDate != nil {
 			prepayment.EndDate = *endDate
 		}
 		if dateCreated > 0 {
@@ -424,6 +419,7 @@ func (r *PostgresPrepaymentRepository) GetPrepaymentItemPageData(
 		return nil, fmt.Errorf("failed to read prepayment '%s': %w", req.PrepaymentId, err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)

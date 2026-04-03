@@ -1,21 +1,20 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -303,20 +302,20 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			userId             string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
+			id           string
+			userId       string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
 			// User fields
-			userIdValue            *string
-			userFirstName          *string
-			userLastName           *string
-			userEmailAddress       *string
-			userDateCreated        time.Time
-			userDateModified       time.Time
-			userActive             *bool
-			total                  int64
+			userIdValue      *string
+			userFirstName    *string
+			userLastName     *string
+			userEmailAddress *string
+			userDateCreated  time.Time
+			userDateModified time.Time
+			userActive       *bool
+			total            int64
 		)
 
 		err := rows.Scan(
@@ -350,17 +349,17 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		staff.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		staff.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			staff.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			staff.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		staff.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		staff.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			staff.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			staff.DateModifiedString = &dmStr
+		}
 
 		// Populate user data if available
 		if userIdValue != nil {
@@ -381,17 +380,17 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 
 			// Parse user timestamps
 			if !userDateCreated.IsZero() {
-			ts := userDateCreated.UnixMilli()
-			user.DateCreated = &ts
-			udcStr := userDateCreated.Format(time.RFC3339)
-			user.DateCreatedString = &udcStr
-		}
+				ts := userDateCreated.UnixMilli()
+				user.DateCreated = &ts
+				udcStr := userDateCreated.Format(time.RFC3339)
+				user.DateCreatedString = &udcStr
+			}
 			if !userDateModified.IsZero() {
-			ts := userDateModified.UnixMilli()
-			user.DateModified = &ts
-			udmStr := userDateModified.Format(time.RFC3339)
-			user.DateModifiedString = &udmStr
-		}
+				ts := userDateModified.UnixMilli()
+				user.DateModified = &ts
+				udmStr := userDateModified.Format(time.RFC3339)
+				user.DateModifiedString = &udmStr
+			}
 
 			staff.User = user
 		}
@@ -465,19 +464,19 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.StaffId)
 
 	var (
-		id                 string
-		userId             string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		userId       string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 		// User fields
-		userIdValue            *string
-		userFirstName          *string
-		userLastName           *string
-		userEmailAddress       *string
-		userDateCreated        time.Time
-		userDateModified       time.Time
-		userActive             *bool
+		userIdValue      *string
+		userFirstName    *string
+		userLastName     *string
+		userEmailAddress *string
+		userDateCreated  time.Time
+		userDateModified time.Time
+		userActive       *bool
 	)
 
 	err := row.Scan(
@@ -562,7 +561,6 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 		Success: true,
 	}, nil
 }
-
 
 // NewStaffRepository creates a new PostgreSQL staff repository (old-style constructor)
 func NewStaffRepository(db *sql.DB, tableName string) staffpb.StaffDomainServiceServer {

@@ -357,7 +357,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryItemPageDa
 
 	return &pb.GetPhaseOutcomeSummaryItemPageDataResponse{
 		PhaseOutcomeSummary: summary,
-		Success:            true,
+		Success:             true,
 	}, nil
 }
 
@@ -397,7 +397,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 
 	return &pb.GetPhaseOutcomeSummaryByJobPhaseResponse{
 		PhaseOutcomeSummary: summary,
-		Success:            true,
+		Success:             true,
 	}, nil
 }
 
@@ -436,7 +436,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 
 	return &pb.ListPhaseOutcomeSummarysByJobResponse{
 		PhaseOutcomeSummarys: summaries,
-		Success:             true,
+		Success:              true,
 	}, nil
 }
 

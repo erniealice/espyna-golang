@@ -1,20 +1,19 @@
-
 package subscription
 
 import (
 	"context"
 	"database/sql"
-	"time"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresPricePlanRepository implements price_plan CRUD operations using PostgreSQL
@@ -255,7 +254,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 	var totalCount int64
 	for rows.Next() {
 		var id, planId, currency, name, description string
-		var amount float64
+		var amount int64
 		var active bool
 		var dateCreated, dateModified time.Time
 		var locationId sql.NullString
@@ -263,26 +262,27 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
-		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: float64(amount), Currency: currency, Active: active}
+		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: amount, Currency: currency, Active: active}
 		if locationId.Valid && locationId.String != "" {
 			pricePlan.LocationId = &locationId.String
 		}
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		pricePlan.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		pricePlan.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			pricePlan.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			pricePlan.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		pricePlan.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		pricePlan.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			pricePlan.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			pricePlan.DateModifiedString = &dmStr
+		}
 		pricePlans = append(pricePlans, pricePlan)
 	}
 	return &priceplanpb.GetPricePlanListPageDataResponse{PricePlanList: pricePlans, Success: true}, nil
 }
+
 // Note: Pagination removed - not available in current protobuf schema
 
 // GetPricePlanItemPageData retrieves price plan item page data
@@ -293,7 +293,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, location_id FROM price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
 	var id, planId, currency, name, description string
-	var amount float64
+	var amount int64
 	var active bool
 	var dateCreated, dateModified time.Time
 	var locationId sql.NullString
@@ -302,7 +302,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: float64(amount), Currency: currency, Active: active}
+	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: amount, Currency: currency, Active: active}
 	if locationId.Valid && locationId.String != "" {
 		pricePlan.LocationId = &locationId.String
 	}

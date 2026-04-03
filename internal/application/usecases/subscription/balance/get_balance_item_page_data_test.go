@@ -271,7 +271,7 @@ func TestGetBalanceItemPageDataUseCase_FinancialDataValidation(t *testing.T) {
 	// Test various financial data scenarios
 	testCases := []struct {
 		name             string
-		amount           float64
+		amount           int64
 		currency         string
 		balanceType      string
 		expectedError    bool
@@ -280,7 +280,7 @@ func TestGetBalanceItemPageDataUseCase_FinancialDataValidation(t *testing.T) {
 	}{
 		{
 			name:             "ValidPositiveCredit",
-			amount:           100.50,
+			amount:           10050,
 			currency:         "USD",
 			balanceType:      "credit",
 			expectedError:    false,
@@ -289,7 +289,7 @@ func TestGetBalanceItemPageDataUseCase_FinancialDataValidation(t *testing.T) {
 		},
 		{
 			name:             "ValidNegativeDebit",
-			amount:           -75.25,
+			amount:           -7525,
 			currency:         "EUR",
 			balanceType:      "debit",
 			expectedError:    false,
@@ -298,7 +298,7 @@ func TestGetBalanceItemPageDataUseCase_FinancialDataValidation(t *testing.T) {
 		},
 		{
 			name:             "ZeroAmount",
-			amount:           0.0,
+			amount:           0,
 			currency:         "GBP",
 			balanceType:      "credit",
 			expectedError:    false,
@@ -307,7 +307,7 @@ func TestGetBalanceItemPageDataUseCase_FinancialDataValidation(t *testing.T) {
 		},
 		{
 			name:             "EmptyCurrency",
-			amount:           50.0,
+			amount:           5000,
 			currency:         "",
 			balanceType:      "credit",
 			expectedError:    false,
@@ -316,7 +316,7 @@ func TestGetBalanceItemPageDataUseCase_FinancialDataValidation(t *testing.T) {
 		},
 		{
 			name:             "EmptyBalanceType",
-			amount:           -25.0,
+			amount:           -2500,
 			currency:         "USD",
 			balanceType:      "",
 			expectedError:    false,
@@ -325,7 +325,7 @@ func TestGetBalanceItemPageDataUseCase_FinancialDataValidation(t *testing.T) {
 		},
 		{
 			name:          "InvalidCurrency",
-			amount:        100.0,
+			amount:        10000,
 			currency:      "INVALID", // Too long
 			balanceType:   "credit",
 			expectedError: true,

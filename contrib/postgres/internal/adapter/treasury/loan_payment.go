@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -11,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -81,6 +80,7 @@ func (r *PostgresLoanPaymentRepository) CreateLoanPayment(ctx context.Context, r
 		return nil, fmt.Errorf("failed to create loan_payment: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -108,6 +108,7 @@ func (r *PostgresLoanPaymentRepository) ReadLoanPayment(ctx context.Context, req
 		return nil, fmt.Errorf("failed to read loan_payment: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -149,6 +150,7 @@ func (r *PostgresLoanPaymentRepository) UpdateLoanPayment(ctx context.Context, r
 		return nil, fmt.Errorf("failed to update loan_payment: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -194,6 +196,7 @@ func (r *PostgresLoanPaymentRepository) ListLoanPayments(ctx context.Context, re
 
 	var loanPayments []*loanpaymentpb.LoanPayment
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "payment_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal loan_payment row: %v", err)
@@ -296,12 +299,12 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 			dateCreated      time.Time
 			loanID           string
 			paymentNumber    string
-			paymentDate      *time.Time
-			principalAmount  float64
-			interestAmount   float64
-			feeAmount        float64
-			totalAmount      float64
-			remainingBalance float64
+			paymentDate      *string
+			principalAmount  int64
+			interestAmount   int64
+			feeAmount        int64
+			totalAmount      int64
+			remainingBalance int64
 			notes            *string
 			total            int64
 		)
@@ -340,8 +343,8 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 		if notes != nil {
 			loanPayment.Notes = notes
 		}
-		if paymentDate != nil && !paymentDate.IsZero() {
-			loanPayment.PaymentDate = paymentDate.UnixMilli()
+		if paymentDate != nil {
+			loanPayment.PaymentDate = *paymentDate
 		}
 
 		if !dateCreated.IsZero() {
@@ -418,12 +421,12 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentItemPageData(
 		dateCreated      time.Time
 		loanID           string
 		paymentNumber    string
-		paymentDate      *time.Time
-		principalAmount  float64
-		interestAmount   float64
-		feeAmount        float64
-		totalAmount      float64
-		remainingBalance float64
+		paymentDate      *string
+		principalAmount  int64
+		interestAmount   int64
+		feeAmount        int64
+		totalAmount      int64
+		remainingBalance int64
 		notes            *string
 	)
 
@@ -461,8 +464,8 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentItemPageData(
 	if notes != nil {
 		loanPayment.Notes = notes
 	}
-	if paymentDate != nil && !paymentDate.IsZero() {
-		loanPayment.PaymentDate = paymentDate.UnixMilli()
+	if paymentDate != nil {
+		loanPayment.PaymentDate = *paymentDate
 	}
 
 	if !dateCreated.IsZero() {

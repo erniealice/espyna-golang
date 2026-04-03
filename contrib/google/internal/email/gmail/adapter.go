@@ -1,4 +1,3 @@
-
 package gmail
 
 import (
@@ -17,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/api/gmail/v1"
-	"github.com/erniealice/espyna-golang/ports"
 	googleclient "github.com/erniealice/espyna-golang/contrib/google/internal/common/google"
+	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
+	"google.golang.org/api/gmail/v1"
 )
 
 // =============================================================================

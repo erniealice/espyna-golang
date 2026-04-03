@@ -288,14 +288,14 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 
 	for rows.Next() {
 		var (
-			id             string
-			dateCreated    time.Time
-			dateModified   time.Time
-			active         bool
-			jobTemplateID  string
-			name           string
-			phaseOrder     int32
-			total          int64
+			id            string
+			dateCreated   time.Time
+			dateModified  time.Time
+			active        bool
+			jobTemplateID string
+			name          string
+			phaseOrder    int32
+			total         int64
 		)
 
 		err := rows.Scan(
@@ -391,13 +391,13 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.JobTemplatePhaseId)
 
 	var (
-		id             string
-		dateCreated    time.Time
-		dateModified   time.Time
-		active         bool
-		jobTemplateID  string
-		name           string
-		phaseOrder     int32
+		id            string
+		dateCreated   time.Time
+		dateModified  time.Time
+		active        bool
+		jobTemplateID string
+		name          string
+		phaseOrder    int32
 	)
 
 	err := row.Scan(
@@ -475,13 +475,13 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 	var phases []*pb.JobTemplatePhase
 	for rows.Next() {
 		var (
-			id             string
-			dateCreated    time.Time
-			dateModified   time.Time
-			active         bool
-			jobTemplateID  string
-			name           string
-			phaseOrder     int32
+			id            string
+			dateCreated   time.Time
+			dateModified  time.Time
+			active        bool
+			jobTemplateID string
+			name          string
+			phaseOrder    int32
 		)
 
 		err := rows.Scan(

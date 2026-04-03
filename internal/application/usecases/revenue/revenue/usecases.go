@@ -22,12 +22,12 @@ type RevenueServices struct {
 
 // UseCases contains all revenue-related use cases
 type UseCases struct {
-	CreateRevenue            *CreateRevenueUseCase
-	ReadRevenue              *ReadRevenueUseCase
-	UpdateRevenue            *UpdateRevenueUseCase
-	DeleteRevenue            *DeleteRevenueUseCase
-	ListRevenues             *ListRevenuesUseCase
-	GetRevenueListPageData   *GetRevenueListPageDataUseCase
+	CreateRevenue          *CreateRevenueUseCase
+	ReadRevenue            *ReadRevenueUseCase
+	UpdateRevenue          *UpdateRevenueUseCase
+	DeleteRevenue          *DeleteRevenueUseCase
+	ListRevenues           *ListRevenuesUseCase
+	GetRevenueListPageData *GetRevenueListPageDataUseCase
 }
 
 // NewUseCases creates a new collection of revenue use cases

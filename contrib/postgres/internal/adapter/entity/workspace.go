@@ -1,20 +1,19 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -59,8 +58,9 @@ func (r *PostgresWorkspaceRepository) CreateWorkspace(ctx context.Context, req *
 		return nil, fmt.Errorf("workspace data is required")
 	}
 
-	// Convert protobuf to map using protojson
-	jsonData, err := protojson.Marshal(req.Data)
+	// Emit unpopulated fields so false booleans are preserved instead of
+	// disappearing from the JSON payload and becoming NULL on insert.
+	jsonData, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
 	}
@@ -126,8 +126,9 @@ func (r *PostgresWorkspaceRepository) UpdateWorkspace(ctx context.Context, req *
 		return nil, fmt.Errorf("workspace ID is required")
 	}
 
-	// Convert protobuf to map using protojson
-	jsonData, err := protojson.Marshal(req.Data)
+	// Emit unpopulated fields so false booleans are preserved instead of
+	// disappearing from the JSON payload and becoming NULL on update.
+	jsonData, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
 	}
@@ -467,7 +468,6 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 		Success:   true,
 	}, nil
 }
-
 
 // NewWorkspaceRepository creates a new PostgreSQL workspace repository (old-style constructor)
 func NewWorkspaceRepository(db *sql.DB, tableName string) workspacepb.WorkspaceDomainServiceServer {

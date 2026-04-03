@@ -1,4 +1,3 @@
-
 package product_variant
 
 import (
@@ -9,13 +8,13 @@ import (
 	"log"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -309,7 +308,7 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 			active        bool
 			productID     string
 			sku           string
-			priceOverride float64
+			priceOverride int64
 			productName   string
 			total         int64
 		)
@@ -428,9 +427,9 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 		active          bool
 		productID       string
 		sku             string
-		priceOverride   float64
+		priceOverride   int64
 		productName     string
-		productPrice    float64
+		productPrice    int64
 		productCurrency string
 	)
 

@@ -12,7 +12,9 @@ import (
 
 // ---- ListFulfillments ----
 
-type ListFulfillmentsRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type ListFulfillmentsRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type ListFulfillmentsServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService
@@ -24,7 +26,9 @@ type ListFulfillmentsUseCase struct {
 
 // ---- GetFulfillmentListPageData ----
 
-type GetFulfillmentListPageDataRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type GetFulfillmentListPageDataRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type GetFulfillmentListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService

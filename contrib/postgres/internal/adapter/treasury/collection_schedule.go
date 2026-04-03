@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -10,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -76,6 +75,7 @@ func (r *PostgresCollectionScheduleRepository) CreateCollectionSchedule(ctx cont
 		return nil, fmt.Errorf("failed to create collection schedule: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -103,6 +103,7 @@ func (r *PostgresCollectionScheduleRepository) ReadCollectionSchedule(ctx contex
 		return nil, fmt.Errorf("failed to read collection schedule: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -140,6 +141,7 @@ func (r *PostgresCollectionScheduleRepository) UpdateCollectionSchedule(ctx cont
 		return nil, fmt.Errorf("failed to update collection schedule: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -185,6 +187,7 @@ func (r *PostgresCollectionScheduleRepository) ListCollectionSchedules(ctx conte
 
 	var schedules []*collectionschedulepb.CollectionSchedule
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "due_date", "paid_date")
 		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			continue
@@ -459,11 +462,11 @@ func buildCollectionScheduleFromScan(
 		RevenueId: revenueID,
 		Sequence:  sequence,
 		Amount:    amount,
-		DueDate:   dueDate,
+		DueDate:   time.UnixMilli(dueDate).UTC().Format("2006-01-02"),
 		Status:    status,
 	}
 
-	cs.DueDateString = dueDateString
+	cs.DueDate = time.UnixMilli(dueDate).UTC().Format("2006-01-02")
 	cs.PaidAmount = paidAmount
 	cs.PaidDate = paidDate
 	cs.CollectionId = collectionID

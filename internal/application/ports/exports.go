@@ -310,14 +310,14 @@ const (
 	EntityWorkspaceUserRole = security.EntityWorkspaceUserRole
 
 	// Event Domain
-	EntityEvent            = security.EntityEvent
-	EntityEventAttendee    = security.EntityEventAttendee
-	EntityEventAttribute   = security.EntityEventAttribute
-	EntityEventClient      = security.EntityEventClient
-	EntityEventOccurrence  = security.EntityEventOccurrence
-	EntityEventProduct     = security.EntityEventProduct
-	EntityEventRecurrence  = security.EntityEventRecurrence
-	EntityEventResource    = security.EntityEventResource
+	EntityEvent           = security.EntityEvent
+	EntityEventAttendee   = security.EntityEventAttendee
+	EntityEventAttribute  = security.EntityEventAttribute
+	EntityEventClient     = security.EntityEventClient
+	EntityEventOccurrence = security.EntityEventOccurrence
+	EntityEventProduct    = security.EntityEventProduct
+	EntityEventRecurrence = security.EntityEventRecurrence
+	EntityEventResource   = security.EntityEventResource
 
 	// Framework Domain
 	EntityFramework = security.EntityFramework
@@ -348,7 +348,8 @@ const (
 	EntityPriceProduct         = security.EntityPriceProduct
 	EntityProduct              = security.EntityProduct
 	EntityProductAttribute     = security.EntityProductAttribute
-	EntityProductCollection    = security.EntityProductCollection
+	EntityLine                 = security.EntityLine
+	EntityProductLine          = security.EntityProductLine
 	EntityProductOption        = security.EntityProductOption
 	EntityProductOptionValue   = security.EntityProductOptionValue
 	EntityProductPlan          = security.EntityProductPlan

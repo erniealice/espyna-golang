@@ -1,4 +1,3 @@
-
 // Package gcp provides shared credential management for Google Cloud Platform services.
 //
 // This package consolidates common GCP credential handling logic that was previously

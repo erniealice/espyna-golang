@@ -10,9 +10,9 @@
 // register a "postgresql:<entityid>" factory.
 //
 // Adding a new PostgreSQL entity adapter:
-//   1. Create an adapter file in the appropriate subdomain directory.
-//   2. Add an init() that calls registry.RegisterRepositoryFactory("postgresql", entityid.X, factory).
-//   3. Blank-import the adapter package in the consumer binary so init() fires.
+//  1. Create an adapter file in the appropriate subdomain directory.
+//  2. Add an init() that calls registry.RegisterRepositoryFactory("postgresql", entityid.X, factory).
+//  3. Blank-import the adapter package in the consumer binary so init() fires.
 //
 // Table name resolution: buildPgTableConfig() iterates entityid.All, checking
 // POSTGRES_TABLE_{ENTITY} env vars for overrides, and stores them in TableConfig.
@@ -31,13 +31,13 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
+	_ "github.com/lib/pq"
 )
 
 // =============================================================================

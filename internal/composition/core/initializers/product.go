@@ -18,14 +18,12 @@ func InitializeProduct(
 	// Use the domain's constructor which properly handles all use case creation
 	return product.NewUseCases(
 		product.ProductRepositories{
-			Collection:           repos.Collection,
-			CollectionAttribute:  repos.CollectionAttribute,
-			CollectionPlan:       repos.CollectionPlan,
 			PriceList:            repos.PriceList,
 			PriceProduct:         repos.PriceProduct,
 			Product:              repos.Product,
 			ProductAttribute:     repos.ProductAttribute,
-			ProductCollection:    repos.ProductCollection,
+			Line:                 repos.Line,
+			ProductLine:          repos.ProductLine,
 			ProductOption:        repos.ProductOption,
 			ProductOptionValue:   repos.ProductOptionValue,
 			ProductPlan:          repos.ProductPlan,

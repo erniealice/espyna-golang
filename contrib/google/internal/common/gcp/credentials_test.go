@@ -1,4 +1,3 @@
-
 package gcp
 
 import (

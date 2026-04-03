@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -10,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -298,7 +297,7 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 			voucherNumber string
 			payee         *string
 			description   string
-			totalAmount   float64
+			totalAmount   int64
 			status        *string
 			approvedBy    *string
 			approvedAt    *int64
@@ -419,7 +418,7 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherItemPageData(
 		voucherNumber string
 		payee         *string
 		description   string
-		totalAmount   float64
+		totalAmount   int64
 		status        *string
 		approvedBy    *string
 		approvedAt    *int64

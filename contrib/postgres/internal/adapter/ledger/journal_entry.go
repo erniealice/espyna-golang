@@ -1,4 +1,3 @@
-
 package ledger
 
 import (
@@ -10,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -338,8 +337,8 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 			sourceType      string
 			sourceID        *string
 			fiscalPeriodID  *string
-			totalDebit      float64
-			totalCredit     float64
+			totalDebit      int64
+			totalCredit     int64
 			postedBy        *string
 			postedAt        *time.Time
 			reversedBy      *string
@@ -586,8 +585,9 @@ func (r *PostgresJournalEntryRepository) ReverseJournalEntry(ctx context.Context
 // so the DB stores short names consistent with seeded data.
 //
 // protojson serializes enum values with their full proto names, e.g.:
-//   "JOURNAL_ENTRY_STATUS_DRAFT"  → stored as "DRAFT"
-//   "JOURNAL_SOURCE_TYPE_MANUAL"  → stored as "MANUAL"
+//
+//	"JOURNAL_ENTRY_STATUS_DRAFT"  → stored as "DRAFT"
+//	"JOURNAL_SOURCE_TYPE_MANUAL"  → stored as "MANUAL"
 //
 // The data map uses camelCase keys (before normalizeKeys is called inside dbOps.Create).
 func normalizeJournalEntryEnums(data map[string]any) {

@@ -1,4 +1,3 @@
-
 package expenditure
 
 import (
@@ -11,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -83,6 +82,7 @@ func (r *PostgresExpenditureRepository) CreateExpenditure(ctx context.Context, r
 		return nil, fmt.Errorf("failed to create expenditure: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "expenditure_date", "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -110,6 +110,7 @@ func (r *PostgresExpenditureRepository) ReadExpenditure(ctx context.Context, req
 		return nil, fmt.Errorf("failed to read expenditure: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "expenditure_date", "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -153,6 +154,7 @@ func (r *PostgresExpenditureRepository) UpdateExpenditure(ctx context.Context, r
 		return nil, fmt.Errorf("failed to update expenditure: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "expenditure_date", "due_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -198,6 +200,7 @@ func (r *PostgresExpenditureRepository) ListExpenditures(ctx context.Context, re
 
 	var expenditures []*expenditurepb.Expenditure
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "expenditure_date", "due_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal expenditure row: %v", err)
@@ -322,7 +325,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			vendorID              *string
 			expenditureDate       *time.Time
 			expenditureDateString *string
-			totalAmount           float64
+			totalAmount           int64
 			currency              *string
 			status                *string
 			referenceNumber       *string
@@ -330,7 +333,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			expenditureCategoryID *string
 			locationID            *string
 			paymentTerms          *string
-			dueDate               *time.Time
+			dueDate               *string
 			approvedBy            *string
 			vendorName            string
 			locationName          string
@@ -401,9 +404,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			ts := expenditureDate.UnixMilli()
 			expenditure.ExpenditureDate = &ts
 		}
-		if dueDate != nil && !dueDate.IsZero() {
-			ts := dueDate.UnixMilli()
-			expenditure.DueDate = &ts
+		if dueDate != nil {
+			expenditure.DueDate = dueDate
 		}
 
 		if !dateCreated.IsZero() {
@@ -503,7 +505,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		vendorID              *string
 		expenditureDate       *time.Time
 		expenditureDateString *string
-		totalAmount           float64
+		totalAmount           int64
 		currency              *string
 		status                *string
 		referenceNumber       *string
@@ -511,7 +513,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		expenditureCategoryID *string
 		locationID            *string
 		paymentTerms          *string
-		dueDate               *time.Time
+		dueDate               *string
 		approvedBy            *string
 		vendorName            string
 		locationName          string
@@ -581,9 +583,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		ts := expenditureDate.UnixMilli()
 		expenditure.ExpenditureDate = &ts
 	}
-	if dueDate != nil && !dueDate.IsZero() {
-		ts := dueDate.UnixMilli()
-		expenditure.DueDate = &ts
+	if dueDate != nil {
+		expenditure.DueDate = dueDate
 	}
 
 	if !dateCreated.IsZero() {

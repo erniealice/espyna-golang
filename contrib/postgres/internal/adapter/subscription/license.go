@@ -1,4 +1,3 @@
-
 package subscription
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresLicenseRepository implements license CRUD operations using PostgreSQL
@@ -861,15 +860,15 @@ func (r *PostgresLicenseRepository) CreateLicensesFromPlan(ctx context.Context, 
 		licenseKey := fmt.Sprintf("LIC-%s-%04d", subscriptionPrefix, seqNum)
 
 		data := map[string]any{
-			"subscription_id":      req.SubscriptionId,
-			"plan_id":              req.PlanId,
-			"license_key":          licenseKey,
-			"license_type":         int32(licenseType),
-			"status":               int32(licensepb.LicenseStatus_LICENSE_STATUS_PENDING),
-			"sequence_number":      seqNum,
-			"date_created":         now.UnixMilli(),
-			"date_modified":        now.UnixMilli(),
-			"active":               true,
+			"subscription_id": req.SubscriptionId,
+			"plan_id":         req.PlanId,
+			"license_key":     licenseKey,
+			"license_type":    int32(licenseType),
+			"status":          int32(licensepb.LicenseStatus_LICENSE_STATUS_PENDING),
+			"sequence_number": seqNum,
+			"date_created":    now.UnixMilli(),
+			"date_modified":   now.UnixMilli(),
+			"active":          true,
 		}
 
 		// Create document

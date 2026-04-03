@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/erniealice/espyna-golang/ports"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/erniealice/espyna-golang/ports"
 )
 
 // PostgresMigrationService implements the MigrationService interface for PostgreSQL

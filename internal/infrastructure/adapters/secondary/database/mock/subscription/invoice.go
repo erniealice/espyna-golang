@@ -346,7 +346,7 @@ func (r *MockInvoiceRepository) mapToProtobufInvoice(rawInvoice map[string]any) 
 
 	// Map optional fields - add basic field mapping as needed
 	if amount, ok := rawInvoice["amount"].(float64); ok {
-		invoice.Amount = amount
+		invoice.Amount = int64(amount)
 	}
 
 	// Note: Description field may not exist in the protobuf definition

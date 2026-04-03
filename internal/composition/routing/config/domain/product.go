@@ -3,13 +3,10 @@ package domain
 import (
 	"fmt"
 
-	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
-	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
-	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
-	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
+	productlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_line"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 
@@ -34,142 +31,6 @@ func ConfigureProductDomain(productUseCases *productuc.ProductUseCases) contract
 
 	// Initialize routes array
 	routes := []contracts.RouteConfiguration{}
-
-	// Collection module routes
-	if productUseCases.Collection != nil {
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection/create",
-			Handler: contracts.NewGenericHandler(productUseCases.Collection.CreateCollection, &collectionpb.CreateCollectionRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection/read",
-			Handler: contracts.NewGenericHandler(productUseCases.Collection.ReadCollection, &collectionpb.ReadCollectionRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection/update",
-			Handler: contracts.NewGenericHandler(productUseCases.Collection.UpdateCollection, &collectionpb.UpdateCollectionRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection/delete",
-			Handler: contracts.NewGenericHandler(productUseCases.Collection.DeleteCollection, &collectionpb.DeleteCollectionRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection/list",
-			Handler: contracts.NewGenericHandler(productUseCases.Collection.ListCollections, &collectionpb.ListCollectionsRequest{}),
-		})
-
-		// Note: Collection page data methods are not implemented yet - commented out for now
-		// routes = append(routes, contracts.RouteConfiguration{
-		// 	Method:  "POST",
-		// 	Path:    "/api/product/collection/get-list-page-data",
-		// 	Handler: contracts.NewGenericHandler(productUseCases.Collection.GetListPageData, &collectionpb.GetListPageDataRequest{}),
-		// })
-
-		// routes = append(routes, contracts.RouteConfiguration{
-		// 	Method:  "POST",
-		// 	Path:    "/api/product/collection/get-item-page-data",
-		// 	Handler: contracts.NewGenericHandler(productUseCases.Collection.GetItemPageData, &collectionpb.GetItemPageDataRequest{}),
-		// })
-	}
-
-	// Collection Attribute module routes
-	if productUseCases.CollectionAttribute != nil {
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-attribute/create",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionAttribute.CreateCollectionAttribute, &collectionattributepb.CreateCollectionAttributeRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-attribute/read",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionAttribute.ReadCollectionAttribute, &collectionattributepb.ReadCollectionAttributeRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-attribute/update",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionAttribute.UpdateCollectionAttribute, &collectionattributepb.UpdateCollectionAttributeRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-attribute/delete",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionAttribute.DeleteCollectionAttribute, &collectionattributepb.DeleteCollectionAttributeRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-attribute/list",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionAttribute.ListCollectionAttributes, &collectionattributepb.ListCollectionAttributesRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-attribute/get-list-page-data",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionAttribute.GetCollectionAttributeListPageData, &collectionattributepb.GetCollectionAttributeListPageDataRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-attribute/get-item-page-data",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionAttribute.GetCollectionAttributeItemPageData, &collectionattributepb.GetCollectionAttributeItemPageDataRequest{}),
-		})
-	}
-
-	// Collection Plan module routes
-	if productUseCases.CollectionPlan != nil {
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-plan/create",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionPlan.CreateCollectionPlan, &collectionplanpb.CreateCollectionPlanRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-plan/read",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionPlan.ReadCollectionPlan, &collectionplanpb.ReadCollectionPlanRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-plan/update",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionPlan.UpdateCollectionPlan, &collectionplanpb.UpdateCollectionPlanRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-plan/delete",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionPlan.DeleteCollectionPlan, &collectionplanpb.DeleteCollectionPlanRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-plan/list",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionPlan.ListCollectionPlans, &collectionplanpb.ListCollectionPlansRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-plan/get-list-page-data",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionPlan.GetCollectionPlanListPageData, &collectionplanpb.GetCollectionPlanListPageDataRequest{}),
-		})
-
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/product/collection-plan/get-item-page-data",
-			Handler: contracts.NewGenericHandler(productUseCases.CollectionPlan.GetCollectionPlanItemPageData, &collectionplanpb.GetCollectionPlanItemPageDataRequest{}),
-		})
-	}
 
 	// Price Product module routes
 	if productUseCases.PriceProduct != nil {
@@ -307,48 +168,48 @@ func ConfigureProductDomain(productUseCases *productuc.ProductUseCases) contract
 		})
 	}
 
-	// Product Collection module routes
-	if productUseCases.ProductCollection != nil {
+	// Product Line module routes
+	if productUseCases.ProductLine != nil {
 		routes = append(routes, contracts.RouteConfiguration{
 			Method:  "POST",
-			Path:    "/api/product/product-collection/create",
-			Handler: contracts.NewGenericHandler(productUseCases.ProductCollection.CreateProductCollection, &productcollectionpb.CreateProductCollectionRequest{}),
+			Path:    "/api/product/product-line/create",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductLine.CreateProductLine, &productlinepb.CreateProductLineRequest{}),
 		})
 
 		routes = append(routes, contracts.RouteConfiguration{
 			Method:  "POST",
-			Path:    "/api/product/product-collection/read",
-			Handler: contracts.NewGenericHandler(productUseCases.ProductCollection.ReadProductCollection, &productcollectionpb.ReadProductCollectionRequest{}),
+			Path:    "/api/product/product-line/read",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductLine.ReadProductLine, &productlinepb.ReadProductLineRequest{}),
 		})
 
 		routes = append(routes, contracts.RouteConfiguration{
 			Method:  "POST",
-			Path:    "/api/product/product-collection/update",
-			Handler: contracts.NewGenericHandler(productUseCases.ProductCollection.UpdateProductCollection, &productcollectionpb.UpdateProductCollectionRequest{}),
+			Path:    "/api/product/product-line/update",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductLine.UpdateProductLine, &productlinepb.UpdateProductLineRequest{}),
 		})
 
 		routes = append(routes, contracts.RouteConfiguration{
 			Method:  "POST",
-			Path:    "/api/product/product-collection/delete",
-			Handler: contracts.NewGenericHandler(productUseCases.ProductCollection.DeleteProductCollection, &productcollectionpb.DeleteProductCollectionRequest{}),
+			Path:    "/api/product/product-line/delete",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductLine.DeleteProductLine, &productlinepb.DeleteProductLineRequest{}),
 		})
 
 		routes = append(routes, contracts.RouteConfiguration{
 			Method:  "POST",
-			Path:    "/api/product/product-collection/list",
-			Handler: contracts.NewGenericHandler(productUseCases.ProductCollection.ListProductCollections, &productcollectionpb.ListProductCollectionsRequest{}),
+			Path:    "/api/product/product-line/list",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductLine.ListProductLines, &productlinepb.ListProductLinesRequest{}),
 		})
 
 		routes = append(routes, contracts.RouteConfiguration{
 			Method:  "POST",
-			Path:    "/api/product/product-collection/get-list-page-data",
-			Handler: contracts.NewGenericHandler(productUseCases.ProductCollection.GetProductCollectionListPageData, &productcollectionpb.GetProductCollectionListPageDataRequest{}),
+			Path:    "/api/product/product-line/get-list-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductLine.GetProductLineListPageData, &productlinepb.GetProductLineListPageDataRequest{}),
 		})
 
 		routes = append(routes, contracts.RouteConfiguration{
 			Method:  "POST",
-			Path:    "/api/product/product-collection/get-item-page-data",
-			Handler: contracts.NewGenericHandler(productUseCases.ProductCollection.GetProductCollectionItemPageData, &productcollectionpb.GetProductCollectionItemPageDataRequest{}),
+			Path:    "/api/product/product-line/get-item-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductLine.GetProductLineItemPageData, &productlinepb.GetProductLineItemPageDataRequest{}),
 		})
 	}
 

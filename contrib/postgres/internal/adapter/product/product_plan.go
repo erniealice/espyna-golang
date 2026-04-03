@@ -1,4 +1,3 @@
-
 package product
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -279,7 +278,7 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		var id, name, productId, currency string
 		var description *string
 		var planId *string
-		var price float64
+		var price int64
 		var active bool
 		var dateCreated, dateModified time.Time
 		var total int64
@@ -322,7 +321,7 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	var id, name, productId, currency string
 	var description *string
 	var planId *string
-	var price float64
+	var price int64
 	var active bool
 	var dateCreated, dateModified time.Time
 	if err := row.Scan(&id, &name, &description, &price, &currency, &productId, &planId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {

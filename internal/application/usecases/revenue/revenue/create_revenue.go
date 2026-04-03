@@ -96,19 +96,25 @@ func (uc *CreateRevenueUseCase) executeCore(ctx context.Context, req *revenuepb.
 		})
 		if err == nil && len(ptResp.Data) > 0 {
 			pt := ptResp.Data[0]
-			baseDate := req.Data.GetRevenueDate()
-			ptType := strings.ToLower(pt.Type)
-			var dueDate int64
-			switch ptType {
-			case "net":
-				dueDate = baseDate + int64(pt.NetDays)*86400000
-			case "due_on_receipt", "cod":
-				dueDate = baseDate
-			}
-			if dueDate > 0 {
-				dueDateStr := time.UnixMilli(dueDate).UTC().Format("2006-01-02")
-				req.Data.DueDate = &dueDate
-				req.Data.DueDateString = &dueDateStr
+			baseDateStr := req.Data.GetRevenueDate()
+			baseDate, parseErr := time.Parse("2006-01-02", baseDateStr)
+			if parseErr == nil {
+				ptType := strings.ToLower(pt.Type)
+				var dueDateStr string
+				switch ptType {
+				case "net":
+					dueDateStr = baseDate.AddDate(0, 0, int(pt.NetDays)).Format("2006-01-02")
+				case "due_on_receipt", "cod":
+					dueDateStr = baseDateStr
+				case "proximate":
+					if day := int(pt.GetProximateDay()); day >= 1 && day <= 28 {
+						next := time.Date(baseDate.Year(), baseDate.Month()+1, day, 0, 0, 0, 0, time.UTC)
+						dueDateStr = next.Format("2006-01-02")
+					}
+				}
+				if dueDateStr != "" {
+					req.Data.DueDate = &dueDateStr
+				}
 			}
 		}
 	}

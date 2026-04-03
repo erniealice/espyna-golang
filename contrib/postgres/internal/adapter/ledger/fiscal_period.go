@@ -1,4 +1,3 @@
-
 package ledger
 
 import (
@@ -7,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	fiscalperiodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/fiscal_period"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -81,6 +80,7 @@ func (r *PostgresFiscalPeriodRepository) CreateFiscalPeriod(ctx context.Context,
 		return nil, fmt.Errorf("failed to create fiscal_period: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -107,6 +107,7 @@ func (r *PostgresFiscalPeriodRepository) ReadFiscalPeriod(ctx context.Context, r
 		return nil, fmt.Errorf("failed to read fiscal_period: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -143,6 +144,7 @@ func (r *PostgresFiscalPeriodRepository) UpdateFiscalPeriod(ctx context.Context,
 		return nil, fmt.Errorf("failed to update fiscal_period: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -187,6 +189,7 @@ func (r *PostgresFiscalPeriodRepository) ListFiscalPeriods(ctx context.Context, 
 
 	var fiscalPeriods []*fiscalperiodpb.FiscalPeriod
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			continue

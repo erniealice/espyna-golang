@@ -113,7 +113,9 @@ func NewUseCases(
 
 // ---- CreateJobPhase ----
 
-type CreateJobPhaseRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type CreateJobPhaseRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type CreateJobPhaseServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -173,7 +175,9 @@ func (uc *CreateJobPhaseUseCase) Execute(ctx context.Context, req *pb.CreateJobP
 
 // ---- ReadJobPhase ----
 
-type ReadJobPhaseRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type ReadJobPhaseRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type ReadJobPhaseServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -200,7 +204,9 @@ func (uc *ReadJobPhaseUseCase) Execute(ctx context.Context, req *pb.ReadJobPhase
 
 // ---- UpdateJobPhase ----
 
-type UpdateJobPhaseRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type UpdateJobPhaseRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type UpdateJobPhaseServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -236,7 +242,9 @@ func (uc *UpdateJobPhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobP
 
 // ---- DeleteJobPhase ----
 
-type DeleteJobPhaseRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type DeleteJobPhaseRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type DeleteJobPhaseServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -263,7 +271,9 @@ func (uc *DeleteJobPhaseUseCase) Execute(ctx context.Context, req *pb.DeleteJobP
 
 // ---- ListJobPhases ----
 
-type ListJobPhasesRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type ListJobPhasesRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type ListJobPhasesServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -290,7 +300,9 @@ func (uc *ListJobPhasesUseCase) Execute(ctx context.Context, req *pb.ListJobPhas
 
 // ---- GetJobPhaseListPageData ----
 
-type GetJobPhaseListPageDataRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type GetJobPhaseListPageDataRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type GetJobPhaseListPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -313,7 +325,9 @@ func (uc *GetJobPhaseListPageDataUseCase) Execute(ctx context.Context, req *pb.G
 
 // ---- GetJobPhaseItemPageData ----
 
-type GetJobPhaseItemPageDataRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type GetJobPhaseItemPageDataRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type GetJobPhaseItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService
@@ -336,7 +350,9 @@ func (uc *GetJobPhaseItemPageDataUseCase) Execute(ctx context.Context, req *pb.G
 
 // ---- ListByJob (extra RPC) ----
 
-type ListByJobRepositories struct{ JobPhase pb.JobPhaseDomainServiceServer }
+type ListByJobRepositories struct {
+	JobPhase pb.JobPhaseDomainServiceServer
+}
 type ListByJobServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService

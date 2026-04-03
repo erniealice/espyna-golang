@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"reflect"
 
-	"github.com/erniealice/espyna-golang/registry"
 	ledgeradapter "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/ledger"
+	"github.com/erniealice/espyna-golang/registry"
 )
 
 func init() {

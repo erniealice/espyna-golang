@@ -1,4 +1,3 @@
-
 package inventory_item
 
 import (
@@ -9,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventoryitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_item"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -497,7 +496,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 		productVariantID  *string
 		notes             *string
 		productName       string
-		productPrice      float64
+		productPrice      int64
 	)
 
 	err := row.Scan(

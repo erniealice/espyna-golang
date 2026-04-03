@@ -13,7 +13,9 @@ import (
 
 // ---- UpdateFulfillment ----
 
-type UpdateFulfillmentRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type UpdateFulfillmentRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type UpdateFulfillmentServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService

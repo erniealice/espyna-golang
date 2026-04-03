@@ -1,4 +1,3 @@
-
 package revenue_line_item
 
 import (
@@ -11,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -258,6 +257,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				rli.line_item_type,
 				rli.inventory_item_id,
 				rli.inventory_serial_id,
+				rli.product_price_plan_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
 			FROM revenue_line_item rli
@@ -291,23 +291,24 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 
 	for rows.Next() {
 		var (
-			id               string
-			dateCreated      time.Time
-			dateModified     time.Time
-			active           bool
-			revenueID        string
-			productID        *string
-			description      string
-			quantity         float64
-			unitPrice        float64
-			totalPrice       float64
-			notes            *string
-			lineItemType     *string
-			inventoryItemID  *string
-			inventorySerialID *string
-			revenueName      string
-			productName      string
-			total            int64
+			id                 string
+			dateCreated        time.Time
+			dateModified       time.Time
+			active             bool
+			revenueID          string
+			productID          *string
+			description        string
+			quantity           float64
+			unitPrice          int64
+			totalPrice         int64
+			notes              *string
+			lineItemType       *string
+			inventoryItemID    *string
+			inventorySerialID  *string
+			productPricePlanID *string
+			revenueName        string
+			productName        string
+			total              int64
 		)
 
 		err := rows.Scan(
@@ -325,6 +326,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 			&lineItemType,
 			&inventoryItemID,
 			&inventorySerialID,
+			&productPricePlanID,
 			&revenueName,
 			&productName,
 			&total,
@@ -356,6 +358,8 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		if inventorySerialID != nil {
 			lineItem.InventorySerialId = *inventorySerialID
 		}
+		// ProductPricePlanId removed from proto schema
+		_ = productPricePlanID
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -427,6 +431,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 				rli.line_item_type,
 				rli.inventory_item_id,
 				rli.inventory_serial_id,
+				rli.product_price_plan_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
 			FROM revenue_line_item rli
@@ -440,22 +445,23 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.RevenueLineItemId)
 
 	var (
-		id               string
-		dateCreated      time.Time
-		dateModified     time.Time
-		active           bool
-		revenueID        string
-		productID        *string
-		description      string
-		quantity         float64
-		unitPrice        float64
-		totalPrice       float64
-		notes            *string
-		lineItemType     *string
-		inventoryItemID  *string
-		inventorySerialID *string
-		revenueName      string
-		productName      string
+		id                 string
+		dateCreated        time.Time
+		dateModified       time.Time
+		active             bool
+		revenueID          string
+		productID          *string
+		description        string
+		quantity           float64
+		unitPrice          int64
+		totalPrice         int64
+		notes              *string
+		lineItemType       *string
+		inventoryItemID    *string
+		inventorySerialID  *string
+		productPricePlanID *string
+		revenueName        string
+		productName        string
 	)
 
 	err := row.Scan(
@@ -473,6 +479,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 		&lineItemType,
 		&inventoryItemID,
 		&inventorySerialID,
+		&productPricePlanID,
 		&revenueName,
 		&productName,
 	)
@@ -504,6 +511,8 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 	if inventorySerialID != nil {
 		lineItem.InventorySerialId = *inventorySerialID
 	}
+	// ProductPricePlanId removed from proto schema
+	_ = productPricePlanID
 
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

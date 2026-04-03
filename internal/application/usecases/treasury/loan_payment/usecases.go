@@ -20,8 +20,8 @@ type LoanPaymentServices struct {
 
 // UseCases contains all loan payment-related use cases.
 type UseCases struct {
-	CreateLoanPayment  *CreateLoanPaymentUseCase
-	ListLoanPayments   *ListLoanPaymentsUseCase
+	CreateLoanPayment *CreateLoanPaymentUseCase
+	ListLoanPayments  *ListLoanPaymentsUseCase
 }
 
 // NewUseCases creates a new collection of loan payment use cases.

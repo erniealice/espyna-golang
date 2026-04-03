@@ -1,4 +1,3 @@
-
 package product
 
 import (
@@ -8,14 +7,14 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -243,28 +242,27 @@ func (r *PostgresPriceListRepository) GetPriceListListPageData(
 	var totalCount int64
 	for rows.Next() {
 		var id, name string
-		var description, locationId sql.NullString
+		var description, locationId, dateStart, dateEnd sql.NullString
 		var active bool
-		var dateStart int64
-		var dateEnd sql.NullInt64
 		var dateCreated, dateModified time.Time
 		var total int64
 		if err := rows.Scan(&id, &name, &description, &active, &dateStart, &dateEnd, &locationId, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
-		priceList := &pricelistpb.PriceList{Id: id, Name: name, Active: active, DateStart: dateStart}
+		priceList := &pricelistpb.PriceList{Id: id, Name: name, Active: active}
 		if description.Valid {
 			priceList.Description = &description.String
+		}
+		if dateStart.Valid {
+			priceList.DateStart = dateStart.String
 		}
 		if locationId.Valid {
 			priceList.LocationId = &locationId.String
 		}
 		if dateEnd.Valid {
-			priceList.DateEnd = &dateEnd.Int64
+			priceList.DateEnd = &dateEnd.String
 		}
-		dsStr := time.Unix(dateStart/1000, 0).Format(time.RFC3339)
-		priceList.DateStartString = dsStr
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
 			priceList.DateCreated = &ts
@@ -293,28 +291,27 @@ func (r *PostgresPriceListRepository) GetPriceListItemPageData(ctx context.Conte
 	query := `SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified FROM price_list WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PriceListId)
 	var id, name string
-	var description, locationId sql.NullString
+	var description, locationId, dateStart, dateEnd sql.NullString
 	var active bool
-	var dateStart int64
-	var dateEnd sql.NullInt64
 	var dateCreated, dateModified time.Time
 	if err := row.Scan(&id, &name, &description, &active, &dateStart, &dateEnd, &locationId, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price list not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	priceList := &pricelistpb.PriceList{Id: id, Name: name, Active: active, DateStart: dateStart}
+	priceList := &pricelistpb.PriceList{Id: id, Name: name, Active: active}
 	if description.Valid {
 		priceList.Description = &description.String
+	}
+	if dateStart.Valid {
+		priceList.DateStart = dateStart.String
 	}
 	if locationId.Valid {
 		priceList.LocationId = &locationId.String
 	}
 	if dateEnd.Valid {
-		priceList.DateEnd = &dateEnd.Int64
+		priceList.DateEnd = &dateEnd.String
 	}
-	dsStr := time.Unix(dateStart/1000, 0).Format(time.RFC3339)
-	priceList.DateStartString = dsStr
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		priceList.DateCreated = &ts

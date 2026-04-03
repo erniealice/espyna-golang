@@ -333,7 +333,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			status            string
 			providerStatus    string
 			providerReference string
-			deliveryCost      float64
+			deliveryCost      int64
 			currency          string
 			expenditureID     sql.NullString
 			scheduledAt       sql.NullTime
@@ -489,7 +489,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 		status            string
 		providerStatus    string
 		providerReference string
-		deliveryCost      float64
+		deliveryCost      int64
 		currency          string
 		expenditureID     sql.NullString
 		supplierName      string

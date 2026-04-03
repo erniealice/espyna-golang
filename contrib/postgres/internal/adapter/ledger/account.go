@@ -1,4 +1,3 @@
-
 package ledger
 
 import (
@@ -9,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -432,17 +431,17 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 		totalCount = total
 
 		account := &accountpb.Account{
-			Id:              id,
-			Code:            code,
-			Name:            name,
-			Element:         parseAccountElement(element),
-			Classification:  parseAccountClassification(classification),
+			Id:               id,
+			Code:             code,
+			Name:             name,
+			Element:          parseAccountElement(element),
+			Classification:   parseAccountClassification(classification),
 			CashFlowActivity: parseCashFlowActivity(cashFlowActivity),
-			NormalBalance:   parseNormalBalance(normalBalance),
-			IsSystemAccount: isSystemAccount,
-			IsContra:        isContra,
-			Status:          parseAccountStatus(status),
-			Active:          active,
+			NormalBalance:    parseNormalBalance(normalBalance),
+			IsSystemAccount:  isSystemAccount,
+			IsContra:         isContra,
+			Status:           parseAccountStatus(status),
+			Active:           active,
 		}
 
 		if description != nil {

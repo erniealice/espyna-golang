@@ -1,4 +1,3 @@
-
 package integrations
 
 import (
@@ -8,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
+	"github.com/google/uuid"
 )
 
 func init() {

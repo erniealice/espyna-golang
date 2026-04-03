@@ -1,4 +1,3 @@
-
 package ledger
 
 import (
@@ -207,7 +206,7 @@ func computeSummary(items []*reportpb.GrossProfitLineItem, req *reportpb.GrossPr
 		s.TotalTransactions += item.TransactionCount
 	}
 	if s.NetRevenue > 0 {
-		s.OverallMargin = (s.TotalGrossProfit / s.NetRevenue) * 100
+		s.OverallMargin = float64(s.TotalGrossProfit) / float64(s.NetRevenue) * 100
 	}
 	if req.StartDate != nil {
 		sd := req.GetStartDate()

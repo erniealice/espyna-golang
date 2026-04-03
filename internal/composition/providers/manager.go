@@ -2,21 +2,23 @@
 // domain composition.
 //
 // On creation (NewManager), Manager:
-//   1. Initializes core providers from env vars via the provider registry
-//      (database, auth, storage, ID).
-//   2. Builds a TableConfig from the active database provider's registered
-//      TableConfigBuilder (env var -> registry.BuildDatabaseTableConfig(name) ->
-//      TableConfig with env-var overrides).
+//  1. Initializes core providers from env vars via the provider registry
+//     (database, auth, storage, ID).
+//  2. Builds a TableConfig from the active database provider's registered
+//     TableConfigBuilder (env var -> registry.BuildDatabaseTableConfig(name) ->
+//     TableConfig with env-var overrides).
 //
 // Manager stores: database, auth, storage, server, ID providers and the resolved
 // TableConfig. GetDBTableConfig() returns the TableConfig used by all domain
 // providers for table name resolution.
 //
 // Provider initialization chain:
-//   env var -> registry.BuildFromEnv(providerName) -> provider instance
+//
+//	env var -> registry.BuildFromEnv(providerName) -> provider instance
 //
 // Table config chain:
-//   provider name -> registry.BuildDatabaseTableConfig(providerName) -> TableConfig
+//
+//	provider name -> registry.BuildDatabaseTableConfig(providerName) -> TableConfig
 package providers
 
 import (

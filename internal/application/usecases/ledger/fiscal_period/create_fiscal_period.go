@@ -123,10 +123,10 @@ func (uc *CreateFiscalPeriodUseCase) validateInput(ctx context.Context, req *fis
 	}
 
 	// Dates are required
-	if req.Data.StartDate == 0 {
+	if req.Data.StartDate == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.start_date_required", "[ERR-DEFAULT] Start date is required"))
 	}
-	if req.Data.EndDate == 0 {
+	if req.Data.EndDate == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.end_date_required", "[ERR-DEFAULT] End date is required"))
 	}
 

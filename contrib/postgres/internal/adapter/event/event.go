@@ -1,21 +1,20 @@
-
 package event
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/operations"
-	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresEventRepository implements event CRUD operations using PostgreSQL
@@ -79,6 +78,7 @@ func (r *PostgresEventRepository) CreateEvent(ctx context.Context, req *eventpb.
 	}
 
 	// Convert result back to protobuf using protojson
+	postgresCore.ConvertMillisToDateStr(result, "start_date_time_utc", "end_date_time_utc")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -107,6 +107,7 @@ func (r *PostgresEventRepository) ReadEvent(ctx context.Context, req *eventpb.Re
 	}
 
 	// Convert result to protobuf using protojson
+	postgresCore.ConvertMillisToDateStr(result, "start_date_time_utc", "end_date_time_utc")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -146,6 +147,7 @@ func (r *PostgresEventRepository) UpdateEvent(ctx context.Context, req *eventpb.
 	}
 
 	// Convert result back to protobuf using protojson
+	postgresCore.ConvertMillisToDateStr(result, "start_date_time_utc", "end_date_time_utc")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -193,6 +195,7 @@ func (r *PostgresEventRepository) ListEvents(ctx context.Context, req *eventpb.L
 	// Convert results to protobuf slice using protojson
 	var events []*eventpb.Event
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "start_date_time_utc", "end_date_time_utc")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			// Log error and continue with next item
@@ -289,15 +292,15 @@ func (r *PostgresEventRepository) GetEventListPageData(
 
 	for rows.Next() {
 		var (
-			id                  string
-			name                string
-			description         *string
-			startDateTimeUTC    *string
-			endDateTimeUTC      *string
-			active              bool
-			dateCreated         time.Time
-			dateModified        time.Time
-			total               int64
+			id               string
+			name             string
+			description      *string
+			startDateTimeUTC *string
+			endDateTimeUTC   *string
+			active           bool
+			dateCreated      time.Time
+			dateModified     time.Time
+			total            int64
 		)
 
 		err := rows.Scan(
@@ -340,17 +343,17 @@ func (r *PostgresEventRepository) GetEventListPageData(
 		}
 
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		event.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		event.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			event.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			event.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		event.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		event.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			event.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			event.DateModifiedString = &dmStr
+		}
 
 		events = append(events, event)
 	}
@@ -409,14 +412,14 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.EventId)
 
 	var (
-		id                 string
-		name               string
-		description        *string
-		startDateTimeUTC   *string
-		endDateTimeUTC     *string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id               string
+		name             string
+		description      *string
+		startDateTimeUTC *string
+		endDateTimeUTC   *string
+		active           bool
+		dateCreated      time.Time
+		dateModified     time.Time
 	)
 
 	err := row.Scan(
@@ -446,25 +449,25 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 		event.Description = description
 	}
 
-			if startDateTimeUTC != nil && *startDateTimeUTC != "" {
-				if ts, err := operations.ParseTimestamp(*startDateTimeUTC); err == nil {
-					event.StartDateTimeUtc = ts
-				}
-			}
-	
-			if endDateTimeUTC != nil && *endDateTimeUTC != "" {
-				if ts, err := operations.ParseTimestamp(*endDateTimeUTC); err == nil {
-					event.EndDateTimeUtc = ts
-				}
-			}
-	
-			if !dateCreated.IsZero() {
+	if startDateTimeUTC != nil && *startDateTimeUTC != "" {
+		if ts, err := operations.ParseTimestamp(*startDateTimeUTC); err == nil {
+			event.StartDateTimeUtc = ts
+		}
+	}
+
+	if endDateTimeUTC != nil && *endDateTimeUTC != "" {
+		if ts, err := operations.ParseTimestamp(*endDateTimeUTC); err == nil {
+			event.EndDateTimeUtc = ts
+		}
+	}
+
+	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		event.DateCreated = &ts
 		dcStr := dateCreated.Format(time.RFC3339)
 		event.DateCreatedString = &dcStr
 	}
-			if !dateModified.IsZero() {
+	if !dateModified.IsZero() {
 		ts := dateModified.UnixMilli()
 		event.DateModified = &ts
 		dmStr := dateModified.Format(time.RFC3339)
@@ -475,7 +478,6 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 		Success: true,
 	}, nil
 }
-
 
 // NewEventRepository creates a new PostgreSQL event repository (old-style constructor)
 func NewEventRepository(db *sql.DB, tableName string) eventpb.EventDomainServiceServer {

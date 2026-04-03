@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -319,7 +319,7 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 			jobActivityId   string
 			targetType      string
 			targetId        string
-			allocatedAmount float64
+			allocatedAmount int64
 			allocationPct   sql.NullFloat64
 			settlementDate  sql.NullTime
 			status          string
@@ -536,12 +536,12 @@ func (r *PostgresJobSettlementRepository) GetSettlementSummary(ctx context.Conte
 	defer rows.Close()
 
 	var summary []*pb.SettlementByTargetType
-	var grandTotal float64
+	var grandTotal int64
 
 	for rows.Next() {
 		var (
 			targetType  string
-			totalAmount float64
+			totalAmount int64
 			count       int32
 		)
 		if err := rows.Scan(&targetType, &totalAmount, &count); err != nil {
@@ -574,7 +574,7 @@ func scanSettlementRow(rows *sql.Rows) (*pb.JobSettlement, error) {
 		jobActivityId   string
 		targetType      string
 		targetId        string
-		allocatedAmount float64
+		allocatedAmount int64
 		allocationPct   sql.NullFloat64
 		settlementDate  sql.NullTime
 		status          string

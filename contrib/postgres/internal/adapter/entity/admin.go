@@ -1,21 +1,20 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -58,7 +57,6 @@ func init() {
 //   - Test with inactive admin (should return not found)
 //   - Test with admin having inactive user (user fields should be null)
 //   - Test timestamp parsing for date_created and date_modified
-//
 type PostgresAdminRepository struct {
 	adminpb.UnimplementedAdminDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
@@ -329,20 +327,20 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			userId             string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
+			id           string
+			userId       string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
 			// User fields
-			userIdValue              *string
-			userFirstName            *string
-			userLastName             *string
-			userEmailAddress         *string
-			userDateCreated          time.Time
-			userDateModified         time.Time
-			userActive               *bool
-			total                    int64
+			userIdValue      *string
+			userFirstName    *string
+			userLastName     *string
+			userEmailAddress *string
+			userDateCreated  time.Time
+			userDateModified time.Time
+			userActive       *bool
+			total            int64
 		)
 
 		err := rows.Scan(
@@ -376,17 +374,17 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		admin.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		admin.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			admin.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			admin.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		admin.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		admin.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			admin.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			admin.DateModifiedString = &dmStr
+		}
 
 		// Populate user data if available
 		if userIdValue != nil {
@@ -407,17 +405,17 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 
 			// Parse user timestamps
 			if !userDateCreated.IsZero() {
-			ts := userDateCreated.UnixMilli()
-			user.DateCreated = &ts
-			udcStr := userDateCreated.Format(time.RFC3339)
-			user.DateCreatedString = &udcStr
-		}
+				ts := userDateCreated.UnixMilli()
+				user.DateCreated = &ts
+				udcStr := userDateCreated.Format(time.RFC3339)
+				user.DateCreatedString = &udcStr
+			}
 			if !userDateModified.IsZero() {
-			ts := userDateModified.UnixMilli()
-			user.DateModified = &ts
-			udmStr := userDateModified.Format(time.RFC3339)
-			user.DateModifiedString = &udmStr
-		}
+				ts := userDateModified.UnixMilli()
+				user.DateModified = &ts
+				udmStr := userDateModified.Format(time.RFC3339)
+				user.DateModifiedString = &udmStr
+			}
 
 			admin.User = user
 		}
@@ -491,19 +489,19 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.AdminId)
 
 	var (
-		id                 string
-		userId             string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		userId       string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 		// User fields
-		userIdValue            *string
-		userFirstName          *string
-		userLastName           *string
-		userEmailAddress       *string
-		userDateCreated        time.Time
-		userDateModified       time.Time
-		userActive             *bool
+		userIdValue      *string
+		userFirstName    *string
+		userLastName     *string
+		userEmailAddress *string
+		userDateCreated  time.Time
+		userDateModified time.Time
+		userActive       *bool
 	)
 
 	err := row.Scan(
@@ -588,7 +586,6 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 		Success: true,
 	}, nil
 }
-
 
 // NewAdminRepository creates a new PostgreSQL admin repository (old-style constructor)
 func NewAdminRepository(db *sql.DB, tableName string) adminpb.AdminDomainServiceServer {

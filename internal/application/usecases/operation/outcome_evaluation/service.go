@@ -3,15 +3,15 @@ package outcome_evaluation
 import (
 	"context"
 
-	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
-	criteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
-	checkpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
+	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	optionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
 	thresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
+	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
+	criteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	outcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
-	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
+	checkpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 )
 
 // OutcomeEvaluationServiceImpl is the concrete implementation of OutcomeEvaluationService.

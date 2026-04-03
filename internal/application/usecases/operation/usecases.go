@@ -2,41 +2,41 @@ package operation
 
 import (
 	// Operation use cases
+	criteriaOptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_option"
+	criteriaThresholdUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_threshold"
 	jobUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job"
+	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_outcome_summary"
 	jobPhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_phase"
 	jobTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_task"
 	jobTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template"
 	jobTemplatePhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template_phase"
 	jobTemplateTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template_task"
 	outcomeCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/outcome_criteria"
-	criteriaThresholdUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_threshold"
-	criteriaOptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_option"
-	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/template_task_criteria"
+	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/phase_outcome_summary"
 	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome"
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome_check"
-	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/phase_outcome_summary"
-	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_outcome_summary"
+	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/template_task_criteria"
 	jobActivityUseCases "github.com/erniealice/espyna-golang/operation/job_activity"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Protobuf domain services for operation repositories
+	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
+	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
+	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
-	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
-	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
-	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
-	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
-	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
+	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
 // OperationRepositories contains all operation domain repositories

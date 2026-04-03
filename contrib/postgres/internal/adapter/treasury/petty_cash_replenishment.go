@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -11,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -294,7 +293,7 @@ func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentList
 			dateCreated         time.Time
 			fundID              string
 			replenishmentNumber string
-			amount              float64
+			amount              int64
 			replenishmentDate   *time.Time
 			postedBy            *string
 			notes               *string
@@ -406,7 +405,7 @@ func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentItem
 		dateCreated         time.Time
 		fundID              string
 		replenishmentNumber string
-		amount              float64
+		amount              int64
 		replenishmentDate   *time.Time
 		postedBy            *string
 		notes               *string

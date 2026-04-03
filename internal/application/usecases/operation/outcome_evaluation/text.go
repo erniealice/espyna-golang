@@ -1,9 +1,9 @@
 package outcome_evaluation
 
 import (
+	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	outcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
-	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 )
 
 // textEvaluator evaluates CRITERIA_TYPE_TEXT outcomes.

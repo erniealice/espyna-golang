@@ -8,9 +8,9 @@
 //
 // # Adding a new entity
 //
-// 1. Add the constant to the appropriate domain group below.
-// 2. Add it to the corresponding domain slice (e.g., EntityEntities).
-//    The All slice picks it up automatically via buildAll().
+//  1. Add the constant to the appropriate domain group below.
+//  2. Add it to the corresponding domain slice (e.g., EntityEntities).
+//     The All slice picks it up automatically via buildAll().
 //
 // That's it for table name resolution. The rest depends on what the entity needs:
 //
@@ -31,15 +31,15 @@
 //
 // # Adding an entirely new domain (not just a new entity in an existing domain)
 //
-// 1. Add const block + domain slice + wire into buildAll() in this file.
-// 2. Create proto schema in esqyma: pkg/schema/v1/domain/{domain}/{entity}/
-// 3. Create adapters for each provider (postgres, firestore, mock) with init() registration.
-// 4. Create domain provider: internal/composition/providers/domain/{domain}.go
-//    with New{Domain}Repositories(dbProvider, tableConfig) function.
-// 5. Wire into composition: internal/composition/core/usecases.go
-//    (call New{Domain}Repositories and create use cases).
-// 6. Create use cases: internal/application/usecases/{domain}/
-// 7. Create initializer: internal/composition/core/initializers/{domain}.go
+//  1. Add const block + domain slice + wire into buildAll() in this file.
+//  2. Create proto schema in esqyma: pkg/schema/v1/domain/{domain}/{entity}/
+//  3. Create adapters for each provider (postgres, firestore, mock) with init() registration.
+//  4. Create domain provider: internal/composition/providers/domain/{domain}.go
+//     with New{Domain}Repositories(dbProvider, tableConfig) function.
+//  5. Wire into composition: internal/composition/core/usecases.go
+//     (call New{Domain}Repositories and create use cases).
+//  6. Create use cases: internal/application/usecases/{domain}/
+//  7. Create initializer: internal/composition/core/initializers/{domain}.go
 package entityid
 
 // Common domain
@@ -61,6 +61,7 @@ const (
 	Group             = "group"
 	GroupAttribute    = "group_attribute"
 	Location          = "location"
+	LocationArea      = "location_area"
 	LocationAttribute = "location_attribute"
 	Permission        = "permission"
 	Role              = "role"
@@ -79,14 +80,14 @@ const (
 
 // Event domain
 const (
-	Event            = "event"
-	EventAttendee    = "event_attendee"
-	EventAttribute   = "event_attribute"
-	EventClient      = "event_client"
-	EventOccurrence  = "event_occurrence"
-	EventProduct     = "event_product"
-	EventRecurrence  = "event_recurrence"
-	EventResource    = "event_resource"
+	Event           = "event"
+	EventAttendee   = "event_attendee"
+	EventAttribute  = "event_attribute"
+	EventClient     = "event_client"
+	EventOccurrence = "event_occurrence"
+	EventProduct    = "event_product"
+	EventRecurrence = "event_recurrence"
+	EventResource   = "event_resource"
 )
 
 // Product domain
@@ -98,6 +99,8 @@ const (
 	PriceProduct         = "price_product"
 	Product              = "product"
 	ProductAttribute     = "product_attribute"
+	Line                 = "line"
+	ProductLine          = "product_line"
 	ProductCollection    = "product_collection"
 	ProductOption        = "product_option"
 	ProductOptionValue   = "product_option_value"
@@ -263,7 +266,7 @@ var EntityEntities = []string{
 	Admin, Client, ClientAttribute, ClientCategory,
 	Delegate, DelegateAttribute, DelegateClient,
 	Group, GroupAttribute,
-	Location, LocationAttribute,
+	Location, LocationArea, LocationAttribute,
 	Permission,
 	Role, RolePermission,
 	Staff, StaffAttribute,
@@ -283,7 +286,8 @@ var EventEntities = []string{
 var ProductEntities = []string{
 	Collection, CollectionAttribute, CollectionPlan,
 	PriceList, PriceProduct,
-	Product, ProductAttribute, ProductCollection,
+	Product, ProductAttribute, Line,
+	ProductLine,
 	ProductOption, ProductOptionValue,
 	ProductPlan, ProductVariant, ProductVariantImage, ProductVariantOption,
 	Resource,

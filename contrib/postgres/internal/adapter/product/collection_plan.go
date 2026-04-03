@@ -1,4 +1,3 @@
-
 package product
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -297,13 +296,13 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			collectionId       string
-			planId             string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
-			total              int64
+			id           string
+			collectionId string
+			planId       string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
+			total        int64
 		)
 
 		if err := rows.Scan(
@@ -328,17 +327,17 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 		}
 
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		collectionPlan.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		collectionPlan.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			collectionPlan.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			collectionPlan.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		collectionPlan.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		collectionPlan.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			collectionPlan.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			collectionPlan.DateModifiedString = &dmStr
+		}
 
 		collectionPlans = append(collectionPlans, collectionPlan)
 	}
@@ -394,12 +393,12 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.CollectionPlanId)
 
 	var (
-		id                 string
-		collectionId       string
-		planId             string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		collectionId string
+		planId       string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 	)
 
 	if err := row.Scan(

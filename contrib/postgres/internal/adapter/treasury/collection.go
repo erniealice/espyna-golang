@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -11,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -82,6 +81,7 @@ func (r *PostgresCollectionRepository) CreateCollection(ctx context.Context, req
 		return nil, fmt.Errorf("failed to create collection: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -109,6 +109,7 @@ func (r *PostgresCollectionRepository) ReadCollection(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to read collection: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -151,6 +152,7 @@ func (r *PostgresCollectionRepository) UpdateCollection(ctx context.Context, req
 		return nil, fmt.Errorf("failed to update collection: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -196,6 +198,7 @@ func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, req 
 
 	var collections []*collectionpb.Collection
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "payment_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal collection row: %v", err)
@@ -309,7 +312,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			active             bool
 			name               string
 			subscriptionID     *string
-			amount             float64
+			amount             int64
 			status             *string
 			revenueID          *string
 			collectionMethodID *string
@@ -382,8 +385,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			collection.CollectionType = *collectionType
 		}
 		if paymentDate != nil && !paymentDate.IsZero() {
-			ts := paymentDate.UnixMilli()
-			collection.PaymentDate = ts
+			collection.PaymentDate = paymentDate.Format("2006-01-02")
 		}
 
 		if !dateCreated.IsZero() {
@@ -473,7 +475,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		active             bool
 		name               string
 		subscriptionID     *string
-		amount             float64
+		amount             int64
 		status             *string
 		revenueID          *string
 		collectionMethodID *string
@@ -545,8 +547,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		collection.CollectionType = *collectionType
 	}
 	if paymentDate != nil && !paymentDate.IsZero() {
-		ts := paymentDate.UnixMilli()
-		collection.PaymentDate = ts
+		collection.PaymentDate = paymentDate.Format("2006-01-02")
 	}
 
 	if !dateCreated.IsZero() {

@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -348,31 +348,31 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 
 	for rows.Next() {
 		var (
-			id               string
-			workspaceId      sql.NullString
-			movementType     string
-			productId        string
-			quantity         float64
-			unitCost         float64
-			fromLocationId   sql.NullString
-			toLocationId     sql.NullString
-			movementDate     sql.NullTime
-			createdBy        sql.NullString
-			dateCreated      sql.NullTime
-			jobId            sql.NullString
-			jobActivityId    sql.NullString
-			inventoryItemId  sql.NullString
+			id                string
+			workspaceId       sql.NullString
+			movementType      string
+			productId         string
+			quantity          float64
+			unitCost          int64
+			fromLocationId    sql.NullString
+			toLocationId      sql.NullString
+			movementDate      sql.NullTime
+			createdBy         sql.NullString
+			dateCreated       sql.NullTime
+			jobId             sql.NullString
+			jobActivityId     sql.NullString
+			inventoryItemId   sql.NullString
 			inventorySerialId sql.NullString
-			referenceType    sql.NullString
-			referenceId      sql.NullString
-			status           sql.NullString
-			notes            sql.NullString
-			performedBy      sql.NullString
-			active           bool
-			productJSON      []byte
-			fromLocationJSON []byte
-			toLocationJSON   []byte
-			rowTotalCount    int32
+			referenceType     sql.NullString
+			referenceId       sql.NullString
+			status            sql.NullString
+			notes             sql.NullString
+			performedBy       sql.NullString
+			active            bool
+			productJSON       []byte
+			fromLocationJSON  []byte
+			toLocationJSON    []byte
+			rowTotalCount     int32
 		)
 
 		err := rows.Scan(
@@ -592,7 +592,7 @@ func scanMovementRow(rows *sql.Rows) (*pb.InventoryMovement, error) {
 		movementType      string
 		productId         string
 		quantity          float64
-		unitCost          float64
+		unitCost          int64
 		fromLocationId    sql.NullString
 		toLocationId      sql.NullString
 		movementDate      sql.NullTime

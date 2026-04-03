@@ -21,7 +21,7 @@ func BusinessTypeMiddleware(defaultBusinessType string) fiber.Handler {
 		"education":        true,
 		"fitness_center":   true,
 		"office_leasing":   true,
-		"aesthetic_clinic":  true,
+		"aesthetic_clinic": true,
 		"general":          true,
 	}
 

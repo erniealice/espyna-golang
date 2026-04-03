@@ -1,4 +1,3 @@
-
 package subscription
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/operations"
-	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresPlanSettingsRepository implements plan_settings CRUD operations using PostgreSQL
@@ -279,19 +278,19 @@ func (r *PostgresPlanSettingsRepository) GetPlanSettingsListPageData(ctx context
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		// totalCount assignment removed - not needed for current protobuf schema
-planSettings := &plansettingspb.PlanSettings{Id: id, PlanId: planId, Name: name, Description: description, Active: active}
+		planSettings := &plansettingspb.PlanSettings{Id: id, PlanId: planId, Name: name, Description: description, Active: active}
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		planSettings.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		planSettings.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			planSettings.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			planSettings.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		planSettings.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		planSettings.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			planSettings.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			planSettings.DateModifiedString = &dmStr
+		}
 		planSettingsList = append(planSettingsList, planSettings)
 	}
 	// totalPages calculation removed - not needed for current protobuf schema

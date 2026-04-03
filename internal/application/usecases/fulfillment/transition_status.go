@@ -12,7 +12,9 @@ import (
 
 // ---- TransitionStatus ----
 
-type TransitionStatusRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type TransitionStatusRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type TransitionStatusServices struct {
 	AuthorizationService ports.AuthorizationService
 	TransactionService   ports.TransactionService

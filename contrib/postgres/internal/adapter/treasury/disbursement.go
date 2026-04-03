@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -11,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -82,6 +81,7 @@ func (r *PostgresDisbursementRepository) CreateDisbursement(ctx context.Context,
 		return nil, fmt.Errorf("failed to create disbursement: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -109,6 +109,7 @@ func (r *PostgresDisbursementRepository) ReadDisbursement(ctx context.Context, r
 		return nil, fmt.Errorf("failed to read disbursement: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -151,6 +152,7 @@ func (r *PostgresDisbursementRepository) UpdateDisbursement(ctx context.Context,
 		return nil, fmt.Errorf("failed to update disbursement: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "payment_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -196,6 +198,7 @@ func (r *PostgresDisbursementRepository) ListDisbursements(ctx context.Context, 
 
 	var disbursements []*disbursementpb.Disbursement
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "payment_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal disbursement row: %v", err)
@@ -308,7 +311,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			active               bool
 			name                 string
 			subscriptionID       *string
-			amount               float64
+			amount               int64
 			status               *string
 			expenditureID        *string
 			disbursementType     *string
@@ -376,7 +379,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			disbursement.ApprovedBy = *approvedBy
 		}
 		if paymentDate != nil && !paymentDate.IsZero() {
-			disbursement.PaymentDate = paymentDate.UnixMilli()
+			disbursement.PaymentDate = paymentDate.Format("2006-01-02")
 		}
 
 		if !dateCreated.IsZero() {
@@ -465,7 +468,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 		active               bool
 		name                 string
 		subscriptionID       *string
-		amount               float64
+		amount               int64
 		status               *string
 		expenditureID        *string
 		disbursementType     *string
@@ -532,7 +535,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 		disbursement.ApprovedBy = *approvedBy
 	}
 	if paymentDate != nil && !paymentDate.IsZero() {
-		disbursement.PaymentDate = paymentDate.UnixMilli()
+		disbursement.PaymentDate = paymentDate.Format("2006-01-02")
 	}
 
 	if !dateCreated.IsZero() {

@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -10,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -82,6 +81,7 @@ func (r *PostgresLoanRepository) CreateLoan(ctx context.Context, req *loanpb.Cre
 		return nil, fmt.Errorf("failed to create loan: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "maturity_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -109,6 +109,7 @@ func (r *PostgresLoanRepository) ReadLoan(ctx context.Context, req *loanpb.ReadL
 		return nil, fmt.Errorf("failed to read loan: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "maturity_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -152,6 +153,7 @@ func (r *PostgresLoanRepository) UpdateLoan(ctx context.Context, req *loanpb.Upd
 		return nil, fmt.Errorf("failed to update loan: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "maturity_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -197,6 +199,7 @@ func (r *PostgresLoanRepository) ListLoans(ctx context.Context, req *loanpb.List
 
 	var loans []*loanpb.Loan
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "start_date", "maturity_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal loan row: %v", err)
@@ -311,13 +314,13 @@ func (r *PostgresLoanRepository) GetLoanListPageData(
 			description      *string
 			loanType         *string
 			lenderName       string
-			principalAmount  float64
+			principalAmount  int64
 			interestRate     float64
 			termMonths       int32
-			startDate        *int64
-			maturityDate     *int64
+			startDate        *string
+			maturityDate     *string
 			status           *string
-			remainingBalance float64
+			remainingBalance int64
 			accountID        *string
 			total            int64
 		)
@@ -374,10 +377,10 @@ func (r *PostgresLoanRepository) GetLoanListPageData(
 				loan.Status = loanpb.LoanStatus(val)
 			}
 		}
-		if startDate != nil && *startDate > 0 {
+		if startDate != nil {
 			loan.StartDate = *startDate
 		}
-		if maturityDate != nil && *maturityDate > 0 {
+		if maturityDate != nil {
 			loan.MaturityDate = *maturityDate
 		}
 
@@ -464,13 +467,13 @@ func (r *PostgresLoanRepository) GetLoanItemPageData(
 		description      *string
 		loanType         *string
 		lenderName       string
-		principalAmount  float64
+		principalAmount  int64
 		interestRate     float64
 		termMonths       int32
-		startDate        *int64
-		maturityDate     *int64
+		startDate        *string
+		maturityDate     *string
 		status           *string
-		remainingBalance float64
+		remainingBalance int64
 		accountID        *string
 	)
 
@@ -526,10 +529,10 @@ func (r *PostgresLoanRepository) GetLoanItemPageData(
 			loan.Status = loanpb.LoanStatus(val)
 		}
 	}
-	if startDate != nil && *startDate > 0 {
+	if startDate != nil {
 		loan.StartDate = *startDate
 	}
-	if maturityDate != nil && *maturityDate > 0 {
+	if maturityDate != nil {
 		loan.MaturityDate = *maturityDate
 	}
 

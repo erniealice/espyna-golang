@@ -1,4 +1,3 @@
-
 package subscription
 
 import (
@@ -7,15 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresSubscriptionRepository implements subscription CRUD operations using PostgreSQL
@@ -70,10 +69,10 @@ func (r *PostgresSubscriptionRepository) CreateSubscription(ctx context.Context,
 	}
 
 	// Map date string fields to actual DB columns
-	if ds := req.Data.GetDateStartString(); ds != "" {
+	if ds := req.Data.GetDateStart(); ds != "" {
 		data["date_start"] = ds
 	}
-	if de := req.Data.GetDateEndString(); de != "" {
+	if de := req.Data.GetDateEnd(); de != "" {
 		data["date_end"] = de
 	}
 
@@ -150,10 +149,10 @@ func (r *PostgresSubscriptionRepository) UpdateSubscription(ctx context.Context,
 	}
 
 	// Map date string fields to actual DB columns
-	if ds := req.Data.GetDateStartString(); ds != "" {
+	if ds := req.Data.GetDateStart(); ds != "" {
 		data["date_start"] = ds
 	}
-	if de := req.Data.GetDateEndString(); de != "" {
+	if de := req.Data.GetDateEnd(); de != "" {
 		data["date_end"] = de
 	}
 
@@ -259,6 +258,19 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		searchQuery = "%" + req.Search.Query + "%"
 	}
 
+	// Extract client_id filter
+	clientIDFilter := ""
+	if req.Filters != nil {
+		for _, f := range req.Filters.Filters {
+			if f.GetField() == "client_id" {
+				if sf := f.GetStringFilter(); sf != nil {
+					clientIDFilter = sf.GetValue()
+				}
+				break
+			}
+		}
+	}
+
 	// Extract sort parameters with defaults
 	sortField := "date_created"
 	sortDirection := "DESC"
@@ -291,6 +303,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			WHERE s.active = true
 				AND ($1::text = '' OR
 					s.name ILIKE $1)
+				AND ($6::text = '' OR s.client_id = $6)
 		),
 
 		-- CTE 2: Join with client, user, price_plan, and plan
@@ -393,11 +406,12 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 
 	// Execute query
 	rows, err := db.GetDB().QueryContext(ctx, query,
-		searchQuery,   // $1
-		limit,         // $2
-		offset,        // $3
-		sortField,     // $4
-		sortDirection, // $5
+		searchQuery,    // $1
+		limit,          // $2
+		offset,         // $3
+		sortField,      // $4
+		sortDirection,  // $5
+		clientIDFilter, // $6
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetSubscriptionListPageData query: %w", err)
@@ -413,8 +427,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			name          string
 			clientID      string
 			pricePlanID   string
-			dateStart     sql.NullTime
-			dateEnd       sql.NullTime
+			dateStart     *string
+			dateEnd       *string
 			active        bool
 			dateCreated   sql.NullTime
 			dateModified  sql.NullTime
@@ -452,13 +466,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			Active:      active,
 		}
 
-		if dateStart.Valid {
-			ts := dateStart.Time.UnixMilli()
-			subscription.DateStart = &ts
+		if dateStart != nil {
+			subscription.DateStart = dateStart
 		}
-		if dateEnd.Valid {
-			ts := dateEnd.Time.UnixMilli()
-			subscription.DateEnd = &ts
+		if dateEnd != nil {
+			subscription.DateEnd = dateEnd
 		}
 		if dateCreated.Valid {
 			ts := dateCreated.Time.UnixMilli()
@@ -599,8 +611,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		name          string
 		clientID      string
 		pricePlanID   string
-		dateStart     sql.NullTime
-		dateEnd       sql.NullTime
+		dateStart     *string
+		dateEnd       *string
 		active        bool
 		dateCreated   sql.NullTime
 		dateModified  sql.NullTime
@@ -637,13 +649,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		Active:      active,
 	}
 
-	if dateStart.Valid {
-		ts := dateStart.Time.UnixMilli()
-		subscription.DateStart = &ts
+	if dateStart != nil {
+		subscription.DateStart = dateStart
 	}
-	if dateEnd.Valid {
-		ts := dateEnd.Time.UnixMilli()
-		subscription.DateEnd = &ts
+	if dateEnd != nil {
+		subscription.DateEnd = dateEnd
 	}
 	if dateCreated.Valid {
 		ts := dateCreated.Time.UnixMilli()

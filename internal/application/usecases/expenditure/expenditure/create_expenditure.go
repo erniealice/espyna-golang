@@ -104,9 +104,16 @@ func (uc *CreateExpenditureUseCase) executeCore(ctx context.Context, req *expend
 				dueDate = baseDate + int64(pt.NetDays)*86400000
 			case "due_on_receipt", "cod":
 				dueDate = baseDate
+			case "proximate":
+				if day := int(pt.GetProximateDay()); day >= 1 && day <= 28 {
+					base := time.UnixMilli(baseDate).UTC()
+					next := time.Date(base.Year(), base.Month()+1, day, 0, 0, 0, 0, time.UTC)
+					dueDate = next.UnixMilli()
+				}
 			}
 			if dueDate > 0 {
-				req.Data.DueDate = &dueDate
+				dueDateStr := time.UnixMilli(dueDate).UTC().Format("2006-01-02")
+				req.Data.DueDate = &dueDateStr
 			}
 		}
 	}

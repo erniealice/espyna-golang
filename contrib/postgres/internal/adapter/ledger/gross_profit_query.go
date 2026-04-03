@@ -1,4 +1,3 @@
-
 package ledger
 
 import (
@@ -60,10 +59,14 @@ func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportReques
 	// $5 = revenue_category_id (text or NULL)
 	args := make([]any, 5)
 	if req.StartDate != nil {
-		args[0] = time.Unix(req.GetStartDate(), 0).UTC()
+		if t, err := time.Parse("2006-01-02", req.GetStartDate()); err == nil {
+			args[0] = t.UTC()
+		}
 	}
 	if req.EndDate != nil {
-		args[1] = time.Unix(req.GetEndDate(), 0).UTC()
+		if t, err := time.Parse("2006-01-02", req.GetEndDate()); err == nil {
+			args[1] = t.UTC()
+		}
 	}
 	if req.ProductId != nil {
 		args[2] = req.GetProductId()

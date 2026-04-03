@@ -209,4 +209,3 @@ func WithMockDatabase(config MockDatabaseConfig) ContainerOption {
 		return nil
 	}
 }
-

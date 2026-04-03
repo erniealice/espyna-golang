@@ -1,4 +1,3 @@
-
 package subscription
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresProductPricePlanRepository implements product_price_plan CRUD operations using PostgreSQL
@@ -254,7 +253,7 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 	var productPricePlans []*productpriceplanpb.ProductPricePlan
 	for rows.Next() {
 		var id, pricePlanId, productId, currency string
-		var price float64
+		var price int64
 		var active bool
 		var dateCreated, dateModified time.Time
 		if err := rows.Scan(&id, &pricePlanId, &productId, &price, &currency, &active, &dateCreated, &dateModified); err != nil {
@@ -293,7 +292,7 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanItemPageData(ctx
 	query := `SELECT id, price_plan_id, product_id, price, currency, active, date_created, date_modified FROM product_price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPricePlanId)
 	var id, pricePlanId, productId, currency string
-	var price float64
+	var price int64
 	var active bool
 	var dateCreated, dateModified time.Time
 	if err := row.Scan(&id, &pricePlanId, &productId, &price, &currency, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {

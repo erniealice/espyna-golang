@@ -1,20 +1,19 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -295,13 +294,13 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			name               string
-			description        *string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
-			total              int64
+			id           string
+			name         string
+			description  *string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
+			total        int64
 		)
 
 		err := rows.Scan(
@@ -333,17 +332,17 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		group.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		group.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			group.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			group.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		group.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		group.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			group.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			group.DateModifiedString = &dmStr
+		}
 
 		groups = append(groups, group)
 	}
@@ -404,12 +403,12 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.GroupId)
 
 	var (
-		id                 string
-		name               string
-		description        *string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		name         string
+		description  *string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 	)
 
 	err := row.Scan(
@@ -458,7 +457,6 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 		Success: true,
 	}, nil
 }
-
 
 // NewGroupRepository creates a new PostgreSQL group repository (old-style constructor)
 func NewGroupRepository(db *sql.DB, tableName string) grouppb.GroupDomainServiceServer {

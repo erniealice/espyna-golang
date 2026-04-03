@@ -1,4 +1,3 @@
-
 package googlesheets
 
 import (
@@ -14,8 +13,8 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/erniealice/espyna-golang/ports/integration"
 	"github.com/erniealice/espyna-golang/contrib/google/internal/common/google"
+	"github.com/erniealice/espyna-golang/ports/integration"
 	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	tabularpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/tabular"

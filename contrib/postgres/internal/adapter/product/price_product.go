@@ -1,4 +1,3 @@
-
 package product
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -274,17 +273,17 @@ func (r *PostgresPriceProductRepository) GetPriceProductListPageData(
 		totalCount = total
 		priceProduct := &priceproductpb.PriceProduct{Id: id, ProductId: productId, Amount: amount, Currency: currency, Active: active}
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		priceProduct.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		priceProduct.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			priceProduct.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			priceProduct.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		priceProduct.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		priceProduct.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			priceProduct.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			priceProduct.DateModifiedString = &dmStr
+		}
 		priceProducts = append(priceProducts, priceProduct)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))

@@ -1,0 +1,92 @@
+package product_line
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	productlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_line"
+)
+
+// ListProductLinesUseCase handles the business logic for listing product lines
+// ListProductLinesRepositories groups all repository dependencies
+type ListProductLinesRepositories struct {
+	ProductLine productlinepb.ProductLineDomainServiceServer // Primary entity repository
+}
+
+// ListProductLinesServices groups all business service dependencies
+type ListProductLinesServices struct {
+	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
+	TransactionService   ports.TransactionService   // Current: Database transactions
+	TranslationService   ports.TranslationService
+}
+
+// ListProductLinesUseCase handles the business logic for listing product lines
+type ListProductLinesUseCase struct {
+	repositories ListProductLinesRepositories
+	services     ListProductLinesServices
+}
+
+// NewListProductLinesUseCase creates a new ListProductLinesUseCase
+func NewListProductLinesUseCase(
+	repositories ListProductLinesRepositories,
+	services ListProductLinesServices,
+) *ListProductLinesUseCase {
+	return &ListProductLinesUseCase{
+		repositories: repositories,
+		services:     services,
+	}
+}
+
+// Execute performs the list product lines operation
+func (uc *ListProductLinesUseCase) Execute(ctx context.Context, req *productlinepb.ListProductLinesRequest) (*productlinepb.ListProductLinesResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityProductLine, ports.ActionList); err != nil {
+		return nil, err
+	}
+
+	// Authorization check
+	userID, err := contextutil.RequireUserIDFromContext(ctx)
+	if err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_line.errors.authorization_failed", "Authorization failed for product lines [DEFAULT]")
+		return nil, errors.New(translatedError)
+	}
+
+	permission := ports.EntityPermission(ports.EntityProductLine, ports.ActionList)
+	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	if err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_line.errors.authorization_failed", "Authorization failed for product lines [DEFAULT]")
+		return nil, errors.New(translatedError)
+	}
+	if !hasPerm {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_line.errors.authorization_failed", "Authorization failed for product lines [DEFAULT]")
+		return nil, errors.New(translatedError)
+	}
+
+	// Input validation
+	if err := uc.validateInput(ctx, req); err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_line.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+
+	// Call repository
+	resp, err := uc.repositories.ProductLine.ListProductLines(ctx, req)
+	if err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_line.errors.list_failed", "Failed to retrieve product lines [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+	return resp, nil
+}
+
+// validateInput validates the input request
+func (uc *ListProductLinesUseCase) validateInput(ctx context.Context, req *productlinepb.ListProductLinesRequest) error {
+	if req == nil {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_line.validation.request_required", "Request is required [DEFAULT]"))
+	}
+	// Additional validation can be added here if needed
+	return nil
+}

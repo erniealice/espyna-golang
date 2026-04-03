@@ -1,4 +1,3 @@
-
 package product
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -298,13 +297,13 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			productId          string
-			attributeId        string
-			value              string
-			dateCreated        time.Time
-			dateModified       time.Time
-			total              int64
+			id           string
+			productId    string
+			attributeId  string
+			value        string
+			dateCreated  time.Time
+			dateModified time.Time
+			total        int64
 		)
 
 		if err := rows.Scan(
@@ -329,17 +328,17 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 		}
 
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		productAttribute.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		productAttribute.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			productAttribute.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			productAttribute.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		productAttribute.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		productAttribute.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			productAttribute.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			productAttribute.DateModifiedString = &dmStr
+		}
 
 		productAttributes = append(productAttributes, productAttribute)
 	}
@@ -395,12 +394,12 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.ProductAttributeId)
 
 	var (
-		id                 string
-		productId          string
-		attributeId        string
-		value              string
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		productId    string
+		attributeId  string
+		value        string
+		dateCreated  time.Time
+		dateModified time.Time
 	)
 
 	if err := row.Scan(

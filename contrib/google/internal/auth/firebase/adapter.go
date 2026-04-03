@@ -1,4 +1,3 @@
-
 package firebase
 
 import (
@@ -11,8 +10,8 @@ import (
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/erniealice/espyna-golang/ports"
 	firebaseCommon "github.com/erniealice/espyna-golang/contrib/google/internal/common/firebase"
+	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 )
 

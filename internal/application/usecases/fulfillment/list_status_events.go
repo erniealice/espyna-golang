@@ -12,7 +12,9 @@ import (
 
 // ---- ListStatusEvents ----
 
-type ListStatusEventsRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type ListStatusEventsRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type ListStatusEventsServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService

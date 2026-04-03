@@ -12,7 +12,9 @@ import (
 
 // ---- DeleteFulfillment ----
 
-type DeleteFulfillmentRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type DeleteFulfillmentRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type DeleteFulfillmentServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService

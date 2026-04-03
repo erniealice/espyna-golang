@@ -1,20 +1,19 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -298,15 +297,15 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 
 	for rows.Next() {
 		var (
-			id               string
-			name             string
-			description      *string
-			permissionCode   *string
-			permissionType   *string
-			active           bool
-			dateCreated      time.Time
-			dateModified     time.Time
-			total            int64
+			id             string
+			name           string
+			description    *string
+			permissionCode *string
+			permissionType *string
+			active         bool
+			dateCreated    time.Time
+			dateModified   time.Time
+			total          int64
 		)
 
 		err := rows.Scan(
@@ -487,7 +486,6 @@ func parsePermissionType(s string) permissionpb.PermissionType {
 		return permissionpb.PermissionType_PERMISSION_TYPE_ALLOW
 	}
 }
-
 
 // NewPermissionRepository creates a new PostgreSQL permission repository (old-style constructor)
 func NewPermissionRepository(db *sql.DB, tableName string) permissionpb.PermissionDomainServiceServer {

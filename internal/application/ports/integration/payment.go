@@ -84,9 +84,8 @@ type PaymentWebhookResult struct {
 // CheckoutSessionParams provides a simplified parameter structure for creating checkout sessions
 // Consumer adapters can use this for convenience instead of the full protobuf request
 type CheckoutSessionParams struct {
-	// Amount in base currency units (e.g., dollars, not cents)
-	// Payment providers typically convert to cents internally
-	Amount float64
+	// Amount in centavos/cents (int64)
+	Amount int64
 
 	// Currency code (ISO 4217: USD, PHP, HKD)
 	Currency string

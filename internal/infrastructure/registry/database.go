@@ -1,24 +1,25 @@
 // database.go contains four co-located registries that together form espyna's
 // database self-registration system:
 //
-// 1. Database Provider Registry — registers provider factories (postgresql,
-//    firestore, mock) along with config transformers and BuildFromEnv builders.
+//  1. Database Provider Registry — registers provider factories (postgresql,
+//     firestore, mock) along with config transformers and BuildFromEnv builders.
 //
-// 2. Table Config — map-based table name resolution. Defaults come from entityid
-//    constants; overrides come from env vars. Each provider registers a
-//    TableConfigBuilder via init() that scans provider-specific env vars.
+//  2. Table Config — map-based table name resolution. Defaults come from entityid
+//     constants; overrides come from env vars. Each provider registers a
+//     TableConfigBuilder via init() that scans provider-specific env vars.
 //
-// 3. Repository Factory Registry — maps "provider:entity" composite keys to
-//    factory functions. Each entity adapter self-registers in its init().
-//    The composition layer calls CreateRepository() to obtain typed repos.
+//  3. Repository Factory Registry — maps "provider:entity" composite keys to
+//     factory functions. Each entity adapter self-registers in its init().
+//     The composition layer calls CreateRepository() to obtain typed repos.
 //
-// 4. Database Operations Factory Registry — maps a provider name to a
-//    DatabaseOperation factory for raw CRUD operations (Create, Read, Update,
-//    Delete, List, Query).
+//  4. Database Operations Factory Registry — maps a provider name to a
+//     DatabaseOperation factory for raw CRUD operations (Create, Read, Update,
+//     Delete, List, Query).
 //
 // Data flow at boot time:
-//   App boots -> BuildDatabaseTableConfig(provider) -> TableConfig
-//   -> domain providers call CreateRepository(entityid.X, conn, tableConfig.TableName(entityid.X))
+//
+//	App boots -> BuildDatabaseTableConfig(provider) -> TableConfig
+//	-> domain providers call CreateRepository(entityid.X, conn, tableConfig.TableName(entityid.X))
 package registry
 
 import (

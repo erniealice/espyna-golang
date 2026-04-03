@@ -1,4 +1,3 @@
-
 package core
 
 import (
@@ -9,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/model"
 	"github.com/erniealice/espyna-golang/database/operations"
-	"github.com/erniealice/espyna-golang/registry"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	_ "github.com/lib/pq"
 )
 
 // dbExecutor abstracts *sql.DB and *sql.Tx for uniform query execution.
@@ -129,7 +128,7 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 			EntityType: tableName,
 			EntityID:   fmt.Sprintf("%v", result["id"]),
 			Domain:     tableName,
-			Action:     1,  // INSERT
+			Action:     1, // INSERT
 			MethodName: "PostgresOperations.Create",
 			NewData:    result,
 		}); err != nil {
@@ -277,7 +276,7 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 			EntityType: tableName,
 			EntityID:   id,
 			Domain:     tableName,
-			Action:     2,  // UPDATE
+			Action:     2, // UPDATE
 			MethodName: "PostgresOperations.Update",
 			OldData:    existing,
 			NewData:    result,
@@ -332,7 +331,7 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 			EntityType: tableName,
 			EntityID:   id,
 			Domain:     tableName,
-			Action:     3,  // DELETE
+			Action:     3, // DELETE
 			MethodName: "PostgresOperations.Delete",
 		}); err != nil {
 			return err
@@ -1046,9 +1045,39 @@ func (p *PostgresOperations) scanRowsToMap(rows *sql.Rows, columns []string) (ma
 	return result, nil
 }
 
+// ConvertMillisToDateStr converts business date fields in a result map from
+// int64 Unix millis (produced by normalizeValue) to ISO 8601 date strings
+// ("YYYY-MM-DD"). This is needed because proto business date fields were
+// migrated from int64 to string, but normalizeValue still converts all
+// time.Time values to int64 millis (correct for audit timestamps).
+//
+// Call this on the map returned by Read/List BEFORE json.Marshal + protojson.Unmarshal.
+func ConvertMillisToDateStr(data map[string]any, keys ...string) {
+	for _, key := range keys {
+		v, ok := data[key]
+		if !ok || v == nil {
+			continue
+		}
+		switch val := v.(type) {
+		case int64:
+			if val > 0 {
+				data[key] = time.UnixMilli(val).UTC().Format("2006-01-02")
+			}
+		case float64:
+			if val > 0 {
+				data[key] = time.UnixMilli(int64(val)).UTC().Format("2006-01-02")
+			}
+		case string:
+			// Already a date string — leave as-is
+		}
+	}
+}
+
 // normalizeValue converts DB-native types to protobuf-compatible types.
 // Specifically, time.Time (from TIMESTAMPTZ) → int64 Unix millis,
 // so protojson can unmarshal into int64 protobuf fields.
+// Business date fields need an additional ConvertMillisToDateStr call
+// to convert millis to ISO 8601 strings for string proto fields.
 func normalizeValue(v any) any {
 	switch t := v.(type) {
 	case time.Time:

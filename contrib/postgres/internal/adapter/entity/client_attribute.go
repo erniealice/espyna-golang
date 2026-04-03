@@ -1,4 +1,3 @@
-
 package entity
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -265,16 +264,15 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx c
 			"value":    attributeValue,
 			"active":   active,
 		}
-		
-		
+
 		if !dateCreated.IsZero() {
-		rawData["dateCreated"] = dateCreated.UnixMilli()
-		rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
-	}
+			rawData["dateCreated"] = dateCreated.UnixMilli()
+			rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
+		}
 		if !dateModified.IsZero() {
-		rawData["dateModified"] = dateModified.UnixMilli()
-		rawData["dateModifiedString"] = dateModified.Format(time.RFC3339)
-	}
+			rawData["dateModified"] = dateModified.UnixMilli()
+			rawData["dateModifiedString"] = dateModified.Format(time.RFC3339)
+		}
 
 		// Convert to protobuf
 		dataJSON, _ := json.Marshal(rawData)
@@ -312,8 +310,7 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeItemPageData(ctx c
 		"value":    attributeValue,
 		"active":   active,
 	}
-	
-	
+
 	if !dateCreated.IsZero() {
 		rawData["dateCreated"] = dateCreated.UnixMilli()
 		rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
@@ -331,7 +328,6 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeItemPageData(ctx c
 	}
 	return &clientattributepb.GetClientAttributeItemPageDataResponse{ClientAttribute: clientAttribute, Success: true}, nil
 }
-
 
 // NewClientAttributeRepository creates a new PostgreSQL client_attribute repository (old-style constructor)
 func NewClientAttributeRepository(db *sql.DB, tableName string) clientattributepb.ClientAttributeDomainServiceServer {

@@ -52,12 +52,12 @@ type FulfillmentQuoteRequest struct {
 
 // FulfillmentQuoteResponse contains the delivery quote result
 type FulfillmentQuoteResponse struct {
-	QuoteID       string  `json:"quote_id"`
-	ProviderName  string  `json:"provider_name"`
-	PriceAmount   float64 `json:"price_amount"`
-	PriceCurrency string  `json:"price_currency"`
-	EstimatedTime string  `json:"estimated_time"` // e.g., "45 mins"
-	ExpiresAt     string  `json:"expires_at"`     // ISO8601
+	QuoteID       string `json:"quote_id"`
+	ProviderName  string `json:"provider_name"`
+	PriceAmount   int64  `json:"price_amount"`
+	PriceCurrency string `json:"price_currency"`
+	EstimatedTime string `json:"estimated_time"` // e.g., "45 mins"
+	ExpiresAt     string `json:"expires_at"`     // ISO8601
 }
 
 // CreateDeliveryRequest contains delivery creation parameters

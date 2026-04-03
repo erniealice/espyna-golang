@@ -1,4 +1,3 @@
-
 package firestore
 
 import (
@@ -8,13 +7,13 @@ import (
 	"os"
 
 	"cloud.google.com/go/firestore"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"github.com/erniealice/espyna-golang/ports"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // =============================================================================
@@ -105,17 +104,17 @@ func buildTableConfig() *registry.TableConfig {
 		"stage_template":    "STAGE_TEMPLATE",
 		"activity_template": "ACTIVITY_TEMPLATE",
 		// Subscription
-		"plan":                    "PLAN",
-		"plan_attribute":          "PLAN_ATTRIBUTE",
-		"plan_location":           "PLAN_LOCATION",
-		"plan_settings":           "PLAN_SETTINGS",
-		"balance":                 "BALANCE",
-		"balance_attribute":       "BALANCE_ATTRIBUTE",
-		"invoice":                 "INVOICE",
-		"invoice_attribute":       "INVOICE_ATTRIBUTE",
-		"price_plan":              "PRICE_PLAN",
-		"subscription":            "SUBSCRIPTION",
-		"subscription_attribute":  "SUBSCRIPTION_ATTRIBUTE",
+		"plan":                   "PLAN",
+		"plan_attribute":         "PLAN_ATTRIBUTE",
+		"plan_location":          "PLAN_LOCATION",
+		"plan_settings":          "PLAN_SETTINGS",
+		"balance":                "BALANCE",
+		"balance_attribute":      "BALANCE_ATTRIBUTE",
+		"invoice":                "INVOICE",
+		"invoice_attribute":      "INVOICE_ATTRIBUTE",
+		"price_plan":             "PRICE_PLAN",
+		"subscription":           "SUBSCRIPTION",
+		"subscription_attribute": "SUBSCRIPTION_ATTRIBUTE",
 	}
 
 	for entity, envSuffix := range entityEnvMap {

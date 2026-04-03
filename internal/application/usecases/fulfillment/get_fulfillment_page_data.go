@@ -12,7 +12,9 @@ import (
 
 // ---- GetFulfillmentItemPageData ----
 
-type GetFulfillmentItemPageDataRepositories struct{ Fulfillment pb.FulfillmentDomainServiceServer }
+type GetFulfillmentItemPageDataRepositories struct {
+	Fulfillment pb.FulfillmentDomainServiceServer
+}
 type GetFulfillmentItemPageDataServices struct {
 	AuthorizationService ports.AuthorizationService
 	TranslationService   ports.TranslationService

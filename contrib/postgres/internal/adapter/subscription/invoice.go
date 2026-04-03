@@ -1,4 +1,3 @@
-
 package subscription
 
 import (
@@ -7,9 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -17,6 +15,7 @@ import (
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresInvoiceRepository implements invoice CRUD operations using PostgreSQL
@@ -376,7 +375,7 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 			// Invoice fields
 			id             string
 			invoiceNumber  string
-			amount         float64
+			amount         int64
 			dateCreated    sql.NullTime
 			dateModified   sql.NullTime
 			active         bool
@@ -457,16 +456,12 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 				subscription.ClientId = subClientID.String
 			}
 			if subDateStart.Valid {
-				ts := subDateStart.Time.Unix()
-				subscription.DateStart = &ts
-				dateStr := subDateStart.Time.Format("2006-01-02T15:04:05Z07:00")
-				subscription.DateStartString = &dateStr
+				dateStr := subDateStart.Time.UTC().Format("2006-01-02")
+				subscription.DateStart = &dateStr
 			}
 			if subDateEnd.Valid {
-				ts := subDateEnd.Time.Unix()
-				subscription.DateEnd = &ts
-				dateStr := subDateEnd.Time.Format("2006-01-02T15:04:05Z07:00")
-				subscription.DateEndString = &dateStr
+				dateStr := subDateEnd.Time.UTC().Format("2006-01-02")
+				subscription.DateEnd = &dateStr
 			}
 			if subDateCreated.Valid {
 				ts := subDateCreated.Time.Unix()
@@ -692,7 +687,7 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 		// Invoice fields
 		id             string
 		invoiceNumber  string
-		amount         float64
+		amount         int64
 		dateCreated    sql.NullTime
 		dateModified   sql.NullTime
 		active         bool
@@ -782,16 +777,12 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 			subscription.ClientId = subClientID.String
 		}
 		if subDateStart.Valid {
-			ts := subDateStart.Time.Unix()
-			subscription.DateStart = &ts
-			dateStr := subDateStart.Time.Format("2006-01-02T15:04:05Z07:00")
-			subscription.DateStartString = &dateStr
+			dateStr := subDateStart.Time.UTC().Format("2006-01-02")
+			subscription.DateStart = &dateStr
 		}
 		if subDateEnd.Valid {
-			ts := subDateEnd.Time.Unix()
-			subscription.DateEnd = &ts
-			dateStr := subDateEnd.Time.Format("2006-01-02T15:04:05Z07:00")
-			subscription.DateEndString = &dateStr
+			dateStr := subDateEnd.Time.UTC().Format("2006-01-02")
+			subscription.DateEnd = &dateStr
 		}
 		if subDateCreated.Valid {
 			ts := subDateCreated.Time.Unix()

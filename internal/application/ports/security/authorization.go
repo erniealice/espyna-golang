@@ -148,14 +148,14 @@ const (
 	EntityWorkspaceUserRole = "workspace_user_role"
 
 	// Event Domain (8 entities)
-	EntityEvent            = "event"
-	EntityEventAttendee    = "event_attendee"
-	EntityEventAttribute   = "event_attribute"
-	EntityEventClient      = "event_client"
-	EntityEventOccurrence  = "event_occurrence"
-	EntityEventProduct     = "event_product"
-	EntityEventRecurrence  = "event_recurrence"
-	EntityEventResource    = "event_resource"
+	EntityEvent           = "event"
+	EntityEventAttendee   = "event_attendee"
+	EntityEventAttribute  = "event_attribute"
+	EntityEventClient     = "event_client"
+	EntityEventOccurrence = "event_occurrence"
+	EntityEventProduct    = "event_product"
+	EntityEventRecurrence = "event_recurrence"
+	EntityEventResource   = "event_resource"
 
 	// Framework Domain (3 entities)
 	EntityFramework = "framework"
@@ -178,7 +178,7 @@ const (
 	EntityInventoryDepreciation  = "inventory_depreciation"
 	EntityInventorySerialHistory = "inventory_serial_history"
 
-	// Product Domain (15 entities)
+	// Product Domain (16 entities)
 	EntityCollection           = "collection"
 	EntityCollectionAttribute  = "collection_attribute"
 	EntityCollectionPlan       = "collection_plan"
@@ -186,7 +186,8 @@ const (
 	EntityPriceProduct         = "price_product"
 	EntityProduct              = "product"
 	EntityProductAttribute     = "product_attribute"
-	EntityProductCollection    = "product_collection"
+	EntityLine                 = "line"
+	EntityProductLine          = "product_line"
 	EntityProductOption        = "product_option"
 	EntityProductOptionValue   = "product_option_value"
 	EntityProductPlan          = "product_plan"

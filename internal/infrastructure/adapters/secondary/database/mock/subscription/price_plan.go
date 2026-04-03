@@ -369,7 +369,7 @@ func (r *MockPricePlanRepository) mapToProtobufPricePlan(rawPricePlan map[string
 	}
 
 	if amount, ok := rawPricePlan["amount"].(float64); ok {
-		pricePlan.Amount = float64(amount)
+		pricePlan.Amount = int64(amount)
 	}
 
 	if currency, ok := rawPricePlan["currency"].(string); ok {

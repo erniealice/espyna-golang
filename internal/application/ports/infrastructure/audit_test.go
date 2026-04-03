@@ -101,7 +101,7 @@ func TestDiffAndLog_Update_OnlyChangedFields(t *testing.T) {
 			"status": "active",
 		},
 		NewData: map[string]any{
-			"name":   "Alice",   // unchanged
+			"name":   "Alice",     // unchanged
 			"status": "suspended", // changed
 		},
 	})

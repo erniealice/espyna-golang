@@ -173,7 +173,7 @@ func (r *PostgresFulfillmentReturnRepository) UpdateFulfillmentReturn(ctx contex
 		WHERE id = $5 AND active = true
 	`
 
-	var refundAmount *float64
+	var refundAmount *int64
 	if ret.RefundAmount != nil {
 		refundAmount = ret.RefundAmount
 	}

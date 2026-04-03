@@ -1,20 +1,19 @@
-
 package entity
 
 import (
 	"context"
 	"database/sql"
-	"time"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -259,22 +258,21 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeListPageData(c
 
 		// Build data map and convert to protobuf
 		rawData = map[string]interface{}{
-			"id":          id,
-			"locationId":  locationId,
-			"key":         attributeKey,
-			"value":       attributeValue,
-			"active":      active,
+			"id":         id,
+			"locationId": locationId,
+			"key":        attributeKey,
+			"value":      attributeValue,
+			"active":     active,
 		}
-		
-		
+
 		if !dateCreated.IsZero() {
-		rawData["dateCreated"] = dateCreated.UnixMilli()
-		rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
-	}
+			rawData["dateCreated"] = dateCreated.UnixMilli()
+			rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
+		}
 		if !dateModified.IsZero() {
-		rawData["dateModified"] = dateModified.UnixMilli()
-		rawData["dateModifiedString"] = dateModified.Format(time.RFC3339)
-	}
+			rawData["dateModified"] = dateModified.UnixMilli()
+			rawData["dateModifiedString"] = dateModified.Format(time.RFC3339)
+		}
 
 		// Convert to protobuf
 		dataJSON, _ := json.Marshal(rawData)
@@ -306,14 +304,13 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeItemPageData(c
 
 	// Build data map and convert to protobuf
 	rawData := map[string]interface{}{
-		"id":          id,
-		"locationId":  locationId,
-		"key":         attributeKey,
-		"value":       attributeValue,
-		"active":      active,
+		"id":         id,
+		"locationId": locationId,
+		"key":        attributeKey,
+		"value":      attributeValue,
+		"active":     active,
 	}
-	
-	
+
 	if !dateCreated.IsZero() {
 		rawData["dateCreated"] = dateCreated.UnixMilli()
 		rawData["dateCreatedString"] = dateCreated.Format(time.RFC3339)
@@ -331,7 +328,6 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeItemPageData(c
 	}
 	return &locationattributepb.GetLocationAttributeItemPageDataResponse{LocationAttribute: locationAttribute, Success: true}, nil
 }
-
 
 // NewLocationAttributeRepository creates a new PostgreSQL location_attribute repository (old-style constructor)
 func NewLocationAttributeRepository(db *sql.DB, tableName string) locationattributepb.LocationAttributeDomainServiceServer {

@@ -20,8 +20,8 @@ func aggregatePhase(
 	evaluableCount := counts.pass + counts.fail + counts.conditional
 
 	var (
-		score          *float64
-		phaseDet       enums.OverallDetermination
+		score    *float64
+		phaseDet enums.OverallDetermination
 	)
 
 	switch scoringMethod {
@@ -131,8 +131,8 @@ func aggregateJobFromPhases(
 ) (*jobpb.JobOutcomeSummary, error) {
 	var (
 		totalCriteria, pass, fail, conditional, deferred, na int32
-		sumScore, sumWeights                                  float64
-		overallDet                                            enums.OverallDetermination
+		sumScore, sumWeights                                 float64
+		overallDet                                           enums.OverallDetermination
 	)
 
 	for _, p := range phases {

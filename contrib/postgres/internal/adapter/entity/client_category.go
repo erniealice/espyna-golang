@@ -1,20 +1,19 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -295,13 +294,13 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			name               string
-			description        *string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
-			total              int64
+			id           string
+			name         string
+			description  *string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
+			total        int64
 		)
 
 		err := rows.Scan(
@@ -336,17 +335,17 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		clientCategory.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		clientCategory.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			clientCategory.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			clientCategory.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		clientCategory.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		clientCategory.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			clientCategory.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			clientCategory.DateModifiedString = &dmStr
+		}
 
 		clientCategories = append(clientCategories, clientCategory)
 	}
@@ -407,12 +406,12 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.ClientCategoryId)
 
 	var (
-		id                 string
-		name               string
-		description        *string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		name         string
+		description  *string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 	)
 
 	err := row.Scan(

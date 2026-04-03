@@ -2,9 +2,9 @@
 // repositories into use cases during application startup.
 //
 // For each domain, it:
-//   1. Calls domain.New{Domain}Repositories() to create repos from the registry
-//      (no switch statements — repos come from self-registered factory functions).
-//   2. Calls initializers.Initialize{Domain}() to build use cases from repos + services.
+//  1. Calls domain.New{Domain}Repositories() to create repos from the registry
+//     (no switch statements — repos come from self-registered factory functions).
+//  2. Calls initializers.Initialize{Domain}() to build use cases from repos + services.
 //
 // The providerManager supplies: database provider, table config, auth, ID, and
 // translation services.

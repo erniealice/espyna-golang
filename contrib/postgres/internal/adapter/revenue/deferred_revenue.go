@@ -1,4 +1,3 @@
-
 package revenue
 
 import (
@@ -10,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -82,6 +81,7 @@ func (r *PostgresDeferredRevenueRepository) CreateDeferredRevenue(ctx context.Co
 		return nil, fmt.Errorf("failed to create deferred revenue: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -109,6 +109,7 @@ func (r *PostgresDeferredRevenueRepository) ReadDeferredRevenue(ctx context.Cont
 		return nil, fmt.Errorf("failed to read deferred revenue: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -152,6 +153,7 @@ func (r *PostgresDeferredRevenueRepository) UpdateDeferredRevenue(ctx context.Co
 		return nil, fmt.Errorf("failed to update deferred revenue: %w", err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -197,6 +199,7 @@ func (r *PostgresDeferredRevenueRepository) ListDeferredRevenues(ctx context.Con
 
 	var deferredRevenues []*deferredrevenuepb.DeferredRevenue
 	for _, result := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			log.Printf("WARN: json.Marshal deferred revenue row: %v", err)
@@ -269,9 +272,7 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 				dr.recognized_amount,
 				dr.remaining_amount,
 				dr.start_date,
-				dr.start_date_string,
 				dr.end_date,
-				dr.end_date_string,
 				dr.recognition_months,
 				dr.status,
 				dr.liability_account_id,
@@ -310,13 +311,11 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 			active             bool
 			description        string
 			customerName       *string
-			totalAmount        float64
-			recognizedAmount   float64
-			remainingAmount    float64
-			startDate          *int64
-			startDateString    *string
-			endDate            *int64
-			endDateString      *string
+			totalAmount        int64
+			recognizedAmount   int64
+			remainingAmount    int64
+			startDate          *string
+			endDate            *string
 			recognitionMonths  int32
 			statusStr          string
 			liabilityAccountID *string
@@ -335,9 +334,7 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 			&recognizedAmount,
 			&remainingAmount,
 			&startDate,
-			&startDateString,
 			&endDate,
-			&endDateString,
 			&recognitionMonths,
 			&statusStr,
 			&liabilityAccountID,
@@ -361,18 +358,16 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 			RecognitionMonths:  recognitionMonths,
 			LiabilityAccountId: liabilityAccountID,
 			RevenueAccountId:   revenueAccountID,
-			StartDateString:    startDateString,
-			EndDateString:      endDateString,
 		}
 
 		if val, ok := deferredrevenuepb.DeferredRevenueStatus_value[statusStr]; ok {
 			deferredRevenue.Status = deferredrevenuepb.DeferredRevenueStatus(val)
 		}
 
-		if startDate != nil && *startDate > 0 {
+		if startDate != nil {
 			deferredRevenue.StartDate = *startDate
 		}
-		if endDate != nil && *endDate > 0 {
+		if endDate != nil {
 			deferredRevenue.EndDate = *endDate
 		}
 		if dateCreated > 0 {
@@ -428,6 +423,7 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueItemPageData(
 		return nil, fmt.Errorf("failed to read deferred revenue '%s': %w", req.DeferredRevenueId, err)
 	}
 
+	postgresCore.ConvertMillisToDateStr(result, "start_date", "end_date")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)

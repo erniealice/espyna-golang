@@ -1,4 +1,3 @@
-
 package entity
 
 import (
@@ -8,15 +7,15 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 	suppliercategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_category"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -154,7 +153,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		defaultCurrency    *string
 		paymentTerms       *string
 		leadTimeDays       *int32
-		creditLimit        *float64
+		creditLimit        *int64
 		status             *string
 		clientId           *string
 		website            *string
@@ -438,7 +437,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			defaultCurrency    *string
 			paymentTerms       *string
 			leadTimeDays       *int32
-			creditLimit        *float64
+			creditLimit        *int64
 			status             *string
 			clientId           *string
 			website            *string
@@ -607,7 +606,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		defaultCurrency    *string
 		paymentTerms       *string
 		leadTimeDays       *int32
-		creditLimit        *float64
+		creditLimit        *int64
 		status             *string
 		clientId           *string
 		website            *string
@@ -747,7 +746,7 @@ func buildSupplierFromScan(
 	dateCreated time.Time, dateModified time.Time,
 	supplierType *string, companyName *string, taxId *string, registrationNumber *string,
 	streetAddress *string, city *string, province *string, postalCode *string, country *string,
-	defaultCurrency *string, paymentTerms *string, leadTimeDays *int32, creditLimit *float64,
+	defaultCurrency *string, paymentTerms *string, leadTimeDays *int32, creditLimit *int64,
 	status *string, clientId *string, website *string, notes *string, categoryId *string,
 	paymentTermID *string,
 	userIdValue *string, userFirstName *string, userLastName *string,

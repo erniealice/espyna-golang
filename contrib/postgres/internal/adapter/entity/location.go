@@ -1,21 +1,20 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -265,6 +264,7 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 				l.active,
 				l.date_created,
 				l.date_modified,
+				COALESCE(l.timezone, 'Asia/Manila') as timezone,
 				COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 			FROM location l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
@@ -293,20 +293,21 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			name               string
-			address            *string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
-			attributesJSON     []byte
-			total              int64
+			id             string
+			name           string
+			address        *string
+			active         bool
+			dateCreated    time.Time
+			dateModified   time.Time
+			timezone       string
+			attributesJSON []byte
+			total          int64
 		)
 
 		err := rows.Scan(
 			&id, &name, &address,
 			&active, &dateCreated, &dateModified,
-			&attributesJSON, &total,
+			&timezone, &attributesJSON, &total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan: %w", err)
@@ -323,21 +324,22 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		if address != nil {
 			location.Address = *address
 		}
+		location.Timezone = &timezone
 		// Note: Removed city, state, country, postalCode assignments as they don't exist in the protobuf schema
-		// The Location protobuf only has: id, name, address, description, timestamps, and active fields
+		// The Location protobuf only has: id, name, address, description, timezone, timestamps, and active fields
 
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		location.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		location.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			location.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			location.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		location.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		location.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			location.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			location.DateModifiedString = &dmStr
+		}
 
 		var attributes []*locationattributepb.LocationAttribute
 		if len(attributesJSON) > 0 && string(attributesJSON) != "[]" {
@@ -418,6 +420,7 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		SELECT
 			l.id, l.name, l.address,
 			l.active, l.date_created, l.date_modified,
+			COALESCE(l.timezone, 'Asia/Manila') as timezone,
 			COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 		FROM location l
 		LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
@@ -428,19 +431,20 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.LocationId)
 
 	var (
-		id                 string
-		name               string
-		address            *string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
-		attributesJSON     []byte
+		id             string
+		name           string
+		address        *string
+		active         bool
+		dateCreated    time.Time
+		dateModified   time.Time
+		timezone       string
+		attributesJSON []byte
 	)
 
 	err := row.Scan(
 		&id, &name, &address,
 		&active, &dateCreated, &dateModified,
-		&attributesJSON,
+		&timezone, &attributesJSON,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("location not found")
@@ -458,8 +462,9 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 	if address != nil {
 		location.Address = *address
 	}
+	location.Timezone = &timezone
 	// Note: Removed city, state, country, postalCode assignments as they don't exist in the Location protobuf schema
-	// The Location protobuf only has: id, name, address, description, timestamps, and active fields
+	// The Location protobuf only has: id, name, address, description, timezone, timestamps, and active fields
 
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

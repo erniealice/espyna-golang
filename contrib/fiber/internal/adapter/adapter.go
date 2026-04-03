@@ -94,9 +94,9 @@ func (a *FiberAdapter) Initialize(container any) error {
 
 	// Add CORS middleware
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "*",
-		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
-		AllowHeaders:     "Content-Type, Authorization",
+		AllowOrigins: "*",
+		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
+		AllowHeaders: "Content-Type, Authorization",
 	}))
 
 	// Add compression middleware

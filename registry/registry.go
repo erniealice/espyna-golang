@@ -230,8 +230,8 @@ var (
 // =============================================================================
 
 var (
-	RegisterAuditServiceFactory            = internal.RegisterAuditServiceFactory
-	GetAuditServiceFactory                 = internal.GetAuditServiceFactory
-	RegisterAuditEnabledOperationsFactory  = internal.RegisterAuditEnabledOperationsFactory
-	GetAuditEnabledOperationsFactory       = internal.GetAuditEnabledOperationsFactory
+	RegisterAuditServiceFactory           = internal.RegisterAuditServiceFactory
+	GetAuditServiceFactory                = internal.GetAuditServiceFactory
+	RegisterAuditEnabledOperationsFactory = internal.RegisterAuditEnabledOperationsFactory
+	GetAuditEnabledOperationsFactory      = internal.GetAuditEnabledOperationsFactory
 )

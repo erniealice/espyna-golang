@@ -12,55 +12,11 @@ func RegisterProductUseCases(useCases *usecases.Aggregate, register func(string,
 		return
 	}
 
-	registerCollectionUseCases(useCases, register)
-	registerCollectionPlanUseCases(useCases, register)
 	registerPriceProductUseCases(useCases, register)
 	registerProductCoreUseCases(useCases, register)
-	registerProductCollectionUseCases(useCases, register)
+	registerProductLineUseCases(useCases, register)
 	registerProductPlanUseCases(useCases, register)
 	registerResourceUseCases(useCases, register)
-}
-
-func registerCollectionUseCases(useCases *usecases.Aggregate, register func(string, ports.ActivityExecutor)) {
-	if useCases.Product.Collection == nil {
-		return
-	}
-	if useCases.Product.Collection.CreateCollection != nil {
-		register("product.collection.create", executor.New(useCases.Product.Collection.CreateCollection.Execute))
-	}
-	if useCases.Product.Collection.ReadCollection != nil {
-		register("product.collection.read", executor.New(useCases.Product.Collection.ReadCollection.Execute))
-	}
-	if useCases.Product.Collection.UpdateCollection != nil {
-		register("product.collection.update", executor.New(useCases.Product.Collection.UpdateCollection.Execute))
-	}
-	if useCases.Product.Collection.DeleteCollection != nil {
-		register("product.collection.delete", executor.New(useCases.Product.Collection.DeleteCollection.Execute))
-	}
-	if useCases.Product.Collection.ListCollections != nil {
-		register("product.collection.list", executor.New(useCases.Product.Collection.ListCollections.Execute))
-	}
-}
-
-func registerCollectionPlanUseCases(useCases *usecases.Aggregate, register func(string, ports.ActivityExecutor)) {
-	if useCases.Product.CollectionPlan == nil {
-		return
-	}
-	if useCases.Product.CollectionPlan.CreateCollectionPlan != nil {
-		register("product.collection_plan.create", executor.New(useCases.Product.CollectionPlan.CreateCollectionPlan.Execute))
-	}
-	if useCases.Product.CollectionPlan.ReadCollectionPlan != nil {
-		register("product.collection_plan.read", executor.New(useCases.Product.CollectionPlan.ReadCollectionPlan.Execute))
-	}
-	if useCases.Product.CollectionPlan.UpdateCollectionPlan != nil {
-		register("product.collection_plan.update", executor.New(useCases.Product.CollectionPlan.UpdateCollectionPlan.Execute))
-	}
-	if useCases.Product.CollectionPlan.DeleteCollectionPlan != nil {
-		register("product.collection_plan.delete", executor.New(useCases.Product.CollectionPlan.DeleteCollectionPlan.Execute))
-	}
-	if useCases.Product.CollectionPlan.ListCollectionPlans != nil {
-		register("product.collection_plan.list", executor.New(useCases.Product.CollectionPlan.ListCollectionPlans.Execute))
-	}
 }
 
 func registerPriceProductUseCases(useCases *usecases.Aggregate, register func(string, ports.ActivityExecutor)) {
@@ -105,24 +61,24 @@ func registerProductCoreUseCases(useCases *usecases.Aggregate, register func(str
 	}
 }
 
-func registerProductCollectionUseCases(useCases *usecases.Aggregate, register func(string, ports.ActivityExecutor)) {
-	if useCases.Product.ProductCollection == nil {
+func registerProductLineUseCases(useCases *usecases.Aggregate, register func(string, ports.ActivityExecutor)) {
+	if useCases.Product.ProductLine == nil {
 		return
 	}
-	if useCases.Product.ProductCollection.CreateProductCollection != nil {
-		register("product.product_collection.create", executor.New(useCases.Product.ProductCollection.CreateProductCollection.Execute))
+	if useCases.Product.ProductLine.CreateProductLine != nil {
+		register("product.product_line.create", executor.New(useCases.Product.ProductLine.CreateProductLine.Execute))
 	}
-	if useCases.Product.ProductCollection.ReadProductCollection != nil {
-		register("product.product_collection.read", executor.New(useCases.Product.ProductCollection.ReadProductCollection.Execute))
+	if useCases.Product.ProductLine.ReadProductLine != nil {
+		register("product.product_line.read", executor.New(useCases.Product.ProductLine.ReadProductLine.Execute))
 	}
-	if useCases.Product.ProductCollection.UpdateProductCollection != nil {
-		register("product.product_collection.update", executor.New(useCases.Product.ProductCollection.UpdateProductCollection.Execute))
+	if useCases.Product.ProductLine.UpdateProductLine != nil {
+		register("product.product_line.update", executor.New(useCases.Product.ProductLine.UpdateProductLine.Execute))
 	}
-	if useCases.Product.ProductCollection.DeleteProductCollection != nil {
-		register("product.product_collection.delete", executor.New(useCases.Product.ProductCollection.DeleteProductCollection.Execute))
+	if useCases.Product.ProductLine.DeleteProductLine != nil {
+		register("product.product_line.delete", executor.New(useCases.Product.ProductLine.DeleteProductLine.Execute))
 	}
-	if useCases.Product.ProductCollection.ListProductCollections != nil {
-		register("product.product_collection.list", executor.New(useCases.Product.ProductCollection.ListProductCollections.Execute))
+	if useCases.Product.ProductLine.ListProductLines != nil {
+		register("product.product_line.list", executor.New(useCases.Product.ProductLine.ListProductLines.Execute))
 	}
 }
 

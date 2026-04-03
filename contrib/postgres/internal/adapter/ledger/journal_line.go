@@ -1,4 +1,3 @@
-
 package ledger
 
 import (
@@ -7,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	journallinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_line"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {

@@ -11,13 +11,13 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	pgaudit "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/audit"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 )
 
 // PostgresJobActivityRepository implements job_activity CRUD operations using PostgreSQL
@@ -260,8 +260,8 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 			jobTaskId      sql.NullString
 			entryType      string
 			quantity       float64
-			unitCost       float64
-			totalCost      float64
+			unitCost       int64
+			totalCost      int64
 			currency       string
 			entryDate      sql.NullTime
 			description    sql.NullString
@@ -399,8 +399,8 @@ func (r *PostgresJobActivityRepository) ListByJob(ctx context.Context, req *pb.L
 			jobTaskId      sql.NullString
 			entryType      string
 			quantity       float64
-			unitCost       float64
-			totalCost      float64
+			unitCost       int64
+			totalCost      int64
 			currency       string
 			entryDate      sql.NullTime
 			description    sql.NullString
@@ -515,12 +515,12 @@ func (r *PostgresJobActivityRepository) GetJobActivityRollup(ctx context.Context
 	defer rows.Close()
 
 	var rollup []*pb.CostByEntryType
-	var grandTotal float64
+	var grandTotal int64
 
 	for rows.Next() {
 		var (
 			entryType string
-			totalCost float64
+			totalCost int64
 			count     int32
 		)
 		if err := rows.Scan(&entryType, &totalCost, &count); err != nil {

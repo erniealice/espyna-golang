@@ -1,24 +1,23 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -479,12 +478,12 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			workspaceId        string
-			userId             string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
+			id           string
+			workspaceId  string
+			userId       string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
 			// User fields
 			userIdValue      *string
 			userFirstName    *string
@@ -675,12 +674,12 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserId)
 
 	var (
-		id                 string
-		workspaceId        string
-		userId             string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		workspaceId  string
+		userId       string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 		// User fields
 		userIdValue      *string
 		userFirstName    *string
@@ -762,7 +761,6 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 		Success:       true,
 	}, nil
 }
-
 
 // NewWorkspaceUserRepository creates a new PostgreSQL workspace_user repository (old-style constructor)
 func NewWorkspaceUserRepository(db *sql.DB, tableName string) workspaceuserpb.WorkspaceUserDomainServiceServer {

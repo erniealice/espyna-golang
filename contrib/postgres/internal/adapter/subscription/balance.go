@@ -1,4 +1,3 @@
-
 package subscription
 
 import (
@@ -7,14 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresBalanceRepository implements balance CRUD operations using PostgreSQL
@@ -297,7 +296,7 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 	for rows.Next() {
 		var (
 			id                 string
-			amount             float64
+			amount             int64
 			dateCreated        sql.NullInt64
 			dateCreatedString  sql.NullString
 			dateModified       sql.NullInt64
@@ -432,7 +431,7 @@ func (r *PostgresBalanceRepository) GetBalanceItemPageData(ctx context.Context, 
 
 	var (
 		id                 string
-		amount             float64
+		amount             int64
 		dateCreated        sql.NullInt64
 		dateCreatedString  sql.NullString
 		dateModified       sql.NullInt64

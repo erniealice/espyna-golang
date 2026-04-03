@@ -1,20 +1,19 @@
-
 package entity
 
 import (
-	"time"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -289,13 +288,13 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			roleID             string
-			permissionID       string
-			active             bool
-			dateCreated        time.Time
-			dateModified       time.Time
-			total              int64
+			id           string
+			roleID       string
+			permissionID string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
+			total        int64
 		)
 
 		err := rows.Scan(
@@ -324,17 +323,17 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 
 		// Parse timestamps if provided
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		rolePermission.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		rolePermission.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			rolePermission.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			rolePermission.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		rolePermission.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		rolePermission.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			rolePermission.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			rolePermission.DateModifiedString = &dmStr
+		}
 
 		rolePermissions = append(rolePermissions, rolePermission)
 	}
@@ -395,12 +394,12 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionItemPageData(
 	row := exec.QueryRowContext(ctx, query, req.RolePermissionId)
 
 	var (
-		id                 string
-		roleID             string
-		permissionID       string
-		active             bool
-		dateCreated        time.Time
-		dateModified       time.Time
+		id           string
+		roleID       string
+		permissionID string
+		active       bool
+		dateCreated  time.Time
+		dateModified time.Time
 	)
 
 	err := row.Scan(
@@ -446,7 +445,6 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionItemPageData(
 		Success:        true,
 	}, nil
 }
-
 
 // NewRolePermissionRepository creates a new PostgreSQL role_permission repository (old-style constructor)
 func NewRolePermissionRepository(db *sql.DB, tableName string) rolepermissionpb.RolePermissionDomainServiceServer {

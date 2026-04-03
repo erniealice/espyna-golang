@@ -1,4 +1,3 @@
-
 package treasury
 
 import (
@@ -10,8 +9,8 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -301,7 +300,7 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 			active           bool
 			direction        *string
 			counterpartyName string
-			amount           float64
+			amount           int64
 			depositDate      *int64
 			status           *string
 			accountID        *string
@@ -432,7 +431,7 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositItemPageData(
 		active           bool
 		direction        *string
 		counterpartyName string
-		amount           float64
+		amount           int64
 		depositDate      *int64
 		status           *string
 		accountID        *string

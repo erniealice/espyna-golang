@@ -1,20 +1,19 @@
-
 package entity
 
 import (
 	"context"
 	"database/sql"
-	"time"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -257,17 +256,17 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		totalCount = total
 		delegateClient := &delegateclientpb.DelegateClient{Id: id, DelegateId: delegateId, ClientId: clientId, Active: active}
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		delegateClient.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		delegateClient.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			delegateClient.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			delegateClient.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		delegateClient.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		delegateClient.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			delegateClient.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			delegateClient.DateModifiedString = &dmStr
+		}
 		delegateClients = append(delegateClients, delegateClient)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
@@ -305,7 +304,6 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientItemPageData(ctx con
 	}
 	return &delegateclientpb.GetDelegateClientItemPageDataResponse{DelegateClient: delegateClient, Success: true}, nil
 }
-
 
 // NewDelegateClientRepository creates a new PostgreSQL delegate_client repository (old-style constructor)
 func NewDelegateClientRepository(db *sql.DB, tableName string) delegateclientpb.DelegateClientDomainServiceServer {

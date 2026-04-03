@@ -1,4 +1,3 @@
-
 package inventory_serial
 
 import (
@@ -8,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/encoding/protojson"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventoryserialpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_serial"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func init() {
@@ -387,7 +386,7 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 		if purchaseOrder != nil {
 			inventorySerial.PurchaseOrder = purchaseOrder
 		}
-if notes != nil {
+		if notes != nil {
 			inventorySerial.Notes = notes
 		}
 

@@ -245,7 +245,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 	}
 
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, location_id FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -258,11 +258,15 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		var amount float64
 		var active bool
 		var dateCreated, dateModified time.Time
-		if err := rows.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified); err != nil {
+		var locationId sql.NullString
+		if err := rows.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &locationId); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
 		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: float64(amount), Currency: currency, Active: active}
+		if locationId.Valid && locationId.String != "" {
+			pricePlan.LocationId = &locationId.String
+		}
 		if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		pricePlan.DateCreated = &ts
@@ -286,18 +290,22 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	if req == nil || req.PricePlanId == "" {
 		return nil, fmt.Errorf("price plan ID required")
 	}
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified FROM price_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, location_id FROM price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
 	var id, planId, currency, name, description string
 	var amount float64
 	var active bool
 	var dateCreated, dateModified time.Time
-	if err := row.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
+	var locationId sql.NullString
+	if err := row.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &locationId); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: float64(amount), Currency: currency, Active: active}
+	if locationId.Valid && locationId.String != "" {
+		pricePlan.LocationId = &locationId.String
+	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		pricePlan.DateCreated = &ts

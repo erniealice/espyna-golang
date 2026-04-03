@@ -413,8 +413,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			name          string
 			clientID      string
 			pricePlanID   string
-			dateStart     sql.NullInt64
-			dateEnd       sql.NullInt64
+			dateStart     sql.NullTime
+			dateEnd       sql.NullTime
 			active        bool
 			dateCreated   sql.NullTime
 			dateModified  sql.NullTime
@@ -453,17 +453,19 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		}
 
 		if dateStart.Valid {
-			subscription.DateStart = &dateStart.Int64
+			ts := dateStart.Time.UnixMilli()
+			subscription.DateStart = &ts
 		}
 		if dateEnd.Valid {
-			subscription.DateEnd = &dateEnd.Int64
+			ts := dateEnd.Time.UnixMilli()
+			subscription.DateEnd = &ts
 		}
 		if dateCreated.Valid {
-			ts := dateCreated.Time.Unix()
+			ts := dateCreated.Time.UnixMilli()
 			subscription.DateCreated = &ts
 		}
 		if dateModified.Valid {
-			ts := dateModified.Time.Unix()
+			ts := dateModified.Time.UnixMilli()
 			subscription.DateModified = &ts
 		}
 
@@ -597,8 +599,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		name          string
 		clientID      string
 		pricePlanID   string
-		dateStart     sql.NullInt64
-		dateEnd       sql.NullInt64
+		dateStart     sql.NullTime
+		dateEnd       sql.NullTime
 		active        bool
 		dateCreated   sql.NullTime
 		dateModified  sql.NullTime
@@ -636,17 +638,19 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 	}
 
 	if dateStart.Valid {
-		subscription.DateStart = &dateStart.Int64
+		ts := dateStart.Time.UnixMilli()
+		subscription.DateStart = &ts
 	}
 	if dateEnd.Valid {
-		subscription.DateEnd = &dateEnd.Int64
+		ts := dateEnd.Time.UnixMilli()
+		subscription.DateEnd = &ts
 	}
 	if dateCreated.Valid {
-		ts := dateCreated.Time.Unix()
+		ts := dateCreated.Time.UnixMilli()
 		subscription.DateCreated = &ts
 	}
 	if dateModified.Valid {
-		ts := dateModified.Time.Unix()
+		ts := dateModified.Time.UnixMilli()
 		subscription.DateModified = &ts
 	}
 

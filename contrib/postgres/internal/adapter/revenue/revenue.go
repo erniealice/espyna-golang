@@ -338,7 +338,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			revenueCategoryID *string
 			locationID        *string
 			paymentTermID     *string
-			dueDate           *time.Time
+			dueDate           *int64
 			clientName        string
 			locationName      string
 			total             int64
@@ -404,10 +404,10 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		if paymentTermID != nil {
 			revenue.PaymentTermId = paymentTermID
 		}
-		if dueDate != nil && !dueDate.IsZero() {
-			ts := dueDate.UnixMilli()
-			revenue.DueDate = &ts
-			dueDateStr := dueDate.UTC().Format("2006-01-02")
+		if dueDate != nil && *dueDate != 0 {
+			revenue.DueDate = dueDate
+			t := time.UnixMilli(*dueDate).UTC()
+			dueDateStr := t.Format("2006-01-02")
 			revenue.DueDateString = &dueDateStr
 		}
 
@@ -513,7 +513,7 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		revenueCategoryID *string
 		locationID        *string
 		paymentTermID     *string
-		dueDate           *time.Time
+		dueDate           *int64
 		clientName        string
 		locationName      string
 	)
@@ -578,10 +578,10 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	if paymentTermID != nil {
 		revenue.PaymentTermId = paymentTermID
 	}
-	if dueDate != nil && !dueDate.IsZero() {
-		ts := dueDate.UnixMilli()
-		revenue.DueDate = &ts
-		dueDateStr := dueDate.UTC().Format("2006-01-02")
+	if dueDate != nil && *dueDate != 0 {
+		revenue.DueDate = dueDate
+		t := time.UnixMilli(*dueDate).UTC()
+		dueDateStr := t.Format("2006-01-02")
 		revenue.DueDateString = &dueDateStr
 	}
 

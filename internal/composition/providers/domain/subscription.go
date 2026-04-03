@@ -18,11 +18,12 @@ import (
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
 
-// SubscriptionRepositories contains all 11 subscription domain repositories (6 entities + 4 attributes + attribute + cross-domain dependencies)
+// SubscriptionRepositories contains all subscription domain repositories
 type SubscriptionRepositories struct {
 	Balance               balancepb.BalanceDomainServiceServer
 	BalanceAttribute      balanceattributepb.BalanceAttributeDomainServiceServer
@@ -33,6 +34,7 @@ type SubscriptionRepositories struct {
 	PlanAttribute         planattributepb.PlanAttributeDomainServiceServer
 	PlanSettings          plansettingspb.PlanSettingsDomainServiceServer
 	PricePlan             priceplanpb.PricePlanDomainServiceServer
+	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	Attribute             attributepb.AttributeDomainServiceServer
@@ -83,6 +85,11 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		return nil, fmt.Errorf("failed to create price_plan repository: %w", err)
 	}
 
+	productPricePlanRepo, err := repoCreator.CreateRepository(entityid.ProductPricePlan, conn, tableConfig.TableName(entityid.ProductPricePlan))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product_price_plan repository: %w", err)
+	}
+
 	subscriptionRepo, err := repoCreator.CreateRepository(entityid.Subscription, conn, tableConfig.TableName(entityid.Subscription))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subscription repository: %w", err)
@@ -125,6 +132,7 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		PlanAttribute:         planAttributeRepo.(planattributepb.PlanAttributeDomainServiceServer),
 		PlanSettings:          planSettingsRepo.(plansettingspb.PlanSettingsDomainServiceServer),
 		PricePlan:             pricePlanRepo.(priceplanpb.PricePlanDomainServiceServer),
+		ProductPricePlan:      productPricePlanRepo.(productpriceplanpb.ProductPricePlanDomainServiceServer),
 		Subscription:          subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
 		SubscriptionAttribute: subscriptionAttributeRepo.(subscriptionattributepb.SubscriptionAttributeDomainServiceServer),
 		Attribute:             attributeServer,

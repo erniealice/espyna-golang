@@ -10,6 +10,7 @@ import (
 	planAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan_attribute"
 	planSettingsUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan_settings"
 	pricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/price_plan"
+	productPricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/product_price_plan"
 	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 	subscriptionAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription_attribute"
 
@@ -27,6 +28,7 @@ import (
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 )
@@ -42,6 +44,7 @@ type SubscriptionRepositories struct {
 	PlanAttribute         planattributepb.PlanAttributeDomainServiceServer
 	PlanSettings          plansettingspb.PlanSettingsDomainServiceServer
 	PricePlan             priceplanpb.PricePlanDomainServiceServer
+	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	Attribute             attributepb.AttributeDomainServiceServer
@@ -57,6 +60,7 @@ type SubscriptionUseCases struct {
 	PlanAttribute         *planAttributeUseCases.UseCases
 	PlanSettings          *planSettingsUseCases.UseCases
 	PricePlan             *pricePlanUseCases.UseCases
+	ProductPricePlan      *productPricePlanUseCases.UseCases
 	Subscription          *subscriptionUseCases.UseCases
 	SubscriptionAttribute *subscriptionAttributeUseCases.UseCases
 }
@@ -113,6 +117,19 @@ func NewUseCases(
 	pricePlanUC := pricePlanUseCases.NewUseCases(
 		pricePlanUseCases.PricePlanRepositories{PricePlan: repos.PricePlan, Plan: repos.Plan},
 		pricePlanUseCases.PricePlanServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	productPricePlanUC := productPricePlanUseCases.NewUseCases(
+		productPricePlanUseCases.ProductPricePlanRepositories{
+			ProductPricePlan: repos.ProductPricePlan,
+			PricePlan:        repos.PricePlan,
+		},
+		productPricePlanUseCases.ProductPricePlanServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,
 			TranslationService:   i18nSvc,
@@ -199,6 +216,7 @@ func NewUseCases(
 		PlanAttribute:         planAttributeUC,
 		PlanSettings:          planSettingsUC,
 		PricePlan:             pricePlanUC,
+		ProductPricePlan:      productPricePlanUC,
 		Subscription:          subscriptionUC,
 		SubscriptionAttribute: subscriptionAttributeUC,
 	}

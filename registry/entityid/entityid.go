@@ -146,6 +146,7 @@ const (
 	PlanAttribute         = "plan_attribute"
 	PlanSettings          = "plan_settings"
 	PricePlan             = "price_plan"
+	ProductPricePlan      = "product_price_plan"
 	Subscription          = "subscription"
 	SubscriptionAttribute = "subscription_attribute"
 )
@@ -306,7 +307,7 @@ var SubscriptionEntities = []string{
 	Invoice, InvoiceAttribute,
 	License, LicenseHistory,
 	Plan, PlanAttribute, PlanSettings,
-	PricePlan,
+	PricePlan, ProductPricePlan,
 	Subscription, SubscriptionAttribute,
 }
 

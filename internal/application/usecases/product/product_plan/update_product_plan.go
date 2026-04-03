@@ -168,6 +168,10 @@ func (uc *UpdateProductPlanUseCase) validateInputWithTranslation(ctx context.Con
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.product_id_required", "Product ID is required [DEFAULT]")
 		return errors.New(msg)
 	}
+	if req.Data.PlanId == "" {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.plan_id_required", "Plan ID is required [DEFAULT]")
+		return errors.New(msg)
+	}
 	return nil
 }
 

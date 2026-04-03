@@ -251,8 +251,23 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, name, description, price, currency, product_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1 OR currency ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// Build optional plan_id filter
+	planIDFilter := ""
+	var queryArgs []any
+	queryArgs = append(queryArgs, searchPattern, limit, offset)
+	if req.Filters != nil {
+		for _, f := range req.Filters.GetFilters() {
+			if f.GetField() == "plan_id" {
+				if sf := f.GetStringFilter(); sf != nil {
+					planIDFilter = " AND plan_id = $4"
+					queryArgs = append(queryArgs, sf.GetValue())
+				}
+			}
+		}
+	}
+
+	query := `WITH enriched AS (SELECT id, name, description, price, currency, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1 OR currency ILIKE $1)` + planIDFilter + `), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -263,11 +278,12 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 	for rows.Next() {
 		var id, name, productId, currency string
 		var description *string
+		var planId *string
 		var price float64
 		var active bool
 		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &name, &description, &price, &currency, &productId, &active, &dateCreated, &dateModified, &total); err != nil {
+		if err := rows.Scan(&id, &name, &description, &price, &currency, &productId, &planId, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
@@ -275,18 +291,21 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		if description != nil {
 			productPlan.Description = description
 		}
+		if planId != nil {
+			productPlan.PlanId = *planId
+		}
 		if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		productPlan.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		productPlan.DateCreatedString = &dcStr
-	}
+			ts := dateCreated.UnixMilli()
+			productPlan.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			productPlan.DateCreatedString = &dcStr
+		}
 		if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		productPlan.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		productPlan.DateModifiedString = &dmStr
-	}
+			ts := dateModified.UnixMilli()
+			productPlan.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			productPlan.DateModifiedString = &dmStr
+		}
 		productPlans = append(productPlans, productPlan)
 	}
 	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
@@ -298,14 +317,15 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	if req == nil || req.ProductPlanId == "" {
 		return nil, fmt.Errorf("product plan ID required")
 	}
-	query := `SELECT id, name, description, price, currency, product_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, price, currency, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPlanId)
 	var id, name, productId, currency string
 	var description *string
+	var planId *string
 	var price float64
 	var active bool
 	var dateCreated, dateModified time.Time
-	if err := row.Scan(&id, &name, &description, &price, &currency, &productId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
+	if err := row.Scan(&id, &name, &description, &price, &currency, &productId, &planId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -313,6 +333,9 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	productPlan := &productplanpb.ProductPlan{Id: id, Name: name, Price: price, Currency: currency, ProductId: productId, Active: active}
 	if description != nil {
 		productPlan.Description = description
+	}
+	if planId != nil {
+		productPlan.PlanId = *planId
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

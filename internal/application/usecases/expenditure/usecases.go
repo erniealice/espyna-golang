@@ -13,6 +13,9 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
+	// Protobuf domain services - Entity domain (cross-domain dependency)
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+
 	// Protobuf domain services for expenditure repositories
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 	expenditureattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
@@ -32,6 +35,8 @@ type ExpenditureRepositories struct {
 	Prepayment            prepaymentpb.PrepaymentDomainServiceServer
 	PurchaseOrder         purchaseorderpb.PurchaseOrderDomainServiceServer
 	PurchaseOrderLineItem purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer
+	// Cross-domain dependency: payment term lookup for due date computation
+	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // ExpenditureUseCases contains all expenditure-related use cases
@@ -56,6 +61,7 @@ func NewUseCases(
 	expenditureUC := expenditureUseCases.NewUseCases(
 		expenditureUseCases.ExpenditureRepositories{
 			Expenditure: repos.Expenditure,
+			PaymentTerm: repos.PaymentTerm,
 		},
 		expenditureUseCases.ExpenditureServices{
 			AuthorizationService: authSvc,
@@ -116,6 +122,7 @@ func NewUseCases(
 	purchaseOrderUC := purchaseOrderUseCases.NewUseCases(
 		purchaseOrderUseCases.PurchaseOrderRepositories{
 			PurchaseOrder: repos.PurchaseOrder,
+			PaymentTerm:   repos.PaymentTerm,
 		},
 		purchaseOrderUseCases.PurchaseOrderServices{
 			AuthorizationService: authSvc,

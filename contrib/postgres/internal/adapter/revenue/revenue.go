@@ -77,6 +77,7 @@ func (r *PostgresRevenueRepository) CreateRevenue(ctx context.Context, req *reve
 	convertMillisToTime(data, "revenueDate", "revenue_date")
 	convertMillisToTime(data, "dateCreated", "date_created")
 	convertMillisToTime(data, "dateModified", "date_modified")
+	convertMillisToTime(data, "dueDate", "due_date")
 
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
@@ -146,6 +147,7 @@ func (r *PostgresRevenueRepository) UpdateRevenue(ctx context.Context, req *reve
 	convertMillisToTime(data, "revenueDate", "revenue_date")
 	convertMillisToTime(data, "dateCreated", "date_created")
 	convertMillisToTime(data, "dateModified", "date_modified")
+	convertMillisToTime(data, "dueDate", "due_date")
 
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
@@ -264,7 +266,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	}
 
 	// Build parameterized WHERE clauses via shared helper (starts at $1)
-	searchFields := []string{"rv.reference_number", "c.company_name"}
+	searchFields := []string{"rv.reference_number", "c.name"}
 	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
 
 	var whereStr string
@@ -295,7 +297,9 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.notes,
 				rv.revenue_category_id,
 				rv.location_id,
-				COALESCE(c.company_name, '') as client_name,
+				rv.payment_term_id,
+				rv.due_date,
+				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
 				COUNT(*) OVER() AS total_count
 			FROM ` + r.tableName + ` rv
@@ -333,6 +337,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			notes             *string
 			revenueCategoryID *string
 			locationID        *string
+			paymentTermID     *string
+			dueDate           *time.Time
 			clientName        string
 			locationName      string
 			total             int64
@@ -354,6 +360,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			&notes,
 			&revenueCategoryID,
 			&locationID,
+			&paymentTermID,
+			&dueDate,
 			&clientName,
 			&locationName,
 			&total,
@@ -392,6 +400,15 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		if revenueDate != nil && !revenueDate.IsZero() {
 			ts := revenueDate.UnixMilli()
 			revenue.RevenueDate = &ts
+		}
+		if paymentTermID != nil {
+			revenue.PaymentTermId = paymentTermID
+		}
+		if dueDate != nil && !dueDate.IsZero() {
+			ts := dueDate.UnixMilli()
+			revenue.DueDate = &ts
+			dueDateStr := dueDate.UTC().Format("2006-01-02")
+			revenue.DueDateString = &dueDateStr
 		}
 
 		if !dateCreated.IsZero() {
@@ -465,7 +482,9 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 				rv.notes,
 				rv.revenue_category_id,
 				rv.location_id,
-				COALESCE(c.company_name, '') as client_name,
+				rv.payment_term_id,
+				rv.due_date,
+				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name
 			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true
@@ -493,6 +512,8 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		notes             *string
 		revenueCategoryID *string
 		locationID        *string
+		paymentTermID     *string
+		dueDate           *time.Time
 		clientName        string
 		locationName      string
 	)
@@ -513,6 +534,8 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		&notes,
 		&revenueCategoryID,
 		&locationID,
+		&paymentTermID,
+		&dueDate,
 		&clientName,
 		&locationName,
 	)
@@ -551,6 +574,15 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	if revenueDate != nil && !revenueDate.IsZero() {
 		ts := revenueDate.UnixMilli()
 		revenue.RevenueDate = &ts
+	}
+	if paymentTermID != nil {
+		revenue.PaymentTermId = paymentTermID
+	}
+	if dueDate != nil && !dueDate.IsZero() {
+		ts := dueDate.UnixMilli()
+		revenue.DueDate = &ts
+		dueDateStr := dueDate.UTC().Format("2006-01-02")
+		revenue.DueDateString = &dueDateStr
 	}
 
 	if !dateCreated.IsZero() {

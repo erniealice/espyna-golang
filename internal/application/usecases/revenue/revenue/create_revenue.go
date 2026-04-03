@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 )
 
@@ -16,7 +18,8 @@ const entityRevenue = "revenue"
 
 // CreateRevenueRepositories groups all repository dependencies
 type CreateRevenueRepositories struct {
-	Revenue revenuepb.RevenueDomainServiceServer
+	Revenue     revenuepb.RevenueDomainServiceServer
+	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // CreateRevenueServices groups all business service dependencies
@@ -85,6 +88,30 @@ func (uc *CreateRevenueUseCase) executeCore(ctx context.Context, req *revenuepb.
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModifiedString = &[]string{now.Format(time.RFC3339)}[0]
 	req.Data.Active = true
+
+	// Compute due date from payment term if provided
+	if req.Data.PaymentTermId != nil && *req.Data.PaymentTermId != "" && uc.repositories.PaymentTerm != nil {
+		ptResp, err := uc.repositories.PaymentTerm.ReadPaymentTerm(ctx, &paymenttermpb.ReadPaymentTermRequest{
+			Data: &paymenttermpb.PaymentTerm{Id: *req.Data.PaymentTermId},
+		})
+		if err == nil && len(ptResp.Data) > 0 {
+			pt := ptResp.Data[0]
+			baseDate := req.Data.GetRevenueDate()
+			ptType := strings.ToLower(pt.Type)
+			var dueDate int64
+			switch ptType {
+			case "net":
+				dueDate = baseDate + int64(pt.NetDays)*86400000
+			case "due_on_receipt", "cod":
+				dueDate = baseDate
+			}
+			if dueDate > 0 {
+				dueDateStr := time.UnixMilli(dueDate).UTC().Format("2006-01-02")
+				req.Data.DueDate = &dueDate
+				req.Data.DueDateString = &dueDateStr
+			}
+		}
+	}
 
 	return uc.repositories.Revenue.CreateRevenue(ctx, req)
 }

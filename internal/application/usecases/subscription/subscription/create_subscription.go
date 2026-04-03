@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -102,6 +103,7 @@ func (uc *CreateSubscriptionUseCase) executeCore(ctx context.Context, req *subsc
 		Data: enrichedSubscription,
 	})
 	if err != nil {
+		log.Printf("CreateSubscription DB error: %v", err)
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.creation_failed", "[ERR-DEFAULT] Subscription creation failed"))
 	}
 	return resp, nil

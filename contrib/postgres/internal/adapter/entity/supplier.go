@@ -121,6 +121,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 			s.website,
 			s.notes,
 			s.category_id,
+			s.payment_term_id,
 			u.id as user_id_value,
 			u.first_name as user_first_name,
 			u.last_name as user_last_name,
@@ -164,6 +165,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		userLastName       *string
 		userEmailAddress   *string
 		userPhoneNumber    *string
+		paymentTermID      *string
 	)
 
 	err := row.Scan(
@@ -191,6 +193,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		&website,
 		&notes,
 		&categoryId,
+		&paymentTermID,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -210,6 +213,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		streetAddress, city, province, postalCode, country,
 		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
 		status, clientId, website, notes, categoryId,
+		paymentTermID,
 		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 	)
 
@@ -377,6 +381,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				s.website,
 				s.notes,
 				s.category_id,
+				s.payment_term_id,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -439,6 +444,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			website            *string
 			notes              *string
 			categoryId         *string
+			paymentTermID      *string
 			userIdValue        *string
 			userFirstName      *string
 			userLastName       *string
@@ -472,6 +478,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			&website,
 			&notes,
 			&categoryId,
+			&paymentTermID,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
@@ -491,6 +498,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			streetAddress, city, province, postalCode, country,
 			defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
 			status, clientId, website, notes, categoryId,
+			paymentTermID,
 			userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 		)
 
@@ -563,6 +571,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 				s.website,
 				s.notes,
 				s.category_id,
+				s.payment_term_id,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -604,6 +613,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		website            *string
 		notes              *string
 		categoryId         *string
+		paymentTermID      *string
 		userIdValue        *string
 		userFirstName      *string
 		userLastName       *string
@@ -636,6 +646,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		&website,
 		&notes,
 		&categoryId,
+		&paymentTermID,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -655,6 +666,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		streetAddress, city, province, postalCode, country,
 		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
 		status, clientId, website, notes, categoryId,
+		paymentTermID,
 		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 	)
 
@@ -737,6 +749,7 @@ func buildSupplierFromScan(
 	streetAddress *string, city *string, province *string, postalCode *string, country *string,
 	defaultCurrency *string, paymentTerms *string, leadTimeDays *int32, creditLimit *float64,
 	status *string, clientId *string, website *string, notes *string, categoryId *string,
+	paymentTermID *string,
 	userIdValue *string, userFirstName *string, userLastName *string,
 	userEmailAddress *string, userPhoneNumber *string,
 ) *supplierpb.Supplier {
@@ -776,6 +789,9 @@ func buildSupplierFromScan(
 	supplier.Website = website
 	supplier.Notes = notes
 	supplier.CategoryId = categoryId
+	if paymentTermID != nil {
+		supplier.PaymentTermId = paymentTermID
+	}
 
 	// Populate joined user data
 	if userIdValue != nil {

@@ -7,6 +7,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
+	// Protobuf domain services - Entity domain (cross-domain dependency)
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+
 	// Protobuf domain services - Expenditure domain
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 	expenditureattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
@@ -22,6 +25,8 @@ type ExpenditureRepositories struct {
 	ExpenditureCategory  expenditurecategorypb.ExpenditureCategoryDomainServiceServer
 	ExpenditureAttribute expenditureattributepb.ExpenditureAttributeDomainServiceServer
 	Prepayment           prepaymentpb.PrepaymentDomainServiceServer
+	// Cross-domain dependency: payment term lookup for due date computation
+	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // NewExpenditureRepositories creates and returns a new set of ExpenditureRepositories.
@@ -65,6 +70,9 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, tableConfig *regi
 	}
 	if r := tryCreate(entityid.Prepayment); r != nil {
 		repos.Prepayment = r.(prepaymentpb.PrepaymentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PaymentTerm); r != nil {
+		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

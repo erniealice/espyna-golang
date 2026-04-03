@@ -64,6 +64,19 @@ func (r *PostgresSubscriptionRepository) CreateSubscription(ctx context.Context,
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Manually inject code field (proto descriptor may not include it yet)
+	if code := req.Data.GetCode(); code != "" {
+		data["code"] = code
+	}
+
+	// Map date string fields to actual DB columns
+	if ds := req.Data.GetDateStartString(); ds != "" {
+		data["date_start"] = ds
+	}
+	if de := req.Data.GetDateEndString(); de != "" {
+		data["date_end"] = de
+	}
+
 	// Create document using common operations
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
@@ -77,7 +90,7 @@ func (r *PostgresSubscriptionRepository) CreateSubscription(ctx context.Context,
 	}
 
 	subscription := &subscriptionpb.Subscription{}
-	if err := protojson.Unmarshal(resultJSON, subscription); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscription); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -105,7 +118,7 @@ func (r *PostgresSubscriptionRepository) ReadSubscription(ctx context.Context, r
 	}
 
 	subscription := &subscriptionpb.Subscription{}
-	if err := protojson.Unmarshal(resultJSON, subscription); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscription); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -131,6 +144,19 @@ func (r *PostgresSubscriptionRepository) UpdateSubscription(ctx context.Context,
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Manually inject code field (see CreateSubscription comment)
+	if code := req.Data.GetCode(); code != "" {
+		data["code"] = code
+	}
+
+	// Map date string fields to actual DB columns
+	if ds := req.Data.GetDateStartString(); ds != "" {
+		data["date_start"] = ds
+	}
+	if de := req.Data.GetDateEndString(); de != "" {
+		data["date_end"] = de
+	}
+
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
@@ -144,7 +170,7 @@ func (r *PostgresSubscriptionRepository) UpdateSubscription(ctx context.Context,
 	}
 
 	subscription := &subscriptionpb.Subscription{}
-	if err := protojson.Unmarshal(resultJSON, subscription); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscription); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -182,17 +208,19 @@ func (r *PostgresSubscriptionRepository) ListSubscriptions(ctx context.Context, 
 		return nil, fmt.Errorf("failed to list subscriptions: %w", err)
 	}
 
-	// Convert results to protobuf slice using protojson
+	// Convert results to protobuf slice using protojson.
+	// DenormalizeKeys converts snake_case DB column names to camelCase
+	// so protojson can map them to the correct protobuf fields.
 	var subscriptions []*subscriptionpb.Subscription
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
 			continue
 		}
 
 		subscription := &subscriptionpb.Subscription{}
-		if err := protojson.Unmarshal(resultJSON, subscription); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscription); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -281,7 +309,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					'id', c.id,
 					'user_id', c.user_id,
 					'internal_id', c.internal_id,
-					'company_name', c.company_name,
+					'name', c.name,
 					'active', c.active,
 					'date_created', (EXTRACT(EPOCH FROM c.date_created) * 1000)::bigint,
 					'date_modified', (EXTRACT(EPOCH FROM c.date_modified) * 1000)::bigint,
@@ -518,7 +546,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 				'id', c.id,
 				'user_id', c.user_id,
 				'internal_id', c.internal_id,
-				'company_name', c.company_name,
+				'name', c.name,
 				'active', c.active,
 				'date_created', (EXTRACT(EPOCH FROM c.date_created) * 1000)::bigint,
 				'date_modified', (EXTRACT(EPOCH FROM c.date_modified) * 1000)::bigint,

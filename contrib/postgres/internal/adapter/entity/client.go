@@ -135,15 +135,14 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 			c.internal_id,
 			c.date_created,
 			c.date_modified,
-			c.company_name,
-			c.customer_type,
-			c.date_of_birth,
+			c.name,
 			c.street_address,
 			c.city,
 			c.province,
 			c.postal_code,
 			c.notes,
 			c.category_id,
+			c.payment_term_id,
 			u.id as user_id_value,
 			u.first_name as user_first_name,
 			u.last_name as user_last_name,
@@ -164,15 +163,14 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 		internalId       *string
 		dateCreated      time.Time
 		dateModified     time.Time
-		companyName      *string
-		customerType     *string
-		dateOfBirth      *string
+		name             *string
 		streetAddress    *string
 		city             *string
 		province         *string
 		postalCode       *string
 		notes            *string
 		categoryId       *string
+		paymentTermID    *string
 		userIdValue      *string
 		userFirstName    *string
 		userLastName     *string
@@ -187,15 +185,14 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 		&internalId,
 		&dateCreated,
 		&dateModified,
-		&companyName,
-		&customerType,
-		&dateOfBirth,
+		&name,
 		&streetAddress,
 		&city,
 		&province,
 		&postalCode,
 		&notes,
 		&categoryId,
+		&paymentTermID,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -220,15 +217,16 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 	}
 
 	// CRM fields
-	client.CompanyName = companyName
-	client.CustomerType = customerType
-	client.DateOfBirth = dateOfBirth
+	client.Name = name
 	client.StreetAddress = streetAddress
 	client.City = city
 	client.Province = province
 	client.PostalCode = postalCode
 	client.Notes = notes
 	client.CategoryId = categoryId
+	if paymentTermID != nil {
+		client.PaymentTermId = paymentTermID
+	}
 
 	// Populate joined user data
 	if userIdValue != nil {
@@ -470,14 +468,13 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			c.internal_id,
 			c.date_created,
 			c.date_modified,
-			c.company_name,
-			c.customer_type,
-			c.date_of_birth,
+			c.name,
 			c.street_address,
 			c.city,
 			c.province,
 			c.postal_code,
 			c.notes,
+			c.payment_term_id,
 			u.id as user_id_value,
 			u.first_name as user_first_name,
 			u.last_name as user_last_name,
@@ -510,14 +507,13 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			dateCreated        time.Time
 			dateModified       time.Time
 			// CRM fields
-			companyName       *string
-			customerType      *string
-			dateOfBirth       *string
+			name              *string
 			streetAddress     *string
 			city              *string
 			province          *string
 			postalCode        *string
 			notes             *string
+			paymentTermID     *string
 			// User fields
 			userIdValue       *string
 			userFirstName     *string
@@ -534,14 +530,13 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			&internalId,
 			&dateCreated,
 			&dateModified,
-			&companyName,
-			&customerType,
-			&dateOfBirth,
+			&name,
 			&streetAddress,
 			&city,
 			&province,
 			&postalCode,
 			&notes,
+			&paymentTermID,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
@@ -567,14 +562,15 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		}
 
 		// CRM fields
-		client.CompanyName = companyName
-		client.CustomerType = customerType
-		client.DateOfBirth = dateOfBirth
+		client.Name = name
 		client.StreetAddress = streetAddress
 		client.City = city
 		client.Province = province
 		client.PostalCode = postalCode
 		client.Notes = notes
+		if paymentTermID != nil {
+			client.PaymentTermId = paymentTermID
+		}
 
 		// Populate joined user data
 		if userIdValue != nil {
@@ -651,15 +647,14 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 				c.date_created,
 				c.date_modified,
 				-- CRM fields
-				c.company_name,
-				c.customer_type,
-				c.date_of_birth,
+				c.name,
 				c.street_address,
 				c.city,
 				c.province,
 				c.postal_code,
 				c.notes,
 				c.category_id,
+				c.payment_term_id,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -684,15 +679,14 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		dateCreated        time.Time
 		dateModified       time.Time
 		// CRM fields
-		companyName       *string
-		customerType      *string
-		dateOfBirth       *string
+		name              *string
 		streetAddress     *string
 		city              *string
 		province          *string
 		postalCode        *string
 		notes             *string
 		categoryId        *string
+		paymentTermID     *string
 		// User fields
 		userIdValue       *string
 		userFirstName     *string
@@ -708,15 +702,14 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		&internalId,
 		&dateCreated,
 		&dateModified,
-		&companyName,
-		&customerType,
-		&dateOfBirth,
+		&name,
 		&streetAddress,
 		&city,
 		&province,
 		&postalCode,
 		&notes,
 		&categoryId,
+		&paymentTermID,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -742,15 +735,16 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	}
 
 	// CRM fields
-	client.CompanyName = companyName
-	client.CustomerType = customerType
-	client.DateOfBirth = dateOfBirth
+	client.Name = name
 	client.StreetAddress = streetAddress
 	client.City = city
 	client.Province = province
 	client.PostalCode = postalCode
 	client.Notes = notes
 	client.CategoryId = categoryId
+	if paymentTermID != nil {
+		client.PaymentTermId = paymentTermID
+	}
 
 	// Populate joined user data
 	if userIdValue != nil {
@@ -870,7 +864,7 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 		SELECT
 			c.id,
 			COALESCE(
-				NULLIF(c.company_name, ''),
+				NULLIF(c.name, ''),
 				NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''),
 				c.id
 			) AS label
@@ -878,7 +872,7 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 		LEFT JOIN "user" u ON c.user_id = u.id
 		WHERE c.active = true
 			AND ($1::text = '' OR
-				c.company_name ILIKE $1 OR
+				c.name ILIKE $1 OR
 				u.first_name ILIKE $1 OR
 				u.last_name ILIKE $1)
 		ORDER BY label ASC

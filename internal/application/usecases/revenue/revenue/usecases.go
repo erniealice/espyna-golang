@@ -2,12 +2,14 @@ package revenue
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 )
 
 // RevenueRepositories groups all repository dependencies for revenue use cases
 type RevenueRepositories struct {
-	Revenue revenuepb.RevenueDomainServiceServer
+	Revenue     revenuepb.RevenueDomainServiceServer
+	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // RevenueServices groups all business service dependencies for revenue use cases
@@ -33,7 +35,10 @@ func NewUseCases(
 	repositories RevenueRepositories,
 	services RevenueServices,
 ) *UseCases {
-	createRepos := CreateRevenueRepositories(repositories)
+	createRepos := CreateRevenueRepositories{
+		Revenue:     repositories.Revenue,
+		PaymentTerm: repositories.PaymentTerm,
+	}
 	createServices := CreateRevenueServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
@@ -41,35 +46,45 @@ func NewUseCases(
 		IDService:            services.IDService,
 	}
 
-	readRepos := ReadRevenueRepositories(repositories)
+	readRepos := ReadRevenueRepositories{
+		Revenue: repositories.Revenue,
+	}
 	readServices := ReadRevenueServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	updateRepos := UpdateRevenueRepositories(repositories)
+	updateRepos := UpdateRevenueRepositories{
+		Revenue: repositories.Revenue,
+	}
 	updateServices := UpdateRevenueServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	deleteRepos := DeleteRevenueRepositories(repositories)
+	deleteRepos := DeleteRevenueRepositories{
+		Revenue: repositories.Revenue,
+	}
 	deleteServices := DeleteRevenueServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	listRepos := ListRevenuesRepositories(repositories)
+	listRepos := ListRevenuesRepositories{
+		Revenue: repositories.Revenue,
+	}
 	listServices := ListRevenuesServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	getListPageDataRepos := GetRevenueListPageDataRepositories(repositories)
+	getListPageDataRepos := GetRevenueListPageDataRepositories{
+		Revenue: repositories.Revenue,
+	}
 	getListPageDataServices := GetRevenueListPageDataServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,

@@ -2,12 +2,14 @@ package purchaseorder
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 )
 
 // PurchaseOrderRepositories groups all repository dependencies for purchase order use cases
 type PurchaseOrderRepositories struct {
 	PurchaseOrder purchaseorderpb.PurchaseOrderDomainServiceServer // Primary entity repository
+	PaymentTerm   paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // PurchaseOrderServices groups all business service dependencies for purchase order use cases
@@ -34,7 +36,10 @@ func NewUseCases(
 	repositories PurchaseOrderRepositories,
 	services PurchaseOrderServices,
 ) *UseCases {
-	createRepos := CreatePurchaseOrderRepositories(repositories)
+	createRepos := CreatePurchaseOrderRepositories{
+		PurchaseOrder: repositories.PurchaseOrder,
+		PaymentTerm:   repositories.PaymentTerm,
+	}
 	createServices := CreatePurchaseOrderServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
@@ -42,42 +47,54 @@ func NewUseCases(
 		IDService:            services.IDService,
 	}
 
-	readRepos := ReadPurchaseOrderRepositories(repositories)
+	readRepos := ReadPurchaseOrderRepositories{
+		PurchaseOrder: repositories.PurchaseOrder,
+	}
 	readServices := ReadPurchaseOrderServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	updateRepos := UpdatePurchaseOrderRepositories(repositories)
+	updateRepos := UpdatePurchaseOrderRepositories{
+		PurchaseOrder: repositories.PurchaseOrder,
+	}
 	updateServices := UpdatePurchaseOrderServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	deleteRepos := DeletePurchaseOrderRepositories(repositories)
+	deleteRepos := DeletePurchaseOrderRepositories{
+		PurchaseOrder: repositories.PurchaseOrder,
+	}
 	deleteServices := DeletePurchaseOrderServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	listRepos := ListPurchaseOrdersRepositories(repositories)
+	listRepos := ListPurchaseOrdersRepositories{
+		PurchaseOrder: repositories.PurchaseOrder,
+	}
 	listServices := ListPurchaseOrdersServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	getListPageDataRepos := GetPurchaseOrderListPageDataRepositories(repositories)
+	getListPageDataRepos := GetPurchaseOrderListPageDataRepositories{
+		PurchaseOrder: repositories.PurchaseOrder,
+	}
 	getListPageDataServices := GetPurchaseOrderListPageDataServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	getItemPageDataRepos := GetPurchaseOrderItemPageDataRepositories(repositories)
+	getItemPageDataRepos := GetPurchaseOrderItemPageDataRepositories{
+		PurchaseOrder: repositories.PurchaseOrder,
+	}
 	getItemPageDataServices := GetPurchaseOrderItemPageDataServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,

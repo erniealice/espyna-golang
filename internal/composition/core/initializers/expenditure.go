@@ -21,6 +21,7 @@ func InitializeExpenditure(
 			ExpenditureCategory:  repos.ExpenditureCategory,
 			ExpenditureAttribute: repos.ExpenditureAttribute,
 			Prepayment:           repos.Prepayment,
+			PaymentTerm:          repos.PaymentTerm,
 		},
 		authSvc,
 		txSvc,

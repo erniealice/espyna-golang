@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 )
 
@@ -17,6 +18,7 @@ const entityPurchaseOrder = "purchase_order"
 // CreatePurchaseOrderRepositories groups all repository dependencies
 type CreatePurchaseOrderRepositories struct {
 	PurchaseOrder purchaseorderpb.PurchaseOrderDomainServiceServer
+	PaymentTerm   paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // CreatePurchaseOrderServices groups all business service dependencies

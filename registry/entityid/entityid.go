@@ -67,6 +67,7 @@ const (
 	RolePermission    = "role_permission"
 	Staff             = "staff"
 	StaffAttribute    = "staff_attribute"
+	PaymentTerm       = "payment_term"
 	Supplier          = "supplier"
 	SupplierAttribute = "supplier_attribute"
 	SupplierCategory  = "supplier_category"
@@ -217,6 +218,12 @@ const (
 	EquityTransaction        = "equity_transaction"
 )
 
+// Treasury domain — Schedules (extends existing Treasury)
+const (
+	CollectionSchedule   = "collection_schedule"
+	DisbursementSchedule = "disbursement_schedule"
+)
+
 // Treasury domain — Loans & Petty Cash (extends existing Treasury)
 const (
 	Loan                   = "loan"
@@ -259,6 +266,7 @@ var EntityEntities = []string{
 	Permission,
 	Role, RolePermission,
 	Staff, StaffAttribute,
+	PaymentTerm,
 	Supplier, SupplierAttribute, SupplierCategory,
 	User,
 	Workspace, WorkspaceUser, WorkspaceUserRole,
@@ -305,6 +313,7 @@ var SubscriptionEntities = []string{
 // TreasuryEntities lists all entity IDs in the Treasury domain.
 var TreasuryEntities = []string{
 	TreasuryCollection, TreasuryDisbursement,
+	CollectionSchedule, DisbursementSchedule,
 	Loan, LoanPayment, SecurityDeposit,
 	PettyCashFund, PettyCashVoucher, PettyCashReplenishment,
 }

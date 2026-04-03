@@ -7,6 +7,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
+	// Protobuf domain services - Entity domain (cross-domain dependency)
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+
 	// Protobuf domain services - Revenue domain
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
@@ -22,6 +25,8 @@ type RevenueRepositories struct {
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
 	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
+	// Cross-domain dependency: payment term lookup for due date computation
+	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // NewRevenueRepositories creates and returns a new set of RevenueRepositories.
@@ -65,6 +70,9 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.DeferredRevenue); r != nil {
 		repos.DeferredRevenue = r.(deferredrevenuepb.DeferredRevenueDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PaymentTerm); r != nil {
+		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

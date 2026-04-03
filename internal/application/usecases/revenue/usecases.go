@@ -11,6 +11,9 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
+	// Protobuf domain services - Entity domain (cross-domain dependency)
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+
 	// Protobuf domain services for revenue repositories
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
@@ -26,6 +29,8 @@ type RevenueRepositories struct {
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
 	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
+	// Cross-domain dependency: payment term lookup for due date computation
+	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // RevenueUseCases contains all revenue-related use cases
@@ -47,7 +52,8 @@ func NewUseCases(
 ) *RevenueUseCases {
 	revenueUC := revenueUseCases.NewUseCases(
 		revenueUseCases.RevenueRepositories{
-			Revenue: repos.Revenue,
+			Revenue:     repos.Revenue,
+			PaymentTerm: repos.PaymentTerm,
 		},
 		revenueUseCases.RevenueServices{
 			AuthorizationService: authSvc,

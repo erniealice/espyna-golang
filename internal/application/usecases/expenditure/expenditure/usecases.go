@@ -2,12 +2,14 @@ package expenditure
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
 
 // ExpenditureRepositories groups all repository dependencies for expenditure use cases
 type ExpenditureRepositories struct {
 	Expenditure expenditurepb.ExpenditureDomainServiceServer
+	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
 
 // ExpenditureServices groups all business service dependencies for expenditure use cases
@@ -32,7 +34,10 @@ func NewUseCases(
 	repositories ExpenditureRepositories,
 	services ExpenditureServices,
 ) *UseCases {
-	createRepos := CreateExpenditureRepositories(repositories)
+	createRepos := CreateExpenditureRepositories{
+		Expenditure: repositories.Expenditure,
+		PaymentTerm: repositories.PaymentTerm,
+	}
 	createServices := CreateExpenditureServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
@@ -40,28 +45,36 @@ func NewUseCases(
 		IDService:            services.IDService,
 	}
 
-	readRepos := ReadExpenditureRepositories(repositories)
+	readRepos := ReadExpenditureRepositories{
+		Expenditure: repositories.Expenditure,
+	}
 	readServices := ReadExpenditureServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	updateRepos := UpdateExpenditureRepositories(repositories)
+	updateRepos := UpdateExpenditureRepositories{
+		Expenditure: repositories.Expenditure,
+	}
 	updateServices := UpdateExpenditureServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	deleteRepos := DeleteExpenditureRepositories(repositories)
+	deleteRepos := DeleteExpenditureRepositories{
+		Expenditure: repositories.Expenditure,
+	}
 	deleteServices := DeleteExpenditureServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 	}
 
-	listRepos := ListExpendituresRepositories(repositories)
+	listRepos := ListExpendituresRepositories{
+		Expenditure: repositories.Expenditure,
+	}
 	listServices := ListExpendituresServices{
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,

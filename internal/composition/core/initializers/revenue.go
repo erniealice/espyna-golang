@@ -20,6 +20,7 @@ func InitializeRevenue(
 			RevenueLineItem:  repos.RevenueLineItem,
 			RevenueCategory:  repos.RevenueCategory,
 			RevenueAttribute: repos.RevenueAttribute,
+			PaymentTerm:      repos.PaymentTerm,
 		},
 		authSvc,
 		txSvc,

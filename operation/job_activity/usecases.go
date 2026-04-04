@@ -529,7 +529,7 @@ func (uc *ReverseActivityUseCase) Execute(ctx context.Context, req *pb.ReverseJo
 					JobId:          activity.JobId,
 					JobTaskId:      activity.JobTaskId,
 					EntryType:      activity.EntryType,
-					Quantity:        -activity.Quantity,
+					Quantity:       -activity.Quantity,
 					UnitCost:       activity.UnitCost,
 					TotalCost:      -activity.TotalCost,
 					Currency:       activity.Currency,

@@ -205,7 +205,7 @@ func (uc *CreateJobSettlementUseCase) validateAllocationSum(ctx context.Context,
 		return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_settlement.errors.allocation_check_failed", "[ERR-DEFAULT] Failed to check existing allocations: %w"), err)
 	}
 
-	var existingSum float64
+	var existingSum int64
 	if existingResp != nil {
 		for _, existing := range existingResp.JobSettlements {
 			if existing.Active && existing.Status != pb.SettlementStatus_SETTLEMENT_STATUS_REVERSED {

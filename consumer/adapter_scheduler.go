@@ -42,8 +42,8 @@ Usage:
 // SchedulerAdapter provides technology-agnostic access to scheduling services.
 // It wraps the SchedulerProvider interface and works with Calendly, Google Calendar, etc.
 type SchedulerAdapter struct {
-	provider  ports.SchedulerProvider              // primary (first, backwards compat)
-	providers map[string]ports.SchedulerProvider   // all registered providers
+	provider  ports.SchedulerProvider            // primary (first, backwards compat)
+	providers map[string]ports.SchedulerProvider // all registered providers
 	container *Container
 }
 

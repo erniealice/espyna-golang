@@ -42,8 +42,8 @@ Usage:
 // PaymentAdapter provides technology-agnostic access to payment gateways.
 // It wraps the PaymentProvider interface and works with AsiaPay, Stripe, PayMaya, etc.
 type PaymentAdapter struct {
-	provider  ports.PaymentProvider              // primary (first provider, for backwards compat)
-	providers map[string]ports.PaymentProvider   // all registered providers
+	provider  ports.PaymentProvider            // primary (first provider, for backwards compat)
+	providers map[string]ports.PaymentProvider // all registered providers
 	container *Container
 }
 

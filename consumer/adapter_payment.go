@@ -277,7 +277,7 @@ func (a *PaymentAdapter) GetSupportedCurrencies() []string {
 // --- Convenience Methods ---
 
 // CreateQuickCheckout creates a checkout session with minimal parameters.
-func (a *PaymentAdapter) CreateQuickCheckout(ctx context.Context, amount float64, currency, paymentID, description string) (*paymentpb.CheckoutSession, error) {
+func (a *PaymentAdapter) CreateQuickCheckout(ctx context.Context, amount int64, currency, paymentID, description string) (*paymentpb.CheckoutSession, error) {
 	return a.CreateCheckoutSession(ctx, CheckoutSessionParams{
 		Amount:      amount,
 		Currency:    currency,
@@ -288,7 +288,7 @@ func (a *PaymentAdapter) CreateQuickCheckout(ctx context.Context, amount float64
 }
 
 // CreateSubscriptionCheckout creates a checkout for a subscription payment.
-func (a *PaymentAdapter) CreateSubscriptionCheckout(ctx context.Context, amount float64, currency, paymentID, subscriptionID, clientID, description string) (*paymentpb.CheckoutSession, error) {
+func (a *PaymentAdapter) CreateSubscriptionCheckout(ctx context.Context, amount int64, currency, paymentID, subscriptionID, clientID, description string) (*paymentpb.CheckoutSession, error) {
 	return a.CreateCheckoutSession(ctx, CheckoutSessionParams{
 		Amount:         amount,
 		Currency:       currency,

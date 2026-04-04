@@ -299,7 +299,7 @@ const (
 	EntityPriceProduct         = security.EntityPriceProduct
 	EntityProduct              = security.EntityProduct
 	EntityProductAttribute     = security.EntityProductAttribute
-	EntityProductCollection    = security.EntityProductCollection
+	EntityProductLine          = security.EntityProductLine
 	EntityProductOption        = security.EntityProductOption
 	EntityProductOptionValue   = security.EntityProductOptionValue
 	EntityProductPlan          = security.EntityProductPlan

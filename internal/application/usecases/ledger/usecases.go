@@ -71,29 +71,35 @@ func NewUseCases(
 	i18nSvc ports.TranslationService,
 	idService ports.IDService,
 ) *LedgerUseCases {
-	documentTemplateUC := documentTemplateUseCases.NewUseCases(
-		documentTemplateUseCases.DocumentTemplateRepositories{
-			DocumentTemplate: repos.DocumentTemplate,
-		},
-		documentTemplateUseCases.DocumentTemplateServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
-		},
-	)
+	var documentTemplateUC *documentTemplateUseCases.UseCases
+	if repos.DocumentTemplate != nil {
+		documentTemplateUC = documentTemplateUseCases.NewUseCases(
+			documentTemplateUseCases.DocumentTemplateRepositories{
+				DocumentTemplate: repos.DocumentTemplate,
+			},
+			documentTemplateUseCases.DocumentTemplateServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idService,
+			},
+		)
+	}
 
-	attachmentUC := attachmentUseCases.NewUseCases(
-		attachmentUseCases.AttachmentRepositories{
-			Attachment: repos.Attachment,
-		},
-		attachmentUseCases.AttachmentServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
-		},
-	)
+	var attachmentUC *attachmentUseCases.UseCases
+	if repos.Attachment != nil {
+		attachmentUC = attachmentUseCases.NewUseCases(
+			attachmentUseCases.AttachmentRepositories{
+				Attachment: repos.Attachment,
+			},
+			attachmentUseCases.AttachmentServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idService,
+			},
+		)
+	}
 
 	var accountUC *accountUseCases.UseCases
 	if repos.Account != nil {

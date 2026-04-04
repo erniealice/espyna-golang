@@ -258,6 +258,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				rli.inventory_item_id,
 				rli.inventory_serial_id,
 				rli.product_price_plan_id,
+				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
 			FROM revenue_line_item rli
@@ -306,6 +307,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 			inventoryItemID    *string
 			inventorySerialID  *string
 			productPricePlanID *string
+			priceProductID     *string
 			revenueName        string
 			productName        string
 			total              int64
@@ -327,6 +329,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 			&inventoryItemID,
 			&inventorySerialID,
 			&productPricePlanID,
+			&priceProductID,
 			&revenueName,
 			&productName,
 			&total,
@@ -360,6 +363,9 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		}
 		// ProductPricePlanId removed from proto schema
 		_ = productPricePlanID
+		if priceProductID != nil {
+			lineItem.PriceProductId = priceProductID
+		}
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -432,6 +438,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 				rli.inventory_item_id,
 				rli.inventory_serial_id,
 				rli.product_price_plan_id,
+				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
 			FROM revenue_line_item rli
@@ -460,6 +467,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 		inventoryItemID    *string
 		inventorySerialID  *string
 		productPricePlanID *string
+		priceProductID     *string
 		revenueName        string
 		productName        string
 	)
@@ -480,6 +488,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 		&inventoryItemID,
 		&inventorySerialID,
 		&productPricePlanID,
+		&priceProductID,
 		&revenueName,
 		&productName,
 	)
@@ -513,6 +522,9 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 	}
 	// ProductPricePlanId removed from proto schema
 	_ = productPricePlanID
+	if priceProductID != nil {
+		lineItem.PriceProductId = priceProductID
+	}
 
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

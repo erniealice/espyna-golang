@@ -26,6 +26,9 @@ func init() {
 			cfg.Location = getStringField(v, "Location")
 			cfg.RevenueCategory = getStringField(v, "RevenueCategory")
 			cfg.Expenditure = getStringField(v, "Expenditure")
+			cfg.ProductCollection = getStringField(v, "ProductCollection")
+			cfg.Collection = getStringField(v, "Collection")
+			cfg.LocationArea = getStringField(v, "LocationArea")
 		}
 		return ledgeradapter.NewLedgerReportingAdapter(sqlDB, cfg)
 	})

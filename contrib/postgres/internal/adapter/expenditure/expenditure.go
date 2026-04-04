@@ -282,6 +282,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.payment_terms,
 				ex.due_date,
 				ex.approved_by,
+				ex.purchase_order_id,
+				ex.supplier_id,
 				COALESCE(c.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
@@ -335,6 +337,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			paymentTerms          *string
 			dueDate               *string
 			approvedBy            *string
+			purchaseOrderID       *string
+			supplierID            *string
 			vendorName            string
 			locationName          string
 			total                 int64
@@ -360,6 +364,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			&paymentTerms,
 			&dueDate,
 			&approvedBy,
+			&purchaseOrderID,
+			&supplierID,
 			&vendorName,
 			&locationName,
 			&total,
@@ -406,6 +412,12 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 		}
 		if dueDate != nil {
 			expenditure.DueDate = dueDate
+		}
+		if purchaseOrderID != nil {
+			expenditure.PurchaseOrderId = purchaseOrderID
+		}
+		if supplierID != nil {
+			expenditure.SupplierId = supplierID
 		}
 
 		if !dateCreated.IsZero() {
@@ -483,6 +495,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 				ex.payment_terms,
 				ex.due_date,
 				ex.approved_by,
+				ex.purchase_order_id,
+				ex.supplier_id,
 				COALESCE(c.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
@@ -515,6 +529,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		paymentTerms          *string
 		dueDate               *string
 		approvedBy            *string
+		purchaseOrderID       *string
+		supplierID            *string
 		vendorName            string
 		locationName          string
 	)
@@ -539,6 +555,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		&paymentTerms,
 		&dueDate,
 		&approvedBy,
+		&purchaseOrderID,
+		&supplierID,
 		&vendorName,
 		&locationName,
 	)
@@ -585,6 +603,12 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 	}
 	if dueDate != nil {
 		expenditure.DueDate = dueDate
+	}
+	if purchaseOrderID != nil {
+		expenditure.PurchaseOrderId = purchaseOrderID
+	}
+	if supplierID != nil {
+		expenditure.SupplierId = supplierID
 	}
 
 	if !dateCreated.IsZero() {

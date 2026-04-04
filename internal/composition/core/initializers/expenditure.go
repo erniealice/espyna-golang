@@ -16,12 +16,14 @@ func InitializeExpenditure(
 ) (*expenditure.ExpenditureUseCases, error) {
 	return expenditure.NewUseCases(
 		expenditure.ExpenditureRepositories{
-			Expenditure:          repos.Expenditure,
-			ExpenditureLineItem:  repos.ExpenditureLineItem,
-			ExpenditureCategory:  repos.ExpenditureCategory,
-			ExpenditureAttribute: repos.ExpenditureAttribute,
-			Prepayment:           repos.Prepayment,
-			PaymentTerm:          repos.PaymentTerm,
+			Expenditure:           repos.Expenditure,
+			ExpenditureLineItem:   repos.ExpenditureLineItem,
+			ExpenditureCategory:   repos.ExpenditureCategory,
+			ExpenditureAttribute:  repos.ExpenditureAttribute,
+			Prepayment:            repos.Prepayment,
+			PurchaseOrder:         repos.PurchaseOrder,
+			PurchaseOrderLineItem: repos.PurchaseOrderLineItem,
+			PaymentTerm:           repos.PaymentTerm,
 		},
 		authSvc,
 		txSvc,

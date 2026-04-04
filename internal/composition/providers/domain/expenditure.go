@@ -16,15 +16,19 @@ import (
 	expenditurecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
+	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
+	purchaseorderlineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order_line_item"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
 type ExpenditureRepositories struct {
-	Expenditure          expenditurepb.ExpenditureDomainServiceServer
-	ExpenditureLineItem  expenditurelineitempb.ExpenditureLineItemDomainServiceServer
-	ExpenditureCategory  expenditurecategorypb.ExpenditureCategoryDomainServiceServer
-	ExpenditureAttribute expenditureattributepb.ExpenditureAttributeDomainServiceServer
-	Prepayment           prepaymentpb.PrepaymentDomainServiceServer
+	Expenditure           expenditurepb.ExpenditureDomainServiceServer
+	ExpenditureLineItem   expenditurelineitempb.ExpenditureLineItemDomainServiceServer
+	ExpenditureCategory   expenditurecategorypb.ExpenditureCategoryDomainServiceServer
+	ExpenditureAttribute  expenditureattributepb.ExpenditureAttributeDomainServiceServer
+	Prepayment            prepaymentpb.PrepaymentDomainServiceServer
+	PurchaseOrder         purchaseorderpb.PurchaseOrderDomainServiceServer
+	PurchaseOrderLineItem purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
@@ -70,6 +74,12 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, tableConfig *regi
 	}
 	if r := tryCreate(entityid.Prepayment); r != nil {
 		repos.Prepayment = r.(prepaymentpb.PrepaymentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PurchaseOrder); r != nil {
+		repos.PurchaseOrder = r.(purchaseorderpb.PurchaseOrderDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PurchaseOrderLineItem); r != nil {
+		repos.PurchaseOrderLineItem = r.(purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer)
 	}
 	if r := tryCreate(entityid.PaymentTerm); r != nil {
 		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)

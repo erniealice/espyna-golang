@@ -8,6 +8,7 @@ import (
 	"time"
 
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
 )
 
 // TableConfig holds table names for the ledger reporting adapter.
@@ -22,6 +23,9 @@ type TableConfig struct {
 	Location             string
 	RevenueCategory      string
 	Expenditure          string
+	ProductCollection    string // product_collection table (product ↔ product line join)
+	Collection           string // collection table (product line / product_line)
+	LocationArea         string // location_area table
 }
 
 // LedgerReportingAdapter implements ports.LedgerReportingService using PostgreSQL.
@@ -90,6 +94,50 @@ func (a *LedgerReportingAdapter) GetGrossProfitReport(
 		Summary:   summary,
 		Success:   true,
 	}, nil
+}
+
+// GetRevenueReport executes a two-dimensional pivot SQL query to compute revenue
+// grouped by two orthogonal dimensions (row_dimension × primary_dimension).
+func (a *LedgerReportingAdapter) GetRevenueReport(
+	ctx context.Context,
+	req *revreportpb.RevenueReportRequest,
+) (*revreportpb.RevenueReportResponse, error) {
+	query, args := buildRevenueReportQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var flat []flatRow
+	for rows.Next() {
+		var fr flatRow
+		var rowID, colID sql.NullString
+		if err := rows.Scan(
+			&fr.RowKey,
+			&rowID,
+			&fr.ColKey,
+			&colID,
+			&fr.TotalRevenue,
+			&fr.TransactionCount,
+			&fr.TotalQuantity,
+		); err != nil {
+			return nil, err
+		}
+		if rowID.Valid {
+			fr.RowID = rowID.String
+		}
+		if colID.Valid {
+			fr.ColID = colID.String
+		}
+		flat = append(flat, fr)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return pivotFlatRows(flat, req), nil
 }
 
 // ListRevenue returns revenue records, optionally filtered by date range.

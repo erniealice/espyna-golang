@@ -5,6 +5,7 @@ import (
 	"time"
 
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
 )
 
 // LedgerReportingService defines the contract for ledger reporting operations.
@@ -16,6 +17,7 @@ import (
 // interfaces when Chart of Accounts and Journal Entries are implemented.
 type LedgerReportingService interface {
 	GetGrossProfitReport(ctx context.Context, req *reportpb.GrossProfitReportRequest) (*reportpb.GrossProfitReportResponse, error)
+	GetRevenueReport(ctx context.Context, req *revreportpb.RevenueReportRequest) (*revreportpb.RevenueReportResponse, error)
 	ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 	ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 }

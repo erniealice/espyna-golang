@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
 )
 
 // LedgerReportingService provides access to ledger reporting queries.
@@ -14,6 +15,7 @@ import (
 // packages that define compatible interfaces (e.g. fycha.DataSource).
 type LedgerReportingService interface {
 	GetGrossProfitReport(ctx context.Context, req *reportpb.GrossProfitReportRequest) (*reportpb.GrossProfitReportResponse, error)
+	GetRevenueReport(ctx context.Context, req *revreportpb.RevenueReportRequest) (*revreportpb.RevenueReportResponse, error)
 	ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 	ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 }
@@ -28,6 +30,9 @@ type LedgerReportingTableConfig struct {
 	Location             string
 	RevenueCategory      string
 	Expenditure          string
+	ProductCollection    string // product_collection table (product <-> product line join)
+	Collection           string // collection table (product line / product_line)
+	LocationArea         string // location_area table
 }
 
 // NewLedgerReportingService creates a new ledger reporting service using registry discovery.

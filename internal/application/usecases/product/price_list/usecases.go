@@ -15,6 +15,7 @@ type UseCases struct {
 	ListPriceLists           *ListPriceListsUseCase
 	GetPriceListListPageData *GetPriceListListPageDataUseCase
 	GetPriceListItemPageData *GetPriceListItemPageDataUseCase
+	FindApplicablePriceList  *FindApplicablePriceListUseCase
 }
 
 // PriceListRepositories groups all repository dependencies for price list use cases
@@ -102,6 +103,15 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	findApplicableRepos := FindApplicablePriceListRepositories{
+		PriceList: repositories.PriceList,
+	}
+	findApplicableServices := FindApplicablePriceListServices{
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreatePriceList:          NewCreatePriceListUseCase(createRepos, createServices),
 		ReadPriceList:            NewReadPriceListUseCase(readRepos, readServices),
@@ -110,5 +120,6 @@ func NewUseCases(
 		ListPriceLists:           NewListPriceListsUseCase(listRepos, listServices),
 		GetPriceListListPageData: NewGetPriceListListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetPriceListItemPageData: NewGetPriceListItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
+		FindApplicablePriceList:  NewFindApplicablePriceListUseCase(findApplicableRepos, findApplicableServices),
 	}
 }

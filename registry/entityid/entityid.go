@@ -243,6 +243,12 @@ const (
 	Prepayment = "prepayment"
 )
 
+// Expenditure domain — Purchase Orders (extends existing Expenditure)
+const (
+	PurchaseOrder         = "purchase_order"
+	PurchaseOrderLineItem = "purchase_order_line_item"
+)
+
 // Revenue domain — Deferred Revenue (extends existing Revenue)
 const (
 	DeferredRevenue = "deferred_revenue"
@@ -297,7 +303,7 @@ var ProductEntities = []string{
 var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue}
 
 // ExpenditureEntities lists all entity IDs in the Expenditure domain.
-var ExpenditureEntities = []string{Expenditure, ExpenditureAttribute, ExpenditureCategory, ExpenditureLineItem, Prepayment}
+var ExpenditureEntities = []string{Expenditure, ExpenditureAttribute, ExpenditureCategory, ExpenditureLineItem, Prepayment, PurchaseOrder, PurchaseOrderLineItem}
 
 // InventoryEntities lists all entity IDs in the Inventory domain.
 var InventoryEntities = []string{

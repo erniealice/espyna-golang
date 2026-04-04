@@ -361,6 +361,80 @@ func (r *PostgresPriceListRepository) GetPriceListItemPageData(ctx context.Conte
 	return &pricelistpb.GetPriceListItemPageDataResponse{PriceList: priceList, PriceProducts: priceProducts, Success: true}, nil
 }
 
+// FindApplicablePriceList finds the active price list for a given location and date.
+// Returns the most recently started price list that covers the given date.
+func (r *PostgresPriceListRepository) FindApplicablePriceList(ctx context.Context, req *pricelistpb.FindApplicablePriceListRequest) (*pricelistpb.FindApplicablePriceListResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.LocationId == "" {
+		return nil, fmt.Errorf("location_id is required")
+	}
+	if req.Date == "" {
+		return nil, fmt.Errorf("date is required")
+	}
+
+	query := `
+		SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified
+		FROM price_list
+		WHERE active = true
+		  AND location_id = $1
+		  AND date_start <= $2
+		  AND (date_end >= $2 OR date_end IS NULL OR date_end = '')
+		ORDER BY date_start DESC
+		LIMIT 1`
+
+	row := r.db.QueryRowContext(ctx, query, req.LocationId, req.Date)
+
+	var id, name string
+	var description, locationId, dateStart, dateEnd sql.NullString
+	var active bool
+	var dateCreated, dateModified time.Time
+
+	err := row.Scan(&id, &name, &description, &active, &dateStart, &dateEnd, &locationId, &dateCreated, &dateModified)
+	if err == sql.ErrNoRows {
+		return &pricelistpb.FindApplicablePriceListResponse{
+			Found:   false,
+			Success: true,
+		}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	priceList := &pricelistpb.PriceList{Id: id, Name: name, Active: active}
+	if description.Valid {
+		priceList.Description = &description.String
+	}
+	if dateStart.Valid {
+		priceList.DateStart = dateStart.String
+	}
+	if locationId.Valid {
+		priceList.LocationId = &locationId.String
+	}
+	if dateEnd.Valid {
+		priceList.DateEnd = &dateEnd.String
+	}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		priceList.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		priceList.DateCreatedString = &dcStr
+	}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		priceList.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		priceList.DateModifiedString = &dmStr
+	}
+
+	return &pricelistpb.FindApplicablePriceListResponse{
+		PriceList: priceList,
+		Found:     true,
+		Success:   true,
+	}, nil
+}
+
 // NewPriceListRepository creates a new PostgreSQL price_list repository (old-style constructor)
 func NewPriceListRepository(db *sql.DB, tableName string) pricelistpb.PriceListDomainServiceServer {
 	dbOps := postgresCore.NewPostgresOperations(db)

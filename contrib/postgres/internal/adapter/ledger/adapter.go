@@ -7,8 +7,14 @@ import (
 	"strings"
 	"time"
 
-	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
-	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
+	agingpb        "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
+	clientstmtpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
+	expreportpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
+	reportpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	revreportpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
+	collsumpb      "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
+	disbreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
+	suppstmtpb     "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/supplier_statement"
 )
 
 // TableConfig holds table names for the ledger reporting adapter.
@@ -23,9 +29,21 @@ type TableConfig struct {
 	Location             string
 	RevenueCategory      string
 	Expenditure          string
+	ExpenditureLineItem  string // expenditure_line_item table
+	ExpenditureCategory  string // expenditure_category table
+	Supplier             string // supplier table
 	ProductCollection    string // product_collection table (product ↔ product line join)
 	Collection           string // collection table (product line / product_line)
 	LocationArea         string // location_area table
+	SupplierCategory     string // supplier_category table
+	TreasuryDisbursement string // treasury_disbursement table
+	DisbursementMethod   string // disbursement_method table
+	Client               string // client table
+	ClientCategory       string // client_category table
+	Category             string // category table (parent categories)
+	TreasuryCollection   string // treasury_collection table
+	CollectionMethod     string // collection_method table
+	PaymentTerm          string // payment_term table
 }
 
 // LedgerReportingAdapter implements ports.LedgerReportingService using PostgreSQL.
@@ -138,6 +156,269 @@ func (a *LedgerReportingAdapter) GetRevenueReport(
 	}
 
 	return pivotFlatRows(flat, req), nil
+}
+
+// GetExpenditureReport executes a two-dimensional pivot SQL query to compute expenditures
+// grouped by two orthogonal dimensions (row_dimension × primary_dimension).
+func (a *LedgerReportingAdapter) GetExpenditureReport(
+	ctx context.Context,
+	req *expreportpb.ExpenditureReportRequest,
+) (*expreportpb.ExpenditureReportResponse, error) {
+	query, args := buildExpenditureReportQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var flat []expenditureFlatRow
+	for rows.Next() {
+		var fr expenditureFlatRow
+		var rowID, colID sql.NullString
+		if err := rows.Scan(
+			&fr.RowKey,
+			&rowID,
+			&fr.ColKey,
+			&colID,
+			&fr.TotalExpenditure,
+			&fr.TransactionCount,
+			&fr.TotalQuantity,
+		); err != nil {
+			return nil, err
+		}
+		if rowID.Valid {
+			fr.RowID = rowID.String
+		}
+		if colID.Valid {
+			fr.ColID = colID.String
+		}
+		flat = append(flat, fr)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return pivotFlatExpenditureRows(flat, req), nil
+}
+
+// GetDisbursementReport executes a two-dimensional pivot SQL query to compute disbursements
+// grouped by two orthogonal dimensions (row_dimension x primary_dimension).
+// Only paid/completed disbursements are included.
+func (a *LedgerReportingAdapter) GetDisbursementReport(
+	ctx context.Context,
+	req *disbreportpb.DisbursementReportRequest,
+) (*disbreportpb.DisbursementReportResponse, error) {
+	query, args := buildDisbursementReportQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var flat []disbursementFlatRow
+	for rows.Next() {
+		var fr disbursementFlatRow
+		var rowID, colID sql.NullString
+		if err := rows.Scan(
+			&fr.RowKey,
+			&rowID,
+			&fr.ColKey,
+			&colID,
+			&fr.TotalDisbursement,
+			&fr.TransactionCount,
+			&fr.TotalQuantity,
+		); err != nil {
+			return nil, err
+		}
+		if rowID.Valid {
+			fr.RowID = rowID.String
+		}
+		if colID.Valid {
+			fr.ColID = colID.String
+		}
+		flat = append(flat, fr)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return pivotFlatDisbursementRows(flat, req), nil
+}
+
+// GetReceivablesAgingReport executes a CTE-based SQL query to compute outstanding
+// receivables bucketed into 5 aging bands (current, 1-30, 31-60, 61-90, >90 days).
+// Uses payment_date <= as_of_date (not status) for point-in-time accuracy.
+func (a *LedgerReportingAdapter) GetReceivablesAgingReport(ctx context.Context, req *agingpb.ReceivablesAgingRequest) (*agingpb.ReceivablesAgingResponse, error) {
+	query, args := buildReceivablesAgingQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	agingRows, summaryBuckets, err := scanAgingRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	summary := buildAgingSummary(agingRows, summaryBuckets, req)
+
+	return &agingpb.ReceivablesAgingResponse{
+		BucketLabels: []string{"Current", "1-30 Days", "31-60 Days", "61-90 Days", "Over 90 Days"},
+		Rows:         agingRows,
+		Summary:      summary,
+		Success:      true,
+	}, nil
+}
+
+// GetCollectionSummaryReport executes a two-dimensional pivot SQL query to compute
+// collection totals grouped by two orthogonal dimensions (row_dimension x primary_dimension).
+// Filters by payment_date range for period selection.
+func (a *LedgerReportingAdapter) GetCollectionSummaryReport(ctx context.Context, req *collsumpb.CollectionSummaryRequest) (*collsumpb.CollectionSummaryResponse, error) {
+	query, args := buildCollectionSummaryQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var flat []collectionFlatRow
+	for rows.Next() {
+		var fr collectionFlatRow
+		var rowID, colID sql.NullString
+		if err := rows.Scan(
+			&fr.RowKey,
+			&rowID,
+			&fr.ColKey,
+			&colID,
+			&fr.TotalCollected,
+			&fr.TransactionCount,
+		); err != nil {
+			return nil, err
+		}
+		if rowID.Valid {
+			fr.RowID = rowID.String
+		}
+		if colID.Valid {
+			fr.ColID = colID.String
+		}
+		flat = append(flat, fr)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return pivotFlatCollectionRows(flat, req), nil
+}
+
+// GetClientStatement executes a UNION ALL + window function query to produce
+// a client statement with running balance across invoices and collections.
+func (a *LedgerReportingAdapter) GetClientStatement(
+	ctx context.Context,
+	req *clientstmtpb.ClientStatementRequest,
+) (*clientstmtpb.ClientStatementResponse, error) {
+	query, args := buildClientStatementQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries, err := scanClientStatementEntries(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	summary := buildClientStatementSummary(entries, req)
+
+	// Fetch client name via separate query.
+	nameQuery := buildClientNameQuery(a.tableConfig)
+	var clientName sql.NullString
+	_ = a.db.QueryRowContext(ctx, nameQuery, req.GetClientId()).Scan(&clientName)
+	if clientName.Valid {
+		summary.ClientName = clientName.String
+	}
+
+	return &clientstmtpb.ClientStatementResponse{
+		Entries: entries,
+		Summary: summary,
+	}, nil
+}
+
+// GetSupplierStatement executes a UNION ALL query to produce a chronological
+// supplier statement. Running balance is computed in Go after fetching rows.
+func (a *LedgerReportingAdapter) GetSupplierStatement(
+	ctx context.Context,
+	req *suppstmtpb.SupplierStatementRequest,
+) (*suppstmtpb.SupplierStatementResponse, error) {
+	query, args := buildSupplierStatementQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var raw []statementRow
+	for rows.Next() {
+		var r statementRow
+		if err := rows.Scan(
+			&r.TransactionDate, &r.TransactionType, &r.Reference,
+			&r.Description, &r.BilledAmount, &r.PaidAmount,
+			&r.SourceID, &r.Status,
+		); err != nil {
+			return nil, err
+		}
+		raw = append(raw, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	entries := buildStatementEntries(raw)
+	summary := buildStatementSummary(entries, req)
+
+	// Fetch supplier name via separate query.
+	nameQuery := buildSupplierNameQuery(a.tableConfig)
+	var supplierName sql.NullString
+	_ = a.db.QueryRowContext(ctx, nameQuery, req.GetSupplierId()).Scan(&supplierName)
+	if supplierName.Valid {
+		summary.SupplierName = supplierName.String
+	}
+
+	return &suppstmtpb.SupplierStatementResponse{
+		Entries: entries,
+		Summary: summary,
+		Success: true,
+	}, nil
+}
+
+// GetSupplierBalances returns a map of supplier_id → outstanding centavo balance
+// for all suppliers that have a non-zero outstanding balance.
+// Suppliers with zero net balance are omitted (use 0 as the default for absent keys).
+func (a *LedgerReportingAdapter) GetSupplierBalances(ctx context.Context) (map[string]int64, error) {
+	query := buildSupplierBalancesQuery(a.tableConfig)
+	rows, err := a.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64)
+	for rows.Next() {
+		var supplierID string
+		var outstanding int64
+		if err := rows.Scan(&supplierID, &outstanding); err != nil {
+			return nil, err
+		}
+		result[supplierID] = outstanding
+	}
+	return result, rows.Err()
 }
 
 // ListRevenue returns revenue records, optionally filtered by date range.

@@ -6,8 +6,14 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
-	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
-	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
+	agingpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
+	clientstmtpb  "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
+	expreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
+	reportpb      "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	revreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
+	collsumpb     "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
+	disbreportpb  "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
+	suppstmtpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/supplier_statement"
 )
 
 // LedgerReportingService provides access to ledger reporting queries.
@@ -16,6 +22,13 @@ import (
 type LedgerReportingService interface {
 	GetGrossProfitReport(ctx context.Context, req *reportpb.GrossProfitReportRequest) (*reportpb.GrossProfitReportResponse, error)
 	GetRevenueReport(ctx context.Context, req *revreportpb.RevenueReportRequest) (*revreportpb.RevenueReportResponse, error)
+	GetExpenditureReport(ctx context.Context, req *expreportpb.ExpenditureReportRequest) (*expreportpb.ExpenditureReportResponse, error)
+	GetDisbursementReport(ctx context.Context, req *disbreportpb.DisbursementReportRequest) (*disbreportpb.DisbursementReportResponse, error)
+	GetReceivablesAgingReport(ctx context.Context, req *agingpb.ReceivablesAgingRequest) (*agingpb.ReceivablesAgingResponse, error)
+	GetCollectionSummaryReport(ctx context.Context, req *collsumpb.CollectionSummaryRequest) (*collsumpb.CollectionSummaryResponse, error)
+	GetClientStatement(ctx context.Context, req *clientstmtpb.ClientStatementRequest) (*clientstmtpb.ClientStatementResponse, error)
+	GetSupplierStatement(ctx context.Context, req *suppstmtpb.SupplierStatementRequest) (*suppstmtpb.SupplierStatementResponse, error)
+	GetSupplierBalances(ctx context.Context) (map[string]int64, error)
 	ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 	ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 }
@@ -30,9 +43,21 @@ type LedgerReportingTableConfig struct {
 	Location             string
 	RevenueCategory      string
 	Expenditure          string
+	ExpenditureLineItem  string // expenditure_line_item table
+	ExpenditureCategory  string // expenditure_category table
+	Supplier             string // supplier table
 	ProductCollection    string // product_collection table (product <-> product line join)
 	Collection           string // collection table (product line / product_line)
 	LocationArea         string // location_area table
+	TreasuryDisbursement string // treasury_disbursement table
+	DisbursementMethod   string // disbursement_method table
+	SupplierCategory     string // supplier_category table
+	Client               string // client table
+	ClientCategory       string // client_category table
+	Category             string // category table (parent categories)
+	TreasuryCollection   string // treasury_collection table
+	CollectionMethod     string // collection_method table
+	PaymentTerm          string // payment_term table
 }
 
 // NewLedgerReportingService creates a new ledger reporting service using registry discovery.

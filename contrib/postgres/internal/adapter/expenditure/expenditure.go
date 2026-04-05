@@ -222,7 +222,7 @@ func (r *PostgresExpenditureRepository) ListExpenditures(ctx context.Context, re
 }
 
 // GetExpenditureListPageData retrieves expenditures with pagination, filtering, sorting, and search using CTE
-// Joins with client (as vendor) and location tables for enriched display
+// Joins with supplier and location tables for enriched display
 func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 	ctx context.Context,
 	req *expenditurepb.GetExpenditureListPageDataRequest,
@@ -269,7 +269,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.active,
 				ex.name,
 				ex.expenditure_type,
-				ex.vendor_id,
+				ex.supplier_id AS supplier_id_primary,
 				ex.expenditure_date,
 				ex.expenditure_date_string,
 				ex.total_amount,
@@ -284,17 +284,17 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.approved_by,
 				ex.purchase_order_id,
 				ex.supplier_id,
-				COALESCE(c.name, '') as vendor_name,
+				COALESCE(s.company_name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
-			LEFT JOIN client c ON ex.vendor_id = c.id AND c.active = true
+			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = true
 			LEFT JOIN location l ON ex.location_id = l.id AND l.active = true
 			WHERE ex.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ex.name ILIKE $1 OR
 			       ex.reference_number ILIKE $1 OR
 			       ex.status ILIKE $1 OR
-			       c.name ILIKE $1)
+			       s.company_name ILIKE $1)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -392,7 +392,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			expenditure.ExpenditureType = *expenditureType
 		}
 		if vendorID != nil {
-			expenditure.VendorId = *vendorID
+			expenditure.SupplierId = vendorID
 		}
 		if locationID != nil {
 			expenditure.LocationId = *locationID
@@ -482,7 +482,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 				ex.active,
 				ex.name,
 				ex.expenditure_type,
-				ex.vendor_id,
+				ex.supplier_id AS supplier_id_primary,
 				ex.expenditure_date,
 				ex.expenditure_date_string,
 				ex.total_amount,
@@ -497,10 +497,10 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 				ex.approved_by,
 				ex.purchase_order_id,
 				ex.supplier_id,
-				COALESCE(c.name, '') as vendor_name,
+				COALESCE(s.company_name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
-			LEFT JOIN client c ON ex.vendor_id = c.id AND c.active = true
+			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = true
 			LEFT JOIN location l ON ex.location_id = l.id AND l.active = true
 			WHERE ex.id = $1 AND ex.active = true
 		)
@@ -583,7 +583,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		expenditure.ExpenditureType = *expenditureType
 	}
 	if vendorID != nil {
-		expenditure.VendorId = *vendorID
+		expenditure.SupplierId = vendorID
 	}
 	if locationID != nil {
 		expenditure.LocationId = *locationID

@@ -42,9 +42,9 @@ func (c *Checker) GetCategoryInUseIDs(ctx context.Context, ids []string) (map[st
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
-// GetClientInUseIDs checks if clients are referenced as vendors in expenditure.
+// GetClientInUseIDs checks if clients are referenced in revenue or other client-linked records.
 func (c *Checker) GetClientInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	query := `SELECT DISTINCT vendor_id FROM expenditure WHERE vendor_id = ANY($1) AND active = true`
+	query := `SELECT DISTINCT client_id FROM revenue WHERE client_id = ANY($1) AND active = true`
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 

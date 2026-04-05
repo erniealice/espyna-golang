@@ -18,15 +18,18 @@ type pivotDimensionConfig struct {
 
 // validPivotDimensions is a whitelist of allowed dimension values to prevent SQL injection.
 var validPivotDimensions = map[string]bool{
-	"monthly":       true,
-	"quarterly":     true,
-	"yearly":        true,
-	"product":       true,
-	"product_line":  true,
-	"productLine":   true,
-	"location":      true,
-	"location_area": true,
-	"locationArea":  true,
+	"monthly":         true,
+	"quarterly":       true,
+	"yearly":          true,
+	"product":         true,
+	"product_line":    true,
+	"productLine":     true,
+	"location":        true,
+	"location_area":   true,
+	"locationArea":    true,
+	"client":          true,
+	"clientCategory":  true,
+	"client_category": true,
 }
 
 // normalizeDimension converts camelCase dimension keys to snake_case for SQL switch matching.
@@ -36,6 +39,8 @@ func normalizeDimension(dim string) string {
 		return "product_line"
 	case "locationArea":
 		return "location_area"
+	case "clientCategory":
+		return "client_category"
 	default:
 		return dim
 	}
@@ -91,12 +96,26 @@ func getPivotDimensionConfig(tc TableConfig, dimension string) pivotDimensionCon
 		}
 	case "location_area":
 		return pivotDimensionConfig{
-			selectKey:  "COALESCE(la.name, 'Unassigned')",
-			selectID:   "COALESCE(l.location_area_id, '__none__')",
-			groupBy:    "l.location_area_id, la.name",
+			selectKey: "COALESCE(la.name, 'Unassigned')",
+			selectID:  "COALESCE(l.location_area_id, '__none__')",
+			groupBy:   "l.location_area_id, la.name",
 			extraJoins: fmt.Sprintf(
 				"LEFT JOIN %s l ON l.id = r.location_id LEFT JOIN %s la ON la.id = l.location_area_id",
 				tc.Location, tc.LocationArea),
+		}
+	case "client":
+		return pivotDimensionConfig{
+			selectKey:  "COALESCE(cl.name, r.name, 'Unassigned')",
+			selectID:   "COALESCE(r.client_id, '__none__')",
+			groupBy:    "r.client_id, cl.name, r.name",
+			extraJoins: "LEFT JOIN client cl ON cl.id = r.client_id",
+		}
+	case "client_category":
+		return pivotDimensionConfig{
+			selectKey:  "COALESCE(cat.name, 'Unassigned')",
+			selectID:   "COALESCE(cc.category_id, '__none__')",
+			groupBy:    "cc.category_id, cat.name",
+			extraJoins: "LEFT JOIN client cl ON cl.id = r.client_id LEFT JOIN client_category cc ON cc.id = cl.category_id LEFT JOIN category cat ON cat.id = cc.category_id",
 		}
 	default:
 		return getPivotDimensionConfig(tc, "product")
@@ -140,6 +159,7 @@ func buildRevenueReportQuery(tc TableConfig, req *revreportpb.RevenueReportReque
 		nilIfEmpty(req.GetProductId()),
 		nilIfEmpty(req.GetLocationId()),
 		nilIfEmpty(req.GetRevenueCategoryId()),
+		nil, // $6: client_id filter (not yet exposed in proto)
 	}
 
 	query := fmt.Sprintf(`
@@ -163,6 +183,7 @@ WITH revenue_pivot AS (
       AND ($3::text IS NULL OR rli.product_id = $3)
       AND ($4::text IS NULL OR r.location_id = $4)
       AND ($5::text IS NULL OR r.revenue_category_id = $5)
+      AND ($6::text IS NULL OR r.client_id = $6)
     GROUP BY %s, %s
 )
 SELECT row_key, row_id, col_key, col_id,
@@ -198,6 +219,16 @@ func mergeJoins(a, b string) string {
 	// a already has "LEFT JOIN {loc} l ON..." so we strip it from b and keep
 	// only the remaining "LEFT JOIN {la} la ON..." part.
 	if strings.Contains(a, " l ON l.id") && strings.Contains(b, " l ON l.id") {
+		parts := strings.SplitN(b, "LEFT JOIN", 3)
+		if len(parts) == 3 {
+			return a + " LEFT JOIN" + parts[2]
+		}
+	}
+	// If both sides join the client table (alias "cl"), only include it once.
+	// For client_category, b has "LEFT JOIN client cl ON... LEFT JOIN category cat ON..."
+	// a already has "LEFT JOIN client cl ON..." so we strip it from b and keep
+	// only the remaining "LEFT JOIN category cat ON..." part.
+	if strings.Contains(a, " cl ON cl.id") && strings.Contains(b, " cl ON cl.id") {
 		parts := strings.SplitN(b, "LEFT JOIN", 3)
 		if len(parts) == 3 {
 			return a + " LEFT JOIN" + parts[2]

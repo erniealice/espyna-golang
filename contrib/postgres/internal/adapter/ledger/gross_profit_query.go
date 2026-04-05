@@ -84,17 +84,17 @@ func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportReques
 	sb.WriteString(fmt.Sprintf(`WITH revenue_summary AS (
     SELECT
         %s,
-        SUM(rli.total_price) AS total_revenue,
-        SUM(COALESCE(rli.discount_amount, 0)) AS total_discount,
-        SUM(rli.total_price) - SUM(COALESCE(rli.discount_amount, 0)) AS net_revenue,
-        SUM(rli.quantity) AS units_sold,
+        SUM(rli.total_price)::bigint AS total_revenue,
+        SUM(COALESCE(rli.discount_amount, 0))::bigint AS total_discount,
+        (SUM(rli.total_price) - SUM(COALESCE(rli.discount_amount, 0)))::bigint AS net_revenue,
+        SUM(rli.quantity)::bigint AS units_sold,
         COUNT(DISTINCT r.id) AS transaction_count
     FROM %s rli
     JOIN %s r ON r.id = rli.revenue_id
     LEFT JOIN %s p ON p.id = rli.product_id
     %s
     WHERE r.active = true
-      AND r.status = 'completed'
+      AND r.status != 'cancelled'
       AND ($1::timestamptz IS NULL OR r.revenue_date >= $1::timestamptz)
       AND ($2::timestamptz IS NULL OR r.revenue_date <= $2::timestamptz)
       AND ($3::text IS NULL OR rli.product_id = $3)

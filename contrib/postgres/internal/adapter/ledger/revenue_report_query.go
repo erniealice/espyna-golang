@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
@@ -22,8 +23,22 @@ var validPivotDimensions = map[string]bool{
 	"yearly":        true,
 	"product":       true,
 	"product_line":  true,
+	"productLine":   true,
 	"location":      true,
 	"location_area": true,
+	"locationArea":  true,
+}
+
+// normalizeDimension converts camelCase dimension keys to snake_case for SQL switch matching.
+func normalizeDimension(dim string) string {
+	switch dim {
+	case "productLine":
+		return "product_line"
+	case "locationArea":
+		return "location_area"
+	default:
+		return dim
+	}
 }
 
 // getPivotDimensionConfig returns SQL fragments for the requested dimension.
@@ -97,11 +112,11 @@ func getPivotDimensionConfig(tc TableConfig, dimension string) pivotDimensionCon
 //   - primaryDimension → each column within a row (the pivot axis)
 func buildRevenueReportQuery(tc TableConfig, req *revreportpb.RevenueReportRequest) (string, []any) {
 	// Validate and normalise dimensions.
-	primaryDim := req.GetPrimaryDimension()
+	primaryDim := normalizeDimension(req.GetPrimaryDimension())
 	if !validPivotDimensions[primaryDim] {
 		primaryDim = "monthly"
 	}
-	rowDim := req.GetRowDimension()
+	rowDim := normalizeDimension(req.GetRowDimension())
 	if !validPivotDimensions[rowDim] {
 		rowDim = "product"
 	}
@@ -134,15 +149,15 @@ WITH revenue_pivot AS (
         %s AS row_id,
         %s AS col_key,
         %s AS col_id,
-        SUM(rli.total_price)       AS total_revenue,
-        COUNT(DISTINCT r.id)       AS transaction_count,
-        SUM(rli.quantity)          AS total_quantity
+        SUM(rli.total_price)::bigint AS total_revenue,
+        COUNT(DISTINCT r.id)         AS transaction_count,
+        SUM(rli.quantity)::bigint    AS total_quantity
     FROM %s rli
     JOIN %s r ON r.id = rli.revenue_id
     LEFT JOIN %s p ON p.id = rli.product_id
     %s
     WHERE r.active = true
-      AND r.status = 'completed'
+      AND r.status != 'cancelled'
       AND ($1::timestamptz IS NULL OR r.revenue_date::timestamptz >= $1::timestamptz)
       AND ($2::timestamptz IS NULL OR r.revenue_date::timestamptz <= $2::timestamptz)
       AND ($3::text IS NULL OR rli.product_id = $3)
@@ -279,6 +294,23 @@ func pivotFlatRows(flat []flatRow, req *revreportpb.RevenueReportRequest) *revre
 		ct.TotalQuantity += fr.TotalQuantity
 	}
 
+	// Sort columns: periods descending (latest first), entities alphabetical.
+	primaryDim := normalizeDimension(req.GetPrimaryDimension())
+	isPeriodDim := primaryDim == "monthly" || primaryDim == "quarterly" || primaryDim == "yearly"
+	if isPeriodDim {
+		// Period columns have colID as a timestamp string — sort descending (latest first).
+		sort.Slice(colOrder, func(i, j int) bool {
+			idI := colTotals[colOrder[i]].GetColumnId()
+			idJ := colTotals[colOrder[j]].GetColumnId()
+			return idI > idJ // descending
+		})
+	} else {
+		// Entity columns (product, location) — sort alphabetically by display key.
+		sort.Slice(colOrder, func(i, j int) bool {
+			return strings.ToLower(colOrder[i]) < strings.ToLower(colOrder[j])
+		})
+	}
+
 	// Build column header list (ordered) — proto field is repeated string.
 	colHeaders := make([]string, 0, len(colOrder))
 	for _, ck := range colOrder {
@@ -289,6 +321,19 @@ func pivotFlatRows(flat []flatRow, req *revreportpb.RevenueReportRequest) *revre
 	columnTotals := make([]*revreportpb.RevenueReportCell, 0, len(colOrder))
 	for _, ck := range colOrder {
 		columnTotals = append(columnTotals, colTotals[ck])
+	}
+
+	// Sort rows: periods descending (latest first), entities alphabetical.
+	rowDimNorm := normalizeDimension(req.GetRowDimension())
+	isRowPeriod := rowDimNorm == "monthly" || rowDimNorm == "quarterly" || rowDimNorm == "yearly"
+	if isRowPeriod {
+		sort.Slice(rowOrder, func(i, j int) bool {
+			return rowAccums[rowOrder[i]].rowID > rowAccums[rowOrder[j]].rowID
+		})
+	} else {
+		sort.Slice(rowOrder, func(i, j int) bool {
+			return strings.ToLower(rowOrder[i]) < strings.ToLower(rowOrder[j])
+		})
 	}
 
 	// Build rows.

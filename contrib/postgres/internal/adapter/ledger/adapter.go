@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agingpb        "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
+	payagingpb     "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
 	clientstmtpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
 	expreportpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
 	reportpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
@@ -267,6 +268,33 @@ func (a *LedgerReportingAdapter) GetReceivablesAgingReport(ctx context.Context, 
 	summary := buildAgingSummary(agingRows, summaryBuckets, req)
 
 	return &agingpb.ReceivablesAgingResponse{
+		BucketLabels: []string{"Current", "1-30 Days", "31-60 Days", "61-90 Days", "Over 90 Days"},
+		Rows:         agingRows,
+		Summary:      summary,
+		Success:      true,
+	}, nil
+}
+
+// GetPayablesAgingReport executes a CTE-based SQL query to compute outstanding
+// payables bucketed into 5 aging bands (current, 1-30, 31-60, 61-90, >90 days).
+// Uses payment_date <= as_of_date (not status) for point-in-time accuracy.
+func (a *LedgerReportingAdapter) GetPayablesAgingReport(ctx context.Context, req *payagingpb.PayablesAgingRequest) (*payagingpb.PayablesAgingResponse, error) {
+	query, args := buildPayablesAgingQuery(a.tableConfig, req)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	agingRows, summaryBuckets, err := scanPayablesAgingRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	summary := buildPayablesAgingSummary(agingRows, summaryBuckets, req)
+
+	return &payagingpb.PayablesAgingResponse{
 		BucketLabels: []string{"Current", "1-30 Days", "31-60 Days", "61-90 Days", "Over 90 Days"},
 		Rows:         agingRows,
 		Summary:      summary,

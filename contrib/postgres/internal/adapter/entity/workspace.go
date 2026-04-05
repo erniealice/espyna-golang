@@ -8,6 +8,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -467,6 +468,83 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 		Workspace: workspace,
 		Success:   true,
 	}, nil
+}
+
+// SwitchWorkspace updates the session row's workspace_id and workspace_user_id.
+func (r *PostgresWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *workspacepb.SwitchWorkspaceRequest) (*workspacepb.SwitchWorkspaceResponse, error) {
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+
+	// 1. Validate: get user_id from context
+	userID := consumer.GetUserIDFromContext(ctx)
+	if userID == "" {
+		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "unauthorized"}}, nil
+	}
+
+	// 2. Check workspace_user exists for this user + target workspace
+	var wsUserID string
+	err := exec.QueryRowContext(ctx,
+		`SELECT wu.id FROM workspace_user wu
+		 WHERE wu.user_id = $1 AND wu.workspace_id = $2 AND wu.active = true
+		 LIMIT 1`,
+		userID, req.WorkspaceId,
+	).Scan(&wsUserID)
+	if err != nil {
+		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "no access to workspace"}}, nil
+	}
+
+	// 3. Get workspace name
+	var wsName string
+	_ = exec.QueryRowContext(ctx,
+		`SELECT name FROM workspace WHERE id = $1 AND active = true`,
+		req.WorkspaceId,
+	).Scan(&wsName)
+
+	// 4. Update session
+	_, err = exec.ExecContext(ctx,
+		`UPDATE "session" SET workspace_id = $1, workspace_user_id = $2
+		 WHERE token = $3 AND active = true`,
+		req.WorkspaceId, wsUserID, req.SessionToken,
+	)
+	if err != nil {
+		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "failed to update session"}}, nil
+	}
+
+	return &workspacepb.SwitchWorkspaceResponse{
+		Success:         true,
+		WorkspaceUserId: &wsUserID,
+		WorkspaceName:   &wsName,
+	}, nil
+}
+
+// ListUserWorkspaces returns all workspaces accessible to a user.
+func (r *PostgresWorkspaceRepository) ListUserWorkspaces(ctx context.Context, req *workspacepb.ListUserWorkspacesRequest) (*workspacepb.ListUserWorkspacesResponse, error) {
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+
+	rows, err := exec.QueryContext(ctx,
+		`SELECT w.id, w.name, wu.id AS workspace_user_id
+		 FROM workspace w
+		 JOIN workspace_user wu ON wu.workspace_id = w.id
+		 WHERE wu.user_id = $1 AND wu.active = true AND w.active = true
+		 ORDER BY w.name`,
+		req.UserId,
+	)
+	if err != nil {
+		return &workspacepb.ListUserWorkspacesResponse{Success: false}, nil
+	}
+	defer rows.Close()
+
+	currentWsID := consumer.GetWorkspaceIDFromContext(ctx)
+	var workspaces []*workspacepb.UserWorkspace
+	for rows.Next() {
+		var ws workspacepb.UserWorkspace
+		if err := rows.Scan(&ws.WorkspaceId, &ws.WorkspaceName, &ws.WorkspaceUserId); err != nil {
+			continue
+		}
+		ws.IsCurrent = ws.WorkspaceId == currentWsID
+		workspaces = append(workspaces, &ws)
+	}
+
+	return &workspacepb.ListUserWorkspacesResponse{Workspaces: workspaces, Success: true}, nil
 }
 
 // NewWorkspaceRepository creates a new PostgreSQL workspace repository (old-style constructor)

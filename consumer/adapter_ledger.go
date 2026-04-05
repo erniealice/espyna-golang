@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	agingpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
+	payagingpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
 	clientstmtpb  "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
 	expreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
 	reportpb      "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
@@ -25,6 +26,7 @@ type LedgerReportingService interface {
 	GetExpenditureReport(ctx context.Context, req *expreportpb.ExpenditureReportRequest) (*expreportpb.ExpenditureReportResponse, error)
 	GetDisbursementReport(ctx context.Context, req *disbreportpb.DisbursementReportRequest) (*disbreportpb.DisbursementReportResponse, error)
 	GetReceivablesAgingReport(ctx context.Context, req *agingpb.ReceivablesAgingRequest) (*agingpb.ReceivablesAgingResponse, error)
+	GetPayablesAgingReport(ctx context.Context, req *payagingpb.PayablesAgingRequest) (*payagingpb.PayablesAgingResponse, error)
 	GetCollectionSummaryReport(ctx context.Context, req *collsumpb.CollectionSummaryRequest) (*collsumpb.CollectionSummaryResponse, error)
 	GetClientStatement(ctx context.Context, req *clientstmtpb.ClientStatementRequest) (*clientstmtpb.ClientStatementResponse, error)
 	GetSupplierStatement(ctx context.Context, req *suppstmtpb.SupplierStatementRequest) (*suppstmtpb.SupplierStatementResponse, error)

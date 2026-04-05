@@ -27,6 +27,8 @@ type UseCases struct {
 	ListWorkspaces           *ListWorkspacesUseCase
 	GetWorkspaceListPageData *GetWorkspaceListPageDataUseCase
 	GetWorkspaceItemPageData *GetWorkspaceItemPageDataUseCase
+	SwitchWorkspace          *SwitchWorkspaceUseCase
+	ListUserWorkspaces       *ListUserWorkspacesUseCase
 }
 
 // NewUseCases creates a new collection of workspace use cases
@@ -85,6 +87,20 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	switchRepos := SwitchWorkspaceRepositories(repositories)
+	switchServices := SwitchWorkspaceServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
+	listUserRepos := ListUserWorkspacesRepositories(repositories)
+	listUserServices := ListUserWorkspacesServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreateWorkspace:          NewCreateWorkspaceUseCase(createRepos, createServices),
 		ReadWorkspace:            NewReadWorkspaceUseCase(readRepos, readServices),
@@ -93,6 +109,8 @@ func NewUseCases(
 		ListWorkspaces:           NewListWorkspacesUseCase(listRepos, listServices),
 		GetWorkspaceListPageData: NewGetWorkspaceListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
 		GetWorkspaceItemPageData: NewGetWorkspaceItemPageDataUseCase(getItemPageDataRepos, getItemPageDataServices),
+		SwitchWorkspace:          NewSwitchWorkspaceUseCase(switchRepos, switchServices),
+		ListUserWorkspaces:       NewListUserWorkspacesUseCase(listUserRepos, listUserServices),
 	}
 }
 

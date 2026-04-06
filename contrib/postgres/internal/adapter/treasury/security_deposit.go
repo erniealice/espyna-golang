@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres security_deposit repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresSecurityDepositRepository(dbOps, tableName), nil
 	})
 }
@@ -500,6 +500,6 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositItemPageData(
 
 // NewSecurityDepositRepository creates a new PostgreSQL security_deposit repository (old-style constructor)
 func NewSecurityDepositRepository(db *sql.DB, tableName string) securitydepositpb.SecurityDepositDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresSecurityDepositRepository(dbOps, tableName)
 }

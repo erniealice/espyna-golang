@@ -30,7 +30,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres activity_material repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresActivityMaterialRepository(dbOps, tableName), nil
 	})
 }
@@ -79,7 +79,7 @@ func (r *PostgresActivityMaterialRepository) CreateActivityMaterial(ctx context.
 	}
 
 	material := &pb.ActivityMaterial{}
-	if err := protojson.Unmarshal(resultJSON, material); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, material); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -105,7 +105,7 @@ func (r *PostgresActivityMaterialRepository) ReadActivityMaterial(ctx context.Co
 	}
 
 	material := &pb.ActivityMaterial{}
-	if err := protojson.Unmarshal(resultJSON, material); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, material); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -141,7 +141,7 @@ func (r *PostgresActivityMaterialRepository) UpdateActivityMaterial(ctx context.
 	}
 
 	material := &pb.ActivityMaterial{}
-	if err := protojson.Unmarshal(resultJSON, material); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, material); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -185,7 +185,7 @@ func (r *PostgresActivityMaterialRepository) ListActivityMaterials(ctx context.C
 		}
 
 		material := &pb.ActivityMaterial{}
-		if err := protojson.Unmarshal(resultJSON, material); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, material); err != nil {
 			continue
 		}
 		materials = append(materials, material)

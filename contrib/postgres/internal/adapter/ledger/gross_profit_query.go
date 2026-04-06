@@ -43,7 +43,7 @@ var validGranularity = map[string]string{
 // buildGrossProfitQuery constructs the CTE-based SQL query and its parameter args.
 // Table names come from TableConfig (developer-configured, safe for fmt.Sprintf).
 // All user-provided values use parameterized queries ($1, $2, ...).
-func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportRequest) (string, []any) {
+func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportRequest, workspaceID string) (string, []any) {
 	groupBy := "product"
 	if req.GroupBy != nil && validGroupBy[req.GetGroupBy()] {
 		groupBy = req.GetGroupBy()
@@ -57,7 +57,8 @@ func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportReques
 	// $3 = product_id (text or NULL)
 	// $4 = location_id (text or NULL)
 	// $5 = revenue_category_id (text or NULL)
-	args := make([]any, 5)
+	// $6 = workspace_id (text or NULL)
+	args := make([]any, 6)
 	if req.StartDate != nil {
 		if t, err := time.Parse("2006-01-02", req.GetStartDate()); err == nil {
 			args[0] = t.UTC()
@@ -76,6 +77,9 @@ func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportReques
 	}
 	if req.RevenueCategoryId != nil {
 		args[4] = req.GetRevenueCategoryId()
+	}
+	if workspaceID != "" {
+		args[5] = workspaceID
 	}
 
 	var sb strings.Builder
@@ -100,6 +104,7 @@ func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportReques
       AND ($3::text IS NULL OR rli.product_id = $3)
       AND ($4::text IS NULL OR r.location_id = $4)
       AND ($5::text IS NULL OR r.revenue_category_id = $5)
+      AND ($6::text IS NULL OR r.workspace_id = $6)
     GROUP BY %s
 )`,
 		cfg.revenueSelect,

@@ -26,7 +26,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres job repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresJobRepository(dbOps, tableName), nil
 	})
 }
@@ -904,6 +904,6 @@ func (r *PostgresJobRepository) scanJobRows(rows *sql.Rows) ([]*pb.Job, error) {
 
 // NewJobRepository creates a new PostgreSQL job repository (old-style constructor)
 func NewJobRepository(db *sql.DB, tableName string) pb.JobDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresJobRepository(dbOps, tableName)
 }

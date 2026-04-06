@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres price_list repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPriceListRepository(dbOps, tableName), nil
 	})
 }
@@ -437,6 +437,6 @@ func (r *PostgresPriceListRepository) FindApplicablePriceList(ctx context.Contex
 
 // NewPriceListRepository creates a new PostgreSQL price_list repository (old-style constructor)
 func NewPriceListRepository(db *sql.DB, tableName string) pricelistpb.PriceListDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPriceListRepository(dbOps, tableName)
 }

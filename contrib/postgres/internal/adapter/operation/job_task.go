@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres job_task repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresJobTaskRepository(dbOps, tableName), nil
 	})
 }
@@ -691,6 +691,6 @@ func (r *PostgresJobTaskRepository) ListByAssignee(
 
 // NewJobTaskRepository creates a new PostgreSQL job_task repository (old-style constructor)
 func NewJobTaskRepository(db *sql.DB, tableName string) pb.JobTaskDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresJobTaskRepository(dbOps, tableName)
 }

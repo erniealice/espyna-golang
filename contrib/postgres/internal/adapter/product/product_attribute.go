@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres product_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresProductAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -91,7 +91,7 @@ func (r *PostgresProductAttributeRepository) CreateProductAttribute(ctx context.
 	}
 
 	productAttribute := &productattributepb.ProductAttribute{}
-	if err := protojson.Unmarshal(resultJSON, productAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -119,7 +119,7 @@ func (r *PostgresProductAttributeRepository) ReadProductAttribute(ctx context.Co
 	}
 
 	productAttribute := &productattributepb.ProductAttribute{}
-	if err := protojson.Unmarshal(resultJSON, productAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func (r *PostgresProductAttributeRepository) UpdateProductAttribute(ctx context.
 	}
 
 	productAttribute := &productattributepb.ProductAttribute{}
-	if err := protojson.Unmarshal(resultJSON, productAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -206,7 +206,7 @@ func (r *PostgresProductAttributeRepository) ListProductAttributes(ctx context.C
 		}
 
 		productAttribute := &productattributepb.ProductAttribute{}
-		if err := protojson.Unmarshal(resultJSON, productAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productAttribute); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -456,6 +456,6 @@ func parseProductAttributeTimestamp(ts string) (int64, error) {
 
 // NewProductAttributeRepository creates a new PostgreSQL product_attribute repository (old-style constructor)
 func NewProductAttributeRepository(db *sql.DB, tableName string) productattributepb.ProductAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresProductAttributeRepository(dbOps, tableName)
 }

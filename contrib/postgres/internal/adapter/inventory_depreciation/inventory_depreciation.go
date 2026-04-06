@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_depreciation repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInventoryDepreciationRepository(dbOps, tableName), nil
 	})
 }
@@ -92,7 +92,7 @@ func (r *PostgresInventoryDepreciationRepository) CreateInventoryDepreciation(ct
 	}
 
 	inventoryDepreciation := &inventorydepreciationpb.InventoryDepreciation{}
-	if err := protojson.Unmarshal(resultJSON, inventoryDepreciation); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryDepreciation); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -121,7 +121,7 @@ func (r *PostgresInventoryDepreciationRepository) ReadInventoryDepreciation(ctx 
 	}
 
 	inventoryDepreciation := &inventorydepreciationpb.InventoryDepreciation{}
-	if err := protojson.Unmarshal(resultJSON, inventoryDepreciation); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryDepreciation); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -161,7 +161,7 @@ func (r *PostgresInventoryDepreciationRepository) UpdateInventoryDepreciation(ct
 	}
 
 	inventoryDepreciation := &inventorydepreciationpb.InventoryDepreciation{}
-	if err := protojson.Unmarshal(resultJSON, inventoryDepreciation); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryDepreciation); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -210,7 +210,7 @@ func (r *PostgresInventoryDepreciationRepository) ListInventoryDepreciations(ctx
 		}
 
 		inventoryDepreciation := &inventorydepreciationpb.InventoryDepreciation{}
-		if err := protojson.Unmarshal(resultJSON, inventoryDepreciation); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryDepreciation); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -529,6 +529,6 @@ func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationItemPa
 
 // NewInventoryDepreciationRepository creates a new PostgreSQL inventory depreciation repository (old-style constructor)
 func NewInventoryDepreciationRepository(db *sql.DB, tableName string) inventorydepreciationpb.InventoryDepreciationDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInventoryDepreciationRepository(dbOps, tableName)
 }

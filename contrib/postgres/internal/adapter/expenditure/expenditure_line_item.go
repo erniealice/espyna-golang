@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres expenditure_line_item repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresExpenditureLineItemRepository(dbOps, tableName), nil
 	})
 }

@@ -30,7 +30,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres activity_labor repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresActivityLaborRepository(dbOps, tableName), nil
 	})
 }
@@ -79,7 +79,7 @@ func (r *PostgresActivityLaborRepository) CreateActivityLabor(ctx context.Contex
 	}
 
 	labor := &pb.ActivityLabor{}
-	if err := protojson.Unmarshal(resultJSON, labor); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, labor); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -105,7 +105,7 @@ func (r *PostgresActivityLaborRepository) ReadActivityLabor(ctx context.Context,
 	}
 
 	labor := &pb.ActivityLabor{}
-	if err := protojson.Unmarshal(resultJSON, labor); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, labor); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -141,7 +141,7 @@ func (r *PostgresActivityLaborRepository) UpdateActivityLabor(ctx context.Contex
 	}
 
 	labor := &pb.ActivityLabor{}
-	if err := protojson.Unmarshal(resultJSON, labor); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, labor); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -185,7 +185,7 @@ func (r *PostgresActivityLaborRepository) ListActivityLabors(ctx context.Context
 		}
 
 		labor := &pb.ActivityLabor{}
-		if err := protojson.Unmarshal(resultJSON, labor); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, labor); err != nil {
 			continue
 		}
 		labors = append(labors, labor)

@@ -30,7 +30,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres activity_expense repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresActivityExpenseRepository(dbOps, tableName), nil
 	})
 }
@@ -79,7 +79,7 @@ func (r *PostgresActivityExpenseRepository) CreateActivityExpense(ctx context.Co
 	}
 
 	expense := &pb.ActivityExpense{}
-	if err := protojson.Unmarshal(resultJSON, expense); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, expense); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -105,7 +105,7 @@ func (r *PostgresActivityExpenseRepository) ReadActivityExpense(ctx context.Cont
 	}
 
 	expense := &pb.ActivityExpense{}
-	if err := protojson.Unmarshal(resultJSON, expense); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, expense); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -141,7 +141,7 @@ func (r *PostgresActivityExpenseRepository) UpdateActivityExpense(ctx context.Co
 	}
 
 	expense := &pb.ActivityExpense{}
-	if err := protojson.Unmarshal(resultJSON, expense); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, expense); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -185,7 +185,7 @@ func (r *PostgresActivityExpenseRepository) ListActivityExpenses(ctx context.Con
 		}
 
 		expense := &pb.ActivityExpense{}
-		if err := protojson.Unmarshal(resultJSON, expense); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, expense); err != nil {
 			continue
 		}
 		expenses = append(expenses, expense)

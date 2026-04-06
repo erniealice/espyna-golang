@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres job_template_phase repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresJobTemplatePhaseRepository(dbOps, tableName), nil
 	})
 }
@@ -533,7 +533,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 
 // NewJobTemplatePhaseRepository creates a new PostgreSQL job_template_phase repository (old-style constructor)
 func NewJobTemplatePhaseRepository(db *sql.DB, tableName string) pb.JobTemplatePhaseDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresJobTemplatePhaseRepository(dbOps, tableName)
 }
 

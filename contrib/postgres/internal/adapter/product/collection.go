@@ -21,7 +21,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres collection repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresCollectionRepository(dbOps, tableName), nil
 	})
 }
@@ -74,7 +74,7 @@ func (r *PostgresCollectionRepository) CreateCollection(ctx context.Context, req
 	}
 
 	collection := &collectionpb.Collection{}
-	if err := protojson.Unmarshal(resultJSON, collection); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collection); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -102,7 +102,7 @@ func (r *PostgresCollectionRepository) ReadCollection(ctx context.Context, req *
 	}
 
 	collection := &collectionpb.Collection{}
-	if err := protojson.Unmarshal(resultJSON, collection); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collection); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -141,7 +141,7 @@ func (r *PostgresCollectionRepository) UpdateCollection(ctx context.Context, req
 	}
 
 	collection := &collectionpb.Collection{}
-	if err := protojson.Unmarshal(resultJSON, collection); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collection); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -189,7 +189,7 @@ func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, req 
 		}
 
 		collection := &collectionpb.Collection{}
-		if err := protojson.Unmarshal(resultJSON, collection); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collection); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -643,6 +643,6 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 
 // NewCollectionRepository creates a new PostgreSQL collection repository (old-style constructor)
 func NewCollectionRepository(db *sql.DB, tableName string) collectionpb.CollectionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresCollectionRepository(dbOps, tableName)
 }

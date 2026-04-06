@@ -26,7 +26,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres workspace_user repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresWorkspaceUserRepository(dbOps, tableName), nil
 	})
 }
@@ -121,7 +121,7 @@ func (r *PostgresWorkspaceUserRepository) CreateWorkspaceUser(ctx context.Contex
 	}
 
 	workspaceUser := &workspaceuserpb.WorkspaceUser{}
-	if err := protojson.Unmarshal(resultJSON, workspaceUser); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspaceUser); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresWorkspaceUserRepository) ReadWorkspaceUser(ctx context.Context,
 	}
 
 	workspaceUser := &workspaceuserpb.WorkspaceUser{}
-	if err := protojson.Unmarshal(resultJSON, workspaceUser); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspaceUser); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -188,7 +188,7 @@ func (r *PostgresWorkspaceUserRepository) UpdateWorkspaceUser(ctx context.Contex
 	}
 
 	workspaceUser := &workspaceuserpb.WorkspaceUser{}
-	if err := protojson.Unmarshal(resultJSON, workspaceUser); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspaceUser); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -561,7 +561,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 						continue
 					}
 					wur := &workspaceuserrolepb.WorkspaceUserRole{}
-					if err := protojson.Unmarshal(roleJSON, wur); err != nil {
+					if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(roleJSON, wur); err != nil {
 						log.Printf("Failed to unmarshal workspace_user_role JSONB: %v (json: %s)", err, string(roleJSON))
 						continue
 					}
@@ -747,7 +747,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 					continue
 				}
 				wur := &workspaceuserrolepb.WorkspaceUserRole{}
-				if err := protojson.Unmarshal(roleJSON, wur); err != nil {
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(roleJSON, wur); err != nil {
 					log.Printf("Failed to unmarshal workspace_user_role JSONB: %v (json: %s)", err, string(roleJSON))
 					continue
 				}
@@ -764,6 +764,6 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 
 // NewWorkspaceUserRepository creates a new PostgreSQL workspace_user repository (old-style constructor)
 func NewWorkspaceUserRepository(db *sql.DB, tableName string) workspaceuserpb.WorkspaceUserDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresWorkspaceUserRepository(dbOps, tableName)
 }

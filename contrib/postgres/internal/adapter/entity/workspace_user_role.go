@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres workspace_user_role repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresWorkspaceUserRoleRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresWorkspaceUserRoleRepository) CreateWorkspaceUserRole(ctx contex
 	}
 
 	workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{}
-	if err := protojson.Unmarshal(resultJSON, workspaceUserRole); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspaceUserRole); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresWorkspaceUserRoleRepository) ReadWorkspaceUserRole(ctx context.
 	}
 
 	workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{}
-	if err := protojson.Unmarshal(resultJSON, workspaceUserRole); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspaceUserRole); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresWorkspaceUserRoleRepository) UpdateWorkspaceUserRole(ctx contex
 	}
 
 	workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{}
-	if err := protojson.Unmarshal(resultJSON, workspaceUserRole); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspaceUserRole); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func (r *PostgresWorkspaceUserRoleRepository) ListWorkspaceUserRoles(ctx context
 		}
 
 		workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{}
-		if err := protojson.Unmarshal(resultJSON, workspaceUserRole); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, workspaceUserRole); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -307,6 +307,6 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleItemPageData(c
 
 // NewWorkspaceUserRoleRepository creates a new PostgreSQL workspace_user_role repository (old-style constructor)
 func NewWorkspaceUserRoleRepository(db *sql.DB, tableName string) workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresWorkspaceUserRoleRepository(dbOps, tableName)
 }

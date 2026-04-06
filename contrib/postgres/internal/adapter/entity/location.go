@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -23,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres location repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresLocationRepository(dbOps, tableName), nil
 	})
 }
@@ -77,7 +78,7 @@ func (r *PostgresLocationRepository) CreateLocation(ctx context.Context, req *lo
 	}
 
 	location := &locationpb.Location{}
-	if err := protojson.Unmarshal(resultJSON, location); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, location); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -105,7 +106,7 @@ func (r *PostgresLocationRepository) ReadLocation(ctx context.Context, req *loca
 	}
 
 	location := &locationpb.Location{}
-	if err := protojson.Unmarshal(resultJSON, location); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, location); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -144,7 +145,7 @@ func (r *PostgresLocationRepository) UpdateLocation(ctx context.Context, req *lo
 	}
 
 	location := &locationpb.Location{}
-	if err := protojson.Unmarshal(resultJSON, location); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, location); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -191,7 +192,7 @@ func (r *PostgresLocationRepository) ListLocations(ctx context.Context, req *loc
 		}
 
 		location := &locationpb.Location{}
-		if err := protojson.Unmarshal(resultJSON, location); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, location); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -268,9 +269,11 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 				COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 			FROM location l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-			WHERE ($1::text IS NULL OR $1::text = '' OR
-				   l.name ILIKE $1 OR
-				   l.address ILIKE $1)
+			WHERE l.active = true
+			  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
+			  AND ($2::text IS NULL OR $2::text = '' OR
+				   l.name ILIKE $2 OR
+				   l.address ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -278,11 +281,12 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		SELECT e.*, c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %w", err)
 	}
@@ -514,6 +518,6 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 
 // NewLocationRepository creates a new PostgreSQL location repository (old-style constructor)
 func NewLocationRepository(db *sql.DB, tableName string) locationpb.LocationDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresLocationRepository(dbOps, tableName)
 }

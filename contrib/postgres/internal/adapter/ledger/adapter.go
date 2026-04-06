@@ -16,6 +16,7 @@ import (
 	collsumpb      "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
 	disbreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
 	suppstmtpb     "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/supplier_statement"
+	"github.com/erniealice/espyna-golang/consumer"
 )
 
 // TableConfig holds table names for the ledger reporting adapter.
@@ -71,7 +72,8 @@ func (a *LedgerReportingAdapter) GetGrossProfitReport(
 	ctx context.Context,
 	req *reportpb.GrossProfitReportRequest,
 ) (*reportpb.GrossProfitReportResponse, error) {
-	query, args := buildGrossProfitQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildGrossProfitQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -121,7 +123,8 @@ func (a *LedgerReportingAdapter) GetRevenueReport(
 	ctx context.Context,
 	req *revreportpb.RevenueReportRequest,
 ) (*revreportpb.RevenueReportResponse, error) {
-	query, args := buildRevenueReportQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildRevenueReportQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -165,7 +168,8 @@ func (a *LedgerReportingAdapter) GetExpenditureReport(
 	ctx context.Context,
 	req *expreportpb.ExpenditureReportRequest,
 ) (*expreportpb.ExpenditureReportResponse, error) {
-	query, args := buildExpenditureReportQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildExpenditureReportQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -210,7 +214,8 @@ func (a *LedgerReportingAdapter) GetDisbursementReport(
 	ctx context.Context,
 	req *disbreportpb.DisbursementReportRequest,
 ) (*disbreportpb.DisbursementReportResponse, error) {
-	query, args := buildDisbursementReportQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildDisbursementReportQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -252,7 +257,8 @@ func (a *LedgerReportingAdapter) GetDisbursementReport(
 // receivables bucketed into 5 aging bands (current, 1-30, 31-60, 61-90, >90 days).
 // Uses payment_date <= as_of_date (not status) for point-in-time accuracy.
 func (a *LedgerReportingAdapter) GetReceivablesAgingReport(ctx context.Context, req *agingpb.ReceivablesAgingRequest) (*agingpb.ReceivablesAgingResponse, error) {
-	query, args := buildReceivablesAgingQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildReceivablesAgingQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -279,7 +285,8 @@ func (a *LedgerReportingAdapter) GetReceivablesAgingReport(ctx context.Context, 
 // payables bucketed into 5 aging bands (current, 1-30, 31-60, 61-90, >90 days).
 // Uses payment_date <= as_of_date (not status) for point-in-time accuracy.
 func (a *LedgerReportingAdapter) GetPayablesAgingReport(ctx context.Context, req *payagingpb.PayablesAgingRequest) (*payagingpb.PayablesAgingResponse, error) {
-	query, args := buildPayablesAgingQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildPayablesAgingQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -306,7 +313,8 @@ func (a *LedgerReportingAdapter) GetPayablesAgingReport(ctx context.Context, req
 // collection totals grouped by two orthogonal dimensions (row_dimension x primary_dimension).
 // Filters by payment_date range for period selection.
 func (a *LedgerReportingAdapter) GetCollectionSummaryReport(ctx context.Context, req *collsumpb.CollectionSummaryRequest) (*collsumpb.CollectionSummaryResponse, error) {
-	query, args := buildCollectionSummaryQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildCollectionSummaryQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -349,7 +357,8 @@ func (a *LedgerReportingAdapter) GetClientStatement(
 	ctx context.Context,
 	req *clientstmtpb.ClientStatementRequest,
 ) (*clientstmtpb.ClientStatementResponse, error) {
-	query, args := buildClientStatementQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildClientStatementQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -384,7 +393,8 @@ func (a *LedgerReportingAdapter) GetSupplierStatement(
 	ctx context.Context,
 	req *suppstmtpb.SupplierStatementRequest,
 ) (*suppstmtpb.SupplierStatementResponse, error) {
-	query, args := buildSupplierStatementQuery(a.tableConfig, req)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, args := buildSupplierStatementQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -430,8 +440,9 @@ func (a *LedgerReportingAdapter) GetSupplierStatement(
 // for all suppliers that have a non-zero outstanding balance.
 // Suppliers with zero net balance are omitted (use 0 as the default for absent keys).
 func (a *LedgerReportingAdapter) GetSupplierBalances(ctx context.Context) (map[string]int64, error) {
-	query := buildSupplierBalancesQuery(a.tableConfig)
-	rows, err := a.db.QueryContext(ctx, query)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, _ := buildSupplierBalancesQuery(a.tableConfig)
+	rows, err := a.db.QueryContext(ctx, query, nilIfEmpty(workspaceID))
 	if err != nil {
 		return nil, err
 	}
@@ -451,6 +462,8 @@ func (a *LedgerReportingAdapter) GetSupplierBalances(ctx context.Context) (map[s
 
 // ListRevenue returns revenue records, optionally filtered by date range.
 func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `SELECT id, reference_number, status, total_amount, currency,
 		COALESCE(customer_first_name, '') || ' ' || COALESCE(customer_last_name, '') AS customer_name,
 		COALESCE(notes, '') AS notes,
@@ -472,6 +485,11 @@ func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context, start, end *ti
 		args = append(args, *end)
 		paramIdx++
 	}
+	if workspaceID != "" {
+		conditions = append(conditions, fmt.Sprintf("workspace_id = $%d", paramIdx))
+		args = append(args, workspaceID)
+		paramIdx++
+	}
 
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
@@ -489,6 +507,8 @@ func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context, start, end *ti
 
 // ListExpenses returns expenditure records of type "expense", optionally filtered by date range.
 func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	table := a.tableConfig.Expenditure
 	if table == "" {
 		return nil, nil
@@ -511,6 +531,11 @@ func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context, start, end *t
 	if end != nil {
 		query += fmt.Sprintf(" AND created_at <= $%d", paramIdx)
 		args = append(args, *end)
+		paramIdx++
+	}
+	if workspaceID != "" {
+		query += fmt.Sprintf(" AND workspace_id = $%d", paramIdx)
+		args = append(args, workspaceID)
 		paramIdx++
 	}
 

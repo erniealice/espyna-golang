@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres collection_plan repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresCollectionPlanRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +90,7 @@ func (r *PostgresCollectionPlanRepository) CreateCollectionPlan(ctx context.Cont
 	}
 
 	collectionPlan := &collectionplanpb.CollectionPlan{}
-	if err := protojson.Unmarshal(resultJSON, collectionPlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionPlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (r *PostgresCollectionPlanRepository) ReadCollectionPlan(ctx context.Contex
 	}
 
 	collectionPlan := &collectionplanpb.CollectionPlan{}
-	if err := protojson.Unmarshal(resultJSON, collectionPlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionPlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (r *PostgresCollectionPlanRepository) UpdateCollectionPlan(ctx context.Cont
 	}
 
 	collectionPlan := &collectionplanpb.CollectionPlan{}
-	if err := protojson.Unmarshal(resultJSON, collectionPlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionPlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (r *PostgresCollectionPlanRepository) ListCollectionPlans(ctx context.Conte
 		}
 
 		collectionPlan := &collectionplanpb.CollectionPlan{}
-		if err := protojson.Unmarshal(resultJSON, collectionPlan); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionPlan); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -455,6 +455,6 @@ func parseCollectionPlanTimestamp(ts string) (int64, error) {
 
 // NewCollectionPlanRepository creates a new PostgreSQL collection_plan repository (old-style constructor)
 func NewCollectionPlanRepository(db *sql.DB, tableName string) collectionplanpb.CollectionPlanDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresCollectionPlanRepository(dbOps, tableName)
 }

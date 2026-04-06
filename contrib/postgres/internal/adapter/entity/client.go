@@ -9,6 +9,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -25,7 +26,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres client repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresClientRepository(dbOps, tableName), nil
 	})
 }
@@ -400,6 +401,7 @@ var clientSortAllowlist = map[string]string{
 }
 
 // GetClientListPageData retrieves clients with advanced filtering, sorting, searching, and pagination using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresClientRepository) GetClientListPageData(
 	ctx context.Context,
 	req *clientpb.GetClientListPageDataRequest,
@@ -407,6 +409,9 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get client list page data request is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Default pagination values
 	limit := int32(50)
@@ -437,22 +442,26 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		}
 	}
 
-	// Build filter/search WHERE clauses starting at $1
+	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"u.first_name", "u.last_name", "u.email_address", "c.internal_id"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
 
-	whereSQL := ""
+	whereSQL := "WHERE c.active = true AND c.workspace_id = $1"
 	if len(filterClauses) > 0 {
-		whereSQL = "WHERE " + strings.Join(filterClauses, " AND ")
+		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
 	// LIMIT/OFFSET are the next two params after filter args
 	limitIdx := nextIdx
 	offsetIdx := nextIdx + 1
-	filterArgs = append(filterArgs, limit, offset)
+	// workspace_id is $1; filter args follow; then limit/offset
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
 
 	// CTE Query - Single round-trip with COUNT(*) OVER() window function
 	// Performance Notes:
+	// - INDEX RECOMMENDATION: Create index on client.workspace_id (multi-tenancy filter)
 	// - INDEX RECOMMENDATION: Create index on client.user_id (foreign key)
 	// - INDEX RECOMMENDATION: Create index on user.first_name, user.last_name, user.email_address for search performance
 	// - INDEX RECOMMENDATION: Create index on client.active for filtering active records
@@ -487,7 +496,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	`, whereSQL, sortCol, sortOrder, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, filterArgs...)
+	rows, err := exec.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query client list page data: %w", err)
 	}
@@ -623,6 +632,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 }
 
 // GetClientItemPageData retrieves a single client with enhanced item page data using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresClientRepository) GetClientItemPageData(
 	ctx context.Context,
 	req *clientpb.GetClientItemPageDataRequest,
@@ -633,6 +643,9 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	if req.ClientId == "" {
 		return nil, fmt.Errorf("client ID is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// CTE Query - Single round-trip with enriched user data and CRM fields
 	query := `
@@ -661,13 +674,13 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 				u.mobile_number as user_phone_number
 			FROM client c
 			LEFT JOIN "user" u ON c.user_id = u.id
-			WHERE c.id = $1
+			WHERE c.id = $1 AND c.workspace_id = $2
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.ClientId)
+	row := exec.QueryRowContext(ctx, query, req.ClientId, workspaceID)
 
 	var (
 		id           string
@@ -911,6 +924,6 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 
 // NewClientRepository creates a new PostgreSQL client repository (old-style constructor)
 func NewClientRepository(db *sql.DB, tableName string) clientpb.ClientDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresClientRepository(dbOps, tableName)
 }

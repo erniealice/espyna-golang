@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres location_area repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresLocationAreaRepository(dbOps, tableName), nil
 	})
 }
@@ -418,6 +418,6 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaItemPageData(
 
 // NewLocationAreaRepository creates a new PostgreSQL location area repository (old-style constructor)
 func NewLocationAreaRepository(db *sql.DB, tableName string) locationareapb.LocationAreaDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresLocationAreaRepository(dbOps, tableName)
 }

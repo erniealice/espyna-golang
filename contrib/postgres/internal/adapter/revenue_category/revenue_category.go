@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres revenue_category repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresRevenueCategoryRepository(dbOps, tableName), nil
 	})
 }
@@ -444,6 +444,6 @@ func (r *PostgresRevenueCategoryRepository) GetRevenueCategoryItemPageData(
 
 // NewRevenueCategoryRepository creates a new PostgreSQL revenue category repository (old-style constructor)
 func NewRevenueCategoryRepository(db *sql.DB, tableName string) revenuecategorypb.RevenueCategoryDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresRevenueCategoryRepository(dbOps, tableName)
 }

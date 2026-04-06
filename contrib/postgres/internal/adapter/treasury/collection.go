@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -24,7 +25,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres collection repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresCollectionRepository(dbOps, tableName), nil
 	})
 }
@@ -220,6 +221,7 @@ func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, req 
 }
 
 // GetCollectionListPageData retrieves collections with pagination, filtering, sorting, and search using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresCollectionRepository) GetCollectionListPageData(
 	ctx context.Context,
 	req *collectionpb.GetCollectionListPageDataRequest,
@@ -227,6 +229,9 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get collection list page data request is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -278,11 +283,12 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 				tc.collection_type
 			FROM treasury_collection tc
 			WHERE tc.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       tc.name ILIKE $1 OR
-			       tc.reference_number ILIKE $1 OR
-			       tc.status ILIKE $1 OR
-			       tc.collection_type ILIKE $1)
+			  AND tc.workspace_id = $1
+			  AND ($2::text IS NULL OR $2::text = '' OR
+			       tc.name ILIKE $2 OR
+			       tc.reference_number ILIKE $2 OR
+			       tc.status ILIKE $2 OR
+			       tc.collection_type ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -292,10 +298,10 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query collection list page data: %w", err)
 	}
@@ -430,6 +436,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 }
 
 // GetCollectionItemPageData retrieves a single collection with enriched data using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 	ctx context.Context,
 	req *collectionpb.GetCollectionItemPageDataRequest,
@@ -440,6 +447,9 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 	if req.CollectionId == "" {
 		return nil, fmt.Errorf("collection ID is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	query := `
 		WITH enriched AS (
@@ -461,12 +471,12 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 				tc.received_role,
 				tc.collection_type
 			FROM treasury_collection tc
-			WHERE tc.id = $1 AND tc.active = true
+			WHERE tc.id = $1 AND tc.workspace_id = $2 AND tc.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.CollectionId)
+	row := r.db.QueryRowContext(ctx, query, req.CollectionId, workspaceID)
 
 	var (
 		id                 string
@@ -571,7 +581,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 
 // NewCollectionRepository creates a new PostgreSQL collection repository (old-style constructor)
 func NewCollectionRepository(db *sql.DB, tableName string) collectionpb.CollectionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresCollectionRepository(dbOps, tableName)
 }
 

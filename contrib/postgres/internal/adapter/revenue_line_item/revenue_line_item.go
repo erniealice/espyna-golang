@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres revenue_line_item repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresRevenueLineItemRepository(dbOps, tableName), nil
 	})
 }
@@ -547,6 +547,6 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 
 // NewRevenueLineItemRepository creates a new PostgreSQL revenue line item repository (old-style constructor)
 func NewRevenueLineItemRepository(db *sql.DB, tableName string) revenuelineitempb.RevenueLineItemDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresRevenueLineItemRepository(dbOps, tableName)
 }

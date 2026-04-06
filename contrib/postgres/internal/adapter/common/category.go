@@ -20,7 +20,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres category repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresCategoryRepository(dbOps, tableName), nil
 	})
 }
@@ -91,7 +91,7 @@ func (r *PostgresCategoryRepository) CreateCategory(ctx context.Context, req *ca
 	}
 
 	category := &categorypb.Category{}
-	if err := protojson.Unmarshal(resultJSON, category); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, category); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -119,7 +119,7 @@ func (r *PostgresCategoryRepository) ReadCategory(ctx context.Context, req *cate
 	}
 
 	category := &categorypb.Category{}
-	if err := protojson.Unmarshal(resultJSON, category); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, category); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func (r *PostgresCategoryRepository) UpdateCategory(ctx context.Context, req *ca
 	}
 
 	category := &categorypb.Category{}
-	if err := protojson.Unmarshal(resultJSON, category); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, category); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -206,7 +206,7 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, req *ca
 		}
 
 		category := &categorypb.Category{}
-		if err := protojson.Unmarshal(resultJSON, category); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, category); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -220,6 +220,6 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, req *ca
 
 // NewCategoryRepository creates a new PostgreSQL category repository (old-style constructor)
 func NewCategoryRepository(db *sql.DB, tableName string) categorypb.CategoryDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresCategoryRepository(dbOps, tableName)
 }

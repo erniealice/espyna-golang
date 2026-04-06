@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -25,7 +26,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_movement repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInventoryMovementRepository(dbOps, tableName), nil
 	})
 }
@@ -203,7 +204,11 @@ func (r *PostgresInventoryMovementRepository) ListInventoryMovements(ctx context
 }
 
 // GetInventoryMovementListPageData retrieves paginated, filtered, sorted movements with product + location JOINs
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(ctx context.Context, req *pb.GetInventoryMovementListPageDataRequest) (*pb.GetInventoryMovementListPageDataResponse, error) {
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	limit := int32(20)
 	page := int32(1)
 	if req.Pagination != nil && req.Pagination.Limit > 0 {
@@ -242,7 +247,8 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 		search_filtered AS (
 			SELECT im.*
 			FROM inventory_movement im
-			WHERE ($1::text = '' OR im.product_id ILIKE $1 OR im.id ILIKE $1)
+			WHERE im.workspace_id = $1
+			  AND ($2::text = '' OR im.product_id ILIKE $2 OR im.id ILIKE $2)
 		),
 		enriched AS (
 			SELECT
@@ -290,14 +296,14 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 		sorted AS (
 			SELECT * FROM enriched
 			ORDER BY
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $4 = 'quantity' AND $5 = 'DESC' THEN quantity END DESC,
-				CASE WHEN $4 = 'quantity' AND $5 = 'ASC' THEN quantity END ASC,
-				CASE WHEN $4 = 'unit_cost' AND $5 = 'DESC' THEN unit_cost END DESC,
-				CASE WHEN $4 = 'unit_cost' AND $5 = 'ASC' THEN unit_cost END ASC,
-				CASE WHEN $4 = 'movement_date' AND $5 = 'DESC' THEN movement_date END DESC,
-				CASE WHEN $4 = 'movement_date' AND $5 = 'ASC' THEN movement_date END ASC
+				CASE WHEN ($5 = 'date_created' OR $5 = '') AND $6 = 'DESC' THEN date_created END DESC,
+				CASE WHEN $5 = 'date_created' AND $6 = 'ASC' THEN date_created END ASC,
+				CASE WHEN $5 = 'quantity' AND $6 = 'DESC' THEN quantity END DESC,
+				CASE WHEN $5 = 'quantity' AND $6 = 'ASC' THEN quantity END ASC,
+				CASE WHEN $5 = 'unit_cost' AND $6 = 'DESC' THEN unit_cost END DESC,
+				CASE WHEN $5 = 'unit_cost' AND $6 = 'ASC' THEN unit_cost END ASC,
+				CASE WHEN $5 = 'movement_date' AND $6 = 'DESC' THEN movement_date END DESC,
+				CASE WHEN $5 = 'movement_date' AND $6 = 'ASC' THEN movement_date END ASC
 		),
 		total_count AS (
 			SELECT count(*) as total FROM sorted
@@ -330,14 +336,14 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 			tc.total as _total_count
 		FROM sorted s
 		CROSS JOIN total_count tc
-		LIMIT $2 OFFSET $3
+		LIMIT $3 OFFSET $4
 	`
 
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection not available for raw SQL queries")
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, searchQuery, limit, offset, sortField, sortDirection)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchQuery, limit, offset, sortField, sortDirection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetInventoryMovementListPageData query: %w", err)
 	}

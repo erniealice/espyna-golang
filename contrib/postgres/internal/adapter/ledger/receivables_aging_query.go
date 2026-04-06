@@ -86,7 +86,7 @@ func getAgingDimensionConfig(tc TableConfig, dimension string) agingDimensionCon
 // The query calculates outstanding balances for each revenue record as of a
 // point-in-time date ($1), using payment_date < $1+1day (not status) for accuracy.
 // Results are grouped by a single row dimension and bucketed into 5 aging bands.
-func buildReceivablesAgingQuery(tc TableConfig, req *agingpb.ReceivablesAgingRequest) (string, []any) {
+func buildReceivablesAgingQuery(tc TableConfig, req *agingpb.ReceivablesAgingRequest, workspaceID string) (string, []any) {
 	// Validate and normalise dimension.
 	rowDim := normalizeAgingDimension(req.GetRowDimension())
 	if !validAgingDimensions[rowDim] {
@@ -109,6 +109,7 @@ func buildReceivablesAgingQuery(tc TableConfig, req *agingpb.ReceivablesAgingReq
 	// $5 = currency (text or NULL)
 	// $6 = start_date (text or NULL) — filter revenues created after
 	// $7 = end_date (text or NULL) — filter revenues created before
+	// $8 = workspace_id (text or NULL)
 	args := []any{
 		asOfDate,
 		nilIfEmpty(req.GetClientId()),
@@ -117,6 +118,7 @@ func buildReceivablesAgingQuery(tc TableConfig, req *agingpb.ReceivablesAgingReq
 		nilIfEmpty(req.GetCurrency()),
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
+		nilIfEmpty(workspaceID),
 	}
 
 	query := fmt.Sprintf(`
@@ -145,6 +147,7 @@ WITH outstanding AS (
         AND ($5::text IS NULL OR r.currency = $5)
         AND ($6::text IS NULL OR r.revenue_date >= $6::date)
         AND ($7::text IS NULL OR r.revenue_date < ($7::date + interval '1 day'))
+        AND ($8::text IS NULL OR r.workspace_id = $8)
     GROUP BY r.id, r.total_amount, r.due_date, %s
     HAVING r.total_amount - COALESCE(SUM(tc.amount), 0) > 0
 )

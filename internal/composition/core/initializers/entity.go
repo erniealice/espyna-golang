@@ -9,6 +9,7 @@ import (
 	adminUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/admin"
 	clientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client"
 	clientAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_attribute"
+	clientCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_category"
 	delegateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate"
 	delegateAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_attribute"
 	delegateClientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_client"
@@ -71,6 +72,15 @@ func InitializeEntity(
 				Attribute:       repos.Attribute,
 			},
 			clientAttributeUseCases.ClientAttributeServices(svc()),
+		)
+	}
+
+	if repos.ClientCategory != nil {
+		result.ClientCategory = clientCategoryUseCases.NewUseCases(
+			clientCategoryUseCases.ClientCategoryRepositories{
+				ClientCategory: repos.ClientCategory,
+			},
+			clientCategoryUseCases.ClientCategoryServices(svc()),
 		)
 	}
 

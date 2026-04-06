@@ -21,7 +21,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres fulfillment_status_event repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresFulfillmentStatusEventRepository(dbOps, tableName), nil
 	})
 }

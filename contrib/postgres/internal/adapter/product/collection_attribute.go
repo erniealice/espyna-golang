@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres collection_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresCollectionAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -84,7 +84,7 @@ func (r *PostgresCollectionAttributeRepository) CreateCollectionAttribute(ctx co
 	}
 
 	collectionAttribute := &collectionattributepb.CollectionAttribute{}
-	if err := protojson.Unmarshal(resultJSON, collectionAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -112,7 +112,7 @@ func (r *PostgresCollectionAttributeRepository) ReadCollectionAttribute(ctx cont
 	}
 
 	collectionAttribute := &collectionattributepb.CollectionAttribute{}
-	if err := protojson.Unmarshal(resultJSON, collectionAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -151,7 +151,7 @@ func (r *PostgresCollectionAttributeRepository) UpdateCollectionAttribute(ctx co
 	}
 
 	collectionAttribute := &collectionattributepb.CollectionAttribute{}
-	if err := protojson.Unmarshal(resultJSON, collectionAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -199,7 +199,7 @@ func (r *PostgresCollectionAttributeRepository) ListCollectionAttributes(ctx con
 		}
 
 		collectionAttribute := &collectionattributepb.CollectionAttribute{}
-		if err := protojson.Unmarshal(resultJSON, collectionAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collectionAttribute); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -436,6 +436,6 @@ func (r *PostgresCollectionAttributeRepository) GetCollectionAttributeItemPageDa
 
 // NewCollectionAttributeRepository creates a new PostgreSQL collection_attribute repository (old-style constructor)
 func NewCollectionAttributeRepository(db *sql.DB, tableName string) collectionattributepb.CollectionAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresCollectionAttributeRepository(dbOps, tableName)
 }

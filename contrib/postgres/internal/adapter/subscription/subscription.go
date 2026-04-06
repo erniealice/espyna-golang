@@ -30,7 +30,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres subscription repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresSubscriptionRepository(dbOps, tableName), nil
 	})
 }
@@ -696,6 +696,6 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 
 // NewSubscriptionRepository creates a new PostgreSQL subscription repository (old-style constructor)
 func NewSubscriptionRepository(db *sql.DB, tableName string) subscriptionpb.SubscriptionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresSubscriptionRepository(dbOps, tableName)
 }

@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres permission repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPermissionRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresPermissionRepository) CreatePermission(ctx context.Context, req
 	}
 
 	permission := &permissionpb.Permission{}
-	if err := protojson.Unmarshal(resultJSON, permission); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, permission); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresPermissionRepository) ReadPermission(ctx context.Context, req *
 	}
 
 	permission := &permissionpb.Permission{}
-	if err := protojson.Unmarshal(resultJSON, permission); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, permission); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -150,7 +150,7 @@ func (r *PostgresPermissionRepository) UpdatePermission(ctx context.Context, req
 	}
 
 	permission := &permissionpb.Permission{}
-	if err := protojson.Unmarshal(resultJSON, permission); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, permission); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -198,7 +198,7 @@ func (r *PostgresPermissionRepository) ListPermissions(ctx context.Context, req 
 		}
 
 		permission := &permissionpb.Permission{}
-		if err := protojson.Unmarshal(resultJSON, permission); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, permission); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -489,6 +489,6 @@ func parsePermissionType(s string) permissionpb.PermissionType {
 
 // NewPermissionRepository creates a new PostgreSQL permission repository (old-style constructor)
 func NewPermissionRepository(db *sql.DB, tableName string) permissionpb.PermissionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPermissionRepository(dbOps, tableName)
 }

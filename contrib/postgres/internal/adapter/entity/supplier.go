@@ -8,6 +8,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -24,7 +25,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres supplier repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresSupplierRepository(dbOps, tableName), nil
 	})
 }
@@ -312,6 +313,7 @@ func (r *PostgresSupplierRepository) ListSuppliers(ctx context.Context, req *sup
 }
 
 // GetSupplierListPageData retrieves suppliers with advanced filtering, sorting, searching, and pagination using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresSupplierRepository) GetSupplierListPageData(
 	ctx context.Context,
 	req *supplierpb.GetSupplierListPageDataRequest,
@@ -319,6 +321,9 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get supplier list page data request is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Build search condition
 	searchPattern := ""
@@ -389,12 +394,13 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				u.mobile_number as user_phone_number
 			FROM supplier s
 			LEFT JOIN "user" u ON s.user_id = u.id
-			WHERE ($1::text IS NULL OR $1::text = '' OR
-				   s.company_name ILIKE $1 OR
-				   s.internal_id ILIKE $1 OR
-				   u.first_name ILIKE $1 OR
-				   u.last_name ILIKE $1 OR
-				   u.email_address ILIKE $1)
+			WHERE s.workspace_id = $1
+			  AND ($2::text IS NULL OR $2::text = '' OR
+				   s.company_name ILIKE $2 OR
+				   s.internal_id ILIKE $2 OR
+				   u.first_name ILIKE $2 OR
+				   u.last_name ILIKE $2 OR
+				   u.email_address ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -404,11 +410,11 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query supplier list page data: %w", err)
 	}
@@ -531,6 +537,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 }
 
 // GetSupplierItemPageData retrieves a single supplier with enhanced item page data using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 	ctx context.Context,
 	req *supplierpb.GetSupplierItemPageDataRequest,
@@ -541,6 +548,9 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 	if req.SupplierId == "" {
 		return nil, fmt.Errorf("supplier ID is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// CTE Query - Single round-trip with enriched user data and supplier fields
 	query := `
@@ -579,13 +589,13 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 				u.mobile_number as user_phone_number
 			FROM supplier s
 			LEFT JOIN "user" u ON s.user_id = u.id
-			WHERE s.id = $1
+			WHERE s.id = $1 AND s.workspace_id = $2
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.SupplierId)
+	row := exec.QueryRowContext(ctx, query, req.SupplierId, workspaceID)
 
 	var (
 		id                 string
@@ -820,6 +830,6 @@ func buildSupplierFromScan(
 
 // NewSupplierRepository creates a new PostgreSQL supplier repository (old-style constructor)
 func NewSupplierRepository(db *sql.DB, tableName string) supplierpb.SupplierDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresSupplierRepository(dbOps, tableName)
 }

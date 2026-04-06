@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_serial repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInventorySerialRepository(dbOps, tableName), nil
 	})
 }
@@ -92,7 +92,7 @@ func (r *PostgresInventorySerialRepository) CreateInventorySerial(ctx context.Co
 	}
 
 	inventorySerial := &inventoryserialpb.InventorySerial{}
-	if err := protojson.Unmarshal(resultJSON, inventorySerial); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventorySerial); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -120,7 +120,7 @@ func (r *PostgresInventorySerialRepository) ReadInventorySerial(ctx context.Cont
 	}
 
 	inventorySerial := &inventoryserialpb.InventorySerial{}
-	if err := protojson.Unmarshal(resultJSON, inventorySerial); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventorySerial); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -159,7 +159,7 @@ func (r *PostgresInventorySerialRepository) UpdateInventorySerial(ctx context.Co
 	}
 
 	inventorySerial := &inventoryserialpb.InventorySerial{}
-	if err := protojson.Unmarshal(resultJSON, inventorySerial); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventorySerial); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -568,6 +568,6 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialItemPageData(
 
 // NewInventorySerialRepository creates a new PostgreSQL inventory serial repository (old-style constructor)
 func NewInventorySerialRepository(db *sql.DB, tableName string) inventoryserialpb.InventorySerialDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInventorySerialRepository(dbOps, tableName)
 }

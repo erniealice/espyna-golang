@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres resource repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresResourceRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +90,7 @@ func (r *PostgresResourceRepository) CreateResource(ctx context.Context, req *re
 	}
 
 	resource := &resourcepb.Resource{}
-	if err := protojson.Unmarshal(resultJSON, resource); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, resource); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (r *PostgresResourceRepository) ReadResource(ctx context.Context, req *reso
 	}
 
 	resource := &resourcepb.Resource{}
-	if err := protojson.Unmarshal(resultJSON, resource); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, resource); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (r *PostgresResourceRepository) UpdateResource(ctx context.Context, req *re
 	}
 
 	resource := &resourcepb.Resource{}
-	if err := protojson.Unmarshal(resultJSON, resource); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, resource); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (r *PostgresResourceRepository) ListResources(ctx context.Context, req *res
 		}
 
 		resource := &resourcepb.Resource{}
-		if err := protojson.Unmarshal(resultJSON, resource); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, resource); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -493,6 +493,6 @@ func parseResourceTimestamp(timestampStr string) (int64, error) {
 
 // NewResourceRepository creates a new PostgreSQL resource repository (old-style constructor)
 func NewResourceRepository(db *sql.DB, tableName string) resourcepb.ResourceDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresResourceRepository(dbOps, tableName)
 }

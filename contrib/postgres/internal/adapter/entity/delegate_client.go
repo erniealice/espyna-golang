@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres delegate_client repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresDelegateClientRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresDelegateClientRepository) CreateDelegateClient(ctx context.Cont
 	}
 
 	delegateClient := &delegateclientpb.DelegateClient{}
-	if err := protojson.Unmarshal(resultJSON, delegateClient); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegateClient); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresDelegateClientRepository) ReadDelegateClient(ctx context.Contex
 	}
 
 	delegateClient := &delegateclientpb.DelegateClient{}
-	if err := protojson.Unmarshal(resultJSON, delegateClient); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegateClient); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresDelegateClientRepository) UpdateDelegateClient(ctx context.Cont
 	}
 
 	delegateClient := &delegateclientpb.DelegateClient{}
-	if err := protojson.Unmarshal(resultJSON, delegateClient); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegateClient); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func (r *PostgresDelegateClientRepository) ListDelegateClients(ctx context.Conte
 		}
 
 		delegateClient := &delegateclientpb.DelegateClient{}
-		if err := protojson.Unmarshal(resultJSON, delegateClient); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegateClient); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -307,6 +307,6 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientItemPageData(ctx con
 
 // NewDelegateClientRepository creates a new PostgreSQL delegate_client repository (old-style constructor)
 func NewDelegateClientRepository(db *sql.DB, tableName string) delegateclientpb.DelegateClientDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresDelegateClientRepository(dbOps, tableName)
 }

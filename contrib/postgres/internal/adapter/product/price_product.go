@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres price_product repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPriceProductRepository(dbOps, tableName), nil
 	})
 }
@@ -337,6 +337,6 @@ func parsePriceProductTimestamp(ts string) (int64, error) {
 
 // NewPriceProductRepository creates a new PostgreSQL price_product repository (old-style constructor)
 func NewPriceProductRepository(db *sql.DB, tableName string) priceproductpb.PriceProductDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPriceProductRepository(dbOps, tableName)
 }

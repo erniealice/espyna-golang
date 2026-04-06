@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres user repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresUserRepository(dbOps, tableName), nil
 	})
 }
@@ -357,6 +357,6 @@ func (r *PostgresUserRepository) GetUserItemPageData(ctx context.Context, req *u
 
 // NewUserRepository creates a new PostgreSQL user repository (old-style constructor)
 func NewUserRepository(db *sql.DB, tableName string) userpb.UserDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresUserRepository(dbOps, tableName)
 }

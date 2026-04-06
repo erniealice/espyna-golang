@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_item repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInventoryItemRepository(dbOps, tableName), nil
 	})
 }
@@ -94,7 +94,7 @@ func (r *PostgresInventoryItemRepository) CreateInventoryItem(ctx context.Contex
 	}
 
 	inventoryItem := &inventoryitempb.InventoryItem{}
-	if err := protojson.Unmarshal(resultJSON, inventoryItem); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryItem); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -122,7 +122,7 @@ func (r *PostgresInventoryItemRepository) ReadInventoryItem(ctx context.Context,
 	}
 
 	inventoryItem := &inventoryitempb.InventoryItem{}
-	if err := protojson.Unmarshal(resultJSON, inventoryItem); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryItem); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -161,7 +161,7 @@ func (r *PostgresInventoryItemRepository) UpdateInventoryItem(ctx context.Contex
 	}
 
 	inventoryItem := &inventoryitempb.InventoryItem{}
-	if err := protojson.Unmarshal(resultJSON, inventoryItem); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryItem); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -209,7 +209,7 @@ func (r *PostgresInventoryItemRepository) ListInventoryItems(ctx context.Context
 		}
 
 		inventoryItem := &inventoryitempb.InventoryItem{}
-		if err := protojson.Unmarshal(resultJSON, inventoryItem); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryItem); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -584,6 +584,6 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 
 // NewInventoryItemRepository creates a new PostgreSQL inventory item repository (old-style constructor)
 func NewInventoryItemRepository(db *sql.DB, tableName string) inventoryitempb.InventoryItemDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInventoryItemRepository(dbOps, tableName)
 }

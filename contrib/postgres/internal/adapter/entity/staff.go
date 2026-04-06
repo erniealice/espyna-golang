@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres staff repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresStaffRepository(dbOps, tableName), nil
 	})
 }
@@ -85,7 +85,7 @@ func (r *PostgresStaffRepository) CreateStaff(ctx context.Context, req *staffpb.
 	}
 
 	staff := &staffpb.Staff{}
-	if err := protojson.Unmarshal(resultJSON, staff); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, staff); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -113,7 +113,7 @@ func (r *PostgresStaffRepository) ReadStaff(ctx context.Context, req *staffpb.Re
 	}
 
 	staff := &staffpb.Staff{}
-	if err := protojson.Unmarshal(resultJSON, staff); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, staff); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -152,7 +152,7 @@ func (r *PostgresStaffRepository) UpdateStaff(ctx context.Context, req *staffpb.
 	}
 
 	staff := &staffpb.Staff{}
-	if err := protojson.Unmarshal(resultJSON, staff); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, staff); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -200,7 +200,7 @@ func (r *PostgresStaffRepository) ListStaffs(ctx context.Context, req *staffpb.L
 		}
 
 		staff := &staffpb.Staff{}
-		if err := protojson.Unmarshal(resultJSON, staff); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, staff); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -564,6 +564,6 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 
 // NewStaffRepository creates a new PostgreSQL staff repository (old-style constructor)
 func NewStaffRepository(db *sql.DB, tableName string) staffpb.StaffDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresStaffRepository(dbOps, tableName)
 }

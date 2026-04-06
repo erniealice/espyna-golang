@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres client_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresClientAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresClientAttributeRepository) CreateClientAttribute(ctx context.Co
 	}
 
 	clientAttribute := &clientattributepb.ClientAttribute{}
-	if err := protojson.Unmarshal(resultJSON, clientAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresClientAttributeRepository) ReadClientAttribute(ctx context.Cont
 	}
 
 	clientAttribute := &clientattributepb.ClientAttribute{}
-	if err := protojson.Unmarshal(resultJSON, clientAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresClientAttributeRepository) UpdateClientAttribute(ctx context.Co
 	}
 
 	clientAttribute := &clientattributepb.ClientAttribute{}
-	if err := protojson.Unmarshal(resultJSON, clientAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func (r *PostgresClientAttributeRepository) ListClientAttributes(ctx context.Con
 		}
 
 		clientAttribute := &clientattributepb.ClientAttribute{}
-		if err := protojson.Unmarshal(resultJSON, clientAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientAttribute); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -277,7 +277,7 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx c
 		// Convert to protobuf
 		dataJSON, _ := json.Marshal(rawData)
 		clientAttribute := &clientattributepb.ClientAttribute{}
-		if err := protojson.Unmarshal(dataJSON, clientAttribute); err == nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, clientAttribute); err == nil {
 			clientAttributes = append(clientAttributes, clientAttribute)
 		}
 	}
@@ -323,7 +323,7 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeItemPageData(ctx c
 	// Convert to protobuf
 	dataJSON, _ := json.Marshal(rawData)
 	clientAttribute := &clientattributepb.ClientAttribute{}
-	if err := protojson.Unmarshal(dataJSON, clientAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, clientAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
 	return &clientattributepb.GetClientAttributeItemPageDataResponse{ClientAttribute: clientAttribute, Success: true}, nil
@@ -331,6 +331,6 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeItemPageData(ctx c
 
 // NewClientAttributeRepository creates a new PostgreSQL client_attribute repository (old-style constructor)
 func NewClientAttributeRepository(db *sql.DB, tableName string) clientattributepb.ClientAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresClientAttributeRepository(dbOps, tableName)
 }

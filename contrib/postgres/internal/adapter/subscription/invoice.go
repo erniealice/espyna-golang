@@ -31,7 +31,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres invoice repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInvoiceRepository(dbOps, tableName), nil
 	})
 }
@@ -77,7 +77,7 @@ func (r *PostgresInvoiceRepository) CreateInvoice(ctx context.Context, req *invo
 	}
 
 	invoice := &invoicepb.Invoice{}
-	if err := protojson.Unmarshal(resultJSON, invoice); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoice); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -105,7 +105,7 @@ func (r *PostgresInvoiceRepository) ReadInvoice(ctx context.Context, req *invoic
 	}
 
 	invoice := &invoicepb.Invoice{}
-	if err := protojson.Unmarshal(resultJSON, invoice); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoice); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -144,7 +144,7 @@ func (r *PostgresInvoiceRepository) UpdateInvoice(ctx context.Context, req *invo
 	}
 
 	invoice := &invoicepb.Invoice{}
-	if err := protojson.Unmarshal(resultJSON, invoice); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoice); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -192,7 +192,7 @@ func (r *PostgresInvoiceRepository) ListInvoices(ctx context.Context, req *invoi
 		}
 
 		invoice := &invoicepb.Invoice{}
-		if err := protojson.Unmarshal(resultJSON, invoice); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoice); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -866,6 +866,6 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 
 // NewInvoiceRepository creates a new PostgreSQL invoice repository (old-style constructor)
 func NewInvoiceRepository(db *sql.DB, tableName string) invoicepb.InvoiceDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInvoiceRepository(dbOps, tableName)
 }

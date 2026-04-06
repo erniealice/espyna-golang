@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres product_collection repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresProductCollectionRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +90,7 @@ func (r *PostgresProductCollectionRepository) CreateProductCollection(ctx contex
 	}
 
 	productCollection := &productcollectionpb.ProductCollection{}
-	if err := protojson.Unmarshal(resultJSON, productCollection); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productCollection); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (r *PostgresProductCollectionRepository) ReadProductCollection(ctx context.
 	}
 
 	productCollection := &productcollectionpb.ProductCollection{}
-	if err := protojson.Unmarshal(resultJSON, productCollection); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productCollection); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (r *PostgresProductCollectionRepository) UpdateProductCollection(ctx contex
 	}
 
 	productCollection := &productcollectionpb.ProductCollection{}
-	if err := protojson.Unmarshal(resultJSON, productCollection); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productCollection); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (r *PostgresProductCollectionRepository) ListProductCollections(ctx context
 		}
 
 		productCollection := &productcollectionpb.ProductCollection{}
-		if err := protojson.Unmarshal(resultJSON, productCollection); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productCollection); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -333,6 +333,6 @@ func parseProductCollectionTimestamp(ts string) (int64, error) {
 
 // NewProductCollectionRepository creates a new PostgreSQL product_collection repository (old-style constructor)
 func NewProductCollectionRepository(db *sql.DB, tableName string) productcollectionpb.ProductCollectionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresProductCollectionRepository(dbOps, tableName)
 }

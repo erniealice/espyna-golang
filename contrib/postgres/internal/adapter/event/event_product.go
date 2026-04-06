@@ -34,7 +34,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres event_product repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresEventProductRepository(dbOps, tableName), nil
 	})
 }
@@ -88,7 +88,7 @@ func (r *PostgresEventProductRepository) CreateEventProduct(ctx context.Context,
 	}
 
 	eventProduct := &eventproductpb.EventProduct{}
-	if err := protojson.Unmarshal(resultJSON, eventProduct); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventProduct); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -116,7 +116,7 @@ func (r *PostgresEventProductRepository) ReadEventProduct(ctx context.Context, r
 	}
 
 	eventProduct := &eventproductpb.EventProduct{}
-	if err := protojson.Unmarshal(resultJSON, eventProduct); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventProduct); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -155,7 +155,7 @@ func (r *PostgresEventProductRepository) UpdateEventProduct(ctx context.Context,
 	}
 
 	eventProduct := &eventproductpb.EventProduct{}
-	if err := protojson.Unmarshal(resultJSON, eventProduct); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventProduct); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -203,7 +203,7 @@ func (r *PostgresEventProductRepository) ListEventProducts(ctx context.Context, 
 		}
 
 		eventProduct := &eventproductpb.EventProduct{}
-		if err := protojson.Unmarshal(resultJSON, eventProduct); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventProduct); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -217,6 +217,6 @@ func (r *PostgresEventProductRepository) ListEventProducts(ctx context.Context, 
 
 // NewEventProductRepository creates a new PostgreSQL event_product repository (old-style constructor)
 func NewEventProductRepository(db *sql.DB, tableName string) eventproductpb.EventProductDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresEventProductRepository(dbOps, tableName)
 }

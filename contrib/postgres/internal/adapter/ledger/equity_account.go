@@ -20,7 +20,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres equity_account repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresEquityAccountRepository(dbOps, tableName), nil
 	})
 }
@@ -84,7 +84,7 @@ func (r *PostgresEquityAccountRepository) CreateEquityAccount(ctx context.Contex
 	}
 
 	equityAccount := &equityaccountpb.EquityAccount{}
-	if err := protojson.Unmarshal(resultJSON, equityAccount); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityAccount); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresEquityAccountRepository) ReadEquityAccount(ctx context.Context,
 	}
 
 	equityAccount := &equityaccountpb.EquityAccount{}
-	if err := protojson.Unmarshal(resultJSON, equityAccount); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityAccount); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -146,7 +146,7 @@ func (r *PostgresEquityAccountRepository) UpdateEquityAccount(ctx context.Contex
 	}
 
 	equityAccount := &equityaccountpb.EquityAccount{}
-	if err := protojson.Unmarshal(resultJSON, equityAccount); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityAccount); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -189,7 +189,7 @@ func (r *PostgresEquityAccountRepository) ListEquityAccounts(ctx context.Context
 			continue
 		}
 		equityAccount := &equityaccountpb.EquityAccount{}
-		if err := protojson.Unmarshal(resultJSON, equityAccount); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityAccount); err != nil {
 			continue
 		}
 		equityAccounts = append(equityAccounts, equityAccount)

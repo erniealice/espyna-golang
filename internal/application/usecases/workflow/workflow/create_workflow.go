@@ -124,10 +124,20 @@ func (uc *CreateWorkflowUseCase) executeCore(ctx context.Context, enrichedWorkfl
 
 	// After creating, if there's a template ID, trigger the engine to start the workflow
 	if uc.services.WorkflowEngineService != nil && enrichedWorkflow.WorkflowTemplateId != nil && *enrichedWorkflow.WorkflowTemplateId != "" {
+		// Extract identity values from the request context before launching the goroutine.
+		// The request context will be cancelled once the HTTP response is sent, so we must
+		// capture these values now and re-inject them into the background context so that
+		// downstream DB operations retain workspace scoping.
+		userID := contextutil.ExtractUserIDFromContext(ctx)
+		workspaceID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+		workspaceUserID := contextutil.ExtractWorkspaceUserIDFromContext(ctx)
+		email := contextutil.ExtractEmailFromContext(ctx)
+
 		go func() {
 			// We execute this in a goroutine to not block the response of the CreateWorkflow call.
 			// The context of the initial request is likely to be cancelled, so we create a new background context.
 			bgCtx := context.Background()
+			bgCtx = contextutil.WithSessionIdentity(bgCtx, userID, workspaceID, workspaceUserID, email)
 
 			inputJSON := ""
 			if enrichedWorkflow.ContextJson != nil {

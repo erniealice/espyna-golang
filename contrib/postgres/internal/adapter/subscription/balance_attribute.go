@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres balance_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresBalanceAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -80,7 +80,7 @@ func (r *PostgresBalanceAttributeRepository) CreateBalanceAttribute(ctx context.
 	}
 
 	balanceAttribute := &balanceattributepb.BalanceAttribute{}
-	if err := protojson.Unmarshal(resultJSON, balanceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balanceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -106,7 +106,7 @@ func (r *PostgresBalanceAttributeRepository) ReadBalanceAttribute(ctx context.Co
 	}
 
 	balanceAttribute := &balanceattributepb.BalanceAttribute{}
-	if err := protojson.Unmarshal(resultJSON, balanceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balanceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -142,7 +142,7 @@ func (r *PostgresBalanceAttributeRepository) UpdateBalanceAttribute(ctx context.
 	}
 
 	balanceAttribute := &balanceattributepb.BalanceAttribute{}
-	if err := protojson.Unmarshal(resultJSON, balanceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balanceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -186,7 +186,7 @@ func (r *PostgresBalanceAttributeRepository) ListBalanceAttributes(ctx context.C
 		}
 
 		balanceAttribute := &balanceattributepb.BalanceAttribute{}
-		if err := protojson.Unmarshal(resultJSON, balanceAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balanceAttribute); err != nil {
 			continue
 		}
 		balanceAttributes = append(balanceAttributes, balanceAttribute)
@@ -261,7 +261,7 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeListPageData(ctx
 
 		dataJSON, _ := json.Marshal(rawData)
 		balanceAttribute := &balanceattributepb.BalanceAttribute{}
-		if err := protojson.Unmarshal(dataJSON, balanceAttribute); err == nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, balanceAttribute); err == nil {
 			balanceAttributes = append(balanceAttributes, balanceAttribute)
 		}
 	}
@@ -304,7 +304,7 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeItemPageData(ctx
 
 	dataJSON, _ := json.Marshal(rawData)
 	balanceAttribute := &balanceattributepb.BalanceAttribute{}
-	if err := protojson.Unmarshal(dataJSON, balanceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, balanceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
 	return &balanceattributepb.GetBalanceAttributeItemPageDataResponse{BalanceAttribute: balanceAttribute, Success: true}, nil
@@ -312,6 +312,6 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeItemPageData(ctx
 
 // NewBalanceAttributeRepository creates a new PostgreSQL balance_attribute repository (old-style constructor)
 func NewBalanceAttributeRepository(db *sql.DB, tableName string) balanceattributepb.BalanceAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresBalanceAttributeRepository(dbOps, tableName)
 }

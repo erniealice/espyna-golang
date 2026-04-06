@@ -29,7 +29,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres license repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresLicenseRepository(dbOps, tableName), nil
 	})
 }
@@ -75,7 +75,7 @@ func (r *PostgresLicenseRepository) CreateLicense(ctx context.Context, req *lice
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -104,7 +104,7 @@ func (r *PostgresLicenseRepository) ReadLicense(ctx context.Context, req *licens
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -144,7 +144,7 @@ func (r *PostgresLicenseRepository) UpdateLicense(ctx context.Context, req *lice
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -193,7 +193,7 @@ func (r *PostgresLicenseRepository) ListLicenses(ctx context.Context, req *licen
 		}
 
 		license := &licensepb.License{}
-		if err := protojson.Unmarshal(resultJSON, license); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -489,7 +489,7 @@ func (r *PostgresLicenseRepository) GetLicenseItemPageData(ctx context.Context, 
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -540,7 +540,7 @@ func (r *PostgresLicenseRepository) AssignLicense(ctx context.Context, req *lice
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -586,7 +586,7 @@ func (r *PostgresLicenseRepository) RevokeLicenseAssignment(ctx context.Context,
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -636,7 +636,7 @@ func (r *PostgresLicenseRepository) ReassignLicense(ctx context.Context, req *li
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -676,7 +676,7 @@ func (r *PostgresLicenseRepository) SuspendLicense(ctx context.Context, req *lic
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -716,7 +716,7 @@ func (r *PostgresLicenseRepository) ReactivateLicense(ctx context.Context, req *
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -770,7 +770,7 @@ func (r *PostgresLicenseRepository) ValidateLicenseAccess(ctx context.Context, r
 	}
 
 	license := &licensepb.License{}
-	if err := protojson.Unmarshal(resultJSON, license); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -884,7 +884,7 @@ func (r *PostgresLicenseRepository) CreateLicensesFromPlan(ctx context.Context, 
 		}
 
 		license := &licensepb.License{}
-		if err := protojson.Unmarshal(resultJSON, license); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, license); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal license %d to protobuf: %w", i+1, err)
 		}
 
@@ -905,6 +905,6 @@ func strPtr(s string) *string {
 
 // NewLicenseRepository creates a new PostgreSQL license repository (old-style constructor)
 func NewLicenseRepository(db *sql.DB, tableName string) licensepb.LicenseDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresLicenseRepository(dbOps, tableName)
 }

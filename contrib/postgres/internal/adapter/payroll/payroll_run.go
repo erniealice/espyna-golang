@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres payroll run repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPayrollRunRepository(dbOps, tableName), nil
 	})
 }
@@ -432,7 +432,7 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunItemPageData(
 
 // NewPayrollRunRepository creates a new PostgreSQL payroll run repository (old-style constructor)
 func NewPayrollRunRepository(db *sql.DB, tableName string) payrollrunpb.PayrollRunDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPayrollRunRepository(dbOps, tableName)
 }
 

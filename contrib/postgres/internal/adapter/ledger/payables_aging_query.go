@@ -97,7 +97,7 @@ func getPayablesAgingDimensionConfig(tc TableConfig, dimension string) payablesA
 // The query calculates outstanding balances for each expenditure record as of a
 // point-in-time date ($1), using payment_date < $1+1day (not status) for accuracy.
 // Results are grouped by a single row dimension and bucketed into 5 aging bands.
-func buildPayablesAgingQuery(tc TableConfig, req *payagingpb.PayablesAgingRequest) (string, []any) {
+func buildPayablesAgingQuery(tc TableConfig, req *payagingpb.PayablesAgingRequest, workspaceID string) (string, []any) {
 	// Validate and normalise dimension.
 	rowDim := normalizePayablesAgingDimension(req.GetRowDimension())
 	if !validPayablesAgingDimensions[rowDim] {
@@ -120,6 +120,7 @@ func buildPayablesAgingQuery(tc TableConfig, req *payagingpb.PayablesAgingReques
 	// $5 = currency (text or NULL)
 	// $6 = start_date (text or NULL) — filter expenditures created after
 	// $7 = end_date (text or NULL) — filter expenditures created before
+	// $8 = workspace_id (text or NULL)
 	args := []any{
 		asOfDate,
 		nilIfEmpty(req.GetSupplierId()),
@@ -128,6 +129,7 @@ func buildPayablesAgingQuery(tc TableConfig, req *payagingpb.PayablesAgingReques
 		nilIfEmpty(req.GetCurrency()),
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
+		nilIfEmpty(workspaceID),
 	}
 
 	query := fmt.Sprintf(`
@@ -156,6 +158,7 @@ WITH outstanding AS (
         AND ($5::text IS NULL OR e.currency = $5)
         AND ($6::text IS NULL OR e.expenditure_date >= $6::date)
         AND ($7::text IS NULL OR e.expenditure_date < ($7::date + interval '1 day'))
+        AND ($8::text IS NULL OR e.workspace_id = $8)
     GROUP BY e.id, e.total_amount, e.due_date, %s
     HAVING e.total_amount - COALESCE(SUM(td.amount), 0) > 0
 )

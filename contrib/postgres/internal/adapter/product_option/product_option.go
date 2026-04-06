@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres product_option repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresProductOptionRepository(dbOps, tableName), nil
 	})
 }
@@ -506,6 +506,6 @@ func (r *PostgresProductOptionRepository) GetProductOptionItemPageData(
 
 // NewProductOptionRepository creates a new PostgreSQL product option repository (old-style constructor)
 func NewProductOptionRepository(db *sql.DB, tableName string) productoptionpb.ProductOptionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresProductOptionRepository(dbOps, tableName)
 }

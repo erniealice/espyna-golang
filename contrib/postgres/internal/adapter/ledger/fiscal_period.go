@@ -20,7 +20,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres fiscal_period repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresFiscalPeriodRepository(dbOps, tableName), nil
 	})
 }
@@ -87,7 +87,7 @@ func (r *PostgresFiscalPeriodRepository) CreateFiscalPeriod(ctx context.Context,
 	}
 
 	fiscalPeriod := &fiscalperiodpb.FiscalPeriod{}
-	if err := protojson.Unmarshal(resultJSON, fiscalPeriod); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, fiscalPeriod); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -114,7 +114,7 @@ func (r *PostgresFiscalPeriodRepository) ReadFiscalPeriod(ctx context.Context, r
 	}
 
 	fiscalPeriod := &fiscalperiodpb.FiscalPeriod{}
-	if err := protojson.Unmarshal(resultJSON, fiscalPeriod); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, fiscalPeriod); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -151,7 +151,7 @@ func (r *PostgresFiscalPeriodRepository) UpdateFiscalPeriod(ctx context.Context,
 	}
 
 	fiscalPeriod := &fiscalperiodpb.FiscalPeriod{}
-	if err := protojson.Unmarshal(resultJSON, fiscalPeriod); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, fiscalPeriod); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -195,7 +195,7 @@ func (r *PostgresFiscalPeriodRepository) ListFiscalPeriods(ctx context.Context, 
 			continue
 		}
 		fiscalPeriod := &fiscalperiodpb.FiscalPeriod{}
-		if err := protojson.Unmarshal(resultJSON, fiscalPeriod); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, fiscalPeriod); err != nil {
 			continue
 		}
 		fiscalPeriods = append(fiscalPeriods, fiscalPeriod)

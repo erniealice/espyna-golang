@@ -31,7 +31,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres event repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresEventRepository(dbOps, tableName), nil
 	})
 }
@@ -85,7 +85,7 @@ func (r *PostgresEventRepository) CreateEvent(ctx context.Context, req *eventpb.
 	}
 
 	event := &eventpb.Event{}
-	if err := protojson.Unmarshal(resultJSON, event); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, event); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -114,7 +114,7 @@ func (r *PostgresEventRepository) ReadEvent(ctx context.Context, req *eventpb.Re
 	}
 
 	event := &eventpb.Event{}
-	if err := protojson.Unmarshal(resultJSON, event); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, event); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -154,7 +154,7 @@ func (r *PostgresEventRepository) UpdateEvent(ctx context.Context, req *eventpb.
 	}
 
 	event := &eventpb.Event{}
-	if err := protojson.Unmarshal(resultJSON, event); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, event); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -203,7 +203,7 @@ func (r *PostgresEventRepository) ListEvents(ctx context.Context, req *eventpb.L
 		}
 
 		event := &eventpb.Event{}
-		if err := protojson.Unmarshal(resultJSON, event); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, event); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -481,6 +481,6 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 
 // NewEventRepository creates a new PostgreSQL event repository (old-style constructor)
 func NewEventRepository(db *sql.DB, tableName string) eventpb.EventDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresEventRepository(dbOps, tableName)
 }

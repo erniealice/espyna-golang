@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_transaction repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInventoryTransactionRepository(dbOps, tableName), nil
 	})
 }
@@ -91,7 +91,7 @@ func (r *PostgresInventoryTransactionRepository) CreateInventoryTransaction(ctx 
 	}
 
 	inventoryTransaction := &inventorytransactionpb.InventoryTransaction{}
-	if err := protojson.Unmarshal(resultJSON, inventoryTransaction); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryTransaction); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -119,7 +119,7 @@ func (r *PostgresInventoryTransactionRepository) ReadInventoryTransaction(ctx co
 	}
 
 	inventoryTransaction := &inventorytransactionpb.InventoryTransaction{}
-	if err := protojson.Unmarshal(resultJSON, inventoryTransaction); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryTransaction); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func (r *PostgresInventoryTransactionRepository) UpdateInventoryTransaction(ctx 
 	}
 
 	inventoryTransaction := &inventorytransactionpb.InventoryTransaction{}
-	if err := protojson.Unmarshal(resultJSON, inventoryTransaction); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryTransaction); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -599,6 +599,6 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPage
 
 // NewInventoryTransactionRepository creates a new PostgreSQL inventory transaction repository (old-style constructor)
 func NewInventoryTransactionRepository(db *sql.DB, tableName string) inventorytransactionpb.InventoryTransactionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInventoryTransactionRepository(dbOps, tableName)
 }

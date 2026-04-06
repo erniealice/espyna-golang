@@ -29,7 +29,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres license_history repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresLicenseHistoryRepository(dbOps, tableName), nil
 	})
 }
@@ -75,7 +75,7 @@ func (r *PostgresLicenseHistoryRepository) CreateLicenseHistory(ctx context.Cont
 	}
 
 	licenseHistory := &licensehistorypb.LicenseHistory{}
-	if err := protojson.Unmarshal(resultJSON, licenseHistory); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, licenseHistory); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -104,7 +104,7 @@ func (r *PostgresLicenseHistoryRepository) ReadLicenseHistory(ctx context.Contex
 	}
 
 	licenseHistory := &licensehistorypb.LicenseHistory{}
-	if err := protojson.Unmarshal(resultJSON, licenseHistory); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, licenseHistory); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -136,7 +136,7 @@ func (r *PostgresLicenseHistoryRepository) ListLicenseHistory(ctx context.Contex
 		}
 
 		licenseHistory := &licensehistorypb.LicenseHistory{}
-		if err := protojson.Unmarshal(resultJSON, licenseHistory); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, licenseHistory); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -380,6 +380,6 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 
 // NewLicenseHistoryRepository creates a new PostgreSQL license_history repository (old-style constructor)
 func NewLicenseHistoryRepository(db *sql.DB, tableName string) licensehistorypb.LicenseHistoryDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresLicenseHistoryRepository(dbOps, tableName)
 }

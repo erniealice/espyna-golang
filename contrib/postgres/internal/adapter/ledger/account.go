@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres account repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresAccountRepository(dbOps, tableName), nil
 	})
 }
@@ -276,7 +276,7 @@ func (r *PostgresAccountRepository) ListAccounts(ctx context.Context, req *accou
 			continue
 		}
 		account := &accountpb.Account{}
-		if err := protojson.Unmarshal(resultJSON, account); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, account); err != nil {
 			continue
 		}
 		accounts = append(accounts, account)

@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInventoryAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +90,7 @@ func (r *PostgresInventoryAttributeRepository) CreateInventoryAttribute(ctx cont
 	}
 
 	inventoryAttribute := &inventoryattributepb.InventoryAttribute{}
-	if err := protojson.Unmarshal(resultJSON, inventoryAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (r *PostgresInventoryAttributeRepository) ReadInventoryAttribute(ctx contex
 	}
 
 	inventoryAttribute := &inventoryattributepb.InventoryAttribute{}
-	if err := protojson.Unmarshal(resultJSON, inventoryAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (r *PostgresInventoryAttributeRepository) UpdateInventoryAttribute(ctx cont
 	}
 
 	inventoryAttribute := &inventoryattributepb.InventoryAttribute{}
-	if err := protojson.Unmarshal(resultJSON, inventoryAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (r *PostgresInventoryAttributeRepository) ListInventoryAttributes(ctx conte
 		}
 
 		inventoryAttribute := &inventoryattributepb.InventoryAttribute{}
-		if err := protojson.Unmarshal(resultJSON, inventoryAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, inventoryAttribute); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -484,6 +484,6 @@ func (r *PostgresInventoryAttributeRepository) GetInventoryAttributeItemPageData
 
 // NewInventoryAttributeRepository creates a new PostgreSQL inventory attribute repository (old-style constructor)
 func NewInventoryAttributeRepository(db *sql.DB, tableName string) inventoryattributepb.InventoryAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInventoryAttributeRepository(dbOps, tableName)
 }

@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres location_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresLocationAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresLocationAttributeRepository) CreateLocationAttribute(ctx contex
 	}
 
 	locationAttribute := &locationattributepb.LocationAttribute{}
-	if err := protojson.Unmarshal(resultJSON, locationAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, locationAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresLocationAttributeRepository) ReadLocationAttribute(ctx context.
 	}
 
 	locationAttribute := &locationattributepb.LocationAttribute{}
-	if err := protojson.Unmarshal(resultJSON, locationAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, locationAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresLocationAttributeRepository) UpdateLocationAttribute(ctx contex
 	}
 
 	locationAttribute := &locationattributepb.LocationAttribute{}
-	if err := protojson.Unmarshal(resultJSON, locationAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, locationAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func (r *PostgresLocationAttributeRepository) ListLocationAttributes(ctx context
 		}
 
 		locationAttribute := &locationattributepb.LocationAttribute{}
-		if err := protojson.Unmarshal(resultJSON, locationAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, locationAttribute); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -277,7 +277,7 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeListPageData(c
 		// Convert to protobuf
 		dataJSON, _ := json.Marshal(rawData)
 		locationAttribute := &locationattributepb.LocationAttribute{}
-		if err := protojson.Unmarshal(dataJSON, locationAttribute); err == nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, locationAttribute); err == nil {
 			locationAttributes = append(locationAttributes, locationAttribute)
 		}
 	}
@@ -323,7 +323,7 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeItemPageData(c
 	// Convert to protobuf
 	dataJSON, _ := json.Marshal(rawData)
 	locationAttribute := &locationattributepb.LocationAttribute{}
-	if err := protojson.Unmarshal(dataJSON, locationAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, locationAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
 	return &locationattributepb.GetLocationAttributeItemPageDataResponse{LocationAttribute: locationAttribute, Success: true}, nil
@@ -331,6 +331,6 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeItemPageData(c
 
 // NewLocationAttributeRepository creates a new PostgreSQL location_attribute repository (old-style constructor)
 func NewLocationAttributeRepository(db *sql.DB, tableName string) locationattributepb.LocationAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresLocationAttributeRepository(dbOps, tableName)
 }

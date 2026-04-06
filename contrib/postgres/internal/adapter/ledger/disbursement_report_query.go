@@ -135,7 +135,7 @@ func getDisbursementPivotDimensionConfig(tc TableConfig, dimension string) pivot
 // The query groups disbursements by two independent dimensions:
 //   - rowDimension     -> each output row
 //   - primaryDimension -> each column within a row (the pivot axis)
-func buildDisbursementReportQuery(tc TableConfig, req *disbreportpb.DisbursementReportRequest) (string, []any) {
+func buildDisbursementReportQuery(tc TableConfig, req *disbreportpb.DisbursementReportRequest, workspaceID string) (string, []any) {
 	// Validate and normalise dimensions.
 	primaryDim := normalizeDisbursementDimension(req.GetPrimaryDimension())
 	if !validDisbursementPivotDimensions[primaryDim] {
@@ -161,6 +161,7 @@ func buildDisbursementReportQuery(tc TableConfig, req *disbreportpb.Disbursement
 	// $6 = disbursement_type (text or NULL)
 	// $7 = disbursement_method_id (text or NULL)
 	// $8 = supplier_category_id (text or NULL)
+	// $9 = workspace_id (text or NULL)
 	args := []any{
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
@@ -170,6 +171,7 @@ func buildDisbursementReportQuery(tc TableConfig, req *disbreportpb.Disbursement
 		nilIfEmpty(req.GetDisbursementType()),
 		nilIfEmpty(req.GetDisbursementMethodId()),
 		nilIfEmpty(req.GetSupplierCategoryId()),
+		nilIfEmpty(workspaceID),
 	}
 
 	dateExpr := "TO_TIMESTAMP(d.payment_date / 1000.0)"
@@ -198,6 +200,7 @@ WITH disbursement_pivot AS (
       AND ($6::text IS NULL OR d.disbursement_type = $6)
       AND ($7::text IS NULL OR d.disbursement_method_id = $7)
       AND ($8::text IS NULL OR s.category_id = $8)
+      AND ($9::text IS NULL OR e.workspace_id = $9)
     GROUP BY %s, %s
 )
 SELECT row_key, row_id, col_key, col_id,

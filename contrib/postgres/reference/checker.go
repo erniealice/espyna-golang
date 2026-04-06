@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	"github.com/lib/pq"
 )
 
@@ -19,17 +20,18 @@ func NewChecker(db *sql.DB) *Checker {
 }
 
 func (c *Checker) GetLocationInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	query := `
 		SELECT DISTINCT ref_id FROM (
-			SELECT location_id AS ref_id FROM revenue WHERE location_id = ANY($1) AND active = true
+			SELECT location_id AS ref_id FROM revenue WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 			UNION ALL
-			SELECT location_id AS ref_id FROM expenditure WHERE location_id = ANY($1) AND active = true
+			SELECT location_id AS ref_id FROM expenditure WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 			UNION ALL
-			SELECT location_id AS ref_id FROM inventory_item WHERE location_id = ANY($1) AND active = true
+			SELECT location_id AS ref_id FROM inventory_item WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 			UNION ALL
-			SELECT location_id AS ref_id FROM price_list WHERE location_id = ANY($1) AND active = true
+			SELECT location_id AS ref_id FROM price_list WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 		) AS refs`
-	return queryInUseIDs(ctx, c.db, query, ids)
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 
 func (c *Checker) GetRoleInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
@@ -44,20 +46,22 @@ func (c *Checker) GetCategoryInUseIDs(ctx context.Context, ids []string) (map[st
 
 // GetClientInUseIDs checks if clients are referenced in revenue or other client-linked records.
 func (c *Checker) GetClientInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	query := `SELECT DISTINCT client_id FROM revenue WHERE client_id = ANY($1) AND active = true`
-	return queryInUseIDs(ctx, c.db, query, ids)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `SELECT DISTINCT client_id FROM revenue WHERE client_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)`
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 
 func (c *Checker) GetProductInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	query := `
 		SELECT DISTINCT ref_id FROM (
-			SELECT product_id AS ref_id FROM revenue_line_item WHERE product_id = ANY($1) AND active = true
+			SELECT rli.product_id AS ref_id FROM revenue_line_item rli JOIN revenue r ON r.id = rli.revenue_id WHERE rli.product_id = ANY($1) AND rli.active = true AND ($2::text IS NULL OR r.workspace_id = $2)
 			UNION ALL
-			SELECT product_id AS ref_id FROM price_product WHERE product_id = ANY($1) AND active = true
+			SELECT product_id AS ref_id FROM price_product WHERE product_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 			UNION ALL
-			SELECT product_id AS ref_id FROM inventory_item WHERE product_id = ANY($1) AND active = true
+			SELECT product_id AS ref_id FROM inventory_item WHERE product_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 		) AS refs`
-	return queryInUseIDs(ctx, c.db, query, ids)
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 
 // GetPriceListInUseIDs checks if price lists are referenced by price products.
@@ -69,6 +73,35 @@ func (c *Checker) GetPriceListInUseIDs(ctx context.Context, ids []string) (map[s
 func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	query := `SELECT DISTINCT asset_category_id AS ref_id FROM asset WHERE asset_category_id = ANY($1) AND active = true`
 	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// queryInUseIDsWithWorkspace is like queryInUseIDs but passes a workspace_id as $2.
+// The query must accept $1 = ids array and $2 = workspace_id (text or NULL).
+func queryInUseIDsWithWorkspace(ctx context.Context, db *sql.DB, query string, ids []string, workspaceID string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return make(map[string]bool), nil
+	}
+
+	var wsArg any
+	if workspaceID != "" {
+		wsArg = workspaceID
+	}
+
+	rows, err := db.QueryContext(ctx, query, pq.Array(ids), wsArg)
+	if err != nil {
+		return nil, fmt.Errorf("reference check query failed: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("reference check scan failed: %w", err)
+		}
+		result[id] = true
+	}
+	return result, rows.Err()
 }
 
 func queryInUseIDs(ctx context.Context, db *sql.DB, query string, ids []string) (map[string]bool, error) {

@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres collection_schedule repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresCollectionScheduleRepository(dbOps, tableName), nil
 	})
 }
@@ -490,6 +490,6 @@ func buildCollectionScheduleFromScan(
 
 // NewCollectionScheduleRepository creates a new PostgreSQL collection schedule repository (old-style constructor)
 func NewCollectionScheduleRepository(db *sql.DB, tableName string) collectionschedulepb.CollectionScheduleDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresCollectionScheduleRepository(dbOps, tableName)
 }

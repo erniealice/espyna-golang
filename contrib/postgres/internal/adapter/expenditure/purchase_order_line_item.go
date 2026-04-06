@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres purchase_order_line_item repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPurchaseOrderLineItemRepository(dbOps, tableName), nil
 	})
 }
@@ -455,6 +455,6 @@ func (r *PostgresPurchaseOrderLineItemRepository) GetPurchaseOrderLineItemItemPa
 
 // NewPurchaseOrderLineItemRepository creates a new PostgreSQL purchase order line item repository (old-style constructor)
 func NewPurchaseOrderLineItemRepository(db *sql.DB, tableName string) purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPurchaseOrderLineItemRepository(dbOps, tableName)
 }

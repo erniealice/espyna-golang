@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
@@ -191,10 +192,7 @@ func (i *AuthorizationInterceptor) RequireWorkspaceRole(ctx context.Context, rol
 
 // GetWorkspaceFromContext extracts workspace ID from the context
 func GetWorkspaceFromContext(ctx context.Context) string {
-	if workspaceID, ok := ctx.Value("workspace_id").(string); ok {
-		return workspaceID
-	}
-	return ""
+	return contextutil.ExtractWorkspaceIDFromContext(ctx)
 }
 
 // hasAnyRole checks if user has any of the required roles

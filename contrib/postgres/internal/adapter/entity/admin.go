@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres admin repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresAdminRepository(dbOps, tableName), nil
 	})
 }
@@ -105,7 +105,7 @@ func (r *PostgresAdminRepository) CreateAdmin(ctx context.Context, req *adminpb.
 	}
 
 	admin := &adminpb.Admin{}
-	if err := protojson.Unmarshal(resultJSON, admin); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, admin); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -133,7 +133,7 @@ func (r *PostgresAdminRepository) ReadAdmin(ctx context.Context, req *adminpb.Re
 	}
 
 	admin := &adminpb.Admin{}
-	if err := protojson.Unmarshal(resultJSON, admin); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, admin); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -172,7 +172,7 @@ func (r *PostgresAdminRepository) UpdateAdmin(ctx context.Context, req *adminpb.
 	}
 
 	admin := &adminpb.Admin{}
-	if err := protojson.Unmarshal(resultJSON, admin); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, admin); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -220,7 +220,7 @@ func (r *PostgresAdminRepository) ListAdmins(ctx context.Context, req *adminpb.L
 		}
 
 		admin := &adminpb.Admin{}
-		if err := protojson.Unmarshal(resultJSON, admin); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, admin); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -589,6 +589,6 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 
 // NewAdminRepository creates a new PostgreSQL admin repository (old-style constructor)
 func NewAdminRepository(db *sql.DB, tableName string) adminpb.AdminDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresAdminRepository(dbOps, tableName)
 }

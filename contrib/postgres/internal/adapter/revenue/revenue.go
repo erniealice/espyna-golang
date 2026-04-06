@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -25,7 +26,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres revenue repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresRevenueRepository(dbOps, tableName), nil
 	})
 }
@@ -224,6 +225,7 @@ func (r *PostgresRevenueRepository) ListRevenues(ctx context.Context, req *reven
 
 // GetRevenueListPageData retrieves revenues with pagination, filtering, sorting, and search using CTE
 // Joins with client and location tables for enriched display
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	ctx context.Context,
 	req *revenuepb.GetRevenueListPageDataRequest,
@@ -231,6 +233,9 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get revenue list page data request is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Default pagination values
 	limit := int32(50)
@@ -268,9 +273,9 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		}
 	}
 
-	// Build parameterized WHERE clauses via shared helper (starts at $1)
+	// Build parameterized WHERE clauses via shared helper ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"rv.reference_number", "c.name"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
 
 	var whereStr string
 	if len(filterClauses) > 0 {
@@ -280,7 +285,10 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	// Parameterized LIMIT/OFFSET come after filter args
 	limitIdx := nextIdx
 	offsetIdx := nextIdx + 1
-	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
+	// workspace_id is $1; filter args follow; then limit/offset
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
 
 	query := `
 		WITH enriched AS (
@@ -308,7 +316,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true
 			LEFT JOIN location l ON rv.location_id = l.id AND l.active = true
-			WHERE rv.active = true` + whereStr + `
+			WHERE rv.active = true AND rv.workspace_id = $1` + whereStr + `
 		)
 		SELECT * FROM enriched
 		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
@@ -452,6 +460,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 }
 
 // GetRevenueItemPageData retrieves a single revenue with enriched data using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	ctx context.Context,
 	req *revenuepb.GetRevenueItemPageDataRequest,
@@ -462,6 +471,9 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	if req.RevenueId == "" {
 		return nil, fmt.Errorf("revenue ID is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	query := `
 		WITH enriched AS (
@@ -488,12 +500,12 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true
 			LEFT JOIN location l ON rv.location_id = l.id AND l.active = true
-			WHERE rv.id = $1 AND rv.active = true
+			WHERE rv.id = $1 AND rv.workspace_id = $2 AND rv.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.RevenueId)
+	row := r.db.QueryRowContext(ctx, query, req.RevenueId, workspaceID)
 
 	var (
 		id                string
@@ -601,7 +613,7 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 
 // NewRevenueRepository creates a new PostgreSQL revenue repository (old-style constructor)
 func NewRevenueRepository(db *sql.DB, tableName string) revenuepb.RevenueDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresRevenueRepository(dbOps, tableName)
 }
 

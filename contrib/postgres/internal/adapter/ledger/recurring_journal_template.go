@@ -20,7 +20,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres recurring_journal_template repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresRecurringJournalTemplateRepository(dbOps, tableName), nil
 	})
 }
@@ -85,7 +85,7 @@ func (r *PostgresRecurringJournalTemplateRepository) CreateRecurringJournalTempl
 	}
 
 	template := &recurringpb.RecurringJournalTemplate{}
-	if err := protojson.Unmarshal(resultJSON, template); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, template); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -111,7 +111,7 @@ func (r *PostgresRecurringJournalTemplateRepository) ReadRecurringJournalTemplat
 	}
 
 	template := &recurringpb.RecurringJournalTemplate{}
-	if err := protojson.Unmarshal(resultJSON, template); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, template); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -147,7 +147,7 @@ func (r *PostgresRecurringJournalTemplateRepository) UpdateRecurringJournalTempl
 	}
 
 	template := &recurringpb.RecurringJournalTemplate{}
-	if err := protojson.Unmarshal(resultJSON, template); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, template); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -190,7 +190,7 @@ func (r *PostgresRecurringJournalTemplateRepository) ListRecurringJournalTemplat
 			continue
 		}
 		template := &recurringpb.RecurringJournalTemplate{}
-		if err := protojson.Unmarshal(resultJSON, template); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, template); err != nil {
 			continue
 		}
 		templates = append(templates, template)

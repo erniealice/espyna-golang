@@ -91,8 +91,11 @@ func (m *SessionMiddleware) Handler(next http.Handler) http.Handler {
 			return
 		}
 
-		// Inject user ID and token into request context
-		ctx := context.WithValue(r.Context(), ContextKeyUserID, userID)
+		// Fetch workspace context stored on the session row.
+		wsUserID, wsID := m.AuthAdapter.GetSessionWorkspaceContext(r.Context(), token)
+
+		// Inject full session identity (user, workspace, email) into request context.
+		ctx := WithSessionIdentity(r.Context(), userID, wsID, wsUserID, "")
 		ctx = context.WithValue(ctx, ContextKeySessionToken, token)
 
 		next.ServeHTTP(w, r.WithContext(ctx))

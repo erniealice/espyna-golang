@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres petty_cash_fund repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPettyCashFundRepository(dbOps, tableName), nil
 	})
 }
@@ -474,6 +474,6 @@ func (r *PostgresPettyCashFundRepository) GetPettyCashFundItemPageData(
 
 // NewPettyCashFundRepository creates a new PostgreSQL petty_cash_fund repository (old-style constructor)
 func NewPettyCashFundRepository(db *sql.DB, tableName string) pettycashfundpb.PettyCashFundDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPettyCashFundRepository(dbOps, tableName)
 }

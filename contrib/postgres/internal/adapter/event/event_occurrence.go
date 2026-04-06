@@ -7,6 +7,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -35,7 +36,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres event_occurrence repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresEventOccurrenceRepository(dbOps, tableName), nil
 	})
 }
@@ -89,6 +90,7 @@ func (r *PostgresEventOccurrenceRepository) ListEventOccurrences(ctx context.Con
 
 // GetEventOccurrenceListPageData retrieves paginated event occurrence list data with CTE.
 // Optimized for calendar range queries: workspace_id + start/end time window.
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 	ctx context.Context,
 	req *eventoccurrencepb.GetEventOccurrenceListPageDataRequest,
@@ -96,6 +98,9 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Build search condition — search on event_id
 	searchPattern := ""
@@ -146,8 +151,9 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 				eo.date_modified
 			FROM event_occurrence eo
 			WHERE eo.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-				   eo.event_id ILIKE $1)
+			  AND eo.workspace_id = $1
+			  AND ($2::text IS NULL OR $2::text = '' OR
+				   eo.event_id ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -157,10 +163,10 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 			c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query event occurrence list page data: %w", err)
 	}
@@ -263,6 +269,7 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 }
 
 // GetEventOccurrenceItemPageData retrieves a single event occurrence with enhanced item page data
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceItemPageData(
 	ctx context.Context,
 	req *eventoccurrencepb.GetEventOccurrenceItemPageDataRequest,
@@ -270,6 +277,9 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceItemPageData(
 	if req == nil || req.EventOccurrenceId == "" {
 		return nil, fmt.Errorf("event occurrence ID required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Simple query for single event occurrence item
 	query := `
@@ -286,11 +296,11 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceItemPageData(
 			eo.date_created,
 			eo.date_modified
 		FROM event_occurrence eo
-		WHERE eo.id = $1 AND eo.active = true
+		WHERE eo.id = $1 AND eo.workspace_id = $2 AND eo.active = true
 		LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.EventOccurrenceId)
+	row := r.db.QueryRowContext(ctx, query, req.EventOccurrenceId, workspaceID)
 
 	var (
 		id               string
@@ -412,6 +422,6 @@ func mapRowToEventOccurrence(row map[string]any) (*eventoccurrencepb.EventOccurr
 
 // NewEventOccurrenceRepository creates a new PostgreSQL event_occurrence repository (old-style constructor)
 func NewEventOccurrenceRepository(db *sql.DB, tableName string) eventoccurrencepb.EventOccurrenceDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresEventOccurrenceRepository(dbOps, tableName)
 }

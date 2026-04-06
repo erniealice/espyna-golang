@@ -26,7 +26,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres template_task_criteria repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresTemplateTaskCriteriaRepository(dbOps, tableName), nil
 	})
 }

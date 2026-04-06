@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres deferred revenue repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresDeferredRevenueRepository(dbOps, tableName), nil
 	})
 }
@@ -442,6 +442,6 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueItemPageData(
 
 // NewDeferredRevenueRepository creates a new PostgreSQL deferred revenue repository (old-style constructor)
 func NewDeferredRevenueRepository(db *sql.DB, tableName string) deferredrevenuepb.DeferredRevenueDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresDeferredRevenueRepository(dbOps, tableName)
 }

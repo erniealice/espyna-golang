@@ -26,7 +26,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres outcome_criteria repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresOutcomeCriteriaRepository(dbOps, tableName), nil
 	})
 }
@@ -759,6 +759,6 @@ func (r *PostgresOutcomeCriteriaRepository) ListByScope(
 
 // NewOutcomeCriteriaRepository creates a new PostgreSQL outcome_criteria repository (old-style constructor)
 func NewOutcomeCriteriaRepository(db *sql.DB, tableName string) pb.OutcomeCriteriaDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresOutcomeCriteriaRepository(dbOps, tableName)
 }

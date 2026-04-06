@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres workspace repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresWorkspaceRepository(dbOps, tableName), nil
 	})
 }
@@ -549,6 +549,6 @@ func (r *PostgresWorkspaceRepository) ListUserWorkspaces(ctx context.Context, re
 
 // NewWorkspaceRepository creates a new PostgreSQL workspace repository (old-style constructor)
 func NewWorkspaceRepository(db *sql.DB, tableName string) workspacepb.WorkspaceDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresWorkspaceRepository(dbOps, tableName)
 }

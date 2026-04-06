@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres job_template repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresJobTemplateRepository(dbOps, tableName), nil
 	})
 }
@@ -462,6 +462,6 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateItemPageData(
 
 // NewJobTemplateRepository creates a new PostgreSQL job_template repository (old-style constructor)
 func NewJobTemplateRepository(db *sql.DB, tableName string) pb.JobTemplateDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresJobTemplateRepository(dbOps, tableName)
 }

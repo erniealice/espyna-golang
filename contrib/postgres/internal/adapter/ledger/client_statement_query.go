@@ -18,12 +18,14 @@ import (
 //	$2 = start_date (text or NULL)
 //	$3 = end_date (text or NULL)
 //	$4 = currency (text or NULL)
-func buildClientStatementQuery(tc TableConfig, req *clientstmtpb.ClientStatementRequest) (string, []any) {
+//	$5 = workspace_id (text or NULL)
+func buildClientStatementQuery(tc TableConfig, req *clientstmtpb.ClientStatementRequest, workspaceID string) (string, []any) {
 	args := []any{
 		req.GetClientId(),
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
 		nilIfEmpty(req.GetCurrency()),
+		nilIfEmpty(workspaceID),
 	}
 
 	query := fmt.Sprintf(`
@@ -44,6 +46,7 @@ WITH statement AS (
         AND ($2::text IS NULL OR r.revenue_date >= $2)
         AND ($3::text IS NULL OR r.revenue_date <= $3)
         AND ($4::text IS NULL OR r.currency = $4)
+        AND ($5::text IS NULL OR r.workspace_id = $5)
 
     UNION ALL
 
@@ -64,6 +67,7 @@ WITH statement AS (
         AND ($2::text IS NULL OR tc.payment_date >= $2::date)
         AND ($3::text IS NULL OR tc.payment_date < ($3::date + interval '1 day'))
         AND ($4::text IS NULL OR tc.currency = $4)
+        AND ($5::text IS NULL OR r.workspace_id = $5)
 )
 SELECT
     date,

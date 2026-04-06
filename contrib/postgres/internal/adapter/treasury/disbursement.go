@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -24,7 +25,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres disbursement repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresDisbursementRepository(dbOps, tableName), nil
 	})
 }
@@ -220,6 +221,7 @@ func (r *PostgresDisbursementRepository) ListDisbursements(ctx context.Context, 
 }
 
 // GetDisbursementListPageData retrieves disbursements with pagination, filtering, sorting, and search using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 	ctx context.Context,
 	req *disbursementpb.GetDisbursementListPageDataRequest,
@@ -227,6 +229,9 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get disbursement list page data request is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -277,11 +282,12 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 				d.approved_by
 			FROM treasury_disbursement d
 			WHERE d.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       d.name ILIKE $1 OR
-			       d.reference_number ILIKE $1 OR
-			       d.status ILIKE $1 OR
-			       d.disbursement_type ILIKE $1)
+			  AND d.workspace_id = $1
+			  AND ($2::text IS NULL OR $2::text = '' OR
+			       d.name ILIKE $2 OR
+			       d.reference_number ILIKE $2 OR
+			       d.status ILIKE $2 OR
+			       d.disbursement_type ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -291,10 +297,10 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query disbursement list page data: %w", err)
 	}
@@ -424,6 +430,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 }
 
 // GetDisbursementItemPageData retrieves a single disbursement with enriched data using CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 	ctx context.Context,
 	req *disbursementpb.GetDisbursementItemPageDataRequest,
@@ -434,6 +441,9 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 	if req.DisbursementId == "" {
 		return nil, fmt.Errorf("disbursement ID is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	query := `
 		WITH enriched AS (
@@ -454,12 +464,12 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 				d.payment_date,
 				d.approved_by
 			FROM treasury_disbursement d
-			WHERE d.id = $1 AND d.active = true
+			WHERE d.id = $1 AND d.workspace_id = $2 AND d.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.DisbursementId)
+	row := r.db.QueryRowContext(ctx, query, req.DisbursementId, workspaceID)
 
 	var (
 		id                   string
@@ -559,6 +569,6 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 
 // NewDisbursementRepository creates a new PostgreSQL disbursement repository (old-style constructor)
 func NewDisbursementRepository(db *sql.DB, tableName string) disbursementpb.DisbursementDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresDisbursementRepository(dbOps, tableName)
 }

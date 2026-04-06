@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres journal_entry repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresJournalEntryRepository(dbOps, tableName), nil
 	})
 }
@@ -135,7 +135,7 @@ func (r *PostgresJournalEntryRepository) ReadJournalEntry(ctx context.Context, r
 	}
 
 	journalEntry := &journalentrypb.JournalEntry{}
-	if err := protojson.Unmarshal(resultJSON, journalEntry); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, journalEntry); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -172,7 +172,7 @@ func (r *PostgresJournalEntryRepository) UpdateJournalEntry(ctx context.Context,
 	}
 
 	journalEntry := &journalentrypb.JournalEntry{}
-	if err := protojson.Unmarshal(resultJSON, journalEntry); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, journalEntry); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -216,7 +216,7 @@ func (r *PostgresJournalEntryRepository) ListJournalEntries(ctx context.Context,
 			continue
 		}
 		journalEntry := &journalentrypb.JournalEntry{}
-		if err := protojson.Unmarshal(resultJSON, journalEntry); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, journalEntry); err != nil {
 			continue
 		}
 		journalEntries = append(journalEntries, journalEntry)

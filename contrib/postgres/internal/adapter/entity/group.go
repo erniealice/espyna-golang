@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres group repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresGroupRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresGroupRepository) CreateGroup(ctx context.Context, req *grouppb.
 	}
 
 	group := &grouppb.Group{}
-	if err := protojson.Unmarshal(resultJSON, group); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, group); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresGroupRepository) ReadGroup(ctx context.Context, req *grouppb.Re
 	}
 
 	group := &grouppb.Group{}
-	if err := protojson.Unmarshal(resultJSON, group); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, group); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresGroupRepository) UpdateGroup(ctx context.Context, req *grouppb.
 	}
 
 	group := &grouppb.Group{}
-	if err := protojson.Unmarshal(resultJSON, group); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, group); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func (r *PostgresGroupRepository) ListGroups(ctx context.Context, req *grouppb.L
 		}
 
 		group := &grouppb.Group{}
-		if err := protojson.Unmarshal(resultJSON, group); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, group); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -460,6 +460,6 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 
 // NewGroupRepository creates a new PostgreSQL group repository (old-style constructor)
 func NewGroupRepository(db *sql.DB, tableName string) grouppb.GroupDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresGroupRepository(dbOps, tableName)
 }

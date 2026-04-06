@@ -546,6 +546,11 @@ func (a *DatabaseAuthAdapter) InvalidateSession(ctx context.Context, token strin
 	return a.sessionService.InvalidateSession(ctx, token)
 }
 
+// GetSessionWorkspaceContext returns the workspace_user_id and workspace_id for an active session.
+func (a *DatabaseAuthAdapter) GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string) {
+	return a.sessionService.GetSessionWorkspaceContext(ctx, token)
+}
+
 // =============================================================================
 // Internal helpers
 // =============================================================================

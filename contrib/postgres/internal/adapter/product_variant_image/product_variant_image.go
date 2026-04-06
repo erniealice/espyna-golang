@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres product_variant_image repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresProductVariantImageRepository(dbOps, tableName), nil
 	})
 }
@@ -503,6 +503,6 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageItemPageDa
 
 // NewProductVariantImageRepository creates a new PostgreSQL product variant image repository (old-style constructor)
 func NewProductVariantImageRepository(db *sql.DB, tableName string) productvariantimagepb.ProductVariantImageDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresProductVariantImageRepository(dbOps, tableName)
 }

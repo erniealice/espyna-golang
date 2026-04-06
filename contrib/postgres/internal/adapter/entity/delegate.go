@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres delegate repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresDelegateRepository(dbOps, tableName), nil
 	})
 }
@@ -76,7 +76,7 @@ func (r *PostgresDelegateRepository) CreateDelegate(ctx context.Context, req *de
 	}
 
 	delegate := &delegatepb.Delegate{}
-	if err := protojson.Unmarshal(resultJSON, delegate); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegate); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -104,7 +104,7 @@ func (r *PostgresDelegateRepository) ReadDelegate(ctx context.Context, req *dele
 	}
 
 	delegate := &delegatepb.Delegate{}
-	if err := protojson.Unmarshal(resultJSON, delegate); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegate); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -143,7 +143,7 @@ func (r *PostgresDelegateRepository) UpdateDelegate(ctx context.Context, req *de
 	}
 
 	delegate := &delegatepb.Delegate{}
-	if err := protojson.Unmarshal(resultJSON, delegate); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegate); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -191,7 +191,7 @@ func (r *PostgresDelegateRepository) ListDelegates(ctx context.Context, req *del
 		}
 
 		delegate := &delegatepb.Delegate{}
-		if err := protojson.Unmarshal(resultJSON, delegate); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegate); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -438,7 +438,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			if err := json.Unmarshal(userJSON, &userData); err == nil {
 				userDataJSON, _ := json.Marshal(userData)
 				var user userpb.User
-				if err := protojson.Unmarshal(userDataJSON, &user); err == nil {
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(userDataJSON, &user); err == nil {
 					delegate.User = &user
 				}
 			}
@@ -452,7 +452,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 				for _, dcData := range delegateClients {
 					dcJSON, _ := json.Marshal(dcData)
 					var delegateClient delegateclientpb.DelegateClient
-					if err := protojson.Unmarshal(dcJSON, &delegateClient); err == nil {
+					if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dcJSON, &delegateClient); err == nil {
 						delegate.DelegateClients = append(delegate.DelegateClients, &delegateClient)
 					}
 				}
@@ -624,7 +624,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		if err := json.Unmarshal(userJSON, &userData); err == nil {
 			userDataJSON, _ := json.Marshal(userData)
 			var user userpb.User
-			if err := protojson.Unmarshal(userDataJSON, &user); err == nil {
+			if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(userDataJSON, &user); err == nil {
 				delegate.User = &user
 			}
 		}
@@ -638,7 +638,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			for _, dcData := range delegateClients {
 				dcJSON, _ := json.Marshal(dcData)
 				var delegateClient delegateclientpb.DelegateClient
-				if err := protojson.Unmarshal(dcJSON, &delegateClient); err == nil {
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dcJSON, &delegateClient); err == nil {
 					delegate.DelegateClients = append(delegate.DelegateClients, &delegateClient)
 				}
 			}
@@ -653,6 +653,6 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 
 // NewDelegateRepository creates a new PostgreSQL delegate repository (old-style constructor)
 func NewDelegateRepository(db *sql.DB, tableName string) delegatepb.DelegateDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresDelegateRepository(dbOps, tableName)
 }

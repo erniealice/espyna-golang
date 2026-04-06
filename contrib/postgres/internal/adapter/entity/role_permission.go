@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres role_permission repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresRolePermissionRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresRolePermissionRepository) CreateRolePermission(ctx context.Cont
 	}
 
 	rolePermission := &rolepermissionpb.RolePermission{}
-	if err := protojson.Unmarshal(resultJSON, rolePermission); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, rolePermission); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresRolePermissionRepository) ReadRolePermission(ctx context.Contex
 	}
 
 	rolePermission := &rolepermissionpb.RolePermission{}
-	if err := protojson.Unmarshal(resultJSON, rolePermission); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, rolePermission); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresRolePermissionRepository) UpdateRolePermission(ctx context.Cont
 	}
 
 	rolePermission := &rolepermissionpb.RolePermission{}
-	if err := protojson.Unmarshal(resultJSON, rolePermission); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, rolePermission); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func (r *PostgresRolePermissionRepository) ListRolePermissions(ctx context.Conte
 		}
 
 		rolePermission := &rolepermissionpb.RolePermission{}
-		if err := protojson.Unmarshal(resultJSON, rolePermission); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, rolePermission); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -448,6 +448,6 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionItemPageData(
 
 // NewRolePermissionRepository creates a new PostgreSQL role_permission repository (old-style constructor)
 func NewRolePermissionRepository(db *sql.DB, tableName string) rolepermissionpb.RolePermissionDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresRolePermissionRepository(dbOps, tableName)
 }

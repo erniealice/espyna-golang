@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres inventory_serial_history repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInventorySerialHistoryRepository(dbOps, tableName), nil
 	})
 }
@@ -93,7 +93,7 @@ func (r *PostgresInventorySerialHistoryRepository) CreateInventorySerialHistory(
 	}
 
 	serialHistory := &serialhistorypb.InventorySerialHistory{}
-	if err := protojson.Unmarshal(resultJSON, serialHistory); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, serialHistory); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -121,7 +121,7 @@ func (r *PostgresInventorySerialHistoryRepository) ReadInventorySerialHistory(ct
 	}
 
 	serialHistory := &serialhistorypb.InventorySerialHistory{}
-	if err := protojson.Unmarshal(resultJSON, serialHistory); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, serialHistory); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -173,7 +173,7 @@ func (r *PostgresInventorySerialHistoryRepository) ListInventorySerialHistory(ct
 		}
 
 		serialHistory := &serialhistorypb.InventorySerialHistory{}
-		if err := protojson.Unmarshal(resultJSON, serialHistory); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, serialHistory); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -477,6 +477,6 @@ func (r *PostgresInventorySerialHistoryRepository) GetInventorySerialHistoryItem
 
 // NewInventorySerialHistoryRepository creates a new PostgreSQL inventory serial history repository (old-style constructor)
 func NewInventorySerialHistoryRepository(db *sql.DB, tableName string) serialhistorypb.InventorySerialHistoryDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInventorySerialHistoryRepository(dbOps, tableName)
 }

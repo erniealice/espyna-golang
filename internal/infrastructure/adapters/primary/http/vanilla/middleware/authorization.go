@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
@@ -188,10 +189,7 @@ func (m *AuthorizationMiddleware) RequireWorkspaceRole(role string) func(http.Ha
 
 // GetWorkspaceFromContext extracts workspace ID from the request context
 func GetWorkspaceFromContext(ctx context.Context) string {
-	if workspaceID, ok := ctx.Value("workspace_id").(string); ok {
-		return workspaceID
-	}
-	return ""
+	return contextutil.ExtractWorkspaceIDFromContext(ctx)
 }
 
 // extractWorkspaceFromPath attempts to extract workspace ID from URL path

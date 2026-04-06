@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres loan_payment repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresLoanPaymentRepository(dbOps, tableName), nil
 	})
 }
@@ -483,6 +483,6 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentItemPageData(
 
 // NewLoanPaymentRepository creates a new PostgreSQL loan_payment repository (old-style constructor)
 func NewLoanPaymentRepository(db *sql.DB, tableName string) loanpaymentpb.LoanPaymentDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresLoanPaymentRepository(dbOps, tableName)
 }

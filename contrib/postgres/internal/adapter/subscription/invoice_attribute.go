@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres invoice_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresInvoiceAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -80,7 +80,7 @@ func (r *PostgresInvoiceAttributeRepository) CreateInvoiceAttribute(ctx context.
 	}
 
 	invoiceAttribute := &invoiceattributepb.InvoiceAttribute{}
-	if err := protojson.Unmarshal(resultJSON, invoiceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoiceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -106,7 +106,7 @@ func (r *PostgresInvoiceAttributeRepository) ReadInvoiceAttribute(ctx context.Co
 	}
 
 	invoiceAttribute := &invoiceattributepb.InvoiceAttribute{}
-	if err := protojson.Unmarshal(resultJSON, invoiceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoiceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -142,7 +142,7 @@ func (r *PostgresInvoiceAttributeRepository) UpdateInvoiceAttribute(ctx context.
 	}
 
 	invoiceAttribute := &invoiceattributepb.InvoiceAttribute{}
-	if err := protojson.Unmarshal(resultJSON, invoiceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoiceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -186,7 +186,7 @@ func (r *PostgresInvoiceAttributeRepository) ListInvoiceAttributes(ctx context.C
 		}
 
 		invoiceAttribute := &invoiceattributepb.InvoiceAttribute{}
-		if err := protojson.Unmarshal(resultJSON, invoiceAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, invoiceAttribute); err != nil {
 			continue
 		}
 		invoiceAttributes = append(invoiceAttributes, invoiceAttribute)
@@ -261,7 +261,7 @@ func (r *PostgresInvoiceAttributeRepository) GetInvoiceAttributeListPageData(ctx
 
 		dataJSON, _ := json.Marshal(rawData)
 		invoiceAttribute := &invoiceattributepb.InvoiceAttribute{}
-		if err := protojson.Unmarshal(dataJSON, invoiceAttribute); err == nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, invoiceAttribute); err == nil {
 			invoiceAttributes = append(invoiceAttributes, invoiceAttribute)
 		}
 	}
@@ -304,7 +304,7 @@ func (r *PostgresInvoiceAttributeRepository) GetInvoiceAttributeItemPageData(ctx
 
 	dataJSON, _ := json.Marshal(rawData)
 	invoiceAttribute := &invoiceattributepb.InvoiceAttribute{}
-	if err := protojson.Unmarshal(dataJSON, invoiceAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, invoiceAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
 	return &invoiceattributepb.GetInvoiceAttributeItemPageDataResponse{InvoiceAttribute: invoiceAttribute, Success: true}, nil
@@ -312,6 +312,6 @@ func (r *PostgresInvoiceAttributeRepository) GetInvoiceAttributeItemPageData(ctx
 
 // NewInvoiceAttributeRepository creates a new PostgreSQL invoice_attribute repository (old-style constructor)
 func NewInvoiceAttributeRepository(db *sql.DB, tableName string) invoiceattributepb.InvoiceAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresInvoiceAttributeRepository(dbOps, tableName)
 }

@@ -20,7 +20,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres account_template repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresAccountTemplateRepository(dbOps, tableName), nil
 	})
 }
@@ -85,7 +85,7 @@ func (r *PostgresAccountTemplateRepository) CreateAccountTemplate(ctx context.Co
 	}
 
 	accountTemplate := &accounttemplatepb.AccountTemplate{}
-	if err := protojson.Unmarshal(resultJSON, accountTemplate); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountTemplate); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -111,7 +111,7 @@ func (r *PostgresAccountTemplateRepository) ReadAccountTemplate(ctx context.Cont
 	}
 
 	accountTemplate := &accounttemplatepb.AccountTemplate{}
-	if err := protojson.Unmarshal(resultJSON, accountTemplate); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountTemplate); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -147,7 +147,7 @@ func (r *PostgresAccountTemplateRepository) UpdateAccountTemplate(ctx context.Co
 	}
 
 	accountTemplate := &accounttemplatepb.AccountTemplate{}
-	if err := protojson.Unmarshal(resultJSON, accountTemplate); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountTemplate); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -190,7 +190,7 @@ func (r *PostgresAccountTemplateRepository) ListAccountTemplates(ctx context.Con
 			continue
 		}
 		accountTemplate := &accounttemplatepb.AccountTemplate{}
-		if err := protojson.Unmarshal(resultJSON, accountTemplate); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountTemplate); err != nil {
 			continue
 		}
 		accountTemplates = append(accountTemplates, accountTemplate)

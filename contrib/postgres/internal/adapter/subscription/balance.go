@@ -29,7 +29,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres balance repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresBalanceRepository(dbOps, tableName), nil
 	})
 }
@@ -75,7 +75,7 @@ func (r *PostgresBalanceRepository) CreateBalance(ctx context.Context, req *bala
 	}
 
 	balance := &balancepb.Balance{}
-	if err := protojson.Unmarshal(resultJSON, balance); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balance); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -103,7 +103,7 @@ func (r *PostgresBalanceRepository) ReadBalance(ctx context.Context, req *balanc
 	}
 
 	balance := &balancepb.Balance{}
-	if err := protojson.Unmarshal(resultJSON, balance); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balance); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -142,7 +142,7 @@ func (r *PostgresBalanceRepository) UpdateBalance(ctx context.Context, req *bala
 	}
 
 	balance := &balancepb.Balance{}
-	if err := protojson.Unmarshal(resultJSON, balance); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balance); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -190,7 +190,7 @@ func (r *PostgresBalanceRepository) ListBalances(ctx context.Context, req *balan
 		}
 
 		balance := &balancepb.Balance{}
-		if err := protojson.Unmarshal(resultJSON, balance); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, balance); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -357,7 +357,7 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 			if err := json.Unmarshal(subscriptionData, &subscriptionMap); err == nil {
 				subscriptionJSON, _ := json.Marshal(subscriptionMap)
 				sub := &subscriptionpb.Subscription{}
-				if err := protojson.Unmarshal(subscriptionJSON, sub); err == nil {
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(subscriptionJSON, sub); err == nil {
 					balance.Subscription = sub
 				}
 			}
@@ -495,7 +495,7 @@ func (r *PostgresBalanceRepository) GetBalanceItemPageData(ctx context.Context, 
 		if err := json.Unmarshal(subscriptionData, &subscriptionMap); err == nil {
 			subscriptionJSON, _ := json.Marshal(subscriptionMap)
 			sub := &subscriptionpb.Subscription{}
-			if err := protojson.Unmarshal(subscriptionJSON, sub); err == nil {
+			if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(subscriptionJSON, sub); err == nil {
 				balance.Subscription = sub
 			}
 		}
@@ -509,6 +509,6 @@ func (r *PostgresBalanceRepository) GetBalanceItemPageData(ctx context.Context, 
 
 // NewBalanceRepository creates a new PostgreSQL balance repository (old-style constructor)
 func NewBalanceRepository(db *sql.DB, tableName string) balancepb.BalanceDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresBalanceRepository(dbOps, tableName)
 }

@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres petty_cash_replenishment repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPettyCashReplenishmentRepository(dbOps, tableName), nil
 	})
 }
@@ -460,6 +460,6 @@ func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentItem
 
 // NewPettyCashReplenishmentRepository creates a new PostgreSQL petty_cash_replenishment repository (old-style constructor)
 func NewPettyCashReplenishmentRepository(db *sql.DB, tableName string) pettycashreplenishmentpb.PettyCashReplenishmentDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPettyCashReplenishmentRepository(dbOps, tableName)
 }

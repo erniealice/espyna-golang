@@ -8,6 +8,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -36,7 +37,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres event_recurrence repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresEventRecurrenceRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +91,7 @@ func (r *PostgresEventRecurrenceRepository) CreateEventRecurrence(ctx context.Co
 	}
 
 	eventRecurrence := &eventrecurrencepb.EventRecurrence{}
-	if err := protojson.Unmarshal(resultJSON, eventRecurrence); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventRecurrence); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +119,7 @@ func (r *PostgresEventRecurrenceRepository) ReadEventRecurrence(ctx context.Cont
 	}
 
 	eventRecurrence := &eventrecurrencepb.EventRecurrence{}
-	if err := protojson.Unmarshal(resultJSON, eventRecurrence); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventRecurrence); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +158,7 @@ func (r *PostgresEventRecurrenceRepository) UpdateEventRecurrence(ctx context.Co
 	}
 
 	eventRecurrence := &eventrecurrencepb.EventRecurrence{}
-	if err := protojson.Unmarshal(resultJSON, eventRecurrence); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventRecurrence); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +206,7 @@ func (r *PostgresEventRecurrenceRepository) ListEventRecurrences(ctx context.Con
 		}
 
 		eventRecurrence := &eventrecurrencepb.EventRecurrence{}
-		if err := protojson.Unmarshal(resultJSON, eventRecurrence); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventRecurrence); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -218,6 +219,7 @@ func (r *PostgresEventRecurrenceRepository) ListEventRecurrences(ctx context.Con
 }
 
 // GetEventRecurrenceListPageData retrieves paginated event recurrence list data with CTE
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 	ctx context.Context,
 	req *eventrecurrencepb.GetEventRecurrenceListPageDataRequest,
@@ -225,6 +227,9 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Build search condition
 	searchPattern := ""
@@ -280,10 +285,11 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 				er.date_modified
 			FROM event_recurrence er
 			WHERE er.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-				   er.name ILIKE $1 OR
-				   er.description ILIKE $1 OR
-				   er.rrule_string ILIKE $1)
+			  AND er.workspace_id = $1
+			  AND ($2::text IS NULL OR $2::text = '' OR
+				   er.name ILIKE $2 OR
+				   er.description ILIKE $2 OR
+				   er.rrule_string ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -293,10 +299,10 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 			c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query event recurrence list page data: %w", err)
 	}
@@ -422,6 +428,7 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 }
 
 // GetEventRecurrenceItemPageData retrieves a single event recurrence with enhanced item page data
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceItemPageData(
 	ctx context.Context,
 	req *eventrecurrencepb.GetEventRecurrenceItemPageDataRequest,
@@ -429,6 +436,9 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceItemPageData(
 	if req == nil || req.EventRecurrenceId == "" {
 		return nil, fmt.Errorf("event recurrence ID required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Simple query for single event recurrence item
 	query := `
@@ -449,11 +459,11 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceItemPageData(
 			er.date_created,
 			er.date_modified
 		FROM event_recurrence er
-		WHERE er.id = $1 AND er.active = true
+		WHERE er.id = $1 AND er.workspace_id = $2 AND er.active = true
 		LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.EventRecurrenceId)
+	row := r.db.QueryRowContext(ctx, query, req.EventRecurrenceId, workspaceID)
 
 	var (
 		id           string
@@ -548,6 +558,6 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceItemPageData(
 
 // NewEventRecurrenceRepository creates a new PostgreSQL event_recurrence repository (old-style constructor)
 func NewEventRecurrenceRepository(db *sql.DB, tableName string) eventrecurrencepb.EventRecurrenceDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresEventRecurrenceRepository(dbOps, tableName)
 }

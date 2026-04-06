@@ -27,7 +27,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres criteria_threshold repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresCriteriaThresholdRepository(dbOps, tableName), nil
 	})
 }
@@ -534,6 +534,6 @@ func (r *PostgresCriteriaThresholdRepository) ListByCriteria(
 
 // NewCriteriaThresholdRepository creates a new PostgreSQL criteria_threshold repository (old-style constructor)
 func NewCriteriaThresholdRepository(db *sql.DB, tableName string) pb.CriteriaThresholdDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresCriteriaThresholdRepository(dbOps, tableName)
 }

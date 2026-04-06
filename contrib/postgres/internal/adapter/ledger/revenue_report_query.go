@@ -129,7 +129,7 @@ func getPivotDimensionConfig(tc TableConfig, dimension string) pivotDimensionCon
 // The query groups revenue line items by two independent dimensions:
 //   - rowDimension  → each output row
 //   - primaryDimension → each column within a row (the pivot axis)
-func buildRevenueReportQuery(tc TableConfig, req *revreportpb.RevenueReportRequest) (string, []any) {
+func buildRevenueReportQuery(tc TableConfig, req *revreportpb.RevenueReportRequest, workspaceID string) (string, []any) {
 	// Validate and normalise dimensions.
 	primaryDim := normalizeDimension(req.GetPrimaryDimension())
 	if !validPivotDimensions[primaryDim] {
@@ -153,6 +153,8 @@ func buildRevenueReportQuery(tc TableConfig, req *revreportpb.RevenueReportReque
 	// $3 = product_id (text or NULL)
 	// $4 = location_id (text or NULL)
 	// $5 = revenue_category_id (text or NULL)
+	// $6 = client_id (text or NULL)
+	// $7 = workspace_id (text or NULL)
 	args := []any{
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
@@ -160,6 +162,7 @@ func buildRevenueReportQuery(tc TableConfig, req *revreportpb.RevenueReportReque
 		nilIfEmpty(req.GetLocationId()),
 		nilIfEmpty(req.GetRevenueCategoryId()),
 		nil, // $6: client_id filter (not yet exposed in proto)
+		nilIfEmpty(workspaceID),
 	}
 
 	query := fmt.Sprintf(`
@@ -184,6 +187,7 @@ WITH revenue_pivot AS (
       AND ($4::text IS NULL OR r.location_id = $4)
       AND ($5::text IS NULL OR r.revenue_category_id = $5)
       AND ($6::text IS NULL OR r.client_id = $6)
+      AND ($7::text IS NULL OR r.workspace_id = $7)
     GROUP BY %s, %s
 )
 SELECT row_key, row_id, col_key, col_id,

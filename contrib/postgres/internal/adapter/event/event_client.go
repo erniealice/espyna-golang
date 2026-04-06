@@ -36,7 +36,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres event_client repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresEventClientRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +90,7 @@ func (r *PostgresEventClientRepository) CreateEventClient(ctx context.Context, r
 	}
 
 	eventClient := &eventclientpb.EventClient{}
-	if err := protojson.Unmarshal(resultJSON, eventClient); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventClient); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (r *PostgresEventClientRepository) ReadEventClient(ctx context.Context, req
 	}
 
 	eventClient := &eventclientpb.EventClient{}
-	if err := protojson.Unmarshal(resultJSON, eventClient); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventClient); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (r *PostgresEventClientRepository) UpdateEventClient(ctx context.Context, r
 	}
 
 	eventClient := &eventclientpb.EventClient{}
-	if err := protojson.Unmarshal(resultJSON, eventClient); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventClient); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (r *PostgresEventClientRepository) ListEventClients(ctx context.Context, re
 		}
 
 		eventClient := &eventclientpb.EventClient{}
-		if err := protojson.Unmarshal(resultJSON, eventClient); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, eventClient); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -472,6 +472,6 @@ func parseEventClientTimestamp(timestampStr string) (int64, error) {
 
 // NewEventClientRepository creates a new PostgreSQL event_client repository (old-style constructor)
 func NewEventClientRepository(db *sql.DB, tableName string) eventclientpb.EventClientDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresEventClientRepository(dbOps, tableName)
 }

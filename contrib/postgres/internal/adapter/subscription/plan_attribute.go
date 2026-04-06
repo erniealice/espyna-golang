@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres plan_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPlanAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -80,7 +80,7 @@ func (r *PostgresPlanAttributeRepository) CreatePlanAttribute(ctx context.Contex
 	}
 
 	planAttribute := &planattributepb.PlanAttribute{}
-	if err := protojson.Unmarshal(resultJSON, planAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -106,7 +106,7 @@ func (r *PostgresPlanAttributeRepository) ReadPlanAttribute(ctx context.Context,
 	}
 
 	planAttribute := &planattributepb.PlanAttribute{}
-	if err := protojson.Unmarshal(resultJSON, planAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -142,7 +142,7 @@ func (r *PostgresPlanAttributeRepository) UpdatePlanAttribute(ctx context.Contex
 	}
 
 	planAttribute := &planattributepb.PlanAttribute{}
-	if err := protojson.Unmarshal(resultJSON, planAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -186,7 +186,7 @@ func (r *PostgresPlanAttributeRepository) ListPlanAttributes(ctx context.Context
 		}
 
 		planAttribute := &planattributepb.PlanAttribute{}
-		if err := protojson.Unmarshal(resultJSON, planAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planAttribute); err != nil {
 			continue
 		}
 		planAttributes = append(planAttributes, planAttribute)
@@ -261,7 +261,7 @@ func (r *PostgresPlanAttributeRepository) GetPlanAttributeListPageData(ctx conte
 
 		dataJSON, _ := json.Marshal(rawData)
 		planAttribute := &planattributepb.PlanAttribute{}
-		if err := protojson.Unmarshal(dataJSON, planAttribute); err == nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, planAttribute); err == nil {
 			planAttributes = append(planAttributes, planAttribute)
 		}
 	}
@@ -304,7 +304,7 @@ func (r *PostgresPlanAttributeRepository) GetPlanAttributeItemPageData(ctx conte
 
 	dataJSON, _ := json.Marshal(rawData)
 	planAttribute := &planattributepb.PlanAttribute{}
-	if err := protojson.Unmarshal(dataJSON, planAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, planAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
 	return &planattributepb.GetPlanAttributeItemPageDataResponse{PlanAttribute: planAttribute, Success: true}, nil
@@ -312,6 +312,6 @@ func (r *PostgresPlanAttributeRepository) GetPlanAttributeItemPageData(ctx conte
 
 // NewPlanAttributeRepository creates a new PostgreSQL plan_attribute repository (old-style constructor)
 func NewPlanAttributeRepository(db *sql.DB, tableName string) planattributepb.PlanAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPlanAttributeRepository(dbOps, tableName)
 }

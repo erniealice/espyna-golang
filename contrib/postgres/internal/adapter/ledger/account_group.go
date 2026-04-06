@@ -20,7 +20,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres account_group repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresAccountGroupRepository(dbOps, tableName), nil
 	})
 }
@@ -84,7 +84,7 @@ func (r *PostgresAccountGroupRepository) CreateAccountGroup(ctx context.Context,
 	}
 
 	accountGroup := &accountgrouppb.AccountGroup{}
-	if err := protojson.Unmarshal(resultJSON, accountGroup); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountGroup); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresAccountGroupRepository) ReadAccountGroup(ctx context.Context, r
 	}
 
 	accountGroup := &accountgrouppb.AccountGroup{}
-	if err := protojson.Unmarshal(resultJSON, accountGroup); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountGroup); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -146,7 +146,7 @@ func (r *PostgresAccountGroupRepository) UpdateAccountGroup(ctx context.Context,
 	}
 
 	accountGroup := &accountgrouppb.AccountGroup{}
-	if err := protojson.Unmarshal(resultJSON, accountGroup); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountGroup); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -189,7 +189,7 @@ func (r *PostgresAccountGroupRepository) ListAccountGroups(ctx context.Context, 
 			continue
 		}
 		accountGroup := &accountgrouppb.AccountGroup{}
-		if err := protojson.Unmarshal(resultJSON, accountGroup); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, accountGroup); err != nil {
 			continue
 		}
 		accountGroups = append(accountGroups, accountGroup)

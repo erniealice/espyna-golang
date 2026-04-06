@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres payment_term repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPaymentTermRepository(dbOps, tableName), nil
 	})
 }
@@ -555,6 +555,6 @@ func buildPaymentTermFromScan(
 
 // NewPaymentTermRepository creates a new PostgreSQL payment term repository (old-style constructor)
 func NewPaymentTermRepository(db *sql.DB, tableName string) paymenttermpb.PaymentTermDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPaymentTermRepository(dbOps, tableName)
 }

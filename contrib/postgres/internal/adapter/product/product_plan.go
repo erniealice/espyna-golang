@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres product_plan repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresProductPlanRepository(dbOps, tableName), nil
 	})
 }
@@ -366,6 +366,6 @@ func parseProductPlanTimestamp(ts string) (int64, error) {
 
 // NewProductPlanRepository creates a new PostgreSQL product_plan repository (old-style constructor)
 func NewProductPlanRepository(db *sql.DB, tableName string) productplanpb.ProductPlanDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresProductPlanRepository(dbOps, tableName)
 }

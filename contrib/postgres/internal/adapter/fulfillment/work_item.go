@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -26,7 +27,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres fulfillment repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresFulfillmentRepository(dbOps, tableName), nil
 	})
 }
@@ -212,6 +213,7 @@ func (r *PostgresFulfillmentRepository) ListFulfillments(ctx context.Context, re
 
 // GetFulfillmentListPageData retrieves fulfillments with pagination, filtering, sorting, and search.
 // It joins supplier name, counts line items, and counts status events via CTE.
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 	ctx context.Context,
 	req *pb.GetFulfillmentListPageDataRequest,
@@ -219,6 +221,9 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get fulfillment list page data request is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -278,8 +283,9 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			LEFT JOIN fulfillment_item fi ON fi.fulfillment_id = f.id
 			LEFT JOIN fulfillment_status_event fse ON fse.fulfillment_id = f.id
 			WHERE f.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       f.status ILIKE $1 OR f.provider_reference ILIKE $1)
+			  AND f.workspace_id = $1
+			  AND ($2::text IS NULL OR $2::text = '' OR
+			       f.status ILIKE $2 OR f.provider_reference ILIKE $2)
 			GROUP BY f.id, s.name
 		),
 		counted AS (
@@ -308,10 +314,10 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query fulfillment list page data: %w", err)
 	}
@@ -440,6 +446,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 }
 
 // GetFulfillmentItemPageData retrieves a single fulfillment with its items, status events, and returns.
+// CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	ctx context.Context,
 	req *pb.GetFulfillmentItemPageDataRequest,
@@ -450,6 +457,9 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	if req.Id == "" {
 		return nil, fmt.Errorf("fulfillment ID is required")
 	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	// Fetch main fulfillment record with supplier name and revenue reference
 	query := `
@@ -472,17 +482,17 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 			COALESCE(CAST(f.revenue_id AS text), '') AS revenue_reference
 		FROM fulfillment f
 		LEFT JOIN supplier s ON s.id = f.supplier_id AND s.active = true
-		WHERE f.id = $1 AND f.active = true
+		WHERE f.id = $1 AND f.workspace_id = $2 AND f.active = true
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.Id)
+	row := r.db.QueryRowContext(ctx, query, req.Id, workspaceID)
 
 	var (
 		id                string
 		dateCreated       time.Time
 		dateModified      time.Time
 		active            bool
-		workspaceID       string
+		scannedWorkspaceID string
 		revenueID         string
 		supplierID        sql.NullString
 		fulfillmentMethod string
@@ -501,7 +511,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 		&dateCreated,
 		&dateModified,
 		&active,
-		&workspaceID,
+		&scannedWorkspaceID,
 		&revenueID,
 		&supplierID,
 		&fulfillmentMethod,
@@ -524,7 +534,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	f := &pb.Fulfillment{
 		Id:                id,
 		Active:            active,
-		WorkspaceId:       workspaceID,
+		WorkspaceId:       scannedWorkspaceID,
 		RevenueId:         revenueID,
 		FulfillmentMethod: fulfillmentMethod,
 		Status:            status,

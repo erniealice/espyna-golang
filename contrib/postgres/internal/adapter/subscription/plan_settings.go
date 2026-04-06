@@ -35,7 +35,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres plan_settings repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPlanSettingsRepository(dbOps, tableName), nil
 	})
 }
@@ -89,7 +89,7 @@ func (r *PostgresPlanSettingsRepository) CreatePlanSettings(ctx context.Context,
 	}
 
 	planSettings := &plansettingspb.PlanSettings{}
-	if err := protojson.Unmarshal(resultJSON, planSettings); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planSettings); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -117,7 +117,7 @@ func (r *PostgresPlanSettingsRepository) ReadPlanSettings(ctx context.Context, r
 	}
 
 	planSettings := &plansettingspb.PlanSettings{}
-	if err := protojson.Unmarshal(resultJSON, planSettings); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planSettings); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -156,7 +156,7 @@ func (r *PostgresPlanSettingsRepository) UpdatePlanSettings(ctx context.Context,
 	}
 
 	planSettings := &plansettingspb.PlanSettings{}
-	if err := protojson.Unmarshal(resultJSON, planSettings); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planSettings); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -204,7 +204,7 @@ func (r *PostgresPlanSettingsRepository) ListPlanSettings(ctx context.Context, r
 		}
 
 		planSettings := &plansettingspb.PlanSettings{}
-		if err := protojson.Unmarshal(resultJSON, planSettings); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planSettings); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -242,7 +242,7 @@ func (r *PostgresPlanSettingsRepository) ListPlanSettingsByPlan(ctx context.Cont
 		}
 
 		planSettings := &plansettingspb.PlanSettings{}
-		if err := protojson.Unmarshal(resultJSON, planSettings); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, planSettings); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -305,6 +305,6 @@ func (r *PostgresPlanSettingsRepository) GetPlanSettingsListPageData(ctx context
 
 // NewPlanSettingsRepository creates a new PostgreSQL plan_settings repository (old-style constructor)
 func NewPlanSettingsRepository(db *sql.DB, tableName string) plansettingspb.PlanSettingsDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPlanSettingsRepository(dbOps, tableName)
 }

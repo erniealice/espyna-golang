@@ -36,7 +36,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres price_plan repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPricePlanRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +90,7 @@ func (r *PostgresPricePlanRepository) CreatePricePlan(ctx context.Context, req *
 	}
 
 	pricePlan := &priceplanpb.PricePlan{}
-	if err := protojson.Unmarshal(resultJSON, pricePlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, pricePlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (r *PostgresPricePlanRepository) ReadPricePlan(ctx context.Context, req *pr
 	}
 
 	pricePlan := &priceplanpb.PricePlan{}
-	if err := protojson.Unmarshal(resultJSON, pricePlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, pricePlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (r *PostgresPricePlanRepository) UpdatePricePlan(ctx context.Context, req *
 	}
 
 	pricePlan := &priceplanpb.PricePlan{}
-	if err := protojson.Unmarshal(resultJSON, pricePlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, pricePlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (r *PostgresPricePlanRepository) ListPricePlans(ctx context.Context, req *p
 		}
 
 		pricePlan := &priceplanpb.PricePlan{}
-		if err := protojson.Unmarshal(resultJSON, pricePlan); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, pricePlan); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -325,6 +325,6 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 
 // NewPricePlanRepository creates a new PostgreSQL price_plan repository (old-style constructor)
 func NewPricePlanRepository(db *sql.DB, tableName string) priceplanpb.PricePlanDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPricePlanRepository(dbOps, tableName)
 }

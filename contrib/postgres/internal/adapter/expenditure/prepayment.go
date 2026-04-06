@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres prepayment repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPrepaymentRepository(dbOps, tableName), nil
 	})
 }
@@ -438,6 +438,6 @@ func (r *PostgresPrepaymentRepository) GetPrepaymentItemPageData(
 
 // NewPrepaymentRepository creates a new PostgreSQL prepayment repository (old-style constructor)
 func NewPrepaymentRepository(db *sql.DB, tableName string) prepaymentpb.PrepaymentDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPrepaymentRepository(dbOps, tableName)
 }

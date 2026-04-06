@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres petty_cash_voucher repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPettyCashVoucherRepository(dbOps, tableName), nil
 	})
 }
@@ -478,6 +478,6 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherItemPageData(
 
 // NewPettyCashVoucherRepository creates a new PostgreSQL petty_cash_voucher repository (old-style constructor)
 func NewPettyCashVoucherRepository(db *sql.DB, tableName string) pettycashvoucherpb.PettyCashVoucherDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPettyCashVoucherRepository(dbOps, tableName)
 }

@@ -17,14 +17,16 @@ type statementRow struct {
 	Status          string
 }
 
-func buildSupplierStatementQuery(tc TableConfig, req *stmtpb.SupplierStatementRequest) (string, []any) {
+func buildSupplierStatementQuery(tc TableConfig, req *stmtpb.SupplierStatementRequest, workspaceID string) (string, []any) {
 	// $1 = supplier_id (required)
 	// $2 = start_date (optional)
 	// $3 = end_date (optional)
+	// $4 = workspace_id (optional)
 	args := []any{
 		req.GetSupplierId(),
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
+		nilIfEmpty(workspaceID),
 	}
 
 	// UNION ALL: expenditures (bills) + disbursements (payments)
@@ -48,6 +50,7 @@ FROM (
       AND e.supplier_id = $1
       AND ($2::timestamptz IS NULL OR e.expenditure_date::timestamptz >= $2::timestamptz)
       AND ($3::timestamptz IS NULL OR e.expenditure_date::timestamptz <= $3::timestamptz)
+      AND ($4::text IS NULL OR e.workspace_id = $4)
 
     UNION ALL
 
@@ -67,6 +70,7 @@ FROM (
       AND e.supplier_id = $1
       AND ($2::timestamptz IS NULL OR TO_TIMESTAMP(d.payment_date / 1000.0) >= $2::timestamptz)
       AND ($3::timestamptz IS NULL OR TO_TIMESTAMP(d.payment_date / 1000.0) <= $3::timestamptz)
+      AND ($4::text IS NULL OR e.workspace_id = $4)
 ) combined
 ORDER BY transaction_date ASC,
          CASE transaction_type WHEN 'bill' THEN 0 ELSE 1 END ASC`,

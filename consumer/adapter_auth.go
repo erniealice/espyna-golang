@@ -25,6 +25,7 @@ type databaseAuthOperations interface {
 	CreateSession(ctx context.Context, userID string) (string, error)
 	ValidateSession(ctx context.Context, token string) (string, error)
 	InvalidateSession(ctx context.Context, token string) error
+	GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string)
 }
 
 // authServiceOperations defines the auth service operations
@@ -290,6 +291,16 @@ func (a *AuthAdapter) InvalidateSession(ctx context.Context, token string) error
 		return fmt.Errorf("session management not supported by %s provider", a.Name())
 	}
 	return dbAuth.InvalidateSession(ctx, token)
+}
+
+// GetSessionWorkspaceContext returns the workspace_user_id and workspace_id stored on the session.
+// Only supported by db_auth provider. Returns empty strings for other providers.
+func (a *AuthAdapter) GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string) {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return "", ""
+	}
+	return dbAuth.GetSessionWorkspaceContext(ctx, token)
 }
 
 // --- Re-export error codes for consumer convenience ---

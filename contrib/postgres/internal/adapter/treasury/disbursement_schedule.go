@@ -23,7 +23,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres disbursement_schedule repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresDisbursementScheduleRepository(dbOps, tableName), nil
 	})
 }
@@ -490,6 +490,6 @@ func buildDisbursementScheduleFromScan(
 
 // NewDisbursementScheduleRepository creates a new PostgreSQL disbursement schedule repository (old-style constructor)
 func NewDisbursementScheduleRepository(db *sql.DB, tableName string) disbursementschedulepb.DisbursementScheduleDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresDisbursementScheduleRepository(dbOps, tableName)
 }

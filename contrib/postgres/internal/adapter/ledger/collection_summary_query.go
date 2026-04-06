@@ -123,7 +123,7 @@ func getCollectionPivotDimensionConfig(tc TableConfig, dimension string) pivotDi
 // The query groups treasury collection records by two independent dimensions:
 //   - rowDimension     -> each output row
 //   - primaryDimension -> each column within a row (the pivot axis)
-func buildCollectionSummaryQuery(tc TableConfig, req *collsumpb.CollectionSummaryRequest) (string, []any) {
+func buildCollectionSummaryQuery(tc TableConfig, req *collsumpb.CollectionSummaryRequest, workspaceID string) (string, []any) {
 	// Validate and normalise dimensions.
 	primaryDim := normalizeCollectionDimension(req.GetPrimaryDimension())
 	if !validCollectionDimensions[primaryDim] {
@@ -148,6 +148,7 @@ func buildCollectionSummaryQuery(tc TableConfig, req *collsumpb.CollectionSummar
 	// $5 = collection_method_id (text or NULL)
 	// $6 = currency (text or NULL)
 	// $7 = collection_type (text or NULL)
+	// $8 = workspace_id (text or NULL)
 	args := []any{
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
@@ -156,6 +157,7 @@ func buildCollectionSummaryQuery(tc TableConfig, req *collsumpb.CollectionSummar
 		nilIfEmpty(req.GetCollectionMethodId()),
 		nilIfEmpty(req.GetCurrency()),
 		nilIfEmpty(req.GetCollectionType()),
+		nilIfEmpty(workspaceID),
 	}
 
 	query := fmt.Sprintf(`
@@ -178,6 +180,7 @@ WITH collection_pivot AS (
       AND ($5::text IS NULL OR tc.collection_method_id = $5)
       AND ($6::text IS NULL OR tc.currency = $6)
       AND ($7::text IS NULL OR tc.collection_type = $7)
+      AND ($8::text IS NULL OR r.workspace_id = $8)
     GROUP BY %s, %s
 )
 SELECT row_key, row_id, col_key, col_id,

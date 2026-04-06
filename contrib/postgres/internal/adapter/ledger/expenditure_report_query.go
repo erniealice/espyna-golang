@@ -137,7 +137,7 @@ func getExpenditurePivotDimensionConfig(tc TableConfig, dimension string) pivotD
 // The query groups expenditure line items by two independent dimensions:
 //   - rowDimension  -> each output row
 //   - primaryDimension -> each column within a row (the pivot axis)
-func buildExpenditureReportQuery(tc TableConfig, req *expreportpb.ExpenditureReportRequest) (string, []any) {
+func buildExpenditureReportQuery(tc TableConfig, req *expreportpb.ExpenditureReportRequest, workspaceID string) (string, []any) {
 	// Validate and normalise dimensions.
 	primaryDim := normalizeExpenditureDimension(req.GetPrimaryDimension())
 	if !validExpenditurePivotDimensions[primaryDim] {
@@ -163,6 +163,7 @@ func buildExpenditureReportQuery(tc TableConfig, req *expreportpb.ExpenditureRep
 	// $6 = supplier_id (text or NULL)
 	// $7 = expenditure_type (text or NULL)
 	// $8 = location_area_id (text or NULL)
+	// $9 = workspace_id (text or NULL)
 	args := []any{
 		nilIfEmpty(req.GetStartDate()),
 		nilIfEmpty(req.GetEndDate()),
@@ -172,6 +173,7 @@ func buildExpenditureReportQuery(tc TableConfig, req *expreportpb.ExpenditureRep
 		nilIfEmpty(req.GetSupplierId()),
 		nilIfEmpty(req.GetExpenditureType()),
 		nilIfEmpty(req.GetLocationAreaId()),
+		nilIfEmpty(workspaceID),
 	}
 
 	query := fmt.Sprintf(`
@@ -199,6 +201,7 @@ WITH expenditure_pivot AS (
       AND ($6::text IS NULL OR e.supplier_id = $6)
       AND ($7::text IS NULL OR e.expenditure_type = $7)
       AND ($8::text IS NULL OR l.location_area_id = $8)
+      AND ($9::text IS NULL OR e.workspace_id = $9)
     GROUP BY %s, %s
 )
 SELECT row_key, row_id, col_key, col_id,

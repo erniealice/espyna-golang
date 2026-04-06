@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres client_category repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresClientCategoryRepository(dbOps, tableName), nil
 	})
 }
@@ -82,7 +82,7 @@ func (r *PostgresClientCategoryRepository) CreateClientCategory(ctx context.Cont
 	}
 
 	clientCategory := &clientcategorypb.ClientCategory{}
-	if err := protojson.Unmarshal(resultJSON, clientCategory); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientCategory); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *PostgresClientCategoryRepository) ReadClientCategory(ctx context.Contex
 	}
 
 	clientCategory := &clientcategorypb.ClientCategory{}
-	if err := protojson.Unmarshal(resultJSON, clientCategory); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientCategory); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (r *PostgresClientCategoryRepository) UpdateClientCategory(ctx context.Cont
 	}
 
 	clientCategory := &clientcategorypb.ClientCategory{}
-	if err := protojson.Unmarshal(resultJSON, clientCategory); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientCategory); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func (r *PostgresClientCategoryRepository) ListClientCategories(ctx context.Cont
 		}
 
 		clientCategory := &clientcategorypb.ClientCategory{}
-		if err := protojson.Unmarshal(resultJSON, clientCategory); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, clientCategory); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -466,6 +466,6 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 
 // NewClientCategoryRepository creates a new PostgreSQL client_category repository (old-style constructor)
 func NewClientCategoryRepository(db *sql.DB, tableName string) clientcategorypb.ClientCategoryDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresClientCategoryRepository(dbOps, tableName)
 }

@@ -22,7 +22,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres subscription_attribute repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresSubscriptionAttributeRepository(dbOps, tableName), nil
 	})
 }
@@ -80,7 +80,7 @@ func (r *PostgresSubscriptionAttributeRepository) CreateSubscriptionAttribute(ct
 	}
 
 	subscriptionAttribute := &subscriptionattributepb.SubscriptionAttribute{}
-	if err := protojson.Unmarshal(resultJSON, subscriptionAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscriptionAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -106,7 +106,7 @@ func (r *PostgresSubscriptionAttributeRepository) ReadSubscriptionAttribute(ctx 
 	}
 
 	subscriptionAttribute := &subscriptionattributepb.SubscriptionAttribute{}
-	if err := protojson.Unmarshal(resultJSON, subscriptionAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscriptionAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -142,7 +142,7 @@ func (r *PostgresSubscriptionAttributeRepository) UpdateSubscriptionAttribute(ct
 	}
 
 	subscriptionAttribute := &subscriptionattributepb.SubscriptionAttribute{}
-	if err := protojson.Unmarshal(resultJSON, subscriptionAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscriptionAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -186,7 +186,7 @@ func (r *PostgresSubscriptionAttributeRepository) ListSubscriptionAttributes(ctx
 		}
 
 		subscriptionAttribute := &subscriptionattributepb.SubscriptionAttribute{}
-		if err := protojson.Unmarshal(resultJSON, subscriptionAttribute); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, subscriptionAttribute); err != nil {
 			continue
 		}
 		subscriptionAttributes = append(subscriptionAttributes, subscriptionAttribute)
@@ -261,7 +261,7 @@ func (r *PostgresSubscriptionAttributeRepository) GetSubscriptionAttributeListPa
 
 		dataJSON, _ := json.Marshal(rawData)
 		subscriptionAttribute := &subscriptionattributepb.SubscriptionAttribute{}
-		if err := protojson.Unmarshal(dataJSON, subscriptionAttribute); err == nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, subscriptionAttribute); err == nil {
 			subscriptionAttributes = append(subscriptionAttributes, subscriptionAttribute)
 		}
 	}
@@ -304,7 +304,7 @@ func (r *PostgresSubscriptionAttributeRepository) GetSubscriptionAttributeItemPa
 
 	dataJSON, _ := json.Marshal(rawData)
 	subscriptionAttribute := &subscriptionattributepb.SubscriptionAttribute{}
-	if err := protojson.Unmarshal(dataJSON, subscriptionAttribute); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, subscriptionAttribute); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal: %w", err)
 	}
 	return &subscriptionattributepb.GetSubscriptionAttributeItemPageDataResponse{SubscriptionAttribute: subscriptionAttribute, Success: true}, nil
@@ -312,6 +312,6 @@ func (r *PostgresSubscriptionAttributeRepository) GetSubscriptionAttributeItemPa
 
 // NewSubscriptionAttributeRepository creates a new PostgreSQL subscription_attribute repository (old-style constructor)
 func NewSubscriptionAttributeRepository(db *sql.DB, tableName string) subscriptionattributepb.SubscriptionAttributeDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresSubscriptionAttributeRepository(dbOps, tableName)
 }

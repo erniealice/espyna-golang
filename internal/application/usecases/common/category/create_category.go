@@ -145,6 +145,7 @@ func (uc *CreateCategoryUseCase) enrichCategoryData(category *categorypb.Categor
 	category.DateModifiedString = &[]string{now.Format(time.RFC3339)}[0]
 	category.Active = true
 
+
 	return nil
 }
 

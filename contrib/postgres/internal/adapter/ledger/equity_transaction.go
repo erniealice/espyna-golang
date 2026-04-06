@@ -20,7 +20,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres equity_transaction repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresEquityTransactionRepository(dbOps, tableName), nil
 	})
 }
@@ -85,7 +85,7 @@ func (r *PostgresEquityTransactionRepository) CreateEquityTransaction(ctx contex
 	}
 
 	equityTransaction := &equitytransactionpb.EquityTransaction{}
-	if err := protojson.Unmarshal(resultJSON, equityTransaction); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityTransaction); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -111,7 +111,7 @@ func (r *PostgresEquityTransactionRepository) ReadEquityTransaction(ctx context.
 	}
 
 	equityTransaction := &equitytransactionpb.EquityTransaction{}
-	if err := protojson.Unmarshal(resultJSON, equityTransaction); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityTransaction); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -147,7 +147,7 @@ func (r *PostgresEquityTransactionRepository) UpdateEquityTransaction(ctx contex
 	}
 
 	equityTransaction := &equitytransactionpb.EquityTransaction{}
-	if err := protojson.Unmarshal(resultJSON, equityTransaction); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityTransaction); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -190,7 +190,7 @@ func (r *PostgresEquityTransactionRepository) ListEquityTransactions(ctx context
 			continue
 		}
 		equityTransaction := &equitytransactionpb.EquityTransaction{}
-		if err := protojson.Unmarshal(resultJSON, equityTransaction); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, equityTransaction); err != nil {
 			continue
 		}
 		equityTransactions = append(equityTransactions, equityTransaction)

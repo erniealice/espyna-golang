@@ -24,7 +24,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres payroll remittance repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresPayrollRemittanceRepository(dbOps, tableName), nil
 	})
 }
@@ -434,6 +434,6 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceItemPageData(
 
 // NewPayrollRemittanceRepository creates a new PostgreSQL payroll remittance repository (old-style constructor)
 func NewPayrollRemittanceRepository(db *sql.DB, tableName string) payrollremittancepb.PayrollRemittanceDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPayrollRemittanceRepository(dbOps, tableName)
 }

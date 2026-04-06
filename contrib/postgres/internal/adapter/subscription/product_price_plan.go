@@ -36,7 +36,7 @@ func init() {
 		if !ok {
 			return nil, fmt.Errorf("postgres product_price_plan repository requires *sql.DB, got %T", conn)
 		}
-		dbOps := postgresCore.NewPostgresOperations(db)
+		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresProductPricePlanRepository(dbOps, tableName), nil
 	})
 }
@@ -90,7 +90,7 @@ func (r *PostgresProductPricePlanRepository) CreateProductPricePlan(ctx context.
 	}
 
 	productPricePlan := &productpriceplanpb.ProductPricePlan{}
-	if err := protojson.Unmarshal(resultJSON, productPricePlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPricePlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -118,7 +118,7 @@ func (r *PostgresProductPricePlanRepository) ReadProductPricePlan(ctx context.Co
 	}
 
 	productPricePlan := &productpriceplanpb.ProductPricePlan{}
-	if err := protojson.Unmarshal(resultJSON, productPricePlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPricePlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -157,7 +157,7 @@ func (r *PostgresProductPricePlanRepository) UpdateProductPricePlan(ctx context.
 	}
 
 	productPricePlan := &productpriceplanpb.ProductPricePlan{}
-	if err := protojson.Unmarshal(resultJSON, productPricePlan); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPricePlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (r *PostgresProductPricePlanRepository) ListProductPricePlans(ctx context.C
 		}
 
 		productPricePlan := &productpriceplanpb.ProductPricePlan{}
-		if err := protojson.Unmarshal(resultJSON, productPricePlan); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, productPricePlan); err != nil {
 			// Log error and continue with next item
 			continue
 		}
@@ -325,6 +325,6 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanItemPageData(ctx
 
 // NewProductPricePlanRepository creates a new PostgreSQL product_price_plan repository (old-style constructor)
 func NewProductPricePlanRepository(db *sql.DB, tableName string) productpriceplanpb.ProductPricePlanDomainServiceServer {
-	dbOps := postgresCore.NewPostgresOperations(db)
+	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresProductPricePlanRepository(dbOps, tableName)
 }

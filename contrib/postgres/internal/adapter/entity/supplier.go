@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -325,12 +326,6 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
 	// Default pagination values
 	limit := int32(50)
 	offset := int32(0)
@@ -357,8 +352,23 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 		}
 	}
 
+	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
+	searchFields := []string{"s.company_name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+
+	whereSQL := "WHERE s.workspace_id = $1"
+	if len(filterClauses) > 0 {
+		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
+
 	// CTE Query - Single round-trip with enriched user data
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				s.id,
@@ -394,13 +404,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				u.mobile_number as user_phone_number
 			FROM supplier s
 			LEFT JOIN "user" u ON s.user_id = u.id
-			WHERE s.workspace_id = $1
-			  AND ($2::text IS NULL OR $2::text = '' OR
-				   s.company_name ILIKE $2 OR
-				   s.internal_id ILIKE $2 OR
-				   u.first_name ILIKE $2 OR
-				   u.last_name ILIKE $2 OR
-				   u.email_address ILIKE $2)
+			%s
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -409,12 +413,12 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $3 OFFSET $4;
-	`
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d;
+	`, whereSQL, sortField, sortOrder, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query supplier list page data: %w", err)
 	}

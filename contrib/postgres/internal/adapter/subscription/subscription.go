@@ -258,18 +258,26 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		searchQuery = "%" + req.Search.Query + "%"
 	}
 
-	// Extract client_id filter
+	// Extract client_id and active filters
 	clientIDFilter := ""
+	activeFilter := true // default: active only
+	hasActiveFilter := false
 	if req.Filters != nil {
 		for _, f := range req.Filters.Filters {
-			if f.GetField() == "client_id" {
+			switch f.GetField() {
+			case "client_id":
 				if sf := f.GetStringFilter(); sf != nil {
 					clientIDFilter = sf.GetValue()
 				}
-				break
+			case "s.active", "active":
+				if bf := f.GetBooleanFilter(); bf != nil {
+					activeFilter = bf.GetValue()
+					hasActiveFilter = true
+				}
 			}
 		}
 	}
+	_ = hasActiveFilter
 
 	// Extract sort parameters with defaults
 	sortField := "date_created"
@@ -300,7 +308,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		search_filtered AS (
 			SELECT s.*
 			FROM subscription s
-			WHERE s.active = true
+			WHERE s.active = $7
 				AND ($1::text = '' OR
 					s.name ILIKE $1)
 				AND ($6::text = '' OR s.client_id = $6)
@@ -412,6 +420,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		sortField,      // $4
 		sortDirection,  // $5
 		clientIDFilter, // $6
+		activeFilter,   // $7
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetSubscriptionListPageData query: %w", err)

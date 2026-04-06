@@ -251,6 +251,19 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 		}
 	}
 
+	// Extract active filter (default to active-only)
+	activeFilter := true
+	if req.Filters != nil {
+		for _, f := range req.Filters.Filters {
+			switch f.GetField() {
+			case "jt.active", "active":
+				if bf := f.GetBooleanFilter(); bf != nil {
+					activeFilter = bf.GetValue()
+				}
+			}
+		}
+	}
+
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -264,7 +277,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 				jt.default_cost_flow_type,
 				jt.default_billing_rule_type
 			FROM job_template jt
-			WHERE jt.active = true
+			WHERE jt.active = $4
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jt.name ILIKE $1 OR
 			       jt.description ILIKE $1)
@@ -280,7 +293,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, activeFilter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job template list page data: %w", err)
 	}

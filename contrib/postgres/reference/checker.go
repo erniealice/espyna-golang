@@ -75,6 +75,12 @@ func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (m
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
+func (c *Checker) GetLocationAreaInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `SELECT DISTINCT location_area_id AS ref_id FROM location WHERE location_area_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)`
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
 // queryInUseIDsWithWorkspace is like queryInUseIDs but passes a workspace_id as $2.
 // The query must accept $1 = ids array and $2 = workspace_id (text or NULL).
 func queryInUseIDsWithWorkspace(ctx context.Context, db *sql.DB, query string, ids []string, workspaceID string) (map[string]bool, error) {

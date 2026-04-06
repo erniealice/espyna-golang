@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -221,12 +222,6 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 		return nil, fmt.Errorf("get workspace list page data request is required")
 	}
 
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
 	// Default pagination values
 	limit := int32(50)
 	offset := int32(0)
@@ -254,8 +249,21 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 		}
 	}
 
+	// Build filter/search WHERE clauses (start at $1)
+	searchFields := []string{"w.name", "w.description"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+
+	whereSQL := ""
+	if len(filterClauses) > 0 {
+		whereSQL = "WHERE " + strings.Join(filterClauses, " AND ")
+	}
+
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	queryArgs := append(filterArgs, limit, offset)
+
 	// CTE Query - Single round-trip with filtering and pagination
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				w.id,
@@ -267,9 +275,7 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 				w.date_created,
 				w.date_modified
 			FROM workspace w
-			WHERE ($1::text IS NULL OR $1::text = '' OR
-				   w.name ILIKE $1 OR
-				   w.description ILIKE $1)
+			%s
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -278,12 +284,12 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
-	`
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d;
+	`, whereSQL, sortField, sortOrder, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query workspace list page data: %w", err)
 	}

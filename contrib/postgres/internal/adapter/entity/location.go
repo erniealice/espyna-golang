@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/consumer"
@@ -213,11 +214,6 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		return nil, fmt.Errorf("request is required")
 	}
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
 	limit := int32(50)
 	offset := int32(0)
 	page := int32(1)
@@ -242,7 +238,24 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		}
 	}
 
-	query := `
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
+	searchFields := []string{"l.name", "l.address"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+
+	whereSQL := "WHERE ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)"
+	if len(filterClauses) > 0 {
+		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
+
+	query := fmt.Sprintf(`
 		WITH location_attributes_agg AS (
 			SELECT
 				la.location_id,
@@ -266,27 +279,25 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 				l.date_created,
 				l.date_modified,
 				COALESCE(l.timezone, 'Asia/Manila') as timezone,
+				l.location_area_id,
+				COALESCE(la2.name, '') as location_area_name,
 				COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 			FROM location l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-			WHERE l.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
-			  AND ($2::text IS NULL OR $2::text = '' OR
-				   l.name ILIKE $2 OR
-				   l.address ILIKE $2)
+			LEFT JOIN location_area la2 ON l.location_area_id = la2.id
+			%s
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
 		)
 		SELECT e.*, c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $3 OFFSET $4;
-	`
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d;
+	`, whereSQL, sortField, sortOrder, limitIdx, offsetIdx)
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %w", err)
 	}
@@ -297,21 +308,23 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 
 	for rows.Next() {
 		var (
-			id             string
-			name           string
-			address        *string
-			active         bool
-			dateCreated    time.Time
-			dateModified   time.Time
-			timezone       string
-			attributesJSON []byte
-			total          int64
+			id              string
+			name            string
+			address         *string
+			active          bool
+			dateCreated     time.Time
+			dateModified    time.Time
+			timezone        string
+			locationAreaID  *string
+			locationAreaName string
+			attributesJSON  []byte
+			total           int64
 		)
 
 		err := rows.Scan(
 			&id, &name, &address,
 			&active, &dateCreated, &dateModified,
-			&timezone, &attributesJSON, &total,
+			&timezone, &locationAreaID, &locationAreaName, &attributesJSON, &total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan: %w", err)
@@ -329,8 +342,12 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 			location.Address = *address
 		}
 		location.Timezone = &timezone
-		// Note: Removed city, state, country, postalCode assignments as they don't exist in the protobuf schema
-		// The Location protobuf only has: id, name, address, description, timezone, timestamps, and active fields
+		if locationAreaID != nil {
+			location.LocationAreaId = locationAreaID
+		}
+		if locationAreaName != "" {
+			location.Description = &locationAreaName
+		}
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()

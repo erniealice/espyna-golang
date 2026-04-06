@@ -75,6 +75,21 @@ func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (m
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
+func (c *Checker) GetPaymentTermInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT payment_term_id AS ref_id FROM client WHERE payment_term_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+			UNION ALL
+			SELECT payment_term_id AS ref_id FROM supplier WHERE payment_term_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+			UNION ALL
+			SELECT payment_term_id AS ref_id FROM revenue WHERE payment_term_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+			UNION ALL
+			SELECT payment_term_id AS ref_id FROM expenditure WHERE payment_term_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+		) AS refs`
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
 func (c *Checker) GetLocationAreaInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	query := `SELECT DISTINCT location_area_id AS ref_id FROM location WHERE location_area_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)`

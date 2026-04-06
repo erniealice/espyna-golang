@@ -396,6 +396,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				s.notes,
 				s.category_id,
 				s.payment_term_id,
+				COALESCE(pt.name, '') as payment_term_name,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -404,6 +405,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				u.mobile_number as user_phone_number
 			FROM supplier s
 			LEFT JOIN "user" u ON s.user_id = u.id
+			LEFT JOIN payment_term pt ON s.payment_term_id = pt.id
 			%s
 		),
 		counted AS (
@@ -454,6 +456,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			notes              *string
 			categoryId         *string
 			paymentTermID      *string
+			paymentTermName    string
 			userIdValue        *string
 			userFirstName      *string
 			userLastName       *string
@@ -488,6 +491,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			&notes,
 			&categoryId,
 			&paymentTermID,
+			&paymentTermName,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
@@ -510,6 +514,13 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			paymentTermID,
 			userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 		)
+
+		if paymentTermID != nil {
+			supplier.PaymentTermId = paymentTermID
+		}
+		if paymentTermName != "" {
+			supplier.PaymentTerms = &paymentTermName
+		}
 
 		suppliers = append(suppliers, supplier)
 	}

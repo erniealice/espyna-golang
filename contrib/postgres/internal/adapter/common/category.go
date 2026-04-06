@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -201,13 +203,11 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, req *ca
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			// Log error and continue with next item
 			continue
 		}
 
 		category := &categorypb.Category{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, category); err != nil {
-			// Log error and continue with next item
 			continue
 		}
 		categories = append(categories, category)
@@ -216,6 +216,74 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, req *ca
 	return &categorypb.ListCategoriesResponse{
 		Data: categories,
 	}, nil
+}
+
+// GetCategoryListPageData returns all categories (active AND inactive) for the settings list page.
+// This is intentionally NOT part of the CategoryDomainServiceServer interface — ListCategories
+// is for dropdowns and always filters active=true. This method is for management UIs.
+func (r *PostgresCategoryRepository) GetCategoryListPageData(ctx context.Context) ([]*categorypb.Category, error) {
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	var db *sql.DB
+	if pgOps, ok := r.dbOps.(interface{ GetDB() *sql.DB }); ok {
+		db = pgOps.GetDB()
+	}
+	if db == nil {
+		return nil, fmt.Errorf("direct DB access unavailable for GetCategoryListPageData")
+	}
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, name, description, code, module, parent_id,
+		       date_created, date_modified, active, workspace_id
+		FROM category
+		WHERE workspace_id = $1
+		ORDER BY name ASC
+	`, wsID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query categories: %w", err)
+	}
+	defer rows.Close()
+
+	var categories []*categorypb.Category
+	for rows.Next() {
+		var (
+			id          string
+			name        string
+			description *string
+			code        string
+			module      string
+			parentID    *string
+			dateCreated *time.Time
+			dateMod     *time.Time
+			active      bool
+			workspaceID string
+		)
+		if err := rows.Scan(&id, &name, &description, &code, &module, &parentID,
+			&dateCreated, &dateMod, &active, &workspaceID); err != nil {
+			return nil, fmt.Errorf("failed to scan category: %w", err)
+		}
+		cat := &categorypb.Category{Id: id, Name: name, Code: code, Module: module, Active: active}
+		if description != nil {
+			cat.Description = *description
+		}
+		if parentID != nil {
+			cat.ParentId = parentID
+		}
+		if dateCreated != nil {
+			ts := dateCreated.UnixMilli()
+			cat.DateCreated = &ts
+			s := dateCreated.Format(time.RFC3339)
+			cat.DateCreatedString = &s
+		}
+		if dateMod != nil {
+			ts := dateMod.UnixMilli()
+			cat.DateModified = &ts
+			s := dateMod.Format(time.RFC3339)
+			cat.DateModifiedString = &s
+		}
+		categories = append(categories, cat)
+	}
+	return categories, rows.Err()
 }
 
 // NewCategoryRepository creates a new PostgreSQL category repository (old-style constructor)

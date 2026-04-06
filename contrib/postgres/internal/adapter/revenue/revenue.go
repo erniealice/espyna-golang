@@ -17,6 +17,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 )
 
@@ -312,10 +313,13 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.subscription_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
+				COALESCE(pt.name, '') as payment_term_name,
+				EXISTS(SELECT 1 FROM treasury_collection tc WHERE tc.revenue_id = rv.id) as has_collection,
 				COUNT(*) OVER() AS total_count
 			FROM ` + r.tableName + ` rv
 			LEFT JOIN client c ON rv.client_id = c.id AND c.active = true
 			LEFT JOIN location l ON rv.location_id = l.id AND l.active = true
+			LEFT JOIN payment_term pt ON rv.payment_term_id = pt.id
 			WHERE rv.active = true AND rv.workspace_id = $1` + whereStr + `
 		)
 		SELECT * FROM enriched
@@ -352,6 +356,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			subscriptionID    *string
 			clientName        string
 			locationName      string
+			paymentTermName   string
+			hasCollection     bool
 			total             int64
 		)
 
@@ -375,6 +381,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			&subscriptionID,
 			&clientName,
 			&locationName,
+			&paymentTermName,
+			&hasCollection,
 			&total,
 		)
 		if err != nil {
@@ -410,12 +418,22 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		}
 		if paymentTermID != nil {
 			revenue.PaymentTermId = paymentTermID
+			if paymentTermName != "" {
+				revenue.PaymentTerm = &paymenttermpb.PaymentTerm{
+					Id:   *paymentTermID,
+					Name: paymentTermName,
+				}
+			}
 		}
 		if dueDateString != nil {
 			revenue.DueDate = dueDateString
 		}
 		if subscriptionID != nil {
 			revenue.SubscriptionId = subscriptionID
+		}
+		if hasCollection {
+			hc := "has_collection"
+			revenue.FulfillmentStatus = &hc
 		}
 
 		if !dateCreated.IsZero() {

@@ -298,6 +298,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 	}
 
 	// CTE Query - flat table, no JOINs needed
+	// entity_scope filter: show only client-scoped and shared (both) payment terms
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -316,7 +317,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 				description,
 				display_order
 			FROM ` + r.tableName + `
-			WHERE active = true
+			WHERE entity_scope IN ('client', 'both')
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   name ILIKE $1 OR
 				   code ILIKE $1 OR

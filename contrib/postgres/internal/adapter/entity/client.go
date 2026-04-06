@@ -16,6 +16,7 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -446,7 +447,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	searchFields := []string{"u.first_name", "u.last_name", "u.email_address", "c.internal_id"}
 	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
 
-	whereSQL := "WHERE c.active = true AND c.workspace_id = $1"
+	whereSQL := "WHERE c.workspace_id = $1"
 	if len(filterClauses) > 0 {
 		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
 	}
@@ -482,14 +483,22 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			c.postal_code,
 			c.notes,
 			c.payment_term_id,
+			pt.name AS payment_term_name,
 			u.id as user_id_value,
 			u.first_name as user_first_name,
 			u.last_name as user_last_name,
 			u.email_address as user_email_address,
 			u.mobile_number as user_phone_number,
+			(
+				SELECT json_agg(json_build_object('id', cc.category_id, 'name', cat.name))
+				FROM client_category cc
+				JOIN category cat ON cc.category_id = cat.id
+				WHERE cc.client_id = c.id AND cc.active = true
+			) AS categories_json,
 			COUNT(*) OVER() AS total_count
 		FROM client c
 		LEFT JOIN "user" u ON c.user_id = u.id
+		LEFT JOIN payment_term pt ON c.payment_term_id = pt.id
 		%s
 		ORDER BY %s %s
 		LIMIT $%d OFFSET $%d
@@ -514,19 +523,21 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			dateCreated  time.Time
 			dateModified time.Time
 			// CRM fields
-			name          *string
-			streetAddress *string
-			city          *string
-			province      *string
-			postalCode    *string
-			notes         *string
-			paymentTermID *string
+			name            *string
+			streetAddress   *string
+			city            *string
+			province        *string
+			postalCode      *string
+			notes           *string
+			paymentTermID   *string
+			paymentTermName *string
 			// User fields
 			userIdValue      *string
 			userFirstName    *string
 			userLastName     *string
 			userEmailAddress *string
 			userPhoneNumber  *string
+			categoriesJSON   *string
 			total            int64
 		)
 
@@ -544,11 +555,13 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			&postalCode,
 			&notes,
 			&paymentTermID,
+			&paymentTermName,
 			&userIdValue,
 			&userFirstName,
 			&userLastName,
 			&userEmailAddress,
 			&userPhoneNumber,
+			&categoriesJSON,
 			&total,
 		)
 		if err != nil {
@@ -577,6 +590,28 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		client.Notes = notes
 		if paymentTermID != nil {
 			client.PaymentTermId = paymentTermID
+		}
+		if paymentTermName != nil && *paymentTermName != "" {
+			client.PaymentTerm = &paymenttermpb.PaymentTerm{Name: *paymentTermName}
+		}
+
+		// Populate categories from aggregated JSON
+		if categoriesJSON != nil && *categoriesJSON != "" {
+			var raw []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal([]byte(*categoriesJSON), &raw); err == nil {
+				for _, r := range raw {
+					cat := &clientcategorypb.ClientCategory{
+						CategoryId: r.ID,
+						Category: &commonpb.Category{
+							Name: r.Name,
+						},
+					}
+					client.Categories = append(client.Categories, cat)
+				}
+			}
 		}
 
 		// Populate joined user data

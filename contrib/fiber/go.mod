@@ -6,7 +6,7 @@ require (
 	github.com/erniealice/espyna-golang v0.0.0
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gofiber/fiber/v3 v3.0.0-rc.2
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -43,5 +43,3 @@ replace github.com/erniealice/espyna-golang => ../..
 replace github.com/erniealice/esqyma => ../../../esqyma
 
 replace github.com/erniealice/lyngua => ../../../lyngua
-
-

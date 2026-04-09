@@ -8,7 +8,7 @@ require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.11.0
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -58,5 +58,3 @@ replace github.com/erniealice/espyna-golang => ../..
 replace github.com/erniealice/esqyma => ../../../esqyma
 
 replace github.com/erniealice/lyngua => ../../../lyngua
-
-

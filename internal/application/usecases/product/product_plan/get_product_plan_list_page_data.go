@@ -383,7 +383,6 @@ func (uc *GetProductPlanListPageDataUseCase) isValidProductPlanField(field strin
 		"description":          true,
 		"product_id":           true,
 		"pricing_type":         true,
-		"price":                true,
 		"billing_cycle":        true,
 		"trial_period_days":    true,
 		"active":               true,

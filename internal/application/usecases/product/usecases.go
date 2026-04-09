@@ -185,6 +185,7 @@ func NewUseCases(
 	productPlanUC := productPlanUseCases.NewUseCases(
 		productPlanUseCases.ProductPlanRepositories{
 			ProductPlan: repos.ProductPlan,
+			Product:     repos.Product,
 		},
 		productPlanUseCases.ProductPlanServices{
 			AuthorizationService: authSvc,

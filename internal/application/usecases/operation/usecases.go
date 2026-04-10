@@ -16,7 +16,7 @@ import (
 	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome"
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome_check"
 	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/template_task_criteria"
-	jobActivityUseCases "github.com/erniealice/espyna-golang/operation/job_activity"
+	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_activity"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"

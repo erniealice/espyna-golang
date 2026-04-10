@@ -1,5 +1,3 @@
-//go:build postgresql
-
 package fulfillment
 
 import (
@@ -145,7 +143,8 @@ func (r *PostgresFulfillmentReturnRepository) GetFulfillmentReturn(ctx context.C
 		Active:        active,
 	}
 	if refundAmount.Valid {
-		ret.RefundAmount = &refundAmount.Float64
+		refundAmtInt := int64(refundAmount.Float64)
+		ret.RefundAmount = &refundAmtInt
 	}
 	if processedByID.Valid {
 		ret.ProcessedById = &processedByID.String
@@ -271,7 +270,8 @@ func (r *PostgresFulfillmentReturnRepository) ListFulfillmentReturns(ctx context
 			Active:        active,
 		}
 		if refundAmount.Valid {
-			ret.RefundAmount = &refundAmount.Float64
+			refundAmtInt := int64(refundAmount.Float64)
+			ret.RefundAmount = &refundAmtInt
 		}
 		if processedByID.Valid {
 			ret.ProcessedById = &processedByID.String

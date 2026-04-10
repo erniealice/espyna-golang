@@ -1,5 +1,3 @@
-//go:build postgresql
-
 package fulfillment
 
 import (

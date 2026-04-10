@@ -1,5 +1,3 @@
-//go:build postgresql
-
 package fulfillment
 
 import (
@@ -716,7 +714,8 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 			Active:        retActive,
 		}
 		if refundAmount.Valid {
-			ret.RefundAmount = &refundAmount.Float64
+			refundAmtInt := int64(refundAmount.Float64)
+			ret.RefundAmount = &refundAmtInt
 		}
 		if processedByID.Valid {
 			ret.ProcessedById = &processedByID.String

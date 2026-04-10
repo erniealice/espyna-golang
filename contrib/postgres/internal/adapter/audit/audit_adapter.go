@@ -1,4 +1,3 @@
-//go:build postgresql
 
 package audit
 

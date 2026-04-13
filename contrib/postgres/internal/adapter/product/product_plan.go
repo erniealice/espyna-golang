@@ -172,8 +172,7 @@ func (r *PostgresProductPlanRepository) DeleteProductPlan(ctx context.Context, r
 		return nil, fmt.Errorf("product plan ID is required")
 	}
 
-	// Delete document using common operations (soft delete)
-	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
+	err := r.dbOps.HardDelete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete product plan: %w", err)
 	}

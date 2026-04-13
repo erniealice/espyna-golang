@@ -31,6 +31,7 @@ func init() {
 			cfg.Supplier = getStringField(v, "Supplier")
 			cfg.ProductCollection = getStringField(v, "ProductCollection")
 			cfg.Collection = getStringField(v, "Collection")
+			cfg.Line = getStringField(v, "Line")
 			cfg.LocationArea = getStringField(v, "LocationArea")
 			cfg.SupplierCategory = getStringField(v, "SupplierCategory")
 			cfg.TreasuryDisbursement = getStringField(v, "TreasuryDisbursement")

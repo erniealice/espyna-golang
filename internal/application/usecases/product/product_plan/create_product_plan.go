@@ -215,6 +215,17 @@ func (uc *CreateProductPlanUseCase) validateBusinessRulesWithTranslation(ctx con
 		return errors.New(msg)
 	}
 
+	// Idempotency: reject duplicate product+plan combination
+	existing, err := uc.repositories.ProductPlan.ListProductPlans(ctx, &productplanpb.ListProductPlansRequest{})
+	if err == nil && existing != nil {
+		for _, pp := range existing.GetData() {
+			if pp.GetProductId() == productPlan.ProductId && pp.GetPlanId() == productPlan.PlanId {
+				msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.duplicate", "This product is already added to this plan [DEFAULT]")
+				return errors.New(msg)
+			}
+		}
+	}
+
 	return nil
 }
 

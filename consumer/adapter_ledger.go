@@ -48,8 +48,9 @@ type LedgerReportingTableConfig struct {
 	ExpenditureLineItem  string // expenditure_line_item table
 	ExpenditureCategory  string // expenditure_category table
 	Supplier             string // supplier table
-	ProductCollection    string // product_collection table (product <-> product line join)
-	Collection           string // collection table (product line / product_line)
+	ProductCollection    string // product_collection table (product <-> product line join) — deprecated, kept for backward compat
+	Collection           string // collection table (product line / product_line) — deprecated, kept for backward compat
+	Line                 string // line table (product taxonomy — product.line_id FK target)
 	LocationArea         string // location_area table
 	TreasuryDisbursement string // treasury_disbursement table
 	DisbursementMethod   string // disbursement_method table

@@ -64,6 +64,17 @@ func (c *Checker) GetProductInUseIDs(ctx context.Context, ids []string) (map[str
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 
+// GetPlanInUseIDs checks if plans are referenced by product_plan or price_plan.
+func (c *Checker) GetPlanInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT plan_id AS ref_id FROM product_plan WHERE plan_id = ANY($1)
+			UNION ALL
+			SELECT plan_id AS ref_id FROM price_plan WHERE plan_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
 // GetPriceListInUseIDs checks if price lists are referenced by price products.
 func (c *Checker) GetPriceListInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	query := `SELECT DISTINCT price_list_id FROM price_product WHERE price_list_id = ANY($1) AND active = true`
@@ -88,6 +99,16 @@ func (c *Checker) GetPaymentTermInUseIDs(ctx context.Context, ids []string) (map
 			SELECT payment_term_id AS ref_id FROM expenditure WHERE payment_term_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 		) AS refs`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
+func (c *Checker) GetLineInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT line_id AS ref_id FROM product WHERE line_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT line_id AS ref_id FROM product_line WHERE line_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
 func (c *Checker) GetLocationAreaInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {

@@ -356,6 +356,7 @@ func (r *PostgresProductRepository) GetProductListPageData(
 				p.description,
 				p.price,
 				p.currency,
+				p.line_id,
 				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans,
 				COUNT(*) OVER() AS total_count
@@ -387,6 +388,7 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			description       *string
 			price             int64
 			currency          string
+			lineID            *string
 			productAttributes []byte // jsonb
 			productPlans      []byte // jsonb
 			total             int64
@@ -401,6 +403,7 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			&description,
 			&price,
 			&currency,
+			&lineID,
 			&productAttributes,
 			&productPlans,
 			&total,
@@ -422,6 +425,11 @@ func (r *PostgresProductRepository) GetProductListPageData(
 		// Handle nullable description field
 		if description != nil {
 			product.Description = description
+		}
+
+		// Handle nullable line_id field
+		if lineID != nil {
+			product.LineId = lineID
 		}
 
 		// Parse timestamps if provided
@@ -527,6 +535,7 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 				p.description,
 				p.price,
 				p.currency,
+				p.line_id,
 				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
 				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
 			FROM product p
@@ -548,6 +557,7 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 		description       *string
 		price             int64
 		currency          string
+		lineID            *string
 		productAttributes []byte // jsonb
 		productPlans      []byte // jsonb
 	)
@@ -561,6 +571,7 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 		&description,
 		&price,
 		&currency,
+		&lineID,
 		&productAttributes,
 		&productPlans,
 	)
@@ -582,6 +593,11 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 	// Handle nullable description field
 	if description != nil {
 		product.Description = description
+	}
+
+	// Handle nullable line_id field
+	if lineID != nil {
+		product.LineId = lineID
 	}
 
 	// Handle date fields

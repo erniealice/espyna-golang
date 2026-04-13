@@ -93,9 +93,6 @@ func (uc *DeleteProductPlanUseCase) validateInput(ctx context.Context, req *prod
 	if req.Data == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.data_required", "Product plan data is required [DEFAULT]"))
 	}
-	if req.Data.ProductId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.product_id_required", "Product ID is required [DEFAULT]"))
-	}
 	if req.Data.Id == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.id_required", "Product plan ID is required [DEFAULT]"))
 	}

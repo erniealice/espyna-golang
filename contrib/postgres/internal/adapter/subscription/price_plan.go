@@ -198,7 +198,7 @@ func (r *PostgresPricePlanRepository) ListPricePlans(ctx context.Context, req *p
 	// Convert results to protobuf slice using protojson
 	var pricePlans []*priceplanpb.PricePlan
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
+		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
 			continue

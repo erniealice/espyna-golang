@@ -75,14 +75,12 @@ func getExpenditurePivotDimensionConfig(tc TableConfig, dimension string) pivotD
 			groupBy:   "eli.product_id, p.name",
 		}
 	case "product_line":
+		// Uses product.line_id (one-to-many FK) for unambiguous line attribution.
 		return pivotDimensionConfig{
-			selectKey: "COALESCE(c.name, 'Unassigned')",
-			selectID:  "COALESCE(pc_first.collection_id, '__none__')",
-			groupBy:   "pc_first.collection_id, c.name",
-			extraJoins: fmt.Sprintf(
-				"LEFT JOIN LATERAL (SELECT collection_id FROM %s WHERE product_id = eli.product_id AND active = true ORDER BY sort_order LIMIT 1) pc_first ON true"+
-					" LEFT JOIN %s c ON c.id = pc_first.collection_id",
-				tc.ProductCollection, tc.Collection),
+			selectKey:  "COALESCE(pl.name, 'Unassigned')",
+			selectID:   "COALESCE(p.line_id, '__none__')",
+			groupBy:    "p.line_id, pl.name",
+			extraJoins: fmt.Sprintf("LEFT JOIN %s pl ON pl.id = p.line_id", tc.Line),
 		}
 	case "location":
 		return pivotDimensionConfig{

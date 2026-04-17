@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	dbinterfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
@@ -84,6 +85,19 @@ func NewAuthAdapterFromContainer(container *Container) *AuthAdapter {
 	provider, ok := providerContract.(authProviderOperations)
 	if !ok {
 		return nil
+	}
+
+	// If the auth provider wants database operations (e.g. the password adapter),
+	// inject them from the container. This keeps providers tech-agnostic — the
+	// adapter asks for a DatabaseOperation, and the container supplies whichever
+	// backend is active (postgres/firestore/mock).
+	type operationsSettable interface {
+		SetOperations(ops dbinterfaces.DatabaseOperation)
+	}
+	if settable, ok := provider.(operationsSettable); ok {
+		if ops, ok := container.GetDatabaseOperations().(dbinterfaces.DatabaseOperation); ok {
+			settable.SetOperations(ops)
+		}
 	}
 
 	// Get auth service from provider

@@ -39,6 +39,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
+	jobTemplateUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
@@ -487,8 +488,33 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
+	// Build the JobTemplateInstantiator from operation + product repos (best-effort: nil on failure).
+	var jobTemplateInstantiator *jobTemplateUseCase.InstantiateJobsFromPlanUseCase
+	operationRepos, opErr := domain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	productRepos, prodErr := domain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if opErr != nil || prodErr != nil {
+		fmt.Printf("⚠️  Job instantiation service unavailable (operation repos: %v, product repos: %v)\n", opErr, prodErr)
+	} else {
+		jobTemplateInstantiator = jobTemplateUseCase.NewInstantiateJobsFromPlanUseCase(
+			jobTemplateUseCase.InstantiateJobsFromPlanRepositories{
+				ProductPlan:      productRepos.ProductPlan,
+				JobTemplate:      operationRepos.JobTemplate,
+				JobTemplatePhase: operationRepos.JobTemplatePhase,
+				JobTemplateTask:  operationRepos.JobTemplateTask,
+				Job:              operationRepos.Job,
+				JobPhase:         operationRepos.JobPhase,
+				JobTask:          operationRepos.JobTask,
+			},
+			jobTemplateUseCase.InstantiateJobsFromPlanServices{
+				TransactionService: txSvc,
+				IDService:          idSvc,
+			},
+		)
+		fmt.Printf("✅ Job instantiation service wired\n")
+	}
+
 	// Use composition initializer to wire everything together
-	subscriptionUseCases, err := initializers.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc)
+	subscriptionUseCases, err := initializers.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc, jobTemplateInstantiator)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize subscription use cases: %v\n", err)
 		return nil, err

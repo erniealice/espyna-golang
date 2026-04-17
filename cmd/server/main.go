@@ -29,8 +29,8 @@ Example Build Commands:
 Environment Variables:
   - SERVER_HOST: Server host (default: localhost)
   - SERVER_PORT: Server port (default: 8080)
-  - CONFIG_DATABASE_PROVIDER: Database provider (mock_db, postgres, firestore)
-  - CONFIG_AUTH_PROVIDER: Auth provider (mock_auth, firebase_auth)
+  - CONFIG_DATABASE_PROVIDER: Database provider (mock_db, postgresql, firestore)
+  - CONFIG_AUTH_PROVIDER: Auth provider (mock_auth, firebase_auth, password)
   - CONFIG_ID_PROVIDER: ID provider (noop, google_uuidv7)
   - CONFIG_STORAGE_PROVIDER: Storage provider (mock_storage, local)
   - CONFIG_SERVER_PROVIDER: Server hint (gin, fiber, fiber_v3, vanilla) - for logging only

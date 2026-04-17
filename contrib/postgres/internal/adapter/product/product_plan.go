@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package product
 
 import (
@@ -264,7 +266,7 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, name, description, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1)` + planIDFilter + `), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, name, description, product_id, plan_id, job_template_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1)` + planIDFilter + `), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -277,10 +279,11 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		var id, name, productId string
 		var description *string
 		var planId *string
+		var jobTemplateID *string
 		var active bool
 		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &name, &description, &productId, &planId, &active, &dateCreated, &dateModified, &total); err != nil {
+		if err := rows.Scan(&id, &name, &description, &productId, &planId, &jobTemplateID, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
@@ -290,6 +293,9 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		}
 		if planId != nil {
 			productPlan.PlanId = *planId
+		}
+		if jobTemplateID != nil {
+			productPlan.JobTemplateId = jobTemplateID
 		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -314,14 +320,15 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	if req == nil || req.ProductPlanId == "" {
 		return nil, fmt.Errorf("product plan ID required")
 	}
-	query := `SELECT id, name, description, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, product_id, plan_id, job_template_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPlanId)
 	var id, name, productId string
 	var description *string
 	var planId *string
+	var jobTemplateID *string
 	var active bool
 	var dateCreated, dateModified time.Time
-	if err := row.Scan(&id, &name, &description, &productId, &planId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
+	if err := row.Scan(&id, &name, &description, &productId, &planId, &jobTemplateID, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -332,6 +339,9 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	}
 	if planId != nil {
 		productPlan.PlanId = *planId
+	}
+	if jobTemplateID != nil {
+		productPlan.JobTemplateId = jobTemplateID
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
@@ -346,6 +356,79 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 		productPlan.DateModifiedString = &dmStr
 	}
 	return &productplanpb.GetProductPlanItemPageDataResponse{ProductPlan: productPlan, Success: true}, nil
+}
+
+// ListByPlan retrieves all product plans for a given plan, ordered by date_created DESC
+func (r *PostgresProductPlanRepository) ListByPlan(
+	ctx context.Context,
+	req *productplanpb.ListProductPlansByPlanRequest,
+) (*productplanpb.ListProductPlansByPlanResponse, error) {
+	if req == nil || req.PlanId == "" {
+		return nil, fmt.Errorf("plan ID is required")
+	}
+
+	query := `
+		SELECT pp.id, pp.name, pp.description, pp.product_id, pp.plan_id, pp.job_template_id, pp.active, pp.date_created, pp.date_modified
+		FROM product_plan pp
+		WHERE pp.plan_id = $1 AND pp.active = true
+		ORDER BY pp.date_created DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, req.PlanId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list product plans by plan: %w", err)
+	}
+	defer rows.Close()
+
+	var items []*productplanpb.ProductPlan
+	for rows.Next() {
+		var (
+			id            string
+			name          string
+			description   *string
+			productId     string
+			planId        *string
+			jobTemplateID *string
+			active        bool
+			dateCreated   time.Time
+			dateModified  time.Time
+		)
+
+		if err := rows.Scan(&id, &name, &description, &productId, &planId, &jobTemplateID, &active, &dateCreated, &dateModified); err != nil {
+			return nil, fmt.Errorf("failed to scan product plan row: %w", err)
+		}
+
+		item := &productplanpb.ProductPlan{Id: id, Name: name, ProductId: productId, Active: active}
+		if description != nil {
+			item.Description = description
+		}
+		if planId != nil {
+			item.PlanId = *planId
+		}
+		if jobTemplateID != nil {
+			item.JobTemplateId = jobTemplateID
+		}
+		if !dateCreated.IsZero() {
+			ts := dateCreated.UnixMilli()
+			item.DateCreated = &ts
+			dcStr := dateCreated.Format(time.RFC3339)
+			item.DateCreatedString = &dcStr
+		}
+		if !dateModified.IsZero() {
+			ts := dateModified.UnixMilli()
+			item.DateModified = &ts
+			dmStr := dateModified.Format(time.RFC3339)
+			item.DateModifiedString = &dmStr
+		}
+
+		items = append(items, item)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating product plan rows: %w", err)
+	}
+
+	return &productplanpb.ListProductPlansByPlanResponse{ProductPlans: items, Success: true}, nil
 }
 
 // parseProductPlanTimestamp parses various timestamp formats to Unix milliseconds

@@ -372,6 +372,7 @@ const (
 	EntityPlanAttribute         = security.EntityPlanAttribute
 	EntityPlanSettings          = security.EntityPlanSettings
 	EntityPricePlan             = security.EntityPricePlan
+	EntityPriceSchedule         = security.EntityPriceSchedule
 	EntityProductPricePlan      = security.EntityProductPricePlan
 	EntitySubscription          = security.EntitySubscription
 	EntitySubscriptionAttribute = security.EntitySubscriptionAttribute

@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package ledger
 
 import (
@@ -457,6 +459,30 @@ func (a *LedgerReportingAdapter) GetSupplierBalances(ctx context.Context) (map[s
 			return nil, err
 		}
 		result[supplierID] = outstanding
+	}
+	return result, rows.Err()
+}
+
+// GetClientBalances returns a map of client_id → outstanding centavo balance
+// for all clients that have a non-zero outstanding balance.
+// Clients with zero net balance are omitted (use 0 as the default for absent keys).
+func (a *LedgerReportingAdapter) GetClientBalances(ctx context.Context) (map[string]int64, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query, _ := buildClientBalancesQuery(a.tableConfig)
+	rows, err := a.db.QueryContext(ctx, query, nilIfEmpty(workspaceID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64)
+	for rows.Next() {
+		var clientID string
+		var outstanding int64
+		if err := rows.Scan(&clientID, &outstanding); err != nil {
+			return nil, err
+		}
+		result[clientID] = outstanding
 	}
 	return result, rows.Err()
 }

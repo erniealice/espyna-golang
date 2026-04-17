@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package subscription
 
 import (
@@ -166,14 +168,16 @@ func (r *PostgresPricePlanRepository) UpdatePricePlan(ctx context.Context, req *
 	}, nil
 }
 
-// DeletePricePlan deletes a price plan using common PostgreSQL operations
+// DeletePricePlan permanently removes a price plan row. Matches the semantics of
+// its parent PriceSchedule: activate/deactivate owns the soft-delete slot, so
+// Delete must be a true hard delete. Child ProductPricePlan rows cascade via the
+// price_plan_cascade_delete migration.
 func (r *PostgresPricePlanRepository) DeletePricePlan(ctx context.Context, req *priceplanpb.DeletePricePlanRequest) (*priceplanpb.DeletePricePlanResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("price plan ID is required")
 	}
 
-	// Delete document using common operations (soft delete)
-	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
+	err := r.dbOps.HardDelete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete price plan: %w", err)
 	}
@@ -244,7 +248,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 	}
 
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, location_id FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -257,14 +261,14 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		var amount int64
 		var active bool
 		var dateCreated, dateModified time.Time
-		var locationId sql.NullString
-		if err := rows.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &locationId); err != nil {
+		var priceScheduleId sql.NullString
+		if err := rows.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
 		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: amount, Currency: currency, Active: active}
-		if locationId.Valid && locationId.String != "" {
-			pricePlan.LocationId = &locationId.String
+		if priceScheduleId.Valid && priceScheduleId.String != "" {
+			pricePlan.PriceScheduleId = &priceScheduleId.String
 		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -290,21 +294,21 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	if req == nil || req.PricePlanId == "" {
 		return nil, fmt.Errorf("price plan ID required")
 	}
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, location_id FROM price_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
 	var id, planId, currency, name, description string
 	var amount int64
 	var active bool
 	var dateCreated, dateModified time.Time
-	var locationId sql.NullString
-	if err := row.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &locationId); err == sql.ErrNoRows {
+	var priceScheduleId sql.NullString
+	if err := row.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: amount, Currency: currency, Active: active}
-	if locationId.Valid && locationId.String != "" {
-		pricePlan.LocationId = &locationId.String
+	if priceScheduleId.Valid && priceScheduleId.String != "" {
+		pricePlan.PriceScheduleId = &priceScheduleId.String
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

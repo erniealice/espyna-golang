@@ -1,3 +1,5 @@
+//go:build postgresql
+
 // Package postgres registers the PostgreSQL database adapter with espyna's registry.
 // Import this package with a blank identifier to enable PostgreSQL support:
 //

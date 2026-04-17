@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package fulfillment
 
 import (
@@ -62,10 +64,10 @@ func (r *PostgresFulfillmentItemRepository) CreateFulfillmentItem(ctx context.Co
 
 	query := `
 		INSERT INTO fulfillment_item
-			(id, fulfillment_id, revenue_line_item_id, product_id, fulfillment_method,
+			(id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 			 source_type, source_id, quantity_ordered, quantity_delivered, status, notes)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, fulfillment_id, revenue_line_item_id, product_id, fulfillment_method,
+		RETURNING id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		          source_type, source_id, quantity_ordered, quantity_delivered, status, notes
 	`
 
@@ -82,7 +84,7 @@ func (r *PostgresFulfillmentItemRepository) CreateFulfillmentItem(ctx context.Co
 		item.FulfillmentId,
 		item.RevenueLineItemId,
 		item.ProductId,
-		item.FulfillmentMethod,
+		item.DeliveryMode,
 		sourceType,
 		sourceID,
 		item.QuantityOrdered,
@@ -98,7 +100,7 @@ func (r *PostgresFulfillmentItemRepository) CreateFulfillmentItem(ctx context.Co
 		&created.FulfillmentId,
 		&created.RevenueLineItemId,
 		&created.ProductId,
-		&created.FulfillmentMethod,
+		&created.DeliveryMode,
 		&srcType,
 		&srcID,
 		&created.QuantityOrdered,
@@ -127,7 +129,7 @@ func (r *PostgresFulfillmentItemRepository) ListFulfillmentItems(ctx context.Con
 	}
 
 	query := `
-		SELECT id, fulfillment_id, revenue_line_item_id, product_id, fulfillment_method,
+		SELECT id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		       source_type, source_id, quantity_ordered, quantity_delivered, status, notes
 		FROM fulfillment_item
 		WHERE fulfillment_id = $1
@@ -167,7 +169,7 @@ func (r *PostgresFulfillmentItemRepository) ListFulfillmentItems(ctx context.Con
 			FulfillmentId:     fID,
 			RevenueLineItemId: revenueLineItemID,
 			ProductId:         productID,
-			FulfillmentMethod: method,
+			DeliveryMode:      method,
 			QuantityOrdered:   quantityOrdered,
 			QuantityDelivered: quantityDelivered,
 			Status:            status,
@@ -204,4 +206,3 @@ func (r *PostgresFulfillmentItemRepository) UpdateFulfillmentItemDelivered(ctx c
 	}
 	return nil
 }
-

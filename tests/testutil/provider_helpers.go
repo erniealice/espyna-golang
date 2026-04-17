@@ -21,7 +21,7 @@ func SetupTestEnvironment(providerName string) {
 		os.Setenv("CONFIG_DATABASE_PROVIDER", "mock_db")
 		os.Setenv("BUSINESS_TYPE", "education")
 	case "postgresql":
-		os.Setenv("CONFIG_DATABASE_PROVIDER", "postgres")
+		os.Setenv("CONFIG_DATABASE_PROVIDER", "postgresql")
 		os.Setenv("POSTGRES_HOST", getEnvWithDefault("TEST_POSTGRES_HOST", "localhost"))
 		os.Setenv("POSTGRES_PORT", getEnvWithDefault("TEST_POSTGRES_PORT", "5432"))
 		os.Setenv("POSTGRES_NAME", getEnvWithDefault("TEST_POSTGRES_DB", "espyna_test"))

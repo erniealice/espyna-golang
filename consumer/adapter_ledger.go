@@ -31,6 +31,7 @@ type LedgerReportingService interface {
 	GetClientStatement(ctx context.Context, req *clientstmtpb.ClientStatementRequest) (*clientstmtpb.ClientStatementResponse, error)
 	GetSupplierStatement(ctx context.Context, req *suppstmtpb.SupplierStatementRequest) (*suppstmtpb.SupplierStatementResponse, error)
 	GetSupplierBalances(ctx context.Context) (map[string]int64, error)
+	GetClientBalances(ctx context.Context) (map[string]int64, error)
 	ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 	ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 }

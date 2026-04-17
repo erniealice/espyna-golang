@@ -1,3 +1,5 @@
+//go:build postgresql
+
 // Package postgres is the PostgreSQL adapter's self-registration entry point.
 //
 // init() registers three things with the espyna registry:

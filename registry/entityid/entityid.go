@@ -69,6 +69,7 @@ const (
 	Staff             = "staff"
 	StaffAttribute    = "staff_attribute"
 	PaymentTerm       = "payment_term"
+	Session           = "session"
 	Supplier          = "supplier"
 	SupplierAttribute = "supplier_attribute"
 	SupplierCategory  = "supplier_category"
@@ -149,6 +150,7 @@ const (
 	PlanAttribute         = "plan_attribute"
 	PlanSettings          = "plan_settings"
 	PricePlan             = "price_plan"
+	PriceSchedule         = "price_schedule"
 	ProductPricePlan      = "product_price_plan"
 	Subscription          = "subscription"
 	SubscriptionAttribute = "subscription_attribute"
@@ -277,6 +279,7 @@ var EntityEntities = []string{
 	Role, RolePermission,
 	Staff, StaffAttribute,
 	PaymentTerm,
+	Session,
 	Supplier, SupplierAttribute, SupplierCategory,
 	User,
 	Workspace, WorkspaceUser, WorkspaceUserRole,
@@ -317,7 +320,7 @@ var SubscriptionEntities = []string{
 	Invoice, InvoiceAttribute,
 	License, LicenseHistory,
 	Plan, PlanAttribute, PlanSettings,
-	PricePlan, ProductPricePlan,
+	PricePlan, PriceSchedule, ProductPricePlan,
 	Subscription, SubscriptionAttribute,
 }
 

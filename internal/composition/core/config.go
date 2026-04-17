@@ -12,13 +12,13 @@ in container.go.
 ═══════════════════════════════════════════════════════════════════════════
 
 CONFIG_DATABASE_PROVIDER=mock_db          (default) Mock database for development
-CONFIG_DATABASE_PROVIDER=postgres         PostgreSQL database
+CONFIG_DATABASE_PROVIDER=postgresql       PostgreSQL database
 CONFIG_DATABASE_PROVIDER=firestore        Google Cloud Firestore
 
 🧪 MOCK DATABASE (mock_db):
 BUSINESS_TYPE=education                   Business type for mock data (default: education)
 
-🐘 POSTGRESQL (postgres):
+🐘 POSTGRESQL (postgresql):
 POSTGRES_HOST=localhost                   Database host (default: localhost)
 POSTGRES_PORT=5432                        Database port (default: 5432)
 POSTGRES_NAME=espyna                      Database name (default: espyna)
@@ -38,6 +38,8 @@ FIRESTORE_DATABASE=                       Firestore database name (optional)
 
 CONFIG_AUTH_PROVIDER=mock_auth            (default) Mock authentication for development
 CONFIG_AUTH_PROVIDER=firebase_auth        Firebase Authentication
+CONFIG_AUTH_PROVIDER=password             Password + session auth (any DB backend via DatabaseOperation)
+CONFIG_AUTH_PROVIDER=db_auth              [legacy alias for "password"]
 
 🔥 FIREBASE AUTH (firebase_auth):
 FIREBASE_AUTH_PROJECT_ID=your-project-id      Google Cloud project ID (required)
@@ -90,7 +92,7 @@ export CONFIG_AUTH_PROVIDER=mock_auth
 export BUSINESS_TYPE=education
 
 # Production with PostgreSQL and Firebase Auth:
-export CONFIG_DATABASE_PROVIDER=postgres
+export CONFIG_DATABASE_PROVIDER=postgresql
 export CONFIG_AUTH_PROVIDER=firebase_auth
 export POSTGRES_HOST=your-db-host
 export POSTGRES_PASSWORD=your-password

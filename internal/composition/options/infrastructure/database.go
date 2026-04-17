@@ -144,7 +144,7 @@ func WithDatabaseFromEnv() ContainerOption {
 		dbProvider := strings.ToLower(GetEnv("CONFIG_DATABASE_PROVIDER", "mock_db"))
 
 		switch dbProvider {
-		case "postgres":
+		case "postgresql":
 			return WithPostgresDatabase(createPostgresConfigFromEnv())(c)
 		case "firestore":
 			return WithFirestoreDatabase(createFirestoreConfigFromEnv())(c)

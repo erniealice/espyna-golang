@@ -25,6 +25,12 @@ func CreateAuthProvider() (contracts.Provider, error) {
 		providerName = "firebase"
 	case "jwt_auth":
 		providerName = "jwt"
+	case "db_auth", "password_auth":
+		// db_auth is the legacy name for the password/session adapter that
+		// used to hardcode PostgreSQL. The refactored adapter works with any
+		// DatabaseOperation, so it's renamed "password" — keeping the old
+		// name as an alias avoids breaking existing .env files.
+		providerName = "password"
 	case "mock_auth", "noop", "":
 		providerName = "mock"
 	}

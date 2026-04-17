@@ -27,6 +27,7 @@ type UseCases struct {
 	ListJobTemplates           *ListJobTemplatesUseCase
 	GetJobTemplateListPageData *GetJobTemplateListPageDataUseCase
 	GetJobTemplateItemPageData *GetJobTemplateItemPageDataUseCase
+	InstantiateJobsFromPlan    *InstantiateJobsFromPlanUseCase
 }
 
 // NewUseCases creates a new collection of job template use cases

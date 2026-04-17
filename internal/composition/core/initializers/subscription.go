@@ -3,6 +3,7 @@ package initializers
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
@@ -14,6 +15,7 @@ func InitializeSubscription(
 	txSvc ports.TransactionService,
 	i18nSvc ports.TranslationService,
 	idSvc ports.IDService,
+	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
 ) (*subscription.SubscriptionUseCases, error) {
 	// Use the domain's constructor which properly handles all use case creation
 	return subscription.NewUseCases(
@@ -27,6 +29,7 @@ func InitializeSubscription(
 			PlanAttribute:         repos.PlanAttribute,
 			PlanSettings:          repos.PlanSettings,
 			PricePlan:             repos.PricePlan,
+			PriceSchedule:        repos.PriceSchedule,
 			ProductPricePlan:      repos.ProductPricePlan,
 			Subscription:          repos.Subscription,
 			SubscriptionAttribute: repos.SubscriptionAttribute,
@@ -36,5 +39,6 @@ func InitializeSubscription(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		jobTemplateInstantiator,
 	), nil
 }

@@ -22,10 +22,11 @@ type CreateSubscriptionRepositories struct {
 }
 
 type CreateSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	AuthorizationService    ports.AuthorizationService
+	TransactionService      ports.TransactionService
+	TranslationService      ports.TranslationService
+	IDService               ports.IDService
+	JobTemplateInstantiator JobTemplateInstantiator
 }
 
 // CreateSubscriptionUseCase handles the business logic for creating subscriptions
@@ -62,8 +63,9 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 		return nil, err
 	}
 
-	// Entity reference validation
-	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
+	// Entity reference validation — also returns the PricePlan so we can read plan_id later.
+	pricePlan, err := uc.validateEntityReferences(ctx, req.Data)
+	if err != nil {
 		return nil, err
 	}
 
@@ -71,12 +73,29 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	enrichedSubscription := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
+	var resp *subscriptionpb.CreateSubscriptionResponse
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		return uc.executeWithTransaction(ctx, req, enrichedSubscription)
+		resp, err = uc.executeWithTransaction(ctx, req, enrichedSubscription)
+	} else {
+		// Fallback to non-transactional execution
+		resp, err = uc.executeCore(ctx, req, enrichedSubscription)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	// Fallback to non-transactional execution
-	return uc.executeCore(ctx, req, enrichedSubscription)
+	// After successful creation, instantiate jobs from the plan (best-effort, non-blocking).
+	if uc.services.JobTemplateInstantiator != nil && pricePlan != nil {
+		wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+		if jiErr := uc.services.JobTemplateInstantiator.InstantiateJobsFromPlan(
+			ctx, pricePlan.PlanId, enrichedSubscription.ClientId, enrichedSubscription.Id, wsID,
+		); jiErr != nil {
+			log.Printf("Warning: job instantiation failed for subscription %s: %v", enrichedSubscription.Id, jiErr)
+			// Do not fail subscription creation — log and continue.
+		}
+	}
+
+	return resp, nil
 }
 
 // executeWithTransaction executes subscription creation within a transaction
@@ -168,11 +187,14 @@ func (uc *CreateSubscriptionUseCase) validateBusinessRules(ctx context.Context, 
 	return nil
 }
 
-// validateEntityReferences validates that all referenced entities exist
-func (uc *CreateSubscriptionUseCase) validateEntityReferences(ctx context.Context, subscription *subscriptionpb.Subscription) error {
+// validateEntityReferences validates that all referenced entities exist.
+// It returns the resolved PricePlan so the caller can access plan_id after validation.
+func (uc *CreateSubscriptionUseCase) validateEntityReferences(ctx context.Context, subscription *subscriptionpb.Subscription) (*priceplanpb.PricePlan, error) {
 	if subscription == nil {
-		return nil // Should be caught by validateBusinessRules
+		return nil, nil // Should be caught by validateBusinessRules
 	}
+
+	var resolvedPricePlan *priceplanpb.PricePlan
 
 	// Validate PricePlan entity reference
 	if subscription.PricePlanId != "" {
@@ -180,11 +202,12 @@ func (uc *CreateSubscriptionUseCase) validateEntityReferences(ctx context.Contex
 			Data: &priceplanpb.PricePlan{Id: subscription.PricePlanId},
 		})
 		if err != nil || pricePlan == nil || pricePlan.Data == nil || len(pricePlan.Data) == 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_found", "[ERR-DEFAULT] Price plan not found"))
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_found", "[ERR-DEFAULT] Price plan not found"))
 		}
 		if !pricePlan.Data[0].Active {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_active", "[ERR-DEFAULT] Price plan is not active"))
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_active", "[ERR-DEFAULT] Price plan is not active"))
 		}
+		resolvedPricePlan = pricePlan.Data[0]
 	}
 
 	// Validate Client entity reference
@@ -193,12 +216,12 @@ func (uc *CreateSubscriptionUseCase) validateEntityReferences(ctx context.Contex
 			Data: &clientpb.Client{Id: subscription.ClientId},
 		})
 		if err != nil || client == nil || client.Data == nil || len(client.Data) == 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_found", "[ERR-DEFAULT] Client not found"))
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_found", "[ERR-DEFAULT] Client not found"))
 		}
 		if !client.Data[0].Active {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_active", "[ERR-DEFAULT] Client is not active"))
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.client_not_active", "[ERR-DEFAULT] Client is not active"))
 		}
 	}
 
-	return nil
+	return resolvedPricePlan, nil
 }

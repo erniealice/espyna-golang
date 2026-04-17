@@ -10,6 +10,7 @@ import (
 	planAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan_attribute"
 	planSettingsUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan_settings"
 	pricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/price_plan"
+	priceScheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/price_schedule"
 	productPricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/product_price_plan"
 	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 	subscriptionAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription_attribute"
@@ -28,6 +29,7 @@ import (
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
@@ -44,6 +46,7 @@ type SubscriptionRepositories struct {
 	PlanAttribute         planattributepb.PlanAttributeDomainServiceServer
 	PlanSettings          plansettingspb.PlanSettingsDomainServiceServer
 	PricePlan             priceplanpb.PricePlanDomainServiceServer
+	PriceSchedule         priceschedulepb.PriceScheduleDomainServiceServer
 	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
@@ -60,6 +63,7 @@ type SubscriptionUseCases struct {
 	PlanAttribute         *planAttributeUseCases.UseCases
 	PlanSettings          *planSettingsUseCases.UseCases
 	PricePlan             *pricePlanUseCases.UseCases
+	PriceSchedule         *priceScheduleUseCases.UseCases
 	ProductPricePlan      *productPricePlanUseCases.UseCases
 	Subscription          *subscriptionUseCases.UseCases
 	SubscriptionAttribute *subscriptionAttributeUseCases.UseCases
@@ -72,6 +76,7 @@ func NewUseCases(
 	txSvc ports.TransactionService,
 	i18nSvc ports.TranslationService,
 	idService ports.IDService,
+	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
 ) *SubscriptionUseCases {
 	// Create use cases for each subscription entity
 	balanceUC := balanceUseCases.NewUseCases(
@@ -124,6 +129,16 @@ func NewUseCases(
 		},
 	)
 
+	priceScheduleUC := priceScheduleUseCases.NewUseCases(
+		priceScheduleUseCases.PriceScheduleRepositories{PriceSchedule: repos.PriceSchedule},
+		priceScheduleUseCases.PriceScheduleServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
 	productPricePlanUC := productPricePlanUseCases.NewUseCases(
 		productPricePlanUseCases.ProductPricePlanRepositories{
 			ProductPricePlan: repos.ProductPricePlan,
@@ -144,10 +159,11 @@ func NewUseCases(
 			PricePlan:    repos.PricePlan,
 		},
 		subscriptionUseCases.SubscriptionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			AuthorizationService:    authSvc,
+			TransactionService:      txSvc,
+			TranslationService:      i18nSvc,
+			IDService:               idService,
+			JobTemplateInstantiator: jobTemplateInstantiator,
 		},
 	)
 
@@ -216,6 +232,7 @@ func NewUseCases(
 		PlanAttribute:         planAttributeUC,
 		PlanSettings:          planSettingsUC,
 		PricePlan:             pricePlanUC,
+		PriceSchedule:         priceScheduleUC,
 		ProductPricePlan:      productPricePlanUC,
 		Subscription:          subscriptionUC,
 		SubscriptionAttribute: subscriptionAttributeUC,

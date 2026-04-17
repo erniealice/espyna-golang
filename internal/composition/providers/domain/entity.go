@@ -30,6 +30,7 @@ import (
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 	supplierattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_attribute"
 	suppliercategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_category"
+	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -57,6 +58,7 @@ type EntityRepositories struct {
 	Supplier          supplierpb.SupplierDomainServiceServer
 	SupplierAttribute supplierattributepb.SupplierAttributeDomainServiceServer
 	SupplierCategory  suppliercategorypb.SupplierCategoryDomainServiceServer
+	Session           sessionpb.SessionDomainServiceServer
 	User              userpb.UserDomainServiceServer
 	Workspace         workspacepb.WorkspaceDomainServiceServer
 	WorkspaceUser     workspaceuserpb.WorkspaceUserDomainServiceServer
@@ -149,6 +151,9 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	}
 	if r := tryCreate(entityid.SupplierCategory); r != nil {
 		repos.SupplierCategory = r.(suppliercategorypb.SupplierCategoryDomainServiceServer)
+	}
+	if r := tryCreate(entityid.Session); r != nil {
+		repos.Session = r.(sessionpb.SessionDomainServiceServer)
 	}
 	if r := tryCreate(entityid.User); r != nil {
 		repos.User = r.(userpb.UserDomainServiceServer)

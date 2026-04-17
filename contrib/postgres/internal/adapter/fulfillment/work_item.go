@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package fulfillment
 
 import (
@@ -264,7 +266,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 				f.workspace_id,
 				f.revenue_id,
 				f.supplier_id,
-				f.fulfillment_method,
+				f.delivery_mode,
 				f.status,
 				f.provider_status,
 				f.provider_reference,
@@ -297,7 +299,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			e.workspace_id,
 			e.revenue_id,
 			e.supplier_id,
-			e.fulfillment_method,
+			e.delivery_mode,
 			e.status,
 			e.provider_status,
 			e.provider_reference,
@@ -333,7 +335,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			workspaceID       string
 			revenueID         string
 			supplierID        sql.NullString
-			fulfillmentMethod string
+			deliveryMode string
 			status            string
 			providerStatus    string
 			providerReference string
@@ -356,7 +358,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			&workspaceID,
 			&revenueID,
 			&supplierID,
-			&fulfillmentMethod,
+			&deliveryMode,
 			&status,
 			&providerStatus,
 			&providerReference,
@@ -381,7 +383,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			Active:            active,
 			WorkspaceId:       workspaceID,
 			RevenueId:         revenueID,
-			FulfillmentMethod: fulfillmentMethod,
+			DeliveryMode: deliveryMode,
 			Status:            status,
 			ProviderStatus:    providerStatus,
 			ProviderReference: providerReference,
@@ -469,7 +471,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 			f.workspace_id,
 			f.revenue_id,
 			f.supplier_id,
-			f.fulfillment_method,
+			f.delivery_mode,
 			f.status,
 			f.provider_status,
 			f.provider_reference,
@@ -493,7 +495,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 		scannedWorkspaceID string
 		revenueID         string
 		supplierID        sql.NullString
-		fulfillmentMethod string
+		deliveryMode string
 		status            string
 		providerStatus    string
 		providerReference string
@@ -512,7 +514,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 		&scannedWorkspaceID,
 		&revenueID,
 		&supplierID,
-		&fulfillmentMethod,
+		&deliveryMode,
 		&status,
 		&providerStatus,
 		&providerReference,
@@ -530,12 +532,12 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	}
 
 	f := &pb.Fulfillment{
-		Id:                id,
-		Active:            active,
-		WorkspaceId:       scannedWorkspaceID,
-		RevenueId:         revenueID,
-		FulfillmentMethod: fulfillmentMethod,
-		Status:            status,
+		Id:           id,
+		Active:       active,
+		WorkspaceId:  scannedWorkspaceID,
+		RevenueId:    revenueID,
+		DeliveryMode: deliveryMode,
+		Status:       status,
 		ProviderStatus:    providerStatus,
 		ProviderReference: providerReference,
 		DeliveryCost:      deliveryCost,
@@ -558,7 +560,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 
 	// Fetch line items
 	itemsQuery := `
-		SELECT id, fulfillment_id, revenue_line_item_id, product_id, fulfillment_method,
+		SELECT id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		       source_type, source_id, quantity_ordered, quantity_delivered, status, notes
 		FROM fulfillment_item
 		WHERE fulfillment_id = $1
@@ -597,7 +599,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 			FulfillmentId:     itemFulfillmentID,
 			RevenueLineItemId: revenueLineItemID,
 			ProductId:         productID,
-			FulfillmentMethod: itemMethod,
+			DeliveryMode: itemMethod,
 			QuantityOrdered:   quantityOrdered,
 			QuantityDelivered: quantityDelivered,
 			Status:            itemStatus,

@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package subscription
 
 import (
@@ -166,14 +168,15 @@ func (r *PostgresProductPricePlanRepository) UpdateProductPricePlan(ctx context.
 	}, nil
 }
 
-// DeleteProductPricePlan deletes a product price plan using common PostgreSQL operations
+// DeleteProductPricePlan permanently removes a product price plan row.
+// No activate/deactivate UI exists for this entity, so soft-delete would just
+// accumulate active=false rows that no surface ever shows again.
 func (r *PostgresProductPricePlanRepository) DeleteProductPricePlan(ctx context.Context, req *productpriceplanpb.DeleteProductPricePlanRequest) (*productpriceplanpb.DeleteProductPricePlanResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("product price plan ID is required")
 	}
 
-	// Delete document using common operations (soft delete)
-	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
+	err := r.dbOps.HardDelete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete product price plan: %w", err)
 	}

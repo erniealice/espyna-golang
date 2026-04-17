@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package inventory
 
 import (
@@ -298,7 +300,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 				ii.quantity_available,
 				ii.reorder_level,
 				ii.unit_of_measure,
-				COALESCE(p.item_type, '') as item_type,
+				COALESCE(p.tracking_mode, '') as tracking_mode,
 				COALESCE(p.name, '') as product_name,
 				COUNT(*) OVER() AS total_count
 			FROM inventory_item ii
@@ -333,7 +335,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 			quantityAvailable float64
 			reorderLevel      *float64
 			unitOfMeasure     string
-			itemType          string
+			trackingMode      string
 			productName       string
 			total             int64
 		)
@@ -352,7 +354,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 			&quantityAvailable,
 			&reorderLevel,
 			&unitOfMeasure,
-			&itemType,
+			&trackingMode,
 			&productName,
 			&total,
 		)
@@ -378,7 +380,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 			inventoryItem.Product = &productpb.Product{
 				Id:       *productID,
 				Name:     productName,
-				ItemType: itemType,
+				TrackingMode: trackingMode,
 			}
 		}
 		if locationID != nil {
@@ -464,7 +466,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 				ii.quantity_available,
 				ii.reorder_level,
 				ii.unit_of_measure,
-				COALESCE(p.item_type, '') as item_type,
+				COALESCE(p.tracking_mode, '') as tracking_mode,
 				ii.product_variant_id,
 				ii.notes,
 				COALESCE(p.name, '') as product_name,
@@ -492,7 +494,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 		quantityAvailable float64
 		reorderLevel      *float64
 		unitOfMeasure     string
-		itemType          string
+		trackingMode      string
 		productVariantID  *string
 		notes             *string
 		productName       string
@@ -513,7 +515,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 		&quantityAvailable,
 		&reorderLevel,
 		&unitOfMeasure,
-		&itemType,
+		&trackingMode,
 		&productVariantID,
 		&notes,
 		&productName,
@@ -543,7 +545,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 			Id:       *productID,
 			Name:     productName,
 			Price:    productPrice,
-			ItemType: itemType,
+			TrackingMode: trackingMode,
 		}
 	}
 	if locationID != nil {

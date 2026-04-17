@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package postgres
 
 import (
@@ -13,6 +15,7 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/operation"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/payroll"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/product"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/rbac"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/revenue"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/subscription"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/treasury"

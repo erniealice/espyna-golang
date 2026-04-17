@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package operation
 
 import (

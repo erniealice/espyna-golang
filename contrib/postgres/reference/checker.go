@@ -1,3 +1,5 @@
+//go:build postgresql
+
 package reference
 
 import (
@@ -30,6 +32,8 @@ func (c *Checker) GetLocationInUseIDs(ctx context.Context, ids []string) (map[st
 			SELECT location_id AS ref_id FROM inventory_item WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 			UNION ALL
 			SELECT location_id AS ref_id FROM price_list WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+			UNION ALL
+			SELECT location_id AS ref_id FROM price_schedule WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 		) AS refs`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
@@ -40,7 +44,12 @@ func (c *Checker) GetRoleInUseIDs(ctx context.Context, ids []string) (map[string
 }
 
 func (c *Checker) GetCategoryInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	query := `SELECT DISTINCT category_id FROM client_category WHERE category_id = ANY($1) AND active = true`
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT category_id AS ref_id FROM client_category WHERE category_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT category_id AS ref_id FROM supplier_category WHERE category_id = ANY($1) AND active = true
+		) AS refs`
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
@@ -81,6 +90,27 @@ func (c *Checker) GetPriceListInUseIDs(ctx context.Context, ids []string) (map[s
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
+// GetPricePlanInUseIDs checks if price plans are referenced by product price plans or subscriptions.
+func (c *Checker) GetPricePlanInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT price_plan_id AS ref_id FROM product_price_plan WHERE price_plan_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT price_plan_id AS ref_id FROM subscription WHERE price_plan_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetPriceScheduleInUseIDs checks if price schedules are referenced by price plans.
+// Note: price_plan.price_schedule_id FK is pending migration. This checker will become
+// active once the FK is added.
+func (c *Checker) GetPriceScheduleInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	// TODO: uncomment once price_plan.price_schedule_id FK migration is complete
+	// query := `SELECT DISTINCT price_schedule_id FROM price_plan WHERE price_schedule_id = ANY($1) AND active = true`
+	// return queryInUseIDs(ctx, c.db, query, ids)
+	return make(map[string]bool), nil
+}
+
 func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	query := `SELECT DISTINCT asset_category_id AS ref_id FROM asset WHERE asset_category_id = ANY($1) AND active = true`
 	return queryInUseIDs(ctx, c.db, query, ids)
@@ -114,6 +144,18 @@ func (c *Checker) GetLineInUseIDs(ctx context.Context, ids []string) (map[string
 func (c *Checker) GetLocationAreaInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	query := `SELECT DISTINCT location_area_id AS ref_id FROM location WHERE location_area_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)`
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
+// GetSupplierInUseIDs checks if suppliers are referenced by expenditures or fulfillments.
+func (c *Checker) GetSupplierInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT supplier_id AS ref_id FROM expenditure WHERE supplier_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+			UNION ALL
+			SELECT supplier_id AS ref_id FROM fulfillment WHERE supplier_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+		) AS refs`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 

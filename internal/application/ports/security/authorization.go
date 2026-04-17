@@ -210,6 +210,7 @@ const (
 	EntityPlanAttribute         = "plan_attribute"
 	EntityPlanSettings          = "plan_settings"
 	EntityPricePlan             = "price_plan"
+	EntityPriceSchedule         = "price_schedule"
 	EntityProductPricePlan      = "product_price_plan"
 	EntitySubscription          = "subscription"
 	EntitySubscriptionAttribute = "subscription_attribute"

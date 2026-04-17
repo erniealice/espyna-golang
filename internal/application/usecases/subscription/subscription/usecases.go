@@ -1,11 +1,19 @@
 package subscription
 
 import (
+	"context"
+
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
+
+// JobTemplateInstantiator creates job hierarchies from templates linked to a plan.
+// Optional — if nil, no jobs are created on subscription creation.
+type JobTemplateInstantiator interface {
+	InstantiateJobsFromPlan(ctx context.Context, planID, clientID, subscriptionID, workspaceID string) error
+}
 
 // SubscriptionRepositories groups all repository dependencies
 type SubscriptionRepositories struct {
@@ -16,10 +24,11 @@ type SubscriptionRepositories struct {
 
 // SubscriptionServices groups all business service dependencies
 type SubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Only for CreateSubscription
+	AuthorizationService    ports.AuthorizationService
+	TransactionService      ports.TransactionService
+	TranslationService      ports.TranslationService
+	IDService               ports.IDService // Only for CreateSubscription
+	JobTemplateInstantiator JobTemplateInstantiator
 }
 
 // UseCases contains all subscription-related use cases
@@ -45,10 +54,11 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 	}
 	createServices := CreateSubscriptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		AuthorizationService:    services.AuthorizationService,
+		TransactionService:      services.TransactionService,
+		TranslationService:      services.TranslationService,
+		IDService:               services.IDService,
+		JobTemplateInstantiator: services.JobTemplateInstantiator,
 	}
 
 	readRepos := ReadSubscriptionRepositories{

@@ -1,13 +1,10 @@
-//go:build db_auth
-
-package database
+package password
 
 import (
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -16,6 +13,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	dbinterfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 	"github.com/google/uuid"
@@ -28,86 +26,54 @@ import (
 
 func init() {
 	registry.RegisterAuthProvider(
-		"db_auth",
+		"password",
 		func() ports.AuthProvider {
-			return newDatabaseAuthAdapter()
+			return newPasswordAuthAdapter()
 		},
 		transformConfig,
 	)
-	registry.RegisterAuthBuildFromEnv("db_auth", buildFromEnv)
+	registry.RegisterAuthBuildFromEnv("password", buildFromEnv)
 }
 
-// buildFromEnv creates and initializes a DatabaseAuthAdapter from environment variables.
+// buildFromEnv creates a PasswordAuthAdapter from environment variables.
+// It reads PASSWORD_AUTH_RESET_TOKEN_SECRET but does NOT open a database connection —
+// the connection is injected later via SetOperations (Phase 2 refactor).
 func buildFromEnv() (ports.AuthProvider, error) {
-	secret := os.Getenv("DB_AUTH_RESET_TOKEN_SECRET")
+	secret := os.Getenv("PASSWORD_AUTH_RESET_TOKEN_SECRET")
 	if secret == "" {
-		panic("FATAL: db_auth provider requires DB_AUTH_RESET_TOKEN_SECRET to be set")
-	}
-
-	host := os.Getenv("POSTGRES_HOST")
-	if host == "" {
-		host = "localhost"
-	}
-	port := os.Getenv("POSTGRES_PORT")
-	if port == "" {
-		port = "5432"
-	}
-	dbName := os.Getenv("POSTGRES_NAME")
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-	sslMode := os.Getenv("POSTGRES_SSL_MODE")
-	if sslMode == "" {
-		sslMode = "disable"
-	}
-
-	dsn := fmt.Sprintf(
-		"host=%s port=%s dbname=%s user=%s password=%s sslmode=%s",
-		host, port, dbName, user, password, sslMode,
-	)
-
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("db_auth: failed to open database connection: %w", err)
-	}
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("db_auth: failed to ping database: %w", err)
+		panic("FATAL: password provider requires PASSWORD_AUTH_RESET_TOKEN_SECRET to be set")
 	}
 
 	protoConfig := &authpb.ProviderConfig{
 		Enabled:     true,
 		Provider:    authpb.Provider_PROVIDER_CUSTOM,
-		DisplayName: "Database Auth",
+		DisplayName: "Password Auth",
 		Config: &authpb.ProviderConfig_CustomConfig{
 			CustomConfig: &authpb.CustomProviderConfig{
-				ProviderName: "db_auth",
+				ProviderName: "password",
 			},
 		},
 	}
 
-	adapter := &DatabaseAuthAdapter{
-		db:              db,
-		passwordService: NewPasswordService(),
-		sessionService:  NewSessionService(db),
-		resetSecret:     secret,
-		enabled:         false,
+	adapter := &PasswordAuthAdapter{
+		resetSecret: secret,
+		enabled:     false,
 	}
 	if err := adapter.Initialize(protoConfig); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("db_auth: failed to initialize: %w", err)
+		return nil, fmt.Errorf("password: failed to initialize: %w", err)
 	}
 	return adapter, nil
 }
 
-// transformConfig converts a raw config map to the db_auth proto config.
+// transformConfig converts a raw config map to the password proto config.
 func transformConfig(rawConfig map[string]any) (*authpb.ProviderConfig, error) {
 	return &authpb.ProviderConfig{
 		Enabled:     true,
 		Provider:    authpb.Provider_PROVIDER_CUSTOM,
-		DisplayName: "Database Auth",
+		DisplayName: "Password Auth",
 		Config: &authpb.ProviderConfig_CustomConfig{
 			CustomConfig: &authpb.CustomProviderConfig{
-				ProviderName: "db_auth",
+				ProviderName: "password",
 			},
 		},
 	}, nil
@@ -117,31 +83,30 @@ func transformConfig(rawConfig map[string]any) (*authpb.ProviderConfig, error) {
 // Adapter Implementation
 // =============================================================================
 
-// DatabaseAuthAdapter implements ports.AuthProvider and ports.AuthService
-// using a PostgreSQL database for credential storage and session management.
-type DatabaseAuthAdapter struct {
-	db              *sql.DB
+// PasswordAuthAdapter implements ports.AuthProvider and ports.AuthService
+// using injected DatabaseOperation for credential storage and session management.
+type PasswordAuthAdapter struct {
+	ops             dbinterfaces.DatabaseOperation
 	passwordService *PasswordService
 	sessionService  *SessionService
 	resetSecret     string
 	enabled         bool
 }
 
-// newDatabaseAuthAdapter creates an uninitialised DatabaseAuthAdapter.
-// The caller must invoke Initialize before use.
-func newDatabaseAuthAdapter() *DatabaseAuthAdapter {
-	return &DatabaseAuthAdapter{enabled: false}
+// newPasswordAuthAdapter creates an uninitialised PasswordAuthAdapter.
+// The caller must invoke SetOperations and Initialize before use.
+func newPasswordAuthAdapter() *PasswordAuthAdapter {
+	return &PasswordAuthAdapter{enabled: false}
 }
 
 // Name returns the provider name.
-func (a *DatabaseAuthAdapter) Name() string {
-	return "db_auth"
+func (a *PasswordAuthAdapter) Name() string {
+	return "password"
 }
 
 // Initialize sets up the adapter with proto-based configuration.
-// When used via buildFromEnv the DB is already attached; when called via the
-// factory pattern the caller must supply a DB through SetDB before any query.
-func (a *DatabaseAuthAdapter) Initialize(config *authpb.ProviderConfig) error {
+// SetOperations must be called before any database query.
+func (a *PasswordAuthAdapter) Initialize(config *authpb.ProviderConfig) error {
 	if config == nil {
 		return fmt.Errorf("configuration is required")
 	}
@@ -149,64 +114,62 @@ func (a *DatabaseAuthAdapter) Initialize(config *authpb.ProviderConfig) error {
 	a.enabled = config.Enabled
 
 	if a.resetSecret == "" {
-		secret := os.Getenv("DB_AUTH_RESET_TOKEN_SECRET")
+		secret := os.Getenv("PASSWORD_AUTH_RESET_TOKEN_SECRET")
 		if secret == "" {
-			panic("FATAL: db_auth provider requires DB_AUTH_RESET_TOKEN_SECRET to be set")
+			panic("FATAL: password provider requires PASSWORD_AUTH_RESET_TOKEN_SECRET to be set")
 		}
 		a.resetSecret = secret
 	}
 
 	if config.Enabled {
-		log.Println("[OK] Database Auth provider initialized")
+		log.Println("[OK] Password Auth provider initialized")
 	} else {
-		log.Println("[AUTH] Database Auth is disabled")
+		log.Println("[AUTH] Password Auth is disabled")
 	}
 
 	return nil
 }
 
-// SetDB injects an existing *sql.DB into the adapter and initialises the
-// dependent services. This is the preferred entry point when the application
-// container already manages the database connection.
-func (a *DatabaseAuthAdapter) SetDB(db *sql.DB) {
-	a.db = db
+// SetOperations injects a DatabaseOperation implementation into the adapter and
+// initialises the dependent services. This is the preferred entry point when the
+// application container already manages the database connection.
+func (a *PasswordAuthAdapter) SetOperations(ops dbinterfaces.DatabaseOperation) {
+	a.ops = ops
 	a.passwordService = NewPasswordService()
-	a.sessionService = NewSessionService(db)
+	a.sessionService = NewSessionService(ops)
 }
 
 // GetAuthService returns the authentication service (returns itself).
-func (a *DatabaseAuthAdapter) GetAuthService() ports.AuthService {
+func (a *PasswordAuthAdapter) GetAuthService() ports.AuthService {
 	if !a.enabled {
 		return nil
 	}
 	return a
 }
 
-// IsHealthy pings the underlying database.
-func (a *DatabaseAuthAdapter) IsHealthy(ctx context.Context) error {
+// IsHealthy returns nil when the adapter is enabled and has operations injected.
+// The adapter no longer owns the database connection, so it does not ping.
+func (a *PasswordAuthAdapter) IsHealthy(ctx context.Context) error {
 	if !a.enabled {
-		return fmt.Errorf("db_auth provider is not enabled")
+		return fmt.Errorf("password provider is not enabled")
 	}
-	if a.db == nil {
-		return fmt.Errorf("db_auth: database connection not initialised")
+	if a.ops == nil {
+		return fmt.Errorf("password: database operations not initialised")
 	}
-	return a.db.PingContext(ctx)
+	return nil
 }
 
-// Close releases the database connection when the adapter owns it.
-func (a *DatabaseAuthAdapter) Close() error {
+// Close logs shutdown. The adapter no longer owns a database connection.
+func (a *PasswordAuthAdapter) Close() error {
 	if a.enabled {
-		log.Println("[AUTH] Closing Database Auth provider")
+		log.Println("[AUTH] Closing Password Auth provider")
 		a.enabled = false
-	}
-	if a.db != nil {
-		return a.db.Close()
 	}
 	return nil
 }
 
 // IsEnabled returns whether the adapter is enabled.
-func (a *DatabaseAuthAdapter) IsEnabled() bool {
+func (a *PasswordAuthAdapter) IsEnabled() bool {
 	return a.enabled
 }
 
@@ -215,10 +178,10 @@ func (a *DatabaseAuthAdapter) IsEnabled() bool {
 // =============================================================================
 
 // VerifyToken validates a session token (not a JWT) and returns an Identity.
-// db_auth uses opaque session tokens stored in the "session" table rather than
+// password uses opaque session tokens stored in the "session" table rather than
 // self-contained JWTs, so the token field of ValidateJwtTokenRequest carries
 // the session token.
-func (a *DatabaseAuthAdapter) VerifyToken(ctx context.Context, req *authpb.ValidateJwtTokenRequest) (*authpb.ValidateJwtTokenResponse, error) {
+func (a *PasswordAuthAdapter) VerifyToken(ctx context.Context, req *authpb.ValidateJwtTokenRequest) (*authpb.ValidateJwtTokenResponse, error) {
 	if !a.enabled {
 		return &authpb.ValidateJwtTokenResponse{
 			IsValid:      false,
@@ -284,8 +247,8 @@ func (a *DatabaseAuthAdapter) VerifyToken(ctx context.Context, req *authpb.Valid
 }
 
 // GetProviderName implements the AuthService interface.
-func (a *DatabaseAuthAdapter) GetProviderName() string {
-	return "db_auth"
+func (a *PasswordAuthAdapter) GetProviderName() string {
+	return "password"
 }
 
 // =============================================================================
@@ -293,17 +256,17 @@ func (a *DatabaseAuthAdapter) GetProviderName() string {
 // =============================================================================
 
 // Register creates a new user account and returns the new user ID.
-func (a *DatabaseAuthAdapter) Register(ctx context.Context, email, password, firstName, lastName, mobileNumber string) (string, error) {
-	// Check for duplicate email
-	var exists bool
-	err := a.db.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM "user" WHERE email_address = $1)`,
-		email,
-	).Scan(&exists)
+func (a *PasswordAuthAdapter) Register(ctx context.Context, email, password, firstName, lastName, mobileNumber string) (string, error) {
+	if a.ops == nil {
+		return "", fmt.Errorf("password: database operations not initialised")
+	}
+
+	// Uniqueness check: if a user with this email exists, reject.
+	dup, err := a.ops.QueryOne(ctx, "user", dbinterfaces.NewQueryBuilder().WhereEqualTo("email_address", email))
 	if err != nil {
 		return "", fmt.Errorf("failed to check email uniqueness: %w", err)
 	}
-	if exists {
+	if dup != nil {
 		return "", fmt.Errorf("email address is already registered")
 	}
 
@@ -317,11 +280,15 @@ func (a *DatabaseAuthAdapter) Register(ctx context.Context, email, password, fir
 	}
 
 	userID := uuid.New().String()
-	_, err = a.db.ExecContext(ctx,
-		`INSERT INTO "user" ("id", "email_address", "password_hash", "first_name", "last_name", "mobile_number", "active", "created_at", "updated_at")
-		 VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())`,
-		userID, email, hash, firstName, lastName, mobileNumber,
-	)
+	_, err = a.ops.Create(ctx, "user", map[string]any{
+		"id":            userID,
+		"email_address": email,
+		"password_hash": hash,
+		"first_name":    firstName,
+		"last_name":     lastName,
+		"mobile_number": mobileNumber,
+		"active":        true,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create user: %w", err)
 	}
@@ -330,27 +297,28 @@ func (a *DatabaseAuthAdapter) Register(ctx context.Context, email, password, fir
 }
 
 // Login authenticates a user and returns a session token and identity.
-func (a *DatabaseAuthAdapter) Login(ctx context.Context, email, password string) (string, *authpb.Identity, error) {
-	var (
-		userID       string
-		passwordHash string
-		firstName    string
-		lastName     string
-		emailAddress string
-	)
-
-	err := a.db.QueryRowContext(ctx,
-		`SELECT "id", "password_hash", "first_name", "last_name", "email_address"
-		 FROM "user"
-		 WHERE "email_address" = $1 AND "active" = true`,
-		email,
-	).Scan(&userID, &passwordHash, &firstName, &lastName, &emailAddress)
-	if err == sql.ErrNoRows {
-		return "", nil, fmt.Errorf("invalid email or password")
+func (a *PasswordAuthAdapter) Login(ctx context.Context, email, password string) (string, *authpb.Identity, error) {
+	if a.ops == nil {
+		return "", nil, fmt.Errorf("password: database operations not initialised")
 	}
+
+	row, err := a.ops.QueryOne(ctx, "user",
+		dbinterfaces.NewQueryBuilder().
+			WhereEqualTo("email_address", email).
+			WhereEqualTo("active", true),
+	)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to look up user: %w", err)
 	}
+	if row == nil {
+		return "", nil, fmt.Errorf("invalid email or password")
+	}
+
+	userID, _ := row["id"].(string)
+	passwordHash, _ := row["password_hash"].(string)
+	firstName, _ := row["first_name"].(string)
+	lastName, _ := row["last_name"].(string)
+	emailAddress, _ := row["email_address"].(string)
 
 	if err := a.passwordService.VerifyPassword(passwordHash, password); err != nil {
 		return "", nil, fmt.Errorf("invalid email or password")
@@ -383,19 +351,25 @@ type requestPasswordResetPayload struct {
 // RequestPasswordReset generates a signed reset token for the given email.
 // The returned raw token is intended to be included in a password-reset link
 // sent to the user; it is NOT stored in plaintext.
-func (a *DatabaseAuthAdapter) RequestPasswordReset(ctx context.Context, email string) (string, error) {
-	var userID string
-	err := a.db.QueryRowContext(ctx,
-		`SELECT "id" FROM "user" WHERE "email_address" = $1 AND "active" = true`,
-		email,
-	).Scan(&userID)
-	if err == sql.ErrNoRows {
-		// Return no error to avoid leaking whether the email exists
-		return "", nil
+func (a *PasswordAuthAdapter) RequestPasswordReset(ctx context.Context, email string) (string, error) {
+	if a.ops == nil {
+		return "", fmt.Errorf("password: database operations not initialised")
 	}
+
+	row, err := a.ops.QueryOne(ctx, "user",
+		dbinterfaces.NewQueryBuilder().
+			WhereEqualTo("email_address", email).
+			WhereEqualTo("active", true),
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to look up user: %w", err)
 	}
+	if row == nil {
+		// Return no error to avoid leaking whether the email exists.
+		return "", nil
+	}
+
+	userID, _ := row["id"].(string)
 
 	nonceBytes := make([]byte, 16)
 	if _, err := rand.Read(nonceBytes); err != nil {
@@ -427,13 +401,10 @@ func (a *DatabaseAuthAdapter) RequestPasswordReset(ctx context.Context, email st
 	tokenHash := base64.RawURLEncoding.EncodeToString(tokenHashBytes[:])
 	expiresAtTime := time.Unix(expiresAt, 0)
 
-	_, err = a.db.ExecContext(ctx,
-		`UPDATE "user"
-		 SET "password_reset_token" = $1,
-		     "password_reset_expires" = $2
-		 WHERE "id" = $3`,
-		tokenHash, expiresAtTime, userID,
-	)
+	_, err = a.ops.Update(ctx, "user", userID, map[string]any{
+		"password_reset_token":   tokenHash,
+		"password_reset_expires": expiresAtTime,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to store reset token: %w", err)
 	}
@@ -443,8 +414,12 @@ func (a *DatabaseAuthAdapter) RequestPasswordReset(ctx context.Context, email st
 
 // ExecutePasswordReset verifies the signed reset token, updates the password,
 // and invalidates all existing sessions.
-func (a *DatabaseAuthAdapter) ExecutePasswordReset(ctx context.Context, token, newPassword string) error {
-	// Split token into payload and signature
+func (a *PasswordAuthAdapter) ExecutePasswordReset(ctx context.Context, token, newPassword string) error {
+	if a.ops == nil {
+		return fmt.Errorf("password: database operations not initialised")
+	}
+
+	// Split token into payload and signature.
 	dotIdx := -1
 	for i := len(token) - 1; i >= 0; i-- {
 		if token[i] == '.' {
@@ -484,29 +459,37 @@ func (a *DatabaseAuthAdapter) ExecutePasswordReset(ctx context.Context, token, n
 		return fmt.Errorf("reset token has expired")
 	}
 
-	// Compare stored hash
-	tokenHashBytes := sha256.Sum256([]byte(token))
-	tokenHash := base64.RawURLEncoding.EncodeToString(tokenHashBytes[:])
-
-	var storedHash string
-	var storedExpiry time.Time
-	err = a.db.QueryRowContext(ctx,
-		`SELECT COALESCE("password_reset_token", ''), COALESCE("password_reset_expires", 'epoch'::timestamptz)
-		 FROM "user"
-		 WHERE "id" = $1 AND "active" = true`,
-		payload.UserID,
-	).Scan(&storedHash, &storedExpiry)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("user not found")
-	}
+	// Compare stored hash using DatabaseOperation.Read.
+	row, err := a.ops.Read(ctx, "user", payload.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve user for password reset: %w", err)
 	}
+	if row == nil {
+		return fmt.Errorf("user not found")
+	}
 
+	// Verify active flag.
+	if active, ok := row["active"].(bool); ok && !active {
+		return fmt.Errorf("user not found")
+	}
+
+	tokenHashBytes := sha256.Sum256([]byte(token))
+	tokenHash := base64.RawURLEncoding.EncodeToString(tokenHashBytes[:])
+
+	storedHash, _ := row["password_reset_token"].(string)
 	if storedHash == "" || !hmac.Equal([]byte(storedHash), []byte(tokenHash)) {
 		return fmt.Errorf("invalid or already-used reset token")
 	}
-	if time.Now().After(storedExpiry) {
+
+	// Check stored expiry (belt-and-suspenders on top of the HMAC payload check).
+	var storedExpiry time.Time
+	switch v := row["password_reset_expires"].(type) {
+	case time.Time:
+		storedExpiry = v
+	case string:
+		storedExpiry, _ = time.Parse(time.RFC3339, v)
+	}
+	if !storedExpiry.IsZero() && time.Now().After(storedExpiry) {
 		return fmt.Errorf("reset token has expired")
 	}
 
@@ -515,15 +498,11 @@ func (a *DatabaseAuthAdapter) ExecutePasswordReset(ctx context.Context, token, n
 		return err
 	}
 
-	_, err = a.db.ExecContext(ctx,
-		`UPDATE "user"
-		 SET "password_hash" = $1,
-		     "password_reset_token" = NULL,
-		     "password_reset_expires" = NULL,
-		     "updated_at" = NOW()
-		 WHERE "id" = $2`,
-		newHash, payload.UserID,
-	)
+	_, err = a.ops.Update(ctx, "user", payload.UserID, map[string]any{
+		"password_hash":          newHash,
+		"password_reset_token":   nil,
+		"password_reset_expires": nil,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -532,22 +511,22 @@ func (a *DatabaseAuthAdapter) ExecutePasswordReset(ctx context.Context, token, n
 }
 
 // CreateSession creates a new session for the given user ID.
-func (a *DatabaseAuthAdapter) CreateSession(ctx context.Context, userID string) (string, error) {
+func (a *PasswordAuthAdapter) CreateSession(ctx context.Context, userID string) (string, error) {
 	return a.sessionService.CreateSession(ctx, userID)
 }
 
 // ValidateSession validates a session token and returns the associated user ID.
-func (a *DatabaseAuthAdapter) ValidateSession(ctx context.Context, token string) (string, error) {
+func (a *PasswordAuthAdapter) ValidateSession(ctx context.Context, token string) (string, error) {
 	return a.sessionService.ValidateSession(ctx, token)
 }
 
 // InvalidateSession marks a single session as inactive.
-func (a *DatabaseAuthAdapter) InvalidateSession(ctx context.Context, token string) error {
+func (a *PasswordAuthAdapter) InvalidateSession(ctx context.Context, token string) error {
 	return a.sessionService.InvalidateSession(ctx, token)
 }
 
 // GetSessionWorkspaceContext returns the workspace_user_id and workspace_id for an active session.
-func (a *DatabaseAuthAdapter) GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string) {
+func (a *PasswordAuthAdapter) GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string) {
 	return a.sessionService.GetSessionWorkspaceContext(ctx, token)
 }
 
@@ -556,26 +535,30 @@ func (a *DatabaseAuthAdapter) GetSessionWorkspaceContext(ctx context.Context, to
 // =============================================================================
 
 // fetchIdentity queries the user table and builds an Identity protobuf.
-func (a *DatabaseAuthAdapter) fetchIdentity(ctx context.Context, userID string) (*authpb.Identity, error) {
-	var (
-		firstName    string
-		lastName     string
-		emailAddress string
-		active       bool
-		createdAt    time.Time
-	)
-
-	err := a.db.QueryRowContext(ctx,
-		`SELECT "first_name", "last_name", "email_address", "active", "created_at"
-		 FROM "user"
-		 WHERE "id" = $1`,
-		userID,
-	).Scan(&firstName, &lastName, &emailAddress, &active, &createdAt)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found: %s", userID)
+func (a *PasswordAuthAdapter) fetchIdentity(ctx context.Context, userID string) (*authpb.Identity, error) {
+	if a.ops == nil {
+		return nil, fmt.Errorf("password: database operations not initialised")
 	}
+
+	row, err := a.ops.Read(ctx, "user", userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
+	}
+	if row == nil {
+		return nil, fmt.Errorf("user not found: %s", userID)
+	}
+
+	firstName, _ := row["first_name"].(string)
+	lastName, _ := row["last_name"].(string)
+	emailAddress, _ := row["email_address"].(string)
+	active, _ := row["active"].(bool)
+
+	var createdAt time.Time
+	switch v := row["created_at"].(type) {
+	case time.Time:
+		createdAt = v
+	case string:
+		createdAt, _ = time.Parse(time.RFC3339, v)
 	}
 
 	return &authpb.Identity{
@@ -589,6 +572,6 @@ func (a *DatabaseAuthAdapter) fetchIdentity(ctx context.Context, userID string) 
 	}, nil
 }
 
-// Compile-time checks that DatabaseAuthAdapter satisfies both interfaces.
-var _ ports.AuthProvider = (*DatabaseAuthAdapter)(nil)
-var _ ports.AuthService = (*DatabaseAuthAdapter)(nil)
+// Compile-time checks that PasswordAuthAdapter satisfies both interfaces.
+var _ ports.AuthProvider = (*PasswordAuthAdapter)(nil)
+var _ ports.AuthService = (*PasswordAuthAdapter)(nil)

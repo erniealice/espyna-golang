@@ -13,6 +13,7 @@ import (
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
@@ -303,6 +304,51 @@ func ConfigureSubscriptionDomain(subscriptionUseCases *subscriptionuc.Subscripti
 			Method:  "POST",
 			Path:    "/api/subscription/product-price-plan/get-item-page-data",
 			Handler: contracts.NewGenericHandler(subscriptionUseCases.ProductPricePlan.GetProductPricePlanItemPageData, &productpriceplanpb.GetProductPricePlanItemPageDataRequest{}),
+		})
+	}
+
+	// Price Schedule module routes
+	if subscriptionUseCases.PriceSchedule != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceSchedule.CreatePriceSchedule, &priceschedulepb.CreatePriceScheduleRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceSchedule.ReadPriceSchedule, &priceschedulepb.ReadPriceScheduleRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceSchedule.UpdatePriceSchedule, &priceschedulepb.UpdatePriceScheduleRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceSchedule.DeletePriceSchedule, &priceschedulepb.DeletePriceScheduleRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceSchedule.ListPriceSchedules, &priceschedulepb.ListPriceSchedulesRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceSchedule.GetPriceScheduleListPageData, &priceschedulepb.GetPriceScheduleListPageDataRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceSchedule.GetPriceScheduleItemPageData, &priceschedulepb.GetPriceScheduleItemPageDataRequest{}),
 		})
 	}
 

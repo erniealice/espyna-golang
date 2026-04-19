@@ -109,10 +109,6 @@ func (r *MockPricePlanRepository) CreatePricePlan(ctx context.Context, req *pric
 	if req.Data == nil {
 		return nil, fmt.Errorf("price plan data is required")
 	}
-	if req.Data.Name == "" {
-		return nil, fmt.Errorf("price plan name is required")
-	}
-
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -354,9 +350,7 @@ func (r *MockPricePlanRepository) mapToProtobufPricePlan(rawPricePlan map[string
 	}
 
 	if name, ok := rawPricePlan["name"].(string); ok {
-		pricePlan.Name = name
-	} else {
-		return nil, fmt.Errorf("missing or invalid name field")
+		pricePlan.Name = &name
 	}
 
 	// Map optional fields
@@ -365,7 +359,7 @@ func (r *MockPricePlanRepository) mapToProtobufPricePlan(rawPricePlan map[string
 	}
 
 	if description, ok := rawPricePlan["description"].(string); ok {
-		pricePlan.Description = description
+		pricePlan.Description = &description
 	}
 
 	if amount, ok := rawPricePlan["amount"].(float64); ok {

@@ -32,6 +32,7 @@ import (
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
 
 	// Domain use cases (for proper initialization)
+	"github.com/erniealice/espyna-golang/internal/application/usecases/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
@@ -153,8 +154,16 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	// These are provider-based use cases, not domain-based
 	integrationUC := uci.initializeIntegrationUseCases(container)
 
+	// Identity-lifecycle use cases — must run after Entity so Session + User
+	// repos are already registered with the database provider.
+	authUC, err := uci.initializeAuthUseCases(container)
+	if err != nil {
+		authUC = &auth.UseCases{}
+	}
+
 	// Create aggregate with successfully initialized domains
 	aggregate := usecases.NewAggregate(
+		authUC,
 		commonUC,
 		entityUC,
 		eventUC,
@@ -238,6 +247,37 @@ func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*
 	fmt.Printf("✅ Entity domain initialized successfully: %v\n", entityUseCases != nil)
 
 	return entityUseCases, nil
+}
+
+// initializeAuthUseCases initializes identity-lifecycle use cases
+// (authenticate_session, issue_session, invalidate_session).
+//
+// These share the Session + User proto repositories used by the Entity
+// domain, but produce distinct orchestration-level use cases that
+// middleware/handlers depend on instead of poking at session rows.
+func (uci *UseCaseInitializer) initializeAuthUseCases(container *Container) (*auth.UseCases, error) {
+	fmt.Printf("🔐 Initializing Auth use cases...\n")
+
+	repos, err := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Auth repositories not available (Entity unavailable): %v\n", err)
+		return &auth.UseCases{}, nil
+	}
+
+	_, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+
+	authUseCases, err := initializers.InitializeAuth(repos, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize auth use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Auth domain initialized successfully: %v\n", authUseCases != nil)
+
+	return authUseCases, nil
 }
 
 // initializeEventUseCases initializes Event domain use cases (2 entities)

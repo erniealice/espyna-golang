@@ -20,11 +20,20 @@ import (
 //     that don't need permission checks
 //   - common:      cross-domain helpers (attribute, category) that are called by
 //     other use cases and don't carry AuthorizationService
+//   - auth:        identity-lifecycle use cases (login, authenticate_session,
+//     issue_session, invalidate_session, register, password-reset).
+//     These either establish identity (so authorization cannot run before
+//     them) or terminate a session. The package's doc comment in
+//     usecases/auth/usecases.go defines the invariant — authenticated
+//     business actions that are merely auth-adjacent (e.g. "admin revokes
+//     another user's sessions") belong in entity/session/ with authcheck
+//     wired in, NOT here.
 var skipDirs = map[string]bool{
 	"authcheck":   true,
 	"contextutil": true,
 	"integration": true,
 	"common":      true,
+	"auth":        true,
 }
 
 // skipFilePatterns lists filename substrings for files that legitimately

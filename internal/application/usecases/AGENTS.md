@@ -44,6 +44,14 @@
 
 ```
 usecases/
+├── auth/                       # Identity-lifecycle use cases
+│   ├── authenticate_session.go # Cookie/token → Identity
+│   ├── issue_session.go        # Mint a new session token
+│   └── invalidate_session.go   # Logout / session termination
+│                               # (Future home for login, register,
+│                               #  request_password_reset, execute_password_reset
+│                               #  currently embedded in the password auth adapter.)
+│
 ├── common/                     # Cross-domain use cases
 │   └── attribute/              # Generic attribute CRUD
 │
@@ -225,6 +233,7 @@ Execute(ctx, req)
 
 | Domain | Entities | Description |
 |--------|----------|-------------|
+| auth | 3 | Identity-lifecycle: authenticate_session, issue_session, invalidate_session (bypasses authcheck — see invariant below) |
 | entity | 17 | Users, clients, staff, roles, permissions, workspaces |
 | event | 3 | Events, event clients, event attributes |
 | payment | 4 | Payments, methods, profiles |
@@ -233,6 +242,18 @@ Execute(ctx, req)
 | workflow | 6 | Workflows, stages, activities, templates |
 | common | 1 | Shared attribute system |
 | integration | 2 | Email, payment gateway operations |
+
+### `auth/` invariant
+
+`auth/` is the only domain whose use cases are exempt from `authcheck.Check`
+(see `authcheck_coverage_test.go` `skipDirs`). A file belongs under `auth/` only
+if it (a) establishes identity — login, authenticate_session, issue_session,
+register, password reset — or (b) terminates a previously established session
+(invalidate_session, rotate_session). Authenticated business actions that
+happen to touch auth entities (e.g. "admin revokes another user's sessions",
+"user lists their own active sessions") belong in `entity/session/` with
+`authcheck.Check` wired in. Treat `auth/` as a semantic boundary, not a
+convenience bucket — widening it defeats the coverage test.
 
 ## Aggregated UseCases Pattern
 

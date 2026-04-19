@@ -80,14 +80,23 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 		validColumns[col] = true
 	}
 
+	columnTypes, err := p.getTableColumnTypes(ctx, tableName)
+	if err != nil {
+		return nil, model.NewDatabaseError(
+			fmt.Sprintf("failed to get table column types: %v", err),
+			"POSTGRES_SCHEMA_ERROR",
+			500,
+		)
+	}
+
 	// Set creation properties
 	now := time.Now().UTC()
 	if _, exists := data["id"]; !exists {
 		data["id"] = generateUUID()
 	}
 	data["active"] = true
-	data["date_created"] = now
-	data["date_modified"] = now
+	data["date_created"] = autoTimestampValue(columnTypes["date_created"], now)
+	data["date_modified"] = autoTimestampValue(columnTypes["date_modified"], now)
 
 	// Build INSERT query (only columns that exist in the table)
 	columns := make([]string, 0, len(data))
@@ -206,6 +215,15 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 		validColumns[col] = true
 	}
 
+	columnTypes, err := p.getTableColumnTypes(ctx, tableName)
+	if err != nil {
+		return nil, model.NewDatabaseError(
+			fmt.Sprintf("failed to get table column types: %v", err),
+			"POSTGRES_SCHEMA_ERROR",
+			500,
+		)
+	}
+
 	// Check if record exists (query without active filter so we can update
 	// inactive records too, e.g. re-activating a soft-deleted record).
 	existQuery := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
@@ -222,15 +240,20 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 		)
 	}
 
-	// Set update properties
+	// Set update properties (column-type-aware: BIGINT timestamp columns
+	// receive unix ms, TIMESTAMP columns receive time.Time).
 	now := time.Now().UTC()
-	data["date_modified"] = now
+	data["date_modified"] = autoTimestampValue(columnTypes["date_modified"], now)
 
-	// Preserve original creation data, converting millis back to time.Time
-	// (normalizeValue converts time.Time → int64 millis during Read, but
-	// Postgres needs time.Time for timestamp columns on write)
+	// Preserve original creation data.
+	// scanRowToMap normalises TIMESTAMP columns to int64 unix ms for the
+	// caller, so for TIMESTAMP columns we must convert back to time.Time
+	// before passing to pq. For BIGINT columns the stored int64 is already
+	// the wire format pq expects.
 	if dc := existing["date_created"]; dc != nil {
-		if millis, ok := dc.(int64); ok {
+		if columnTypes["date_created"] == "bigint" {
+			data["date_created"] = dc
+		} else if millis, ok := dc.(int64); ok {
 			data["date_created"] = time.UnixMilli(millis).UTC()
 		} else {
 			data["date_created"] = dc
@@ -299,14 +322,23 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 		return model.NewDatabaseError("record ID is required", "MISSING_RECORD_ID", 400)
 	}
 
-	// Soft delete by setting active to false
+	// Soft delete by setting active to false. date_modified may be BIGINT
+	// unix ms or TIMESTAMP depending on the entity schema; introspect.
+	columnTypes, err := p.getTableColumnTypes(ctx, tableName)
+	if err != nil {
+		return model.NewDatabaseError(
+			fmt.Sprintf("failed to get table column types: %v", err),
+			"POSTGRES_SCHEMA_ERROR",
+			500,
+		)
+	}
 	now := time.Now().UTC()
 	query := fmt.Sprintf(
 		"UPDATE \"%s\" SET active = false, date_modified = $1 WHERE id = $2 AND active = true",
 		tableName,
 	)
 
-	result, err := p.getExecutor(ctx).ExecContext(ctx, query, now, id)
+	result, err := p.getExecutor(ctx).ExecContext(ctx, query, autoTimestampValue(columnTypes["date_modified"], now), id)
 	if err != nil {
 		return model.NewDatabaseError(
 			fmt.Sprintf("failed to delete record: %v", err),
@@ -1003,6 +1035,43 @@ func (p *PostgresOperations) getTableColumns(ctx context.Context, tableName stri
 	}
 
 	return columns, rows.Err()
+}
+
+// getTableColumnTypes returns column-name → information_schema.data_type
+// for a table. Used by Create/Update to pick the right serialization for
+// auto-injected timestamp fields (BIGINT unix-ms vs TIMESTAMP WITH TIME ZONE).
+func (p *PostgresOperations) getTableColumnTypes(ctx context.Context, tableName string) (map[string]string, error) {
+	query := `
+		SELECT column_name, data_type
+		FROM information_schema.columns
+		WHERE table_name = $1
+	`
+	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, tableName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	types := make(map[string]string)
+	for rows.Next() {
+		var name, dataType string
+		if err := rows.Scan(&name, &dataType); err != nil {
+			return nil, err
+		}
+		types[name] = dataType
+	}
+	return types, rows.Err()
+}
+
+// autoTimestampValue returns the appropriate value to write for a timestamp
+// column at creation/update time. BIGINT columns (the new proto-aligned
+// convention, e.g. session.date_created) receive unix ms; TIMESTAMP /
+// TIMESTAMP WITH TIME ZONE columns receive a time.Time for the pq driver.
+func autoTimestampValue(columnType string, now time.Time) any {
+	if columnType == "bigint" {
+		return now.UnixMilli()
+	}
+	return now
 }
 
 // scanRowToMap scans a single row into a map with snake_case keys (matching DB columns).

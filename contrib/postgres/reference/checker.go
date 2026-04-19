@@ -90,14 +90,10 @@ func (c *Checker) GetPriceListInUseIDs(ctx context.Context, ids []string) (map[s
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
-// GetPricePlanInUseIDs checks if price plans are referenced by product price plans or subscriptions.
+// GetPricePlanInUseIDs checks if price plans are referenced by active subscriptions.
+// product_price_plan has ON DELETE CASCADE so it does not block deletes.
 func (c *Checker) GetPricePlanInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	query := `
-		SELECT DISTINCT ref_id FROM (
-			SELECT price_plan_id AS ref_id FROM product_price_plan WHERE price_plan_id = ANY($1) AND active = true
-			UNION ALL
-			SELECT price_plan_id AS ref_id FROM subscription WHERE price_plan_id = ANY($1) AND active = true
-		) AS refs`
+	query := `SELECT DISTINCT price_plan_id FROM subscription WHERE price_plan_id = ANY($1) AND active = true`
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 

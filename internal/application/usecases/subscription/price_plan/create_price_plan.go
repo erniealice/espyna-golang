@@ -76,10 +76,7 @@ func (uc *CreatePricePlanUseCase) validateInput(ctx context.Context, req *pricep
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.data_required", "price plan data is required")
 		return errors.New(msg)
 	}
-	if req.Data.Name == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.name_required", "price plan name is required")
-		return errors.New(msg)
-	}
+	// Name is optional — when blank, the UI falls back to the parent Plan's name.
 	if req.Data.PlanId == "" {
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.plan_id_required", "plan ID is required")
 		return errors.New(msg)
@@ -112,15 +109,16 @@ func (uc *CreatePricePlanUseCase) enrichPricePlanData(pricePlan *priceplanpb.Pri
 
 // validateBusinessRules enforces business constraints for price plans
 func (uc *CreatePricePlanUseCase) validateBusinessRules(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
-	// Validate price plan name length
-	if len(pricePlan.Name) < 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.name_min_length", "price plan name must be at least 3 characters long")
-		return errors.New(msg)
-	}
-
-	if len(pricePlan.Name) > 100 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.name_max_length", "price plan name cannot exceed 100 characters")
-		return errors.New(msg)
+	// Validate price plan name length — only when a name was provided (optional field).
+	if pricePlan.GetName() != "" {
+		if len(pricePlan.GetName()) < 3 {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.name_min_length", "price plan name must be at least 3 characters long")
+			return errors.New(msg)
+		}
+		if len(pricePlan.GetName()) > 100 {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.name_max_length", "price plan name cannot exceed 100 characters")
+			return errors.New(msg)
+		}
 	}
 
 	// Validate Plan ID format validation
@@ -142,7 +140,7 @@ func (uc *CreatePricePlanUseCase) validateBusinessRules(ctx context.Context, pri
 	}
 
 	// Validate Description length validation
-	if len(pricePlan.Description) > 500 {
+	if len(pricePlan.GetDescription()) > 500 {
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.description_max_length", "price plan description cannot exceed 500 characters")
 		return errors.New(msg)
 	}

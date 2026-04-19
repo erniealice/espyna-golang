@@ -146,6 +146,10 @@ func (r *PostgresPricePlanRepository) UpdatePricePlan(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Always include active flag — proto3 omits bool=false during JSON marshal,
+	// which would silently skip deactivation via the form toggle.
+	data["active"] = req.Data.GetActive()
+
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
@@ -257,7 +261,8 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 	var pricePlans []*priceplanpb.PricePlan
 	var totalCount int64
 	for rows.Next() {
-		var id, planId, currency, name, description string
+		var id, planId, currency string
+		var name, description sql.NullString
 		var amount int64
 		var active bool
 		var dateCreated, dateModified time.Time
@@ -266,7 +271,13 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
-		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: amount, Currency: currency, Active: active}
+		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Amount: amount, Currency: currency, Active: active}
+		if name.Valid {
+			pricePlan.Name = &name.String
+		}
+		if description.Valid {
+			pricePlan.Description = &description.String
+		}
 		if priceScheduleId.Valid && priceScheduleId.String != "" {
 			pricePlan.PriceScheduleId = &priceScheduleId.String
 		}
@@ -296,7 +307,8 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	}
 	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
-	var id, planId, currency, name, description string
+	var id, planId, currency string
+	var name, description sql.NullString
 	var amount int64
 	var active bool
 	var dateCreated, dateModified time.Time
@@ -306,7 +318,13 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Name: name, Description: description, Amount: amount, Currency: currency, Active: active}
+	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Amount: amount, Currency: currency, Active: active}
+	if name.Valid {
+		pricePlan.Name = &name.String
+	}
+	if description.Valid {
+		pricePlan.Description = &description.String
+	}
 	if priceScheduleId.Valid && priceScheduleId.String != "" {
 		pricePlan.PriceScheduleId = &priceScheduleId.String
 	}

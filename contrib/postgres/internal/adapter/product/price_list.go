@@ -134,6 +134,10 @@ func (r *PostgresPriceListRepository) UpdatePriceList(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Always include active flag — proto3 omits bool=false during JSON marshal,
+	// which would silently skip deactivation via the form toggle.
+	data["active"] = req.Data.GetActive()
+
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update price list: %w", err)

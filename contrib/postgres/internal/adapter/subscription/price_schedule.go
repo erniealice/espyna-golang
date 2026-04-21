@@ -332,6 +332,82 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleItemPageData(ctx conte
 	return &priceschedulepb.GetPriceScheduleItemPageDataResponse{PriceSchedule: priceSchedule, Success: true}, nil
 }
 
+// FindApplicablePriceSchedule finds the active price schedule for a given location and date.
+// Returns the most recently started price schedule that covers the given date.
+// If no match is found, returns found=false with no error (not an error condition).
+// If multiple rows match, the one with the latest date_start wins (most specific/recent wins).
+func (r *PostgresPriceScheduleRepository) FindApplicablePriceSchedule(ctx context.Context, req *priceschedulepb.FindApplicablePriceScheduleRequest) (*priceschedulepb.FindApplicablePriceScheduleResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.LocationId == "" {
+		return nil, fmt.Errorf("location_id is required")
+	}
+	if req.Date == "" {
+		return nil, fmt.Errorf("date is required")
+	}
+
+	query := `
+		SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified
+		FROM price_schedule
+		WHERE active = true
+		  AND location_id = $1
+		  AND date_start <= $2
+		  AND (date_end >= $2 OR date_end IS NULL OR date_end = '')
+		ORDER BY date_start DESC
+		LIMIT 1`
+
+	row := r.db.QueryRowContext(ctx, query, req.LocationId, req.Date)
+
+	var id, name string
+	var description, locationId, dateStart, dateEnd sql.NullString
+	var active bool
+	var dateCreated, dateModified time.Time
+
+	err := row.Scan(&id, &name, &description, &active, &dateStart, &dateEnd, &locationId, &dateCreated, &dateModified)
+	if err == sql.ErrNoRows {
+		return &priceschedulepb.FindApplicablePriceScheduleResponse{
+			Found:   false,
+			Success: true,
+		}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	priceSchedule := &priceschedulepb.PriceSchedule{Id: id, Name: name, Active: active}
+	if description.Valid {
+		priceSchedule.Description = &description.String
+	}
+	if dateStart.Valid {
+		priceSchedule.DateStart = dateStart.String
+	}
+	if locationId.Valid {
+		priceSchedule.LocationId = &locationId.String
+	}
+	if dateEnd.Valid {
+		priceSchedule.DateEnd = &dateEnd.String
+	}
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		priceSchedule.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		priceSchedule.DateCreatedString = &dcStr
+	}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		priceSchedule.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		priceSchedule.DateModifiedString = &dmStr
+	}
+
+	return &priceschedulepb.FindApplicablePriceScheduleResponse{
+		PriceSchedule: priceSchedule,
+		Found:         true,
+		Success:       true,
+	}, nil
+}
+
 // NewPriceScheduleRepository creates a new PostgreSQL price_schedule repository (old-style constructor)
 func NewPriceScheduleRepository(db *sql.DB, tableName string) priceschedulepb.PriceScheduleDomainServiceServer {
 	dbOps := postgresCore.NewWorkspaceAwareOperations(db)

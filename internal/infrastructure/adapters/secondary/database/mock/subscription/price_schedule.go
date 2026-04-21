@@ -428,6 +428,60 @@ func (r *MockPriceScheduleRepository) parseTimestamp(timestampStr string) (int64
 	return 0, fmt.Errorf("unable to parse timestamp: %s", timestampStr)
 }
 
+// FindApplicablePriceSchedule finds the active price schedule for a given location and date.
+// Returns the most recently started price schedule that covers the given date.
+// If no match is found, returns found=false with no error.
+// If multiple rows match, the one with the latest date_start wins.
+func (r *MockPriceScheduleRepository) FindApplicablePriceSchedule(ctx context.Context, req *priceschedulepb.FindApplicablePriceScheduleRequest) (*priceschedulepb.FindApplicablePriceScheduleResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.LocationId == "" {
+		return nil, fmt.Errorf("location_id is required")
+	}
+	if req.Date == "" {
+		return nil, fmt.Errorf("date is required")
+	}
+
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	var best *priceschedulepb.PriceSchedule
+	for _, ps := range r.priceSchedules {
+		if !ps.Active {
+			continue
+		}
+		if ps.GetLocationId() != req.LocationId {
+			continue
+		}
+		// date_start <= req.Date
+		if ps.DateStart > req.Date {
+			continue
+		}
+		// date_end >= req.Date OR date_end is unset (open-ended)
+		if ps.DateEnd != nil && *ps.DateEnd != "" && *ps.DateEnd < req.Date {
+			continue
+		}
+		// Pick the one with the latest date_start
+		if best == nil || ps.DateStart > best.DateStart {
+			best = ps
+		}
+	}
+
+	if best == nil {
+		return &priceschedulepb.FindApplicablePriceScheduleResponse{
+			Found:   false,
+			Success: true,
+		}, nil
+	}
+
+	return &priceschedulepb.FindApplicablePriceScheduleResponse{
+		PriceSchedule: best,
+		Found:         true,
+		Success:       true,
+	}, nil
+}
+
 // NewPriceScheduleRepository creates a new mock price schedule repository (registry constructor)
 func NewPriceScheduleRepository(data map[string]*priceschedulepb.PriceSchedule) priceschedulepb.PriceScheduleDomainServiceServer {
 	repo := &MockPriceScheduleRepository{

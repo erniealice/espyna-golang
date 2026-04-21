@@ -20,13 +20,14 @@ type PriceScheduleServices struct {
 
 // UseCases contains all price_schedule-related use cases
 type UseCases struct {
-	CreatePriceSchedule          *CreatePriceScheduleUseCase
-	ReadPriceSchedule            *ReadPriceScheduleUseCase
-	UpdatePriceSchedule          *UpdatePriceScheduleUseCase
-	DeletePriceSchedule          *DeletePriceScheduleUseCase
-	ListPriceSchedules           *ListPriceSchedulesUseCase
-	GetPriceScheduleListPageData *GetPriceScheduleListPageDataUseCase
-	GetPriceScheduleItemPageData *GetPriceScheduleItemPageDataUseCase
+	CreatePriceSchedule             *CreatePriceScheduleUseCase
+	ReadPriceSchedule               *ReadPriceScheduleUseCase
+	UpdatePriceSchedule             *UpdatePriceScheduleUseCase
+	DeletePriceSchedule             *DeletePriceScheduleUseCase
+	ListPriceSchedules              *ListPriceSchedulesUseCase
+	GetPriceScheduleListPageData    *GetPriceScheduleListPageDataUseCase
+	GetPriceScheduleItemPageData    *GetPriceScheduleItemPageDataUseCase
+	FindApplicablePriceSchedule     *FindApplicablePriceScheduleUseCase
 }
 
 // NewUseCases creates a new collection of price_schedule use cases
@@ -99,6 +100,15 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	findApplicableRepos := FindApplicablePriceScheduleRepositories{
+		PriceSchedule: repositories.PriceSchedule,
+	}
+	findApplicableServices := FindApplicablePriceScheduleServices{
+		TransactionService:   services.TransactionService,
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreatePriceSchedule:          NewCreatePriceScheduleUseCase(createRepos, createServices),
 		ReadPriceSchedule:            NewReadPriceScheduleUseCase(readRepos, readServices),
@@ -107,5 +117,6 @@ func NewUseCases(
 		ListPriceSchedules:           NewListPriceSchedulesUseCase(listRepos, listServices),
 		GetPriceScheduleListPageData: NewGetPriceScheduleListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetPriceScheduleItemPageData: NewGetPriceScheduleItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
+		FindApplicablePriceSchedule:  NewFindApplicablePriceScheduleUseCase(findApplicableRepos, findApplicableServices),
 	}
 }

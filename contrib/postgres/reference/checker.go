@@ -97,14 +97,19 @@ func (c *Checker) GetPricePlanInUseIDs(ctx context.Context, ids []string) (map[s
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
-// GetPriceScheduleInUseIDs checks if price schedules are referenced by price plans.
-// Note: price_plan.price_schedule_id FK is pending migration. This checker will become
-// active once the FK is added.
+// GetPriceScheduleInUseIDs locks a PriceSchedule only when an active subscription
+// references one of its (active) price_plans. Empty/draft schedules — even those
+// with price_plan rows — remain deletable until money is flowing through them.
+// Mirrors the PricePlan pricing-lock semantics one level up.
 func (c *Checker) GetPriceScheduleInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	// TODO: uncomment once price_plan.price_schedule_id FK migration is complete
-	// query := `SELECT DISTINCT price_schedule_id FROM price_plan WHERE price_schedule_id = ANY($1) AND active = true`
-	// return queryInUseIDs(ctx, c.db, query, ids)
-	return make(map[string]bool), nil
+	query := `
+		SELECT DISTINCT pp.price_schedule_id
+		FROM price_plan pp
+		JOIN subscription s ON s.price_plan_id = pp.id
+		WHERE pp.price_schedule_id = ANY($1)
+		  AND pp.active = true
+		  AND s.active = true`
+	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
 func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {

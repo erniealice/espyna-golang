@@ -209,8 +209,9 @@ func (r *PostgresProductRepository) DeleteProduct(ctx context.Context, req *prod
 		return nil, fmt.Errorf("product ID is required")
 	}
 
-	// Delete document using common operations (soft delete)
-	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
+	// Hard delete — catalog entities rely on FK RESTRICT to block deletion
+	// when historical references exist (revenue_line_item, inventory_item, etc.).
+	err := r.dbOps.HardDelete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete product: %w", err)
 	}

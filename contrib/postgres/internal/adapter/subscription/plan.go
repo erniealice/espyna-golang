@@ -163,8 +163,9 @@ func (r *PostgresPlanRepository) DeletePlan(ctx context.Context, req *planpb.Del
 		return nil, fmt.Errorf("plan ID is required")
 	}
 
-	// Delete document using common operations (soft delete)
-	err := r.dbOps.Delete(ctx, r.tableName, *req.Data.Id)
+	// Hard delete — catalog entities rely on FK RESTRICT to block deletion
+	// when historical references exist (subscription, product_plan, price_plan, etc.).
+	err := r.dbOps.HardDelete(ctx, r.tableName, *req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete plan: %w", err)
 	}

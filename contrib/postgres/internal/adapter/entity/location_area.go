@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -230,6 +231,8 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 		}
 	}
 
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -241,9 +244,10 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 				date_modified
 			FROM ` + r.tableName + `
 			WHERE active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-				   name ILIKE $1 OR
-				   description ILIKE $1)
+			  AND ($1::text IS NULL OR $1::text = '' OR workspace_id = $1)
+			  AND ($2::text IS NULL OR $2::text = '' OR
+				   name ILIKE $2 OR
+				   description ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -253,11 +257,11 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 			c.total
 		FROM enriched e, counted c
 		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		LIMIT $3 OFFSET $4;
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query location area list page data: %w", err)
 	}
@@ -352,6 +356,8 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaItemPageData(
 		return nil, fmt.Errorf("location area ID is required")
 	}
 
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		SELECT
 			id,
@@ -362,11 +368,12 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaItemPageData(
 			date_modified
 		FROM ` + r.tableName + `
 		WHERE id = $1
+		  AND ($2::text IS NULL OR workspace_id = $2)
 		LIMIT 1;
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.LocationAreaId)
+	row := exec.QueryRowContext(ctx, query, req.LocationAreaId, workspaceID)
 
 	var (
 		id           string

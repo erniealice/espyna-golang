@@ -424,6 +424,8 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		return nil, fmt.Errorf("location ID is required")
 	}
 
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		WITH location_attributes_agg AS (
 			SELECT
@@ -448,10 +450,11 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		FROM location l
 		LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
 		WHERE l.id = $1
+		  AND ($2::text IS NULL OR l.workspace_id = $2)
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.LocationId)
+	row := exec.QueryRowContext(ctx, query, req.LocationId, workspaceID)
 
 	var (
 		id             string

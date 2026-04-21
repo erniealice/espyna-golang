@@ -27,13 +27,24 @@ type dbExecutor interface {
 }
 
 func init() {
-	// Register database operations factory for postgres
+	// Register database operations factory for postgres.
+	//
+	// The returned DatabaseOperation is WorkspaceAware — it injects
+	// workspace_id into Create/List/Read/Update/Delete whenever:
+	//   (a) the request context carries a workspace_id, AND
+	//   (b) the target table has a workspace_id column.
+	// For global/non-tenanted tables (workspace, role, permission, etc.) or
+	// service-to-service calls without a workspace context, the decorator is
+	// a pass-through. This makes CRUDSource consumers (e.g. entydad's
+	// location_area list, which went through ListSimple) automatically
+	// workspace-scoped, matching the behavior of entity-specific adapters
+	// that wrap themselves explicitly.
 	registry.RegisterDatabaseOperationsFactory("postgresql", func(conn any) (any, error) {
 		db, ok := conn.(*sql.DB)
 		if !ok {
 			return nil, fmt.Errorf("postgres: expected *sql.DB, got %T", conn)
 		}
-		return NewPostgresOperations(db), nil
+		return NewWorkspaceAwareOperations(db), nil
 	})
 }
 
@@ -333,8 +344,11 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 		)
 	}
 	now := time.Now().UTC()
+	// Soft-delete is idempotent: deleting an already-inactive row is not an
+	// error (prior behavior required active = true in WHERE, which caused
+	// RECORD_NOT_FOUND when users ran Delete from the inactive list).
 	query := fmt.Sprintf(
-		"UPDATE \"%s\" SET active = false, date_modified = $1 WHERE id = $2 AND active = true",
+		"UPDATE \"%s\" SET active = false, date_modified = $1 WHERE id = $2",
 		tableName,
 	)
 
@@ -375,7 +389,17 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 	return nil
 }
 
-// HardDelete permanently deletes a record from the specified table
+// HardDelete permanently deletes a record from the specified table.
+//
+// TODO(recycle-bin): long-term, catalog entities (product, plan, price_plan,
+// price_schedule, price_list, etc.) that use HardDelete today should migrate
+// to a two-stage delete: move the row to a shared `recycle_bin` table with
+// `entity_type`, `entity_id`, `payload JSONB`, and `deleted_at` columns, then
+// run a scheduled purge (e.g. 30-day retention). This gives users an undelete
+// affordance without reintroducing the active=false graveyard pattern the
+// previous soft-delete implementation suffered from. The current hard-delete
+// behavior relies on FK RESTRICT as the safety net; the recycle-bin layer
+// should preserve that guarantee by checking references before bin insert.
 func (p *PostgresOperations) HardDelete(ctx context.Context, tableName string, id string) error {
 	if tableName == "" {
 		return model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)

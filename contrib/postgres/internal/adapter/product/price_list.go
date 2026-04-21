@@ -164,7 +164,9 @@ func (r *PostgresPriceListRepository) DeletePriceList(ctx context.Context, req *
 		return nil, fmt.Errorf("price list ID is required")
 	}
 
-	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
+	// Hard delete — catalog entities rely on FK RESTRICT to block deletion
+	// when historical references exist (price_product rows).
+	err := r.dbOps.HardDelete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete price list: %w", err)
 	}

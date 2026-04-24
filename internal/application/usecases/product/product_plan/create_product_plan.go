@@ -11,12 +11,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
 )
 
 // CreateProductPlanRepositories groups all repository dependencies
 type CreateProductPlanRepositories struct {
-	ProductPlan productplanpb.ProductPlanDomainServiceServer // Primary entity repository
-	Product     productpb.ProductDomainServiceServer
+	ProductPlan    productplanpb.ProductPlanDomainServiceServer // Primary entity repository
+	Product        productpb.ProductDomainServiceServer
+	ProductVariant productvariantpb.ProductVariantDomainServiceServer // Used for variant_id FK validation (Model D)
 }
 
 // CreateProductPlanServices groups all business service dependencies
@@ -238,6 +240,7 @@ func (uc *CreateProductPlanUseCase) validateEntityReferences(ctx context.Context
 // validateEntityReferencesWithTranslation validates entity references with translated messages
 func (uc *CreateProductPlanUseCase) validateEntityReferencesWithTranslation(ctx context.Context, productPlan *productplanpb.ProductPlan) error {
 	// Validate Product entity reference
+	var parentProduct *productpb.Product
 	if productPlan.ProductId != "" {
 		product, err := uc.repositories.Product.ReadProduct(ctx, &productpb.ReadProductRequest{
 			Data: &productpb.Product{Id: productPlan.ProductId},
@@ -253,6 +256,58 @@ func (uc *CreateProductPlanUseCase) validateEntityReferencesWithTranslation(ctx 
 		if !product.Data[0].Active {
 			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.product_not_active", "Referenced product is not active [DEFAULT]")
 			return fmt.Errorf("%s with ID '%s'", msg, productPlan.ProductId)
+		}
+		parentProduct = product.Data[0]
+	}
+
+	// Model D binary invariant: product_variant_id presence must match
+	// parent Product.variant_mode. Draft rows (active=false) may temporarily
+	// lack a variant_id even for configurable products; activation re-runs
+	// this check.
+	if err := uc.validateVariantModeInvariantWithTranslation(ctx, productPlan, parentProduct); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateVariantModeInvariantWithTranslation enforces the Model D binary invariant:
+// - parent.variant_mode = "configurable" + active row => variant_id required (FK checked)
+// - parent.variant_mode = "none"                    => variant_id must be NULL
+// Draft rows (active=false) are permitted to omit variant_id even when the
+// parent is configurable.
+func (uc *CreateProductPlanUseCase) validateVariantModeInvariantWithTranslation(ctx context.Context, productPlan *productplanpb.ProductPlan, parentProduct *productpb.Product) error {
+	if parentProduct == nil {
+		return nil
+	}
+	hasVariantID := productPlan.ProductVariantId != nil && *productPlan.ProductVariantId != ""
+	mode := parentProduct.GetVariantMode()
+
+	switch mode {
+	case "configurable":
+		if productPlan.Active && !hasVariantID {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.variant_id_required_for_configurable", "This product has variants; select a variant before activating this line [DEFAULT]")
+			return errors.New(msg)
+		}
+	case "", "none":
+		if hasVariantID {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.variant_id_forbidden_for_simple", "This product has no variants; variant cannot be set [DEFAULT]")
+			return errors.New(msg)
+		}
+	}
+
+	// FK validation: when variant_id is set, confirm it exists
+	if hasVariantID && uc.repositories.ProductVariant != nil {
+		resp, err := uc.repositories.ProductVariant.ReadProductVariant(ctx, &productvariantpb.ReadProductVariantRequest{
+			Data: &productvariantpb.ProductVariant{Id: *productPlan.ProductVariantId},
+		})
+		if err != nil {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.product_variant_validation_failed", "Failed to validate product variant entity reference [DEFAULT]")
+			return fmt.Errorf("%s: %w", msg, err)
+		}
+		if resp == nil || resp.Data == nil || len(resp.Data) == 0 {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.product_variant_not_found", "Referenced product variant does not exist [DEFAULT]")
+			return fmt.Errorf("%s with ID '%s'", msg, *productPlan.ProductVariantId)
 		}
 	}
 

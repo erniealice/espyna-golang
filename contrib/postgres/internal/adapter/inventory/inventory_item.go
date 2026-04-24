@@ -498,7 +498,7 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 		productVariantID  *string
 		notes             *string
 		productName       string
-		productPrice      int64
+		productPrice      sql.NullInt64 // Model D: product.price is nullable
 	)
 
 	err := row.Scan(
@@ -542,10 +542,13 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 	if productID != nil {
 		inventoryItem.ProductId = productID
 		inventoryItem.Product = &productpb.Product{
-			Id:       *productID,
-			Name:     productName,
-			Price:    productPrice,
+			Id:           *productID,
+			Name:         productName,
 			TrackingMode: trackingMode,
+		}
+		if productPrice.Valid {
+			p := productPrice.Int64
+			inventoryItem.Product.Price = &p
 		}
 	}
 	if locationID != nil {

@@ -22,20 +22,24 @@ import (
 	eventProductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
 	eventRecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 	eventResourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_resource"
+	eventtagpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag"
+	eventtagassignmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag_assignment"
 )
 
 // EventRepositories contains all event domain repositories and cross-domain dependencies
-// Event domain: Event, EventAttendee, EventAttribute, EventClient, EventOccurrence, EventProduct, EventRecurrence, EventResource (8 entities)
+// Event domain: Event, EventAttendee, EventAttribute, EventClient, EventOccurrence, EventProduct, EventRecurrence, EventResource, EventTag, EventTagAssignment (10 entities)
 // Cross-domain: Client (needed by EventClient), Product (needed by EventProduct)
 type EventRepositories struct {
-	Event           eventpb.EventDomainServiceServer
-	EventAttendee   eventAttendeepb.EventAttendeeDomainServiceServer
-	EventAttribute  eventattributepb.EventAttributeDomainServiceServer
-	EventClient     eventclientpb.EventClientDomainServiceServer
-	EventOccurrence eventOccurrencepb.EventOccurrenceDomainServiceServer
-	EventProduct    eventProductpb.EventProductDomainServiceServer
-	EventRecurrence eventRecurrencepb.EventRecurrenceDomainServiceServer
-	EventResource   eventResourcepb.EventResourceDomainServiceServer
+	Event              eventpb.EventDomainServiceServer
+	EventAttendee      eventAttendeepb.EventAttendeeDomainServiceServer
+	EventAttribute     eventattributepb.EventAttributeDomainServiceServer
+	EventClient        eventclientpb.EventClientDomainServiceServer
+	EventOccurrence    eventOccurrencepb.EventOccurrenceDomainServiceServer
+	EventProduct       eventProductpb.EventProductDomainServiceServer
+	EventRecurrence    eventRecurrencepb.EventRecurrenceDomainServiceServer
+	EventResource      eventResourcepb.EventResourceDomainServiceServer
+	EventTag           eventtagpb.EventTagDomainServiceServer
+	EventTagAssignment eventtagassignmentpb.EventTagAssignmentDomainServiceServer
 	// Cross-domain dependencies
 	Client  clientpb.ClientDomainServiceServer
 	Product productpb.ProductDomainServiceServer
@@ -95,6 +99,16 @@ func NewEventRepositories(dbProvider contracts.Provider, tableConfig *registry.T
 		return nil, fmt.Errorf("failed to create event_resource repository: %w", err)
 	}
 
+	eventTagRepo, err := repoCreator.CreateRepository(entityid.EventTag, conn, tableConfig.TableName(entityid.EventTag))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event_tag repository: %w", err)
+	}
+
+	eventTagAssignmentRepo, err := repoCreator.CreateRepository(entityid.EventTagAssignment, conn, tableConfig.TableName(entityid.EventTagAssignment))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event_tag_assignment repository: %w", err)
+	}
+
 	// Cross-domain repositories
 	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, tableConfig.TableName(entityid.Client))
 	if err != nil {
@@ -107,15 +121,17 @@ func NewEventRepositories(dbProvider contracts.Provider, tableConfig *registry.T
 	}
 
 	return &EventRepositories{
-		Event:           eventRepo.(eventpb.EventDomainServiceServer),
-		EventAttendee:   eventAttendeeRepo.(eventAttendeepb.EventAttendeeDomainServiceServer),
-		EventAttribute:  eventAttributeRepo.(eventattributepb.EventAttributeDomainServiceServer),
-		EventClient:     eventClientRepo.(eventclientpb.EventClientDomainServiceServer),
-		EventOccurrence: eventOccurrenceRepo.(eventOccurrencepb.EventOccurrenceDomainServiceServer),
-		EventProduct:    eventProductRepo.(eventProductpb.EventProductDomainServiceServer),
-		EventRecurrence: eventRecurrenceRepo.(eventRecurrencepb.EventRecurrenceDomainServiceServer),
-		EventResource:   eventResourceRepo.(eventResourcepb.EventResourceDomainServiceServer),
-		Client:          clientRepo.(clientpb.ClientDomainServiceServer),
-		Product:         productRepo.(productpb.ProductDomainServiceServer),
+		Event:              eventRepo.(eventpb.EventDomainServiceServer),
+		EventAttendee:      eventAttendeeRepo.(eventAttendeepb.EventAttendeeDomainServiceServer),
+		EventAttribute:     eventAttributeRepo.(eventattributepb.EventAttributeDomainServiceServer),
+		EventClient:        eventClientRepo.(eventclientpb.EventClientDomainServiceServer),
+		EventOccurrence:    eventOccurrenceRepo.(eventOccurrencepb.EventOccurrenceDomainServiceServer),
+		EventProduct:       eventProductRepo.(eventProductpb.EventProductDomainServiceServer),
+		EventRecurrence:    eventRecurrenceRepo.(eventRecurrencepb.EventRecurrenceDomainServiceServer),
+		EventResource:      eventResourceRepo.(eventResourcepb.EventResourceDomainServiceServer),
+		EventTag:           eventTagRepo.(eventtagpb.EventTagDomainServiceServer),
+		EventTagAssignment: eventTagAssignmentRepo.(eventtagassignmentpb.EventTagAssignmentDomainServiceServer),
+		Client:             clientRepo.(clientpb.ClientDomainServiceServer),
+		Product:            productRepo.(productpb.ProductDomainServiceServer),
 	}, nil
 }

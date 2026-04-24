@@ -25,6 +25,8 @@ func InitializeEvent(
 		repos.EventProduct,
 		repos.EventRecurrence,
 		repos.EventResource,
+		repos.EventTag,
+		repos.EventTagAssignment,
 		repos.Client,
 		repos.Product,
 		authSvc,

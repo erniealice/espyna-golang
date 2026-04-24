@@ -21,6 +21,7 @@ import (
 	// Protobuf domain services for subscription repositories
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
@@ -47,6 +48,7 @@ type SubscriptionRepositories struct {
 	PlanSettings          plansettingspb.PlanSettingsDomainServiceServer
 	PricePlan             priceplanpb.PricePlanDomainServiceServer
 	PriceSchedule         priceschedulepb.PriceScheduleDomainServiceServer
+	ProductPlan           productplanpb.ProductPlanDomainServiceServer // Cross-domain (Model D: product_price_plan.product_plan_id FK validation)
 	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
@@ -143,6 +145,7 @@ func NewUseCases(
 		productPricePlanUseCases.ProductPricePlanRepositories{
 			ProductPricePlan: repos.ProductPricePlan,
 			PricePlan:        repos.PricePlan,
+			ProductPlan:      repos.ProductPlan,
 		},
 		productPricePlanUseCases.ProductPricePlanServices{
 			AuthorizationService: authSvc,

@@ -174,8 +174,32 @@ func (uc *CreateProductUseCase) validateBusinessRules(ctx context.Context, produ
 		}
 	}
 
+	// Model D price rule:
+	//   - variant_mode = "none" + active  => price required (catalog default)
+	//   - variant_mode = "configurable"    => price optional (lives on each variant)
+	//   - draft (active=false)             => price may be absent regardless of mode
+	if err := uc.validateVariantModePriceRule(ctx, product); err != nil {
+		return err
+	}
+
 	// Normalize name (trim spaces, proper capitalization)
 	product.Name = strings.Title(strings.ToLower(name))
 
+	return nil
+}
+
+// validateVariantModePriceRule enforces that simple products (variant_mode != "configurable")
+// carry a price before activation. Configurable products may defer pricing to variants.
+func (uc *CreateProductUseCase) validateVariantModePriceRule(ctx context.Context, product *productpb.Product) error {
+	if !product.Active {
+		return nil
+	}
+	if product.VariantMode == "configurable" {
+		return nil
+	}
+	if product.Price == nil {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.price_required_for_simple", "Price is required for simple products [DEFAULT]")
+		return errors.New(msg)
+	}
 	return nil
 }

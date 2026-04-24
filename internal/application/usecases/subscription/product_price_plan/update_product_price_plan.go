@@ -10,6 +10,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 )
@@ -18,6 +19,7 @@ import (
 type UpdateProductPricePlanRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
+	ProductPlan      productplanpb.ProductPlanDomainServiceServer
 }
 
 // UpdateProductPricePlanServices groups all business service dependencies
@@ -105,6 +107,11 @@ func (uc *UpdateProductPricePlanUseCase) executeCore(ctx context.Context, req *p
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
+	if err := uc.validateEntityReferencesWithTranslation(ctx, req.Data); err != nil {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.entity_reference_validation_failed", "Entity reference validation failed [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", msg, err)
+	}
+
 	resp, err := uc.repositories.ProductPricePlan.UpdateProductPricePlan(ctx, req)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -137,5 +144,46 @@ func (uc *UpdateProductPricePlanUseCase) enrichData(productPricePlan *productpri
 	now := time.Now()
 	productPricePlan.DateModified = &[]int64{now.UnixMilli()}[0]
 	productPricePlan.DateModifiedString = &[]string{now.Format(time.RFC3339)}[0]
+	return nil
+}
+
+// validateEntityReferencesWithTranslation validates referenced entities exist.
+// Model D: when product_plan_id is provided, confirm it exists and (when the
+// price_plan is also identifiable) shares the same plan_id as the parent PricePlan.
+func (uc *UpdateProductPricePlanUseCase) validateEntityReferencesWithTranslation(ctx context.Context, productPricePlan *productpriceplanpb.ProductPricePlan) error {
+	var pricePlanPlanID string
+	if productPricePlan.PricePlanId != "" && uc.repositories.PricePlan != nil {
+		pricePlan, err := uc.repositories.PricePlan.ReadPricePlan(ctx, &priceplanpb.ReadPricePlanRequest{
+			Data: &priceplanpb.PricePlan{Id: productPricePlan.PricePlanId},
+		})
+		if err != nil {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.price_plan_validation_failed", "Failed to validate price plan entity reference [DEFAULT]")
+			return fmt.Errorf("%s: %w", msg, err)
+		}
+		if pricePlan == nil || pricePlan.Data == nil || len(pricePlan.Data) == 0 {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.price_plan_not_found", "Referenced price plan does not exist [DEFAULT]")
+			return fmt.Errorf("%s with ID '%s'", msg, productPricePlan.PricePlanId)
+		}
+		pricePlanPlanID = pricePlan.Data[0].GetPlanId()
+	}
+
+	if productPricePlan.ProductPlanId != "" && uc.repositories.ProductPlan != nil {
+		productPlan, err := uc.repositories.ProductPlan.ReadProductPlan(ctx, &productplanpb.ReadProductPlanRequest{
+			Data: &productplanpb.ProductPlan{Id: productPricePlan.ProductPlanId},
+		})
+		if err != nil {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_validation_failed", "Failed to validate product plan entity reference [DEFAULT]")
+			return fmt.Errorf("%s: %w", msg, err)
+		}
+		if productPlan == nil || productPlan.Data == nil || len(productPlan.Data) == 0 {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_not_found", "Referenced product plan does not exist [DEFAULT]")
+			return fmt.Errorf("%s with ID '%s'", msg, productPricePlan.ProductPlanId)
+		}
+		if pricePlanPlanID != "" && productPlan.Data[0].GetPlanId() != pricePlanPlanID {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_plan_mismatch", "Referenced product plan does not belong to the price plan's parent plan [DEFAULT]")
+			return fmt.Errorf("%s (product_plan.plan_id='%s', price_plan.plan_id='%s')", msg, productPlan.Data[0].GetPlanId(), pricePlanPlanID)
+		}
+	}
+
 	return nil
 }

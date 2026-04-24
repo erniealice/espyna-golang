@@ -81,14 +81,16 @@ const (
 
 // Event domain
 const (
-	Event           = "event"
-	EventAttendee   = "event_attendee"
-	EventAttribute  = "event_attribute"
-	EventClient     = "event_client"
-	EventOccurrence = "event_occurrence"
-	EventProduct    = "event_product"
-	EventRecurrence = "event_recurrence"
-	EventResource   = "event_resource"
+	Event               = "event"
+	EventAttendee       = "event_attendee"
+	EventAttribute      = "event_attribute"
+	EventClient         = "event_client"
+	EventOccurrence     = "event_occurrence"
+	EventProduct        = "event_product"
+	EventRecurrence     = "event_recurrence"
+	EventResource       = "event_resource"
+	EventTag            = "event_tag"
+	EventTagAssignment  = "event_tag_assignment"
 )
 
 // Product domain
@@ -289,6 +291,7 @@ var EntityEntities = []string{
 var EventEntities = []string{
 	Event, EventAttendee, EventAttribute, EventClient,
 	EventOccurrence, EventProduct, EventRecurrence, EventResource,
+	EventTag, EventTagAssignment,
 }
 
 // ProductEntities lists all entity IDs in the Product domain.

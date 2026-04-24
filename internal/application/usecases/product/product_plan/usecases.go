@@ -4,12 +4,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
 )
 
 // ProductPlanRepositories groups all repository dependencies for product plan use cases
 type ProductPlanRepositories struct {
-	ProductPlan productplanpb.ProductPlanDomainServiceServer // Primary entity repository
-	Product     productpb.ProductDomainServiceServer         // Entity reference dependency
+	ProductPlan    productplanpb.ProductPlanDomainServiceServer       // Primary entity repository
+	Product        productpb.ProductDomainServiceServer               // Entity reference dependency
+	ProductVariant productvariantpb.ProductVariantDomainServiceServer // Entity reference dependency (Model D binary invariant)
 }
 
 // ProductPlanServices groups all business service dependencies for product plan use cases

@@ -310,14 +310,16 @@ const (
 	EntityWorkspaceUserRole = security.EntityWorkspaceUserRole
 
 	// Event Domain
-	EntityEvent           = security.EntityEvent
-	EntityEventAttendee   = security.EntityEventAttendee
-	EntityEventAttribute  = security.EntityEventAttribute
-	EntityEventClient     = security.EntityEventClient
-	EntityEventOccurrence = security.EntityEventOccurrence
-	EntityEventProduct    = security.EntityEventProduct
-	EntityEventRecurrence = security.EntityEventRecurrence
-	EntityEventResource   = security.EntityEventResource
+	EntityEvent              = security.EntityEvent
+	EntityEventAttendee      = security.EntityEventAttendee
+	EntityEventAttribute     = security.EntityEventAttribute
+	EntityEventClient        = security.EntityEventClient
+	EntityEventOccurrence    = security.EntityEventOccurrence
+	EntityEventProduct       = security.EntityEventProduct
+	EntityEventRecurrence    = security.EntityEventRecurrence
+	EntityEventResource      = security.EntityEventResource
+	EntityEventTag           = security.EntityEventTag
+	EntityEventTagAssignment = security.EntityEventTagAssignment
 
 	// Framework Domain
 	EntityFramework = security.EntityFramework

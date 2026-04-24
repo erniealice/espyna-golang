@@ -393,7 +393,7 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			active            bool
 			name              string
 			description       *string
-			price             int64
+			price             sql.NullInt64 // Model D: price column is nullable
 			currency          string
 			lineID            *string
 			productAttributes []byte // jsonb
@@ -425,8 +425,11 @@ func (r *PostgresProductRepository) GetProductListPageData(
 			Id:       id,
 			Active:   active,
 			Name:     name,
-			Price:    price,
 			Currency: currency,
+		}
+		if price.Valid {
+			p := price.Int64
+			product.Price = &p
 		}
 
 		// Handle nullable description field
@@ -562,7 +565,7 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 		active            bool
 		name              string
 		description       *string
-		price             int64
+		price             sql.NullInt64 // Model D: price column is nullable
 		currency          string
 		lineID            *string
 		productAttributes []byte // jsonb
@@ -593,8 +596,11 @@ func (r *PostgresProductRepository) GetProductItemPageData(
 		Id:       id,
 		Active:   active,
 		Name:     name,
-		Price:    price,
 		Currency: currency,
+	}
+	if price.Valid {
+		p := price.Int64
+		product.Price = &p
 	}
 
 	// Handle nullable description field

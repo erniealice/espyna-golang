@@ -62,6 +62,10 @@ func (c *Checker) GetClientInUseIDs(ctx context.Context, ids []string) (map[stri
 
 func (c *Checker) GetProductInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	// Model D: product_plan.product_id is now a catalog-level reference that
+	// must block deletes. Without it, a product that's only in a catalog (not
+	// yet invoiced, priced, or stocked) could be deleted out from under its
+	// ProductPlan rows.
 	query := `
 		SELECT DISTINCT ref_id FROM (
 			SELECT rli.product_id AS ref_id FROM revenue_line_item rli JOIN revenue r ON r.id = rli.revenue_id WHERE rli.product_id = ANY($1) AND rli.active = true AND ($2::text IS NULL OR r.workspace_id = $2)
@@ -69,8 +73,50 @@ func (c *Checker) GetProductInUseIDs(ctx context.Context, ids []string) (map[str
 			SELECT product_id AS ref_id FROM price_product WHERE product_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 			UNION ALL
 			SELECT product_id AS ref_id FROM inventory_item WHERE product_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+			UNION ALL
+			SELECT product_id AS ref_id FROM product_plan WHERE product_id = ANY($1) AND active = true
 		) AS refs`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
+// GetProductVariantInUseIDs blocks deletion of product variants referenced by
+// inventory stock, recorded revenue lines, variant-option pivots, or catalog
+// product_plan rows. Covers the full Model D surface.
+func (c *Checker) GetProductVariantInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT product_variant_id AS ref_id FROM inventory_item WHERE product_variant_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
+			UNION ALL
+			SELECT rli.variant_id AS ref_id FROM revenue_line_item rli JOIN revenue r ON r.id = rli.revenue_id WHERE rli.variant_id = ANY($1) AND rli.active = true AND ($2::text IS NULL OR r.workspace_id = $2)
+			UNION ALL
+			SELECT product_variant_id AS ref_id FROM product_variant_option WHERE product_variant_id = ANY($1)
+			UNION ALL
+			SELECT product_variant_id AS ref_id FROM product_plan WHERE product_variant_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
+// GetProductOptionValueInUseIDs blocks deletion of product_option_value rows
+// that are referenced by product_variant_option pivots.
+func (c *Checker) GetProductOptionValueInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	query := `SELECT DISTINCT product_option_value_id FROM product_variant_option WHERE product_option_value_id = ANY($1)`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetProductOptionInUseIDs blocks deletion of a product_option when any of its
+// child product_option_value rows are referenced by product_variant_option.
+// Transitive check: we resolve "in use" by matching option_id → values → pivot.
+func (c *Checker) GetProductOptionInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT pov.product_option_id AS ref_id
+		FROM product_option_value pov
+		WHERE pov.product_option_id = ANY($1)
+		  AND EXISTS (
+			SELECT 1 FROM product_variant_option pvo
+			WHERE pvo.product_option_value_id = pov.id
+		)`
+	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
 // GetPlanInUseIDs checks if plans are referenced by product_plan or price_plan.
@@ -145,6 +191,19 @@ func (c *Checker) GetLineInUseIDs(ctx context.Context, ids []string) (map[string
 func (c *Checker) GetLocationAreaInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	query := `SELECT DISTINCT location_area_id AS ref_id FROM location WHERE location_area_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)`
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
+// GetEventTagInUseIDs blocks deletion of an event_tag when any active
+// event_tag_assignment row references it. Workspace-scoped via the join table.
+func (c *Checker) GetEventTagInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `
+		SELECT DISTINCT event_tag_id AS ref_id
+		FROM event_tag_assignment
+		WHERE event_tag_id = ANY($1)
+		  AND active = true
+		  AND ($2::text IS NULL OR workspace_id = $2)`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 

@@ -14,16 +14,20 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // PostgresProductPricePlanRepository implements product_price_plan CRUD operations using PostgreSQL
 //
+// Model D: product_price_plan references product_plan directly. Variant identity is
+// inherited from product_plan via join; there is no product_id column on this table.
+//
 // Performance Index Recommendations:
 //   - CREATE INDEX idx_product_price_plan_active ON product_price_plan(active) WHERE active = true
 //   - CREATE INDEX idx_product_price_plan_price_plan_id ON product_price_plan(price_plan_id) - Filter by price plan
-//   - CREATE INDEX idx_product_price_plan_product_id ON product_price_plan(product_id) - Filter by product
+//   - CREATE INDEX idx_product_price_plan_product_plan_id ON product_price_plan(product_plan_id) - Filter by product plan
 //   - CREATE INDEX idx_product_price_plan_date_created ON product_price_plan(date_created DESC) - Default sorting
 type PostgresProductPricePlanRepository struct {
 	productpriceplanpb.UnimplementedProductPricePlanDomainServiceServer
@@ -247,7 +251,13 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 		}
 	}
 
-	query := `SELECT id, price_plan_id, product_id, price, currency, active, date_created, date_modified FROM product_price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR price_plan_id ILIKE $1 OR product_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	// Model D: join product_plan so that list rows carry product_id + variant_id
+	// through the embedded ProductPlan (no direct product_id column on PPP).
+	query := `SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
+		FROM product_price_plan ppp
+		LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
+		WHERE ppp.active = true AND ($1::text IS NULL OR $1::text = '' OR ppp.price_plan_id ILIKE $1 OR ppp.product_plan_id ILIKE $1 OR ppp.billing_currency ILIKE $1)
+		ORDER BY ppp.` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -255,20 +265,32 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 	defer rows.Close()
 	var productPricePlans []*productpriceplanpb.ProductPricePlan
 	for rows.Next() {
-		var id, pricePlanId, productId, currency string
-		var price int64
+		var id, pricePlanId, productPlanId, billingCurrency string
+		var billingAmount int64
 		var active bool
 		var dateCreated, dateModified time.Time
-		if err := rows.Scan(&id, &pricePlanId, &productId, &price, &currency, &active, &dateCreated, &dateModified); err != nil {
+		var joinedProductID, joinedProductVariantID sql.NullString
+		if err := rows.Scan(&id, &pricePlanId, &productPlanId, &billingAmount, &billingCurrency, &active, &dateCreated, &dateModified, &joinedProductID, &joinedProductVariantID); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		productPricePlan := &productpriceplanpb.ProductPricePlan{
-			Id:          id,
-			PricePlanId: pricePlanId,
-			ProductId:   productId,
-			Price:       price,
-			Currency:    currency,
-			Active:      active,
+			Id:              id,
+			PricePlanId:     pricePlanId,
+			ProductPlanId:   productPlanId,
+			BillingAmount:   billingAmount,
+			BillingCurrency: billingCurrency,
+			Active:          active,
+		}
+		if joinedProductID.Valid {
+			embed := &productplanpb.ProductPlan{
+				Id:        productPlanId,
+				ProductId: joinedProductID.String,
+			}
+			if joinedProductVariantID.Valid && joinedProductVariantID.String != "" {
+				v := joinedProductVariantID.String
+				embed.ProductVariantId = &v
+			}
+			productPricePlan.ProductPlan = embed
 		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -292,24 +314,41 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanItemPageData(ctx
 	if req == nil || req.ProductPricePlanId == "" {
 		return nil, fmt.Errorf("product price plan ID required")
 	}
-	query := `SELECT id, price_plan_id, product_id, price, currency, active, date_created, date_modified FROM product_price_plan WHERE id = $1 AND active = true`
+	// Model D: same join-through shape as the list query — surface product_id +
+	// variant_id from product_plan on the returned ProductPlan embed.
+	query := `SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
+		FROM product_price_plan ppp
+		LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
+		WHERE ppp.id = $1 AND ppp.active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPricePlanId)
-	var id, pricePlanId, productId, currency string
-	var price int64
+	var id, pricePlanId, productPlanId, billingCurrency string
+	var billingAmount int64
 	var active bool
 	var dateCreated, dateModified time.Time
-	if err := row.Scan(&id, &pricePlanId, &productId, &price, &currency, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
+	var joinedProductID, joinedProductVariantID sql.NullString
+	if err := row.Scan(&id, &pricePlanId, &productPlanId, &billingAmount, &billingCurrency, &active, &dateCreated, &dateModified, &joinedProductID, &joinedProductVariantID); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product price plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	productPricePlan := &productpriceplanpb.ProductPricePlan{
-		Id:          id,
-		PricePlanId: pricePlanId,
-		ProductId:   productId,
-		Price:       price,
-		Currency:    currency,
-		Active:      active,
+		Id:              id,
+		PricePlanId:     pricePlanId,
+		ProductPlanId:   productPlanId,
+		BillingAmount:   billingAmount,
+		BillingCurrency: billingCurrency,
+		Active:          active,
+	}
+	if joinedProductID.Valid {
+		embed := &productplanpb.ProductPlan{
+			Id:        productPlanId,
+			ProductId: joinedProductID.String,
+		}
+		if joinedProductVariantID.Valid && joinedProductVariantID.String != "" {
+			v := joinedProductVariantID.String
+			embed.ProductVariantId = &v
+		}
+		productPricePlan.ProductPlan = embed
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

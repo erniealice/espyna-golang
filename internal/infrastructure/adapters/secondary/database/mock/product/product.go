@@ -117,8 +117,10 @@ func (r *MockProductRepository) CreateProduct(ctx context.Context, req *productp
 		Id:                 productID,
 		Name:               req.Data.Name,
 		Description:        req.Data.Description,
-		Price:              req.Data.Price,
+		Price:              req.Data.Price, // *int64 pointer; nil = unset (Model D)
 		Currency:           req.Data.Currency,
+		Unit:               req.Data.Unit,
+		VariantMode:        req.Data.VariantMode,
 		DateCreated:        &[]int64{now.UnixMilli()}[0],
 		DateCreatedString:  &[]string{now.Format(time.RFC3339)}[0],
 		DateModified:       &[]int64{now.UnixMilli()}[0],

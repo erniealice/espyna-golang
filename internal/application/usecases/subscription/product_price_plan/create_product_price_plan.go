@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 )
@@ -17,6 +18,7 @@ import (
 type CreateProductPricePlanRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
+	ProductPlan      productplanpb.ProductPlanDomainServiceServer
 }
 
 // CreateProductPricePlanServices groups all business service dependencies
@@ -131,8 +133,8 @@ func (uc *CreateProductPricePlanUseCase) validateInputWithTranslation(ctx contex
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.price_plan_id_required", "Price plan ID is required [DEFAULT]")
 		return errors.New(msg)
 	}
-	if req.Data.ProductId == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.product_id_required", "Product ID is required [DEFAULT]")
+	if req.Data.ProductPlanId == "" {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.product_plan_id_required", "Product plan ID is required [DEFAULT]")
 		return errors.New(msg)
 	}
 	return nil
@@ -155,6 +157,8 @@ func (uc *CreateProductPricePlanUseCase) enrichData(productPricePlan *productpri
 }
 
 func (uc *CreateProductPricePlanUseCase) validateEntityReferencesWithTranslation(ctx context.Context, productPricePlan *productpriceplanpb.ProductPricePlan) error {
+	// Validate referenced PricePlan
+	var pricePlanPlanID string
 	if productPricePlan.PricePlanId != "" {
 		pricePlan, err := uc.repositories.PricePlan.ReadPricePlan(ctx, &priceplanpb.ReadPricePlanRequest{
 			Data: &priceplanpb.PricePlan{Id: productPricePlan.PricePlanId},
@@ -166,6 +170,27 @@ func (uc *CreateProductPricePlanUseCase) validateEntityReferencesWithTranslation
 		if pricePlan == nil || pricePlan.Data == nil || len(pricePlan.Data) == 0 {
 			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.price_plan_not_found", "Referenced price plan does not exist [DEFAULT]")
 			return fmt.Errorf("%s with ID '%s'", msg, productPricePlan.PricePlanId)
+		}
+		pricePlanPlanID = pricePlan.Data[0].GetPlanId()
+	}
+
+	// Model D: Validate referenced ProductPlan exists AND belongs to the same Plan
+	// as the PricePlan — prevents pricing a product_plan from a different plan.
+	if productPricePlan.ProductPlanId != "" && uc.repositories.ProductPlan != nil {
+		productPlan, err := uc.repositories.ProductPlan.ReadProductPlan(ctx, &productplanpb.ReadProductPlanRequest{
+			Data: &productplanpb.ProductPlan{Id: productPricePlan.ProductPlanId},
+		})
+		if err != nil {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_validation_failed", "Failed to validate product plan entity reference [DEFAULT]")
+			return fmt.Errorf("%s: %w", msg, err)
+		}
+		if productPlan == nil || productPlan.Data == nil || len(productPlan.Data) == 0 {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_not_found", "Referenced product plan does not exist [DEFAULT]")
+			return fmt.Errorf("%s with ID '%s'", msg, productPricePlan.ProductPlanId)
+		}
+		if pricePlanPlanID != "" && productPlan.Data[0].GetPlanId() != pricePlanPlanID {
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_plan_mismatch", "Referenced product plan does not belong to the price plan's parent plan [DEFAULT]")
+			return fmt.Errorf("%s (product_plan.plan_id='%s', price_plan.plan_id='%s')", msg, productPlan.Data[0].GetPlanId(), pricePlanPlanID)
 		}
 	}
 

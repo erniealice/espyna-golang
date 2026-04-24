@@ -15,6 +15,7 @@ import (
 	eventProductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
 	eventRecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 	eventResourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_resource"
+	eventtagpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag"
 )
 
 // ConfigureEventDomain configures routes for the Event domain with use cases injected directly
@@ -130,6 +131,23 @@ func ConfigureEventDomain(eventUseCases *event.EventUseCases) contracts.DomainRo
 			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-resource/get-item-page-data", Handler: contracts.NewGenericHandler(eventUseCases.EventResource.GetEventResourceItemPageData, &eventResourcepb.GetEventResourceItemPageDataRequest{})},
 		)
 	}
+
+	// EventTag routes (CRUD + PageData) — master list of tags per workspace.
+	if eventUseCases.EventTag != nil {
+		routes = append(routes,
+			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-tag/create", Handler: contracts.NewGenericHandler(eventUseCases.EventTag.CreateEventTag, &eventtagpb.CreateEventTagRequest{})},
+			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-tag/read", Handler: contracts.NewGenericHandler(eventUseCases.EventTag.ReadEventTag, &eventtagpb.ReadEventTagRequest{})},
+			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-tag/update", Handler: contracts.NewGenericHandler(eventUseCases.EventTag.UpdateEventTag, &eventtagpb.UpdateEventTagRequest{})},
+			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-tag/delete", Handler: contracts.NewGenericHandler(eventUseCases.EventTag.DeleteEventTag, &eventtagpb.DeleteEventTagRequest{})},
+			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-tag/list", Handler: contracts.NewGenericHandler(eventUseCases.EventTag.ListEventTags, &eventtagpb.ListEventTagsRequest{})},
+			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-tag/get-list-page-data", Handler: contracts.NewGenericHandler(eventUseCases.EventTag.GetEventTagListPageData, &eventtagpb.GetEventTagListPageDataRequest{})},
+			contracts.RouteConfiguration{Method: "POST", Path: "/api/event/event-tag/get-item-page-data", Handler: contracts.NewGenericHandler(eventUseCases.EventTag.GetEventTagItemPageData, &eventtagpb.GetEventTagItemPageDataRequest{})},
+		)
+	}
+
+	// NOTE: event_tag_assignment has no standalone HTTP routes — it is driven
+	// through the per-event tag picker's Set use case, which is invoked from
+	// the Event detail page view (Phase 4) rather than directly via HTTP.
 
 	return contracts.DomainRouteConfiguration{
 		Domain:  "event",

@@ -12,6 +12,8 @@ import (
 	eventProductUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_product"
 	eventRecurrenceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_recurrence"
 	eventResourceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_resource"
+	eventTagUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_tag"
+	eventTagAssignmentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/event/event_tag_assignment"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
@@ -22,19 +24,23 @@ import (
 	eventProductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
 	eventRecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 	eventResourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_resource"
+	eventtagpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag"
+	eventtagassignmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag_assignment"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // EventUseCases contains all event-related use cases
 type EventUseCases struct {
-	Event           *eventUseCases.UseCases
-	EventAttendee   *eventAttendeeUseCases.UseCases
-	EventAttribute  *eventAttributeUseCases.UseCases
-	EventClient     *eventClientUseCases.UseCases
-	EventOccurrence *eventOccurrenceUseCases.UseCases
-	EventProduct    *eventProductUseCases.UseCases
-	EventRecurrence *eventRecurrenceUseCases.UseCases
-	EventResource   *eventResourceUseCases.UseCases
+	Event              *eventUseCases.UseCases
+	EventAttendee      *eventAttendeeUseCases.UseCases
+	EventAttribute     *eventAttributeUseCases.UseCases
+	EventClient        *eventClientUseCases.UseCases
+	EventOccurrence    *eventOccurrenceUseCases.UseCases
+	EventProduct       *eventProductUseCases.UseCases
+	EventRecurrence    *eventRecurrenceUseCases.UseCases
+	EventResource      *eventResourceUseCases.UseCases
+	EventTag           *eventTagUseCases.UseCases
+	EventTagAssignment *eventTagAssignmentUseCases.UseCases
 }
 
 // NewEventUseCases creates a new collection of event use cases
@@ -47,6 +53,8 @@ func NewEventUseCases(
 	eventProductRepo eventProductpb.EventProductDomainServiceServer,
 	eventRecurrenceRepo eventRecurrencepb.EventRecurrenceDomainServiceServer,
 	eventResourceRepo eventResourcepb.EventResourceDomainServiceServer,
+	eventTagRepo eventtagpb.EventTagDomainServiceServer,
+	eventTagAssignmentRepo eventtagassignmentpb.EventTagAssignmentDomainServiceServer,
 	clientRepo clientpb.ClientDomainServiceServer,
 	productRepo productpb.ProductDomainServiceServer,
 	authorizationService ports.AuthorizationService,
@@ -154,14 +162,40 @@ func NewEventUseCases(
 		IDService:            sharedServices.ID,
 	}
 
+	// EventTag (master list, per workspace)
+	eventTagRepositories := eventTagUseCases.EventTagRepositories{
+		EventTag: eventTagRepo,
+	}
+	eventTagServices := eventTagUseCases.EventTagServices{
+		AuthorizationService: sharedServices.Auth,
+		TransactionService:   sharedServices.Tx,
+		TranslationService:   sharedServices.I18n,
+		IDService:            sharedServices.ID,
+	}
+
+	// EventTagAssignment (event ↔ tag join)
+	eventTagAssignmentRepositories := eventTagAssignmentUseCases.EventTagAssignmentRepositories{
+		EventTagAssignment: eventTagAssignmentRepo,
+		Event:              eventRepo,
+		EventTag:           eventTagRepo,
+	}
+	eventTagAssignmentServices := eventTagAssignmentUseCases.EventTagAssignmentServices{
+		AuthorizationService: sharedServices.Auth,
+		TransactionService:   sharedServices.Tx,
+		TranslationService:   sharedServices.I18n,
+		IDService:            sharedServices.ID,
+	}
+
 	return &EventUseCases{
-		Event:           eventUseCases.NewUseCases(eventRepositories, eventServices, transactionService),
-		EventAttendee:   eventAttendeeUseCases.NewUseCases(eventAttendeeRepositories, eventAttendeeServices),
-		EventAttribute:  eventAttributeUseCases.NewUseCases(eventAttributeRepositories, eventAttributeServices),
-		EventClient:     eventClientUseCases.NewUseCases(eventClientRepositories, eventClientServices),
-		EventOccurrence: eventOccurrenceUseCases.NewUseCases(eventOccurrenceRepositories, eventOccurrenceServices),
-		EventProduct:    eventProductUseCases.NewUseCases(eventProductRepositories, eventProductServices),
-		EventRecurrence: eventRecurrenceUseCases.NewUseCases(eventRecurrenceRepositories, eventRecurrenceServices, transactionService),
-		EventResource:   eventResourceUseCases.NewUseCases(eventResourceRepositories, eventResourceServices),
+		Event:              eventUseCases.NewUseCases(eventRepositories, eventServices, transactionService),
+		EventAttendee:      eventAttendeeUseCases.NewUseCases(eventAttendeeRepositories, eventAttendeeServices),
+		EventAttribute:     eventAttributeUseCases.NewUseCases(eventAttributeRepositories, eventAttributeServices),
+		EventClient:        eventClientUseCases.NewUseCases(eventClientRepositories, eventClientServices),
+		EventOccurrence:    eventOccurrenceUseCases.NewUseCases(eventOccurrenceRepositories, eventOccurrenceServices),
+		EventProduct:       eventProductUseCases.NewUseCases(eventProductRepositories, eventProductServices),
+		EventRecurrence:    eventRecurrenceUseCases.NewUseCases(eventRecurrenceRepositories, eventRecurrenceServices, transactionService),
+		EventResource:      eventResourceUseCases.NewUseCases(eventResourceRepositories, eventResourceServices),
+		EventTag:           eventTagUseCases.NewUseCases(eventTagRepositories, eventTagServices),
+		EventTagAssignment: eventTagAssignmentUseCases.NewUseCases(eventTagAssignmentRepositories, eventTagAssignmentServices),
 	}
 }

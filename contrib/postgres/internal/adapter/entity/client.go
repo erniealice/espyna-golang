@@ -145,6 +145,7 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 			c.notes,
 			c.category_id,
 			c.payment_term_id,
+			c.billing_currency,
 			u.id as user_id_value,
 			u.first_name as user_first_name,
 			u.last_name as user_last_name,
@@ -173,6 +174,7 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 		notes            *string
 		categoryId       *string
 		paymentTermID    *string
+		billingCurrency  *string
 		userIdValue      *string
 		userFirstName    *string
 		userLastName     *string
@@ -195,6 +197,7 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 		&notes,
 		&categoryId,
 		&paymentTermID,
+		&billingCurrency,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -226,6 +229,7 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 	client.PostalCode = postalCode
 	client.Notes = notes
 	client.CategoryId = categoryId
+	client.BillingCurrency = billingCurrency
 	if paymentTermID != nil {
 		client.PaymentTermId = paymentTermID
 	}
@@ -703,6 +707,7 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 				c.notes,
 				c.category_id,
 				c.payment_term_id,
+				c.billing_currency,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -727,14 +732,15 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		dateCreated  time.Time
 		dateModified time.Time
 		// CRM fields
-		name          *string
-		streetAddress *string
-		city          *string
-		province      *string
-		postalCode    *string
-		notes         *string
-		categoryId    *string
-		paymentTermID *string
+		name            *string
+		streetAddress   *string
+		city            *string
+		province        *string
+		postalCode      *string
+		notes           *string
+		categoryId      *string
+		paymentTermID   *string
+		billingCurrency *string
 		// User fields
 		userIdValue      *string
 		userFirstName    *string
@@ -758,6 +764,7 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		&notes,
 		&categoryId,
 		&paymentTermID,
+		&billingCurrency,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -790,6 +797,7 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	client.PostalCode = postalCode
 	client.Notes = notes
 	client.CategoryId = categoryId
+	client.BillingCurrency = billingCurrency
 	if paymentTermID != nil {
 		client.PaymentTermId = paymentTermID
 	}

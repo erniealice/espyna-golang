@@ -189,8 +189,29 @@ func (uc *UpdateProductUseCase) validateBusinessRules(ctx context.Context, produ
 		}
 	}
 
+	// Model D price rule: simple + active => price required; configurable =>
+	// price optional (per-variant pricing); draft => skip.
+	if err := uc.validateVariantModePriceRule(ctx, product); err != nil {
+		return err
+	}
+
 	// Normalize name (trim spaces, proper capitalization)
 	product.Name = strings.Title(strings.ToLower(name))
 
+	return nil
+}
+
+// validateVariantModePriceRule mirrors the create-side rule for updates.
+func (uc *UpdateProductUseCase) validateVariantModePriceRule(ctx context.Context, product *productpb.Product) error {
+	if !product.Active {
+		return nil
+	}
+	if product.VariantMode == "configurable" {
+		return nil
+	}
+	if product.Price == nil {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.price_required_for_simple", "Price is required for simple products [DEFAULT]")
+		return errors.New(msg)
+	}
 	return nil
 }

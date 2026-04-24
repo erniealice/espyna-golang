@@ -10,6 +10,7 @@ import (
 	// Protobuf domain services - Subscription domain
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
@@ -36,6 +37,7 @@ type SubscriptionRepositories struct {
 	PlanSettings          plansettingspb.PlanSettingsDomainServiceServer
 	PricePlan             priceplanpb.PricePlanDomainServiceServer
 	PriceSchedule         priceschedulepb.PriceScheduleDomainServiceServer
+	ProductPlan           productplanpb.ProductPlanDomainServiceServer // Cross-domain dependency (Model D)
 	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
@@ -97,6 +99,13 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		return nil, fmt.Errorf("failed to create product_price_plan repository: %w", err)
 	}
 
+	// Cross-domain product_plan repository (Model D: used to validate
+	// ProductPricePlan.product_plan_id FK and plan_id match in use cases)
+	productPlanRepo, err := repoCreator.CreateRepository(entityid.ProductPlan, conn, tableConfig.TableName(entityid.ProductPlan))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product_plan repository: %w", err)
+	}
+
 	subscriptionRepo, err := repoCreator.CreateRepository(entityid.Subscription, conn, tableConfig.TableName(entityid.Subscription))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subscription repository: %w", err)
@@ -140,6 +149,7 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		PlanSettings:          planSettingsRepo.(plansettingspb.PlanSettingsDomainServiceServer),
 		PricePlan:             pricePlanRepo.(priceplanpb.PricePlanDomainServiceServer),
 		PriceSchedule:         priceScheduleRepo.(priceschedulepb.PriceScheduleDomainServiceServer),
+		ProductPlan:           productPlanRepo.(productplanpb.ProductPlanDomainServiceServer),
 		ProductPricePlan:      productPricePlanRepo.(productpriceplanpb.ProductPricePlanDomainServiceServer),
 		Subscription:          subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
 		SubscriptionAttribute: subscriptionAttributeRepo.(subscriptionattributepb.SubscriptionAttributeDomainServiceServer),

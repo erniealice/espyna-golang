@@ -98,7 +98,7 @@ func (uc *UpdatePricePlanUseCase) validateInput(ctx context.Context, req *pricep
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.plan_id_required", "plan ID is required")
 		return errors.New(msg)
 	}
-	if req.Data.Currency == "" {
+	if req.Data.BillingCurrency == "" {
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.currency_required", "currency is required")
 		return errors.New(msg)
 	}
@@ -143,13 +143,13 @@ func (uc *UpdatePricePlanUseCase) validateBusinessRules(ctx context.Context, pri
 	}
 
 	// Validate Amount validation
-	if pricePlan.Amount <= 0 {
+	if pricePlan.BillingAmount <= 0 {
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.amount_positive", "price plan amount must be greater than 0")
 		return errors.New(msg)
 	}
 
 	// Validate Currency validation
-	if len(pricePlan.Currency) != 3 {
+	if len(pricePlan.BillingCurrency) != 3 {
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.currency_format", "currency must be a 3-character currency code")
 		return errors.New(msg)
 	}

@@ -115,7 +115,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 			s.province,
 			s.postal_code,
 			s.country,
-			s.default_currency,
+			s.billing_currency,
 			s.payment_terms,
 			s.lead_time_days,
 			s.credit_limit,
@@ -388,7 +388,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				s.province,
 				s.postal_code,
 				s.country,
-				s.default_currency,
+				s.billing_currency,
 				s.payment_terms,
 				s.lead_time_days,
 				s.credit_limit,
@@ -588,7 +588,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 				s.province,
 				s.postal_code,
 				s.country,
-				s.default_currency,
+				s.billing_currency,
 				s.payment_terms,
 				s.lead_time_days,
 				s.credit_limit,
@@ -806,7 +806,7 @@ func buildSupplierFromScan(
 	supplier.Province = province
 	supplier.PostalCode = postalCode
 	supplier.Country = country
-	supplier.DefaultCurrency = defaultCurrency
+	supplier.BillingCurrency = defaultCurrency
 	supplier.PaymentTerms = paymentTerms
 	supplier.LeadTimeDays = leadTimeDays
 	supplier.CreditLimit = creditLimit

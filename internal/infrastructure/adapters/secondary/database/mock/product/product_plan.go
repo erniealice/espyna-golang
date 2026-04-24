@@ -112,10 +112,10 @@ func (r *MockProductPlanRepository) CreateProductPlan(ctx context.Context, req *
 	productPlan := &productplanpb.ProductPlan{
 		Id:                 productPlanID,
 		ProductId:          req.Data.ProductId,
+		ProductVariantId:   req.Data.ProductVariantId,
+		PlanId:             req.Data.PlanId,
 		Name:               req.Data.Name,
 		Description:        req.Data.Description,
-		Price:              req.Data.Price,
-		Currency:           req.Data.Currency,
 		DateCreated:        &[]int64{now.UnixMilli()}[0],
 		DateCreatedString:  &[]string{now.Format(time.RFC3339)}[0],
 		DateModified:       &[]int64{now.UnixMilli()}[0],

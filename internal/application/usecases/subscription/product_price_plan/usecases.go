@@ -2,6 +2,7 @@ package product_price_plan
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 )
@@ -10,6 +11,7 @@ import (
 type ProductPricePlanRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer // Primary entity repository
 	PricePlan        priceplanpb.PricePlanDomainServiceServer               // Entity reference dependency
+	ProductPlan      productplanpb.ProductPlanDomainServiceServer           // Entity reference dependency (Model D)
 }
 
 // ProductPricePlanServices groups all business service dependencies for product price plan use cases
@@ -75,6 +77,7 @@ func NewUseCases(
 	createRepos := CreateProductPricePlanRepositories{
 		ProductPricePlan: repositories.ProductPricePlan,
 		PricePlan:        repositories.PricePlan,
+		ProductPlan:      repositories.ProductPlan,
 	}
 	createServices := CreateProductPricePlanServices{
 		AuthorizationService: services.AuthorizationService,
@@ -95,6 +98,7 @@ func NewUseCases(
 	updateRepos := UpdateProductPricePlanRepositories{
 		ProductPricePlan: repositories.ProductPricePlan,
 		PricePlan:        repositories.PricePlan,
+		ProductPlan:      repositories.ProductPlan,
 	}
 	updateServices := UpdateProductPricePlanServices{
 		AuthorizationService: services.AuthorizationService,

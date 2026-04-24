@@ -23,7 +23,7 @@ import (
 // Performance Index Recommendations:
 //   - CREATE INDEX idx_price_plan_active ON price_plan(active) WHERE active = true - Filter active records
 //   - CREATE INDEX idx_price_plan_plan_id ON price_plan(plan_id) - Filter by plan
-//   - CREATE INDEX idx_price_plan_amount ON price_plan(amount) - Sort/filter by price
+//   - CREATE INDEX idx_price_plan_billing_amount ON price_plan(billing_amount) - Sort/filter by price
 //   - CREATE INDEX idx_price_plan_date_created ON price_plan(date_created DESC) - Default sorting
 type PostgresPricePlanRepository struct {
 	priceplanpb.UnimplementedPricePlanDomainServiceServer
@@ -252,7 +252,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 	}
 
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR billing_currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -261,17 +261,17 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 	var pricePlans []*priceplanpb.PricePlan
 	var totalCount int64
 	for rows.Next() {
-		var id, planId, currency string
+		var id, planId, billingCurrency string
 		var name, description sql.NullString
-		var amount int64
+		var billingAmount int64
 		var active bool
 		var dateCreated, dateModified time.Time
 		var priceScheduleId sql.NullString
-		if err := rows.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err != nil {
+		if err := rows.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
-		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Amount: amount, Currency: currency, Active: active}
+		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, BillingAmount: billingAmount, BillingCurrency: billingCurrency, Active: active}
 		if name.Valid {
 			pricePlan.Name = &name.String
 		}
@@ -305,20 +305,20 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	if req == nil || req.PricePlanId == "" {
 		return nil, fmt.Errorf("price plan ID required")
 	}
-	query := `SELECT id, plan_id, amount, currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
-	var id, planId, currency string
+	var id, planId, billingCurrency string
 	var name, description sql.NullString
-	var amount int64
+	var billingAmount int64
 	var active bool
 	var dateCreated, dateModified time.Time
 	var priceScheduleId sql.NullString
-	if err := row.Scan(&id, &planId, &amount, &currency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err == sql.ErrNoRows {
+	if err := row.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, Amount: amount, Currency: currency, Active: active}
+	pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, BillingAmount: billingAmount, BillingCurrency: billingCurrency, Active: active}
 	if name.Valid {
 		pricePlan.Name = &name.String
 	}

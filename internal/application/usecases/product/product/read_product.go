@@ -79,8 +79,8 @@ func (uc *ReadProductUseCase) Execute(ctx context.Context, req *productpb.ReadPr
 		// Handle not found errors by checking for specific patterns in error message
 		errorMsg := strings.ToLower(err.Error())
 		if strings.Contains(errorMsg, "not found") {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.not_found", "Course with ID \"{courseId}\" not found [DEFAULT]")
-			translatedError = strings.ReplaceAll(translatedError, "{courseId}", req.Data.Id)
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.not_found", "Product with ID \"{productId}\" not found [DEFAULT]")
+			translatedError = strings.ReplaceAll(translatedError, "{productId}", req.Data.Id)
 			return nil, errors.New(translatedError)
 		}
 

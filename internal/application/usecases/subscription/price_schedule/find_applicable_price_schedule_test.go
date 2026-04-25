@@ -23,10 +23,12 @@ package price_schedule
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/shared/testutil"
 	mocksubscription "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock/subscription"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // FindApplicablePriceScheduleTestCase is a type alias for the generic test case
@@ -60,44 +62,44 @@ func ptr(s string) *string { return &s }
 func TestFindApplicablePriceScheduleUseCase_Execute(t *testing.T) {
 	// Shared fixture data — different test cases pick the rows they need
 	activeExact := &priceschedulepb.PriceSchedule{
-		Id:         "ps-exact",
-		Name:       "Exact Match Schedule",
-		Active:     true,
-		DateStart:  "2025-01-01",
-		DateEnd:    ptr("2025-12-31"),
-		LocationId: ptr("loc-1"),
+		Id:            "ps-exact",
+		Name:          "Exact Match Schedule",
+		Active:        true,
+		DateTimeStart: timestamppb.New(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		DateTimeEnd:   timestamppb.New(time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)),
+		LocationId:    ptr("loc-1"),
 	}
 	activeOpenEnded := &priceschedulepb.PriceSchedule{
-		Id:         "ps-open",
-		Name:       "Open Ended Schedule",
-		Active:     true,
-		DateStart:  "2024-06-01",
-		DateEnd:    nil, // open-ended
-		LocationId: ptr("loc-2"),
+		Id:            "ps-open",
+		Name:          "Open Ended Schedule",
+		Active:        true,
+		DateTimeStart: timestamppb.New(time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)),
+		DateTimeEnd:   nil, // open-ended
+		LocationId:    ptr("loc-2"),
 	}
 	inactiveRow := &priceschedulepb.PriceSchedule{
-		Id:         "ps-inactive",
-		Name:       "Inactive Schedule",
-		Active:     false,
-		DateStart:  "2025-01-01",
-		DateEnd:    ptr("2025-12-31"),
-		LocationId: ptr("loc-3"),
+		Id:            "ps-inactive",
+		Name:          "Inactive Schedule",
+		Active:        false,
+		DateTimeStart: timestamppb.New(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		DateTimeEnd:   timestamppb.New(time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)),
+		LocationId:    ptr("loc-3"),
 	}
 	olderRow := &priceschedulepb.PriceSchedule{
-		Id:         "ps-older",
-		Name:       "Older Schedule",
-		Active:     true,
-		DateStart:  "2025-01-01",
-		DateEnd:    ptr("2025-12-31"),
-		LocationId: ptr("loc-4"),
+		Id:            "ps-older",
+		Name:          "Older Schedule",
+		Active:        true,
+		DateTimeStart: timestamppb.New(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+		DateTimeEnd:   timestamppb.New(time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)),
+		LocationId:    ptr("loc-4"),
 	}
 	newerRow := &priceschedulepb.PriceSchedule{
-		Id:         "ps-newer",
-		Name:       "Newer Schedule",
-		Active:     true,
-		DateStart:  "2025-06-01",
-		DateEnd:    ptr("2025-12-31"),
-		LocationId: ptr("loc-4"),
+		Id:            "ps-newer",
+		Name:          "Newer Schedule",
+		Active:        true,
+		DateTimeStart: timestamppb.New(time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)),
+		DateTimeEnd:   timestamppb.New(time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC)),
+		LocationId:    ptr("loc-4"),
 	}
 
 	testCases := []FindApplicablePriceScheduleTestCase{

@@ -8,6 +8,7 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Entity domain (cross-domain dependency)
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 
 	// Protobuf domain services - Revenue domain
@@ -16,9 +17,20 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+
+	// Protobuf domain services - Subscription domain (cross-domain dependency
+	// for the recognize-revenue use case)
+	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
-// RevenueRepositories contains all revenue domain repositories
+// RevenueRepositories contains all revenue domain repositories.
+//
+// In addition to revenue-domain repos, this struct carries cross-domain
+// dependencies needed by the RecognizeRevenueFromSubscription use case:
+// Subscription, PricePlan, ProductPricePlan, PriceSchedule, and Client.
 type RevenueRepositories struct {
 	Revenue          revenuepb.RevenueDomainServiceServer
 	RevenueLineItem  revenuelineitempb.RevenueLineItemDomainServiceServer
@@ -27,6 +39,15 @@ type RevenueRepositories struct {
 	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
+
+	// Cross-domain dependencies for the RecognizeRevenueFromSubscription use
+	// case (plan §5 Phase B). All optional — the use case returns an
+	// appropriate validation error when called with a nil repo.
+	Subscription     subscriptionpb.SubscriptionDomainServiceServer
+	PricePlan        priceplanpb.PricePlanDomainServiceServer
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
+	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
+	Client           clientpb.ClientDomainServiceServer
 }
 
 // NewRevenueRepositories creates and returns a new set of RevenueRepositories.
@@ -73,6 +94,23 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.PaymentTerm); r != nil {
 		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)
+	}
+
+	// Cross-domain reads required by RecognizeRevenueFromSubscription.
+	if r := tryCreate(entityid.Subscription); r != nil {
+		repos.Subscription = r.(subscriptionpb.SubscriptionDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PricePlan); r != nil {
+		repos.PricePlan = r.(priceplanpb.PricePlanDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ProductPricePlan); r != nil {
+		repos.ProductPricePlan = r.(productpriceplanpb.ProductPricePlanDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PriceSchedule); r != nil {
+		repos.PriceSchedule = r.(priceschedulepb.PriceScheduleDomainServiceServer)
+	}
+	if r := tryCreate(entityid.Client); r != nil {
+		repos.Client = r.(clientpb.ClientDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

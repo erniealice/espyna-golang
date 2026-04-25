@@ -17,6 +17,7 @@ import (
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // PostgresSubscriptionRepository implements subscription CRUD operations using PostgreSQL
@@ -70,19 +71,18 @@ func (r *PostgresSubscriptionRepository) CreateSubscription(ctx context.Context,
 		data["code"] = code
 	}
 
-	// Map date string fields to actual DB columns
-	if ds := req.Data.GetDateStart(); ds != "" {
-		data["date_start"] = ds
-	}
-	if de := req.Data.GetDateEnd(); de != "" {
-		data["date_end"] = de
-	}
-
-	// Create document using common operations
+	// Create document using common operations.
+	// date_time_start / date_time_end arrive as RFC3339 strings (protojson
+	// representation of google.protobuf.Timestamp). PostgreSQL TIMESTAMPTZ
+	// accepts that directly, so no manual conversion is needed.
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subscription: %w", err)
 	}
+
+	// date_time_start / date_time_end come back as int64 unix-millis from
+	// normalizeValue; convert to RFC3339 so protojson can decode the Timestamp.
+	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result back to protobuf using protojson
 	resultJSON, err := json.Marshal(result)
@@ -111,6 +111,9 @@ func (r *PostgresSubscriptionRepository) ReadSubscription(ctx context.Context, r
 	if err != nil {
 		return nil, fmt.Errorf("failed to read subscription: %w", err)
 	}
+
+	// Same date_time_start/date_time_end conversion as CreateSubscription — see comment there.
+	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result to protobuf using protojson
 	resultJSON, err := json.Marshal(result)
@@ -150,19 +153,18 @@ func (r *PostgresSubscriptionRepository) UpdateSubscription(ctx context.Context,
 		data["code"] = code
 	}
 
-	// Map date string fields to actual DB columns
-	if ds := req.Data.GetDateStart(); ds != "" {
-		data["date_start"] = ds
-	}
-	if de := req.Data.GetDateEnd(); de != "" {
-		data["date_end"] = de
-	}
-
-	// Update document using common operations
+	// Update document using common operations.
+	// date_time_start / date_time_end arrive as RFC3339 strings (protojson
+	// representation of google.protobuf.Timestamp). PostgreSQL TIMESTAMPTZ
+	// accepts that directly, so no manual conversion is needed.
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update subscription: %w", err)
 	}
+
+	// date_time_start / date_time_end come back as int64 unix-millis from
+	// normalizeValue; convert to RFC3339 so protojson can decode the Timestamp.
+	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result back to protobuf using protojson
 	resultJSON, err := json.Marshal(result)
@@ -214,6 +216,8 @@ func (r *PostgresSubscriptionRepository) ListSubscriptions(ctx context.Context, 
 	// so protojson can map them to the correct protobuf fields.
 	var subscriptions []*subscriptionpb.Subscription
 	for _, result := range listResult.Data {
+		// Same date_time_start/date_time_end conversion as CreateSubscription — see comment there.
+		postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
@@ -323,8 +327,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				sf.name,
 				sf.client_id,
 				sf.price_plan_id,
-				sf.date_start,
-				sf.date_end,
+				sf.date_time_start,
+				sf.date_time_end,
 				sf.active,
 				sf.date_created,
 				sf.date_modified,
@@ -378,10 +382,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				CASE WHEN $4 = 'name' AND $5 = 'DESC' THEN name END DESC,
 				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
 				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $4 = 'date_start' AND $5 = 'ASC' THEN date_start END ASC,
-				CASE WHEN $4 = 'date_start' AND $5 = 'DESC' THEN date_start END DESC,
-				CASE WHEN $4 = 'date_end' AND $5 = 'ASC' THEN date_end END ASC,
-				CASE WHEN $4 = 'date_end' AND $5 = 'DESC' THEN date_end END DESC
+				CASE WHEN $4 = 'date_time_start' AND $5 = 'ASC' THEN date_time_start END ASC,
+				CASE WHEN $4 = 'date_time_start' AND $5 = 'DESC' THEN date_time_start END DESC,
+				CASE WHEN $4 = 'date_time_end' AND $5 = 'ASC' THEN date_time_end END ASC,
+				CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN date_time_end END DESC
 		),
 
 		-- CTE 4: Calculate total count for pagination
@@ -395,8 +399,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			s.name,
 			s.client_id,
 			s.price_plan_id,
-			s.date_start,
-			s.date_end,
+			s.date_time_start,
+			s.date_time_end,
 			s.active,
 			s.date_created,
 			s.date_modified,
@@ -438,8 +442,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			name          string
 			clientID      string
 			pricePlanID   string
-			dateStart     *string
-			dateEnd       *string
+			dateTimeStart sql.NullTime
+			dateTimeEnd   sql.NullTime
 			active        bool
 			dateCreated   sql.NullTime
 			dateModified  sql.NullTime
@@ -453,8 +457,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			&name,
 			&clientID,
 			&pricePlanID,
-			&dateStart,
-			&dateEnd,
+			&dateTimeStart,
+			&dateTimeEnd,
 			&active,
 			&dateCreated,
 			&dateModified,
@@ -477,11 +481,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			Active:      active,
 		}
 
-		if dateStart != nil {
-			subscription.DateStart = dateStart
+		if dateTimeStart.Valid {
+			subscription.DateTimeStart = timestamppb.New(dateTimeStart.Time)
 		}
-		if dateEnd != nil {
-			subscription.DateEnd = dateEnd
+		if dateTimeEnd.Valid {
+			subscription.DateTimeEnd = timestamppb.New(dateTimeEnd.Time)
 		}
 		if dateCreated.Valid {
 			ts := dateCreated.Time.UnixMilli()
@@ -562,8 +566,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 			s.name,
 			s.client_id,
 			s.price_plan_id,
-			s.date_start,
-			s.date_end,
+			s.date_time_start,
+			s.date_time_end,
 			s.active,
 			s.date_created,
 			s.date_modified,
@@ -622,8 +626,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		name          string
 		clientID      string
 		pricePlanID   string
-		dateStart     *string
-		dateEnd       *string
+		dateTimeStart sql.NullTime
+		dateTimeEnd   sql.NullTime
 		active        bool
 		dateCreated   sql.NullTime
 		dateModified  sql.NullTime
@@ -636,8 +640,8 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		&name,
 		&clientID,
 		&pricePlanID,
-		&dateStart,
-		&dateEnd,
+		&dateTimeStart,
+		&dateTimeEnd,
 		&active,
 		&dateCreated,
 		&dateModified,
@@ -660,11 +664,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		Active:      active,
 	}
 
-	if dateStart != nil {
-		subscription.DateStart = dateStart
+	if dateTimeStart.Valid {
+		subscription.DateTimeStart = timestamppb.New(dateTimeStart.Time)
 	}
-	if dateEnd != nil {
-		subscription.DateEnd = dateEnd
+	if dateTimeEnd.Valid {
+		subscription.DateTimeEnd = timestamppb.New(dateTimeEnd.Time)
 	}
 	if dateCreated.Valid {
 		ts := dateCreated.Time.UnixMilli()

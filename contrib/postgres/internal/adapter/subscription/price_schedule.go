@@ -16,14 +16,15 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // PostgresPriceScheduleRepository implements price_schedule CRUD operations using PostgreSQL
 //
 // Performance Index Recommendations:
 //   - CREATE INDEX idx_price_schedule_active ON price_schedule(active) WHERE active = true - Filter active records
-//   - CREATE INDEX idx_price_schedule_date_start ON price_schedule(date_start) - Filter by start date
-//   - CREATE INDEX idx_price_schedule_date_end ON price_schedule(date_end) - Filter by end date
+//   - CREATE INDEX idx_price_schedule_date_time_start ON price_schedule(date_time_start) - Filter by start timestamp
+//   - CREATE INDEX idx_price_schedule_date_time_end ON price_schedule(date_time_end) - Filter by end timestamp
 //   - CREATE INDEX idx_price_schedule_date_created ON price_schedule(date_created DESC) - Default sorting
 type PostgresPriceScheduleRepository struct {
 	priceschedulepb.UnimplementedPriceScheduleDomainServiceServer
@@ -79,11 +80,18 @@ func (r *PostgresPriceScheduleRepository) CreatePriceSchedule(ctx context.Contex
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
-	// Create document using common operations
+	// Create document using common operations.
+	// date_time_start / date_time_end arrive as RFC3339 strings (protojson
+	// representation of google.protobuf.Timestamp). PostgreSQL TIMESTAMPTZ
+	// accepts that directly, so no manual conversion is needed.
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create price schedule: %w", err)
 	}
+
+	// date_time_start / date_time_end come back as int64 unix-millis from
+	// normalizeValue; convert to RFC3339 so protojson can decode the Timestamp.
+	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result back to protobuf using protojson
 	resultJSON, err := json.Marshal(result)
@@ -112,6 +120,9 @@ func (r *PostgresPriceScheduleRepository) ReadPriceSchedule(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("failed to read price schedule: %w", err)
 	}
+
+	// Same date_time_start/date_time_end conversion as CreatePriceSchedule — see comment there.
+	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result to protobuf using protojson
 	resultJSON, err := json.Marshal(result)
@@ -146,11 +157,17 @@ func (r *PostgresPriceScheduleRepository) UpdatePriceSchedule(ctx context.Contex
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
-	// Update document using common operations
+	// Update document using common operations.
+	// date_time_start / date_time_end arrive as RFC3339 strings (protojson
+	// representation of google.protobuf.Timestamp). PostgreSQL TIMESTAMPTZ
+	// accepts that directly, so no manual conversion is needed.
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update price schedule: %w", err)
 	}
+
+	// Same date_time_start/date_time_end conversion as CreatePriceSchedule — see comment there.
+	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result back to protobuf using protojson
 	resultJSON, err := json.Marshal(result)
@@ -201,6 +218,8 @@ func (r *PostgresPriceScheduleRepository) ListPriceSchedules(ctx context.Context
 	// Convert results to protobuf slice using protojson
 	var priceSchedules []*priceschedulepb.PriceSchedule
 	for _, result := range listResult.Data {
+		// Same date_time_start/date_time_end conversion as CreatePriceSchedule — see comment there.
+		postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
 		if err != nil {
 			// Log error and continue with next item
@@ -247,7 +266,7 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 		}
 	}
 
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_start, date_end FROM price_schedule WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -259,8 +278,9 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 		var id, name, description string
 		var active bool
 		var dateCreated, dateModified time.Time
-		var locationId, dateStart, dateEnd sql.NullString
-		if err := rows.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateStart, &dateEnd); err != nil {
+		var locationId sql.NullString
+		var dateTimeStart, dateTimeEnd sql.NullTime
+		if err := rows.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateTimeStart, &dateTimeEnd); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
@@ -268,11 +288,11 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 		if locationId.Valid && locationId.String != "" {
 			priceSchedule.LocationId = &locationId.String
 		}
-		if dateStart.Valid && dateStart.String != "" {
-			priceSchedule.DateStart = dateStart.String
+		if dateTimeStart.Valid {
+			priceSchedule.DateTimeStart = timestamppb.New(dateTimeStart.Time)
 		}
-		if dateEnd.Valid && dateEnd.String != "" {
-			priceSchedule.DateEnd = &dateEnd.String
+		if dateTimeEnd.Valid {
+			priceSchedule.DateTimeEnd = timestamppb.New(dateTimeEnd.Time)
 		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -296,13 +316,14 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleItemPageData(ctx conte
 	if req == nil || req.PriceScheduleId == "" {
 		return nil, fmt.Errorf("price schedule ID required")
 	}
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_start, date_end FROM price_schedule WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PriceScheduleId)
 	var id, name, description string
 	var active bool
 	var dateCreated, dateModified time.Time
-	var locationId, dateStart, dateEnd sql.NullString
-	if err := row.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateStart, &dateEnd); err == sql.ErrNoRows {
+	var locationId sql.NullString
+	var dateTimeStart, dateTimeEnd sql.NullTime
+	if err := row.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateTimeStart, &dateTimeEnd); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price schedule not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -311,11 +332,11 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleItemPageData(ctx conte
 	if locationId.Valid && locationId.String != "" {
 		priceSchedule.LocationId = &locationId.String
 	}
-	if dateStart.Valid && dateStart.String != "" {
-		priceSchedule.DateStart = dateStart.String
+	if dateTimeStart.Valid {
+		priceSchedule.DateTimeStart = timestamppb.New(dateTimeStart.Time)
 	}
-	if dateEnd.Valid && dateEnd.String != "" {
-		priceSchedule.DateEnd = &dateEnd.String
+	if dateTimeEnd.Valid {
+		priceSchedule.DateTimeEnd = timestamppb.New(dateTimeEnd.Time)
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
@@ -335,7 +356,7 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleItemPageData(ctx conte
 // FindApplicablePriceSchedule finds the active price schedule for a given location and date.
 // Returns the most recently started price schedule that covers the given date.
 // If no match is found, returns found=false with no error (not an error condition).
-// If multiple rows match, the one with the latest date_start wins (most specific/recent wins).
+// If multiple rows match, the one with the latest date_time_start wins (most specific/recent wins).
 func (r *PostgresPriceScheduleRepository) FindApplicablePriceSchedule(ctx context.Context, req *priceschedulepb.FindApplicablePriceScheduleRequest) (*priceschedulepb.FindApplicablePriceScheduleResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is required")
@@ -347,24 +368,31 @@ func (r *PostgresPriceScheduleRepository) FindApplicablePriceSchedule(ctx contex
 		return nil, fmt.Errorf("date is required")
 	}
 
+	manila, _ := time.LoadLocation("Asia/Manila")
+	reqTime, err := time.ParseInLocation("2006-01-02", req.Date, manila)
+	if err != nil {
+		return nil, fmt.Errorf("invalid date: %w", err)
+	}
+
 	query := `
-		SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified
+		SELECT id, name, description, active, date_time_start, date_time_end, location_id, date_created, date_modified
 		FROM price_schedule
 		WHERE active = true
 		  AND location_id = $1
-		  AND date_start <= $2
-		  AND (date_end >= $2 OR date_end IS NULL OR date_end = '')
-		ORDER BY date_start DESC
+		  AND date_time_start <= $2
+		  AND (date_time_end >= $2 OR date_time_end IS NULL)
+		ORDER BY date_time_start DESC
 		LIMIT 1`
 
-	row := r.db.QueryRowContext(ctx, query, req.LocationId, req.Date)
+	row := r.db.QueryRowContext(ctx, query, req.LocationId, reqTime)
 
 	var id, name string
-	var description, locationId, dateStart, dateEnd sql.NullString
+	var description, locationId sql.NullString
+	var dateTimeStart, dateTimeEnd sql.NullTime
 	var active bool
 	var dateCreated, dateModified time.Time
 
-	err := row.Scan(&id, &name, &description, &active, &dateStart, &dateEnd, &locationId, &dateCreated, &dateModified)
+	err = row.Scan(&id, &name, &description, &active, &dateTimeStart, &dateTimeEnd, &locationId, &dateCreated, &dateModified)
 	if err == sql.ErrNoRows {
 		return &priceschedulepb.FindApplicablePriceScheduleResponse{
 			Found:   false,
@@ -379,14 +407,14 @@ func (r *PostgresPriceScheduleRepository) FindApplicablePriceSchedule(ctx contex
 	if description.Valid {
 		priceSchedule.Description = &description.String
 	}
-	if dateStart.Valid {
-		priceSchedule.DateStart = dateStart.String
+	if dateTimeStart.Valid {
+		priceSchedule.DateTimeStart = timestamppb.New(dateTimeStart.Time)
 	}
 	if locationId.Valid {
 		priceSchedule.LocationId = &locationId.String
 	}
-	if dateEnd.Valid {
-		priceSchedule.DateEnd = &dateEnd.String
+	if dateTimeEnd.Valid {
+		priceSchedule.DateTimeEnd = timestamppb.New(dateTimeEnd.Time)
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

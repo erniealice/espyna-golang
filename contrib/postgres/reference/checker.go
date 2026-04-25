@@ -207,6 +207,29 @@ func (c *Checker) GetEventTagInUseIDs(ctx context.Context, ids []string) (map[st
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 
+// GetSubscriptionInUseIDs checks whether subscriptions are referenced by any of
+// the tables that must block deletion: balance, invoice, license, payment,
+// subscription_attribute, revenue, and operation.job (via subscription_id column).
+func (c *Checker) GetSubscriptionInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT subscription_id AS ref_id FROM balance WHERE subscription_id = ANY($1)
+			UNION ALL
+			SELECT subscription_id AS ref_id FROM invoice WHERE subscription_id = ANY($1)
+			UNION ALL
+			SELECT subscription_id AS ref_id FROM license WHERE subscription_id = ANY($1)
+			UNION ALL
+			SELECT subscription_id AS ref_id FROM payment WHERE subscription_id = ANY($1)
+			UNION ALL
+			SELECT subscription_id AS ref_id FROM subscription_attribute WHERE subscription_id = ANY($1)
+			UNION ALL
+			SELECT subscription_id AS ref_id FROM revenue WHERE subscription_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT subscription_id AS ref_id FROM job WHERE subscription_id = ANY($1)
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
 // GetSupplierInUseIDs checks if suppliers are referenced by expenditures or fulfillments.
 func (c *Checker) GetSupplierInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)

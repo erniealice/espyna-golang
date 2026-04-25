@@ -310,7 +310,7 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 			active        bool
 			productID     string
 			sku           string
-			priceOverride int64
+			priceOverride sql.NullInt64
 			productName   string
 			total         int64
 		)
@@ -333,11 +333,14 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 		totalCount = total
 
 		productVariant := &productvariantpb.ProductVariant{
-			Id:            id,
-			Active:        active,
-			ProductId:     productID,
-			Sku:           sku,
-			PriceOverride: priceOverride,
+			Id:        id,
+			Active:    active,
+			ProductId: productID,
+			Sku:       sku,
+		}
+		if priceOverride.Valid {
+			po := priceOverride.Int64
+			productVariant.PriceOverride = &po
 		}
 
 		// Parse timestamps if provided
@@ -429,7 +432,7 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 		active          bool
 		productID       string
 		sku             string
-		priceOverride   int64
+		priceOverride   sql.NullInt64
 		productName     string
 		productPrice    int64
 		productCurrency string
@@ -455,11 +458,14 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 	}
 
 	productVariant := &productvariantpb.ProductVariant{
-		Id:            id,
-		Active:        active,
-		ProductId:     productID,
-		Sku:           sku,
-		PriceOverride: priceOverride,
+		Id:        id,
+		Active:    active,
+		ProductId: productID,
+		Sku:       sku,
+	}
+	if priceOverride.Valid {
+		po := priceOverride.Int64
+		productVariant.PriceOverride = &po
 	}
 
 	// Parse timestamps if provided

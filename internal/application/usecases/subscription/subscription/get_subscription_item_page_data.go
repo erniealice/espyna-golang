@@ -95,30 +95,26 @@ func (uc *GetSubscriptionItemPageDataUseCase) executeWithTransaction(
 	return result, nil
 }
 
-// executeCore contains the core business logic for getting subscription item page data
+// executeCore contains the core business logic for getting subscription item page data.
+// Delegates to the repository's GetSubscriptionItemPageData so the joined Client
+// (+ User) and PricePlan (+ Plan) come back populated — a plain ReadSubscription
+// returns the bare row and would leave the detail page's Customer + Package
+// fields empty.
 func (uc *GetSubscriptionItemPageDataUseCase) executeCore(
 	ctx context.Context,
 	req *subscriptionpb.GetSubscriptionItemPageDataRequest,
 ) (*subscriptionpb.GetSubscriptionItemPageDataResponse, error) {
-	// Create read request for the subscription
-	readReq := &subscriptionpb.ReadSubscriptionRequest{
-		Data: &subscriptionpb.Subscription{
-			Id: req.SubscriptionId,
-		},
-	}
-
-	// Retrieve the subscription
-	readResp, err := uc.repositories.Subscription.ReadSubscription(ctx, readReq)
+	itemResp, err := uc.repositories.Subscription.GetSubscriptionItemPageData(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
 			uc.services.TranslationService,
-			"subscription.errors.read_failed",
-			"failed to retrieve subscription: %w",
+			"subscription.errors.item_page_data_failed",
+			"failed to retrieve subscription item page data: %w",
 		), err)
 	}
 
-	if readResp == nil || len(readResp.Data) == 0 {
+	if itemResp == nil || itemResp.GetSubscription() == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
 			uc.services.TranslationService,
@@ -127,11 +123,8 @@ func (uc *GetSubscriptionItemPageDataUseCase) executeCore(
 		))
 	}
 
-	// Get the subscription (should be only one)
-	subscription := readResp.Data[0]
-
-	// Validate that we got the expected subscription
-	if subscription.Id != req.SubscriptionId {
+	subscription := itemResp.GetSubscription()
+	if subscription.GetId() != req.SubscriptionId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
 			uc.services.TranslationService,
@@ -140,13 +133,6 @@ func (uc *GetSubscriptionItemPageDataUseCase) executeCore(
 		))
 	}
 
-	// TODO: In a real implementation, you might want to:
-	// 1. Load related data (plan details, client details, etc.) if not already populated
-	// 2. Apply business rules for data visibility/access control
-	// 3. Format data for optimal frontend consumption
-	// 4. Add audit logging for item access
-
-	// For now, return the subscription as-is
 	return &subscriptionpb.GetSubscriptionItemPageDataResponse{
 		Subscription: subscription,
 		Success:      true,

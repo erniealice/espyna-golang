@@ -18,6 +18,7 @@ import (
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // PostgresInvoiceRepository implements invoice CRUD operations using PostgreSQL
@@ -240,8 +241,8 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 				s.name as sub_name,
 				s.plan_id as sub_plan_id,
 				s.client_id as sub_client_id,
-				s.date_start as sub_date_start,
-				s.date_end as sub_date_end,
+				s.date_time_start as sub_date_start,
+				s.date_time_end as sub_date_end,
 				s.date_created as sub_date_created,
 				s.date_modified as sub_date_modified,
 				s.active as sub_active,
@@ -458,12 +459,10 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 				subscription.ClientId = subClientID.String
 			}
 			if subDateStart.Valid {
-				dateStr := subDateStart.Time.UTC().Format("2006-01-02")
-				subscription.DateStart = &dateStr
+				subscription.DateTimeStart = timestamppb.New(subDateStart.Time)
 			}
 			if subDateEnd.Valid {
-				dateStr := subDateEnd.Time.UTC().Format("2006-01-02")
-				subscription.DateEnd = &dateStr
+				subscription.DateTimeEnd = timestamppb.New(subDateEnd.Time)
 			}
 			if subDateCreated.Valid {
 				ts := subDateCreated.Time.Unix()
@@ -656,8 +655,8 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 				s.name as sub_name,
 				s.plan_id as sub_plan_id,
 				s.client_id as sub_client_id,
-				s.date_start as sub_date_start,
-				s.date_end as sub_date_end,
+				s.date_time_start as sub_date_start,
+				s.date_time_end as sub_date_end,
 				s.date_created as sub_date_created,
 				s.date_modified as sub_date_modified,
 				s.active as sub_active,
@@ -779,12 +778,10 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 			subscription.ClientId = subClientID.String
 		}
 		if subDateStart.Valid {
-			dateStr := subDateStart.Time.UTC().Format("2006-01-02")
-			subscription.DateStart = &dateStr
+			subscription.DateTimeStart = timestamppb.New(subDateStart.Time)
 		}
 		if subDateEnd.Valid {
-			dateStr := subDateEnd.Time.UTC().Format("2006-01-02")
-			subscription.DateEnd = &dateStr
+			subscription.DateTimeEnd = timestamppb.New(subDateEnd.Time)
 		}
 		if subDateCreated.Valid {
 			ts := subDateCreated.Time.Unix()

@@ -78,8 +78,8 @@ func (uc *CreatePriceScheduleUseCase) validateInput(ctx context.Context, req *pr
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.name_required", "price schedule name is required")
 		return errors.New(msg)
 	}
-	if req.Data.DateStart == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.date_start_required", "date start is required")
+	if req.Data.GetDateTimeStart() == nil {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.date_time_start_required", "date time start is required")
 		return errors.New(msg)
 	}
 	return nil

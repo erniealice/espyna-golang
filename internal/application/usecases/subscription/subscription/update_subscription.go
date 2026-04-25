@@ -3,6 +3,8 @@ package subscription
 import (
 	"context"
 	"errors"
+	"regexp"
+	"strings"
 	"time"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -13,6 +15,25 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 )
+
+// trailingCodeRe matches the trailing " [CODE]" segment in a subscription
+// name (e.g. "Advisory Monthly [MQJK48P]"). Used by the update use case to
+// rewrite the bracketed code without rebuilding the plan-derived prefix.
+var trailingCodeRe = regexp.MustCompile(`\s*\[[^\]]*\]\s*$`)
+
+// rewriteNameWithCode strips any trailing "[…]" segment from name and appends
+// " [newCode]". Empty newCode returns the base name with the bracket stripped.
+// Empty base + non-empty newCode returns "[newCode]".
+func rewriteNameWithCode(name, newCode string) string {
+	base := strings.TrimSpace(trailingCodeRe.ReplaceAllString(name, ""))
+	if newCode == "" {
+		return base
+	}
+	if base == "" {
+		return "[" + newCode + "]"
+	}
+	return base + " [" + newCode + "]"
+}
 
 type UpdateSubscriptionRepositories struct {
 	Subscription subscriptionpb.SubscriptionDomainServiceServer
@@ -99,12 +120,38 @@ func (uc *UpdateSubscriptionUseCase) executeWithTransaction(ctx context.Context,
 
 // executeCore contains the core business logic for updating a subscription
 func (uc *UpdateSubscriptionUseCase) executeCore(ctx context.Context, req *subscriptionpb.UpdateSubscriptionRequest, enrichedSubscription *subscriptionpb.Subscription) (*subscriptionpb.UpdateSubscriptionResponse, error) {
-	// First, check if the subscription exists
-	_, err := uc.repositories.Subscription.ReadSubscription(ctx, &subscriptionpb.ReadSubscriptionRequest{
+	// First, check if the subscription exists and capture the prior values
+	// so we can detect a code change and rewrite the bracketed segment in
+	// the name (e.g. "Advisory Monthly [OLD]" → "Advisory Monthly [NEW]")
+	// without forcing the caller to rebuild the plan-derived prefix.
+	readResp, err := uc.repositories.Subscription.ReadSubscription(ctx, &subscriptionpb.ReadSubscriptionRequest{
 		Data: &subscriptionpb.Subscription{Id: req.Data.Id},
 	})
 	if err != nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
+	}
+
+	var existing *subscriptionpb.Subscription
+	if readResp != nil && len(readResp.GetData()) > 0 {
+		existing = readResp.GetData()[0]
+	}
+
+	// If the code is being changed, rewrite the trailing "[…]" segment in
+	// the name. We rewrite using whichever name is the "current" one — the
+	// request's name when supplied, otherwise the existing record's name —
+	// so partial updates that touch only the code still produce a coherent
+	// final name. No-op when the code is unchanged.
+	if existing != nil {
+		newCode := enrichedSubscription.GetCode()
+		oldCode := existing.GetCode()
+		if newCode != oldCode {
+			baseName := enrichedSubscription.GetName()
+			if baseName == "" {
+				baseName = existing.GetName()
+			}
+			rewritten := rewriteNameWithCode(baseName, newCode)
+			enrichedSubscription.Name = rewritten
+		}
 	}
 
 	resp, err := uc.repositories.Subscription.UpdateSubscription(ctx, &subscriptionpb.UpdateSubscriptionRequest{

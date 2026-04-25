@@ -264,7 +264,7 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 
 	query := fmt.Sprintf(`
 		SELECT
-			id, first_name, last_name, email_address, active, date_created, date_modified,
+			id, first_name, last_name, email_address, active, date_created, date_modified, timezone,
 			COUNT(*) OVER() AS total_count
 		FROM "user"
 		%s
@@ -285,12 +285,17 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 		var id, firstName, lastName, emailAddress string
 		var active bool
 		var dateCreated, dateModified time.Time
+		var timezone sql.NullString
 		var total int64
-		if err := rows.Scan(&id, &firstName, &lastName, &emailAddress, &active, &dateCreated, &dateModified, &total); err != nil {
+		if err := rows.Scan(&id, &firstName, &lastName, &emailAddress, &active, &dateCreated, &dateModified, &timezone, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
 		user := &userpb.User{Id: id, FirstName: firstName, LastName: lastName, EmailAddress: emailAddress, Active: active}
+		if timezone.Valid {
+			tz := timezone.String
+			user.Timezone = &tz
+		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
 			user.DateCreated = &ts
@@ -330,18 +335,23 @@ func (r *PostgresUserRepository) GetUserItemPageData(ctx context.Context, req *u
 	if req == nil || req.UserId == "" {
 		return nil, fmt.Errorf("user ID required")
 	}
-	query := `SELECT id, first_name, last_name, email_address, active, date_created, date_modified FROM "user" WHERE id = $1`
+	query := `SELECT id, first_name, last_name, email_address, active, date_created, date_modified, timezone FROM "user" WHERE id = $1`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.UserId)
 	var id, firstName, lastName, emailAddress string
 	var active bool
 	var dateCreated, dateModified time.Time
-	if err := row.Scan(&id, &firstName, &lastName, &emailAddress, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
+	var timezone sql.NullString
+	if err := row.Scan(&id, &firstName, &lastName, &emailAddress, &active, &dateCreated, &dateModified, &timezone); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("user not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	user := &userpb.User{Id: id, FirstName: firstName, LastName: lastName, EmailAddress: emailAddress, Active: active}
+	if timezone.Valid {
+		tz := timezone.String
+		user.Timezone = &tz
+	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		user.DateCreated = &ts

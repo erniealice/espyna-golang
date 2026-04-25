@@ -128,7 +128,8 @@ func (uc *CreateProductVariantUseCase) validateInput(ctx context.Context, req *p
 	if req.Data.Sku == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.validation.sku_required", "SKU is required [DEFAULT]"))
 	}
-	if req.Data.PriceOverride < 0 {
+	// PriceOverride is optional (nil = "no override"). Validate only when set.
+	if req.Data.PriceOverride != nil && *req.Data.PriceOverride < 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.validation.price_override_invalid", "Price override must be >= 0 [DEFAULT]"))
 	}
 	return nil

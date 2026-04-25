@@ -322,14 +322,16 @@ func (uc *GetSubscriptionListPageDataUseCase) isValidSubscriptionField(field str
 		"price_plan_id":        true,
 		"client_id":            true,
 		"active":               true,
+		// SQL-alias-prefixed form used by the list view's active/inactive
+		// filter — the adapter accepts both `s.active` and `active`, so the
+		// allowlist must accept both too.
+		"s.active":             true,
 		"date_created":         true,
 		"date_created_string":  true,
 		"date_modified":        true,
 		"date_modified_string": true,
-		"date_start":           true,
-		"date_start_string":    true,
-		"date_end":             true,
-		"date_end_string":      true,
+		"date_time_start":      true,
+		"date_time_end":        true,
 		// Nested fields
 		"price_plan.name": true,
 		"price_plan.id":   true,

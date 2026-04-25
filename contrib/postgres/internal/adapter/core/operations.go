@@ -1168,6 +1168,33 @@ func ConvertMillisToDateStr(data map[string]any, keys ...string) {
 	}
 }
 
+// ConvertMillisToRFC3339 converts timestamp fields in a result map from
+// int64 Unix millis (produced by normalizeValue) to RFC3339 strings, which
+// is the format protojson expects for google.protobuf.Timestamp fields.
+//
+// Call this on the map returned by Read/List BEFORE json.Marshal + protojson.Unmarshal
+// for any TIMESTAMPTZ column whose proto field is google.protobuf.Timestamp.
+func ConvertMillisToRFC3339(data map[string]any, keys ...string) {
+	for _, key := range keys {
+		v, ok := data[key]
+		if !ok || v == nil {
+			continue
+		}
+		switch val := v.(type) {
+		case int64:
+			if val > 0 {
+				data[key] = time.UnixMilli(val).UTC().Format(time.RFC3339Nano)
+			}
+		case float64:
+			if val > 0 {
+				data[key] = time.UnixMilli(int64(val)).UTC().Format(time.RFC3339Nano)
+			}
+		case string:
+			// Already a string — leave as-is (assume RFC3339)
+		}
+	}
+}
+
 // normalizeValue converts DB-native types to protobuf-compatible types.
 // Specifically, time.Time (from TIMESTAMPTZ) → int64 Unix millis,
 // so protojson can unmarshal into int64 protobuf fields.

@@ -16,19 +16,27 @@ import (
 	expenditurecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
+	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
+	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 	purchaseorderlineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order_line_item"
+	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
+	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
 type ExpenditureRepositories struct {
-	Expenditure           expenditurepb.ExpenditureDomainServiceServer
-	ExpenditureLineItem   expenditurelineitempb.ExpenditureLineItemDomainServiceServer
-	ExpenditureCategory   expenditurecategorypb.ExpenditureCategoryDomainServiceServer
-	ExpenditureAttribute  expenditureattributepb.ExpenditureAttributeDomainServiceServer
-	Prepayment            prepaymentpb.PrepaymentDomainServiceServer
-	PurchaseOrder         purchaseorderpb.PurchaseOrderDomainServiceServer
-	PurchaseOrderLineItem purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer
+	Expenditure            expenditurepb.ExpenditureDomainServiceServer
+	ExpenditureLineItem    expenditurelineitempb.ExpenditureLineItemDomainServiceServer
+	ExpenditureCategory    expenditurecategorypb.ExpenditureCategoryDomainServiceServer
+	ExpenditureAttribute   expenditureattributepb.ExpenditureAttributeDomainServiceServer
+	Prepayment             prepaymentpb.PrepaymentDomainServiceServer
+	PurchaseOrder          purchaseorderpb.PurchaseOrderDomainServiceServer
+	PurchaseOrderLineItem  purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer
+	SupplierContract       suppliercontractpb.SupplierContractDomainServiceServer
+	SupplierContractLine   suppliercontractlinepb.SupplierContractLineDomainServiceServer
+	ProcurementRequest     procurementrequestpb.ProcurementRequestDomainServiceServer
+	ProcurementRequestLine procurementrequestlinepb.ProcurementRequestLineDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
@@ -80,6 +88,18 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, tableConfig *regi
 	}
 	if r := tryCreate(entityid.PurchaseOrderLineItem); r != nil {
 		repos.PurchaseOrderLineItem = r.(purchaseorderlineitempb.PurchaseOrderLineItemDomainServiceServer)
+	}
+	if r := tryCreate(entityid.SupplierContract); r != nil {
+		repos.SupplierContract = r.(suppliercontractpb.SupplierContractDomainServiceServer)
+	}
+	if r := tryCreate(entityid.SupplierContractLine); r != nil {
+		repos.SupplierContractLine = r.(suppliercontractlinepb.SupplierContractLineDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ProcurementRequest); r != nil {
+		repos.ProcurementRequest = r.(procurementrequestpb.ProcurementRequestDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ProcurementRequestLine); r != nil {
+		repos.ProcurementRequestLine = r.(procurementrequestlinepb.ProcurementRequestLineDomainServiceServer)
 	}
 	if r := tryCreate(entityid.PaymentTerm); r != nil {
 		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)

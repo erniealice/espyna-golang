@@ -553,8 +553,11 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 		fmt.Printf("✅ Job instantiation service wired\n")
 	}
 
-	// Use composition initializer to wire everything together
-	subscriptionUseCases, err := initializers.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc, jobTemplateInstantiator)
+	// Use composition initializer to wire everything together. The reference
+	// checker is plumbed through ports.NewNoOpReferenceChecker by default —
+	// the application owner (service-admin) wires the postgres-backed
+	// reference.Checker via the container path when running on postgres.
+	subscriptionUseCases, err := initializers.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc, jobTemplateInstantiator, ports.NewNoOpReferenceChecker())
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize subscription use cases: %v\n", err)
 		return nil, err

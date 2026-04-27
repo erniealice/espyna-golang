@@ -189,6 +189,10 @@ func (uc *CreateSubscriptionUseCase) validateBusinessRules(ctx context.Context, 
 
 // validateEntityReferences validates that all referenced entities exist.
 // It returns the resolved PricePlan so the caller can access plan_id after validation.
+//
+// Plan §3.3 — when the chosen PricePlan is client-scoped (client_id != ""), it
+// must match the subscription's client_id. Master PricePlans (client_id == "")
+// remain attachable for any client.
 func (uc *CreateSubscriptionUseCase) validateEntityReferences(ctx context.Context, subscription *subscriptionpb.Subscription) (*priceplanpb.PricePlan, error) {
 	if subscription == nil {
 		return nil, nil // Should be caught by validateBusinessRules
@@ -208,6 +212,15 @@ func (uc *CreateSubscriptionUseCase) validateEntityReferences(ctx context.Contex
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_active", "[ERR-DEFAULT] Price plan is not active"))
 		}
 		resolvedPricePlan = pricePlan.Data[0]
+
+		// §3.3 — client-scope mismatch hard reject.
+		if ppClientID := resolvedPricePlan.GetClientId(); ppClientID != "" && ppClientID != subscription.ClientId {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+				ctx, uc.services.TranslationService,
+				"subscription.errors.planClientMismatch",
+				"This package belongs to a different client and cannot be attached here. [DEFAULT]",
+			))
+		}
 	}
 
 	// Validate Client entity reference

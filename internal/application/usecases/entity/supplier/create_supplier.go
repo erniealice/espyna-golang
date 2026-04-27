@@ -210,6 +210,10 @@ func (uc *CreateSupplierUseCase) applyBusinessLogic(supplier *supplierpb.Supplie
 
 	// Business logic: Set active status for new suppliers
 	supplier.Active = true
+	if supplier.Status == nil || *supplier.Status == "" {
+		active := "active"
+		supplier.Status = &active
+	}
 
 	// Business logic: Set creation audit fields
 	supplier.DateCreated = &[]int64{now.UnixMilli()}[0]
@@ -239,9 +243,9 @@ func (uc *CreateSupplierUseCase) validateBusinessRules(ctx context.Context, supp
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.data_required", "Supplier data is required [DEFAULT]"))
 	}
 
-	// Business rule: Company name is required
-	if supplier.CompanyName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.company_name_required", "Supplier company name is required [DEFAULT]"))
+	// Business rule: Name is required
+	if supplier.Name == "" {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_required", "Supplier name is required [DEFAULT]"))
 	}
 
 	// Business rule: Supplier type is required
@@ -249,13 +253,13 @@ func (uc *CreateSupplierUseCase) validateBusinessRules(ctx context.Context, supp
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.supplier_type_required", "Supplier type is required [DEFAULT]"))
 	}
 
-	// Business rule: Company name length constraints
-	if len(supplier.CompanyName) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.company_name_too_short", "Company name must be at least 2 characters long [DEFAULT]"))
+	// Business rule: Name length constraints
+	if len(supplier.Name) < 2 {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_too_short", "Name must be at least 2 characters long [DEFAULT]"))
 	}
 
-	if len(supplier.CompanyName) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.company_name_too_long", "Company name cannot exceed 200 characters [DEFAULT]"))
+	if len(supplier.Name) > 200 {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_too_long", "Name cannot exceed 200 characters [DEFAULT]"))
 	}
 
 	// Business rule: Internal ID format validation

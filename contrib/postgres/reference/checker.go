@@ -8,8 +8,14 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/consumer"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/lib/pq"
 )
+
+// Compile-time guarantee that *Checker satisfies the application-layer
+// ReferenceChecker port. Without this assertion, use cases that depend on
+// the port would silently use a no-op when the postgres binding is missing.
+var _ infraports.ReferenceChecker = (*Checker)(nil)
 
 // Checker provides batch FK reference checking for deletable state.
 // Each method returns a map where true = ID is in use and should NOT be deleted.
@@ -156,6 +162,39 @@ func (c *Checker) GetPriceScheduleInUseIDs(ctx context.Context, ids []string) (m
 		  AND pp.active = true
 		  AND s.active = true`
 	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetPlanClientScopeLockedIDs returns plan IDs whose client_id MUST NOT be
+// changed because at least one of their price_plans is referenced by an active
+// subscription. The semantic mirrors GetPricePlanInUseIDs (active-subscription-
+// only) but bubbles up the lock from PricePlan to its parent Plan.
+//
+// Only meaningful when the operator is attempting to change client_id —
+// callers that aren't editing client_id should ignore the result.
+func (c *Checker) GetPlanClientScopeLockedIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	query := `
+		SELECT DISTINCT pp.plan_id
+		FROM price_plan pp
+		JOIN subscription s ON s.price_plan_id = pp.id
+		WHERE pp.plan_id = ANY($1)
+		  AND pp.active = true
+		  AND s.active  = true`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetActiveSubscriptionCountForPricePlan returns the count of active
+// subscriptions attached to a single PricePlan. Used by the N>1 confirm
+// dialog gate on UpdatePricePlan when monetary fields change on a
+// client-scoped PricePlan (see plan §3.5).
+func (c *Checker) GetActiveSubscriptionCountForPricePlan(ctx context.Context, id string) (int, error) {
+	var count int
+	err := c.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM subscription
+		WHERE price_plan_id = $1 AND active = true`, id).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("active subscription count query failed: %w", err)
+	}
+	return count, nil
 }
 
 func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {

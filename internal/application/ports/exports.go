@@ -116,6 +116,12 @@ type NoOpTransactionService = infrastructure.NoOpTransactionService
 // NewNoOpTransactionService creates a no-operation transaction service
 var NewNoOpTransactionService = infrastructure.NewNoOpTransactionService
 
+// Reference checker — application port over postgres reference.Checker.
+type ReferenceChecker = infrastructure.ReferenceChecker
+
+// NewNoOpReferenceChecker returns a stub checker (reports nothing in use).
+var NewNoOpReferenceChecker = infrastructure.NewNoOpReferenceChecker
+
 // Migration types
 type (
 	MigrationService = infrastructure.MigrationService

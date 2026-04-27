@@ -71,7 +71,12 @@ type SubscriptionUseCases struct {
 	SubscriptionAttribute *subscriptionAttributeUseCases.UseCases
 }
 
-// NewUseCases creates all subscription use cases with proper constructor injection
+// NewUseCases creates all subscription use cases with proper constructor injection.
+//
+// `refChecker` is the application-port ReferenceChecker used by the
+// client-scope guards on UpdatePlan (§3.1) and UpdatePricePlan (§3.5). Pass
+// `ports.NewNoOpReferenceChecker()` from non-postgres providers and tests
+// that don't need to gate on cross-row state.
 func NewUseCases(
 	repos SubscriptionRepositories,
 	authSvc ports.AuthorizationService,
@@ -79,7 +84,11 @@ func NewUseCases(
 	i18nSvc ports.TranslationService,
 	idService ports.IDService,
 	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
+	refChecker ports.ReferenceChecker,
 ) *SubscriptionUseCases {
+	if refChecker == nil {
+		refChecker = ports.NewNoOpReferenceChecker()
+	}
 	// Create use cases for each subscription entity
 	balanceUC := balanceUseCases.NewUseCases(
 		balanceUseCases.BalanceRepositories{Balance: repos.Balance},
@@ -102,12 +111,21 @@ func NewUseCases(
 	)
 
 	planUC := planUseCases.NewUseCases(
-		planUseCases.PlanRepositories{Plan: repos.Plan},
+		planUseCases.PlanRepositories{
+			Plan:             repos.Plan,
+			PricePlan:        repos.PricePlan,
+			ProductPlan:      repos.ProductPlan,
+			ProductPricePlan: repos.ProductPricePlan,
+			PriceSchedule:    repos.PriceSchedule,
+			Subscription:     repos.Subscription,
+			Client:           repos.Client,
+		},
 		planUseCases.PlanServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,
 			TranslationService:   i18nSvc,
 			IDService:            idService,
+			ReferenceChecker:     refChecker,
 		},
 	)
 
@@ -128,6 +146,7 @@ func NewUseCases(
 			TransactionService:   txSvc,
 			TranslationService:   i18nSvc,
 			IDService:            idService,
+			ReferenceChecker:     refChecker,
 		},
 	)
 

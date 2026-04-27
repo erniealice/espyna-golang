@@ -148,7 +148,11 @@ func (uc *CreatePricePlanUseCase) validateBusinessRules(ctx context.Context, pri
 	return nil
 }
 
-// validateEntityReferences validates that all referenced entities exist
+// validateEntityReferences validates that all referenced entities exist.
+// As a side effect (per plan §3.2 / 20260427-plan-client-scope), it cascades
+// the parent Plan's client_id onto the supplied PricePlan, overwriting any
+// caller-supplied value. Server-side coercion ensures pricePlan.client_id ==
+// plan.client_id always.
 func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
 	// Validate Plan entity reference
 	if pricePlan.PlanId != "" {
@@ -168,9 +172,25 @@ func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_active", "referenced plan with ID '%s' is not active")
 			return fmt.Errorf(msg, pricePlan.PlanId)
 		}
+
+		// §3.2 cascade — server-coerce PricePlan.client_id from the parent Plan.
+		// Any body-supplied value is ignored to keep the denormalized invariant
+		// `price_plan.client_id == plan.client_id` true by construction.
+		parentClientID := plan.Data[0].GetClientId()
+		pricePlan.ClientId = stringPtrOrNil(parentClientID)
 	}
 
 	return nil
+}
+
+// stringPtrOrNil maps "" → nil (representing NULL on the optional client_id
+// proto field), any non-empty value → its pointer.
+func stringPtrOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	v := s
+	return &v
 }
 
 // executeWithTransaction executes price plan creation within a transaction

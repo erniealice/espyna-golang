@@ -401,15 +401,19 @@ type UpdateJobStatusUseCase struct {
 
 // validTransitions defines the allowed state machine transitions for jobs:
 //
-//	DRAFT     -> PENDING, CLOSED
-//	PENDING   -> ACTIVE, CLOSED
+//	DRAFT     -> PENDING, PLANNED, CLOSED
+//	PENDING   -> ACTIVE, PLANNED, CLOSED
+//	PLANNED   -> RELEASED, DRAFT, PENDING
+//	RELEASED  -> ACTIVE, PLANNED, PAUSED
 //	ACTIVE    -> PAUSED, COMPLETED
 //	PAUSED    -> ACTIVE, CLOSED
 //	COMPLETED -> CLOSED
 //	CLOSED    -> (terminal)
 var validTransitions = map[enumspb.JobStatus][]enumspb.JobStatus{
-	enumspb.JobStatus_JOB_STATUS_DRAFT:     {enumspb.JobStatus_JOB_STATUS_PENDING, enumspb.JobStatus_JOB_STATUS_CLOSED},
-	enumspb.JobStatus_JOB_STATUS_PENDING:   {enumspb.JobStatus_JOB_STATUS_ACTIVE, enumspb.JobStatus_JOB_STATUS_CLOSED},
+	enumspb.JobStatus_JOB_STATUS_DRAFT:     {enumspb.JobStatus_JOB_STATUS_PENDING, enumspb.JobStatus_JOB_STATUS_PLANNED, enumspb.JobStatus_JOB_STATUS_CLOSED},
+	enumspb.JobStatus_JOB_STATUS_PENDING:   {enumspb.JobStatus_JOB_STATUS_ACTIVE, enumspb.JobStatus_JOB_STATUS_PLANNED, enumspb.JobStatus_JOB_STATUS_CLOSED},
+	enumspb.JobStatus_JOB_STATUS_PLANNED:   {enumspb.JobStatus_JOB_STATUS_RELEASED, enumspb.JobStatus_JOB_STATUS_DRAFT, enumspb.JobStatus_JOB_STATUS_PENDING},
+	enumspb.JobStatus_JOB_STATUS_RELEASED:  {enumspb.JobStatus_JOB_STATUS_ACTIVE, enumspb.JobStatus_JOB_STATUS_PLANNED, enumspb.JobStatus_JOB_STATUS_PAUSED},
 	enumspb.JobStatus_JOB_STATUS_ACTIVE:    {enumspb.JobStatus_JOB_STATUS_PAUSED, enumspb.JobStatus_JOB_STATUS_COMPLETED},
 	enumspb.JobStatus_JOB_STATUS_PAUSED:    {enumspb.JobStatus_JOB_STATUS_ACTIVE, enumspb.JobStatus_JOB_STATUS_CLOSED},
 	enumspb.JobStatus_JOB_STATUS_COMPLETED: {enumspb.JobStatus_JOB_STATUS_CLOSED},

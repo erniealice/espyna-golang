@@ -107,9 +107,9 @@ func getExpenditurePivotDimensionConfig(tc TableConfig, dimension string) pivotD
 		}
 	case "supplier":
 		return pivotDimensionConfig{
-			selectKey:  "COALESCE(s.company_name, 'No Supplier')",
+			selectKey:  "COALESCE(s.name, 'No Supplier')",
 			selectID:   "COALESCE(e.supplier_id, '__none__')",
-			groupBy:    "e.supplier_id, s.company_name",
+			groupBy:    "e.supplier_id, s.name",
 			extraJoins: fmt.Sprintf("LEFT JOIN %s s ON s.id = e.supplier_id", tc.Supplier),
 		}
 	case "expenditure_type":

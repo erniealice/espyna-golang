@@ -17,7 +17,8 @@ type PricePlanServices struct {
 	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
 	TransactionService   ports.TransactionService   // Current: Database transactions
 	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Only for CreatePricePlan
+	IDService            ports.IDService        // Only for CreatePricePlan
+	ReferenceChecker     ports.ReferenceChecker // §3.5 — UpdatePricePlan multi-engagement confirm gate
 }
 
 // UseCases contains all price_plan-related use cases
@@ -59,6 +60,7 @@ func NewUseCases(
 		AuthorizationService: services.AuthorizationService,
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
+		ReferenceChecker:     services.ReferenceChecker,
 	}
 
 	deleteRepos := DeletePricePlanRepositories{

@@ -16,6 +16,7 @@ func InitializeSubscription(
 	i18nSvc ports.TranslationService,
 	idSvc ports.IDService,
 	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
+	refChecker ports.ReferenceChecker,
 ) (*subscription.SubscriptionUseCases, error) {
 	// Use the domain's constructor which properly handles all use case creation
 	return subscription.NewUseCases(
@@ -41,5 +42,6 @@ func InitializeSubscription(
 		i18nSvc,
 		idSvc,
 		jobTemplateInstantiator,
+		refChecker,
 	), nil
 }

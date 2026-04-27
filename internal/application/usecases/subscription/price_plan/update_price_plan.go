@@ -24,6 +24,7 @@ type UpdatePricePlanServices struct {
 	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
 	TransactionService   ports.TransactionService   // Current: Database transactions
 	TranslationService   ports.TranslationService
+	ReferenceChecker     ports.ReferenceChecker // §3.5 — N>1 active subscription confirm gate
 }
 
 // UpdatePricePlanUseCase handles the business logic for updating price_plans
@@ -56,8 +57,14 @@ func (uc *UpdatePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.
 		return nil, err
 	}
 
-	// Entity reference validation
+	// Entity reference validation — also cascades client_id from the parent
+	// Plan onto req.Data, mirroring CreatePricePlan (§3.2).
 	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
+		return nil, err
+	}
+
+	// §3.5 — N>1 confirm gate for monetary edits on a client-scoped PricePlan.
+	if err := uc.checkMultiEngagementConfirm(ctx, req.Data); err != nil {
 		return nil, err
 	}
 
@@ -163,7 +170,10 @@ func (uc *UpdatePricePlanUseCase) validateBusinessRules(ctx context.Context, pri
 	return nil
 }
 
-// validateEntityReferences validates that all referenced entities exist
+// validateEntityReferences validates that all referenced entities exist. Also
+// cascades the parent Plan's client_id onto the request body — server-side
+// coercion per §3.2 keeps the denormalized invariant
+// `price_plan.client_id == plan.client_id` true on every write.
 func (uc *UpdatePricePlanUseCase) validateEntityReferences(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
 	// Validate Plan entity reference
 	if pricePlan.PlanId != "" {
@@ -183,7 +193,74 @@ func (uc *UpdatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_active", "referenced plan with ID '%s' is not active")
 			return fmt.Errorf(msg, pricePlan.PlanId)
 		}
+
+		// §3.2 cascade — server-coerce PricePlan.client_id from the parent
+		// Plan, overwriting any body-supplied value.
+		parentClientID := plan.Data[0].GetClientId()
+		pricePlan.ClientId = stringPtrOrNil(parentClientID)
 	}
 
 	return nil
+}
+
+// checkMultiEngagementConfirm implements plan §3.5 — when a client-scoped
+// PricePlan has its monetary fields changed and N > 1 active subscriptions
+// reference it, require an explicit confirmation flag (carried via context).
+//
+// The check is deliberately a no-op when:
+//   - the PricePlan is master (client_id == "")
+//   - no monetary fields are changing
+//   - the reference checker is unwired (provider doesn't support it)
+//   - the caller has already confirmed (contextutil.IsConfirmed(ctx) == true)
+//
+// The error message uses the lyngua key
+// `price_plan.errors.multiEngagementConfirmRequired`. The handler intercepts
+// it and renders the user-facing
+// `price_plan.confirms.editAmountMultipleEngagements` dialog.
+func (uc *UpdatePricePlanUseCase) checkMultiEngagementConfirm(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
+	if pricePlan == nil || pricePlan.GetClientId() == "" {
+		return nil
+	}
+	if uc.services.ReferenceChecker == nil {
+		return nil
+	}
+	if contextutil.IsConfirmed(ctx) {
+		return nil
+	}
+
+	// Read the existing row so we can detect whether monetary fields changed.
+	existingResp, err := uc.repositories.PricePlan.ReadPricePlan(ctx, &priceplanpb.ReadPricePlanRequest{
+		Data: &priceplanpb.PricePlan{Id: pricePlan.GetId()},
+	})
+	if err != nil || existingResp == nil || len(existingResp.GetData()) == 0 {
+		// Defer to other validators if the row is missing — they'll surface
+		// the not-found error.
+		return nil
+	}
+	existing := existingResp.GetData()[0]
+
+	monetaryChanged := existing.GetBillingAmount() != pricePlan.GetBillingAmount() ||
+		existing.GetBillingCurrency() != pricePlan.GetBillingCurrency() ||
+		existing.GetBillingCycleValue() != pricePlan.GetBillingCycleValue() ||
+		existing.GetBillingCycleUnit() != pricePlan.GetBillingCycleUnit() ||
+		existing.GetDefaultTermValue() != pricePlan.GetDefaultTermValue() ||
+		existing.GetDefaultTermUnit() != pricePlan.GetDefaultTermUnit()
+	if !monetaryChanged {
+		return nil
+	}
+
+	count, err := uc.services.ReferenceChecker.GetActiveSubscriptionCountForPricePlan(ctx, pricePlan.GetId())
+	if err != nil {
+		return err
+	}
+	if count <= 1 {
+		return nil
+	}
+
+	msg := contextutil.GetTranslatedMessageWithContext(
+		ctx, uc.services.TranslationService,
+		"price_plan.errors.multiEngagementConfirmRequired",
+		"Confirmation required — N > 1 attached subscriptions and monetary fields changing. [DEFAULT]",
+	)
+	return errors.New(msg)
 }

@@ -184,6 +184,25 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		))
 	}
 
+	// §3.6 (20260427-plan-client-scope) — subscription/plan client drift guard.
+	// resolvedClientID = pricePlan.Plan.client_id when the join is present,
+	// else fall back to the denormalized mirror on PricePlan itself. Reject
+	// when both sides are non-empty and disagree — protects revenue
+	// recognition from a desynced client identity (e.g. direct DB writes).
+	resolvedClientID := pricePlan.GetClientId()
+	if joinedPlan := pricePlan.GetPlan(); joinedPlan != nil {
+		if joinedPlan.GetClientId() != "" {
+			resolvedClientID = joinedPlan.GetClientId()
+		}
+	}
+	if subClientID := sub.GetClientId(); subClientID != "" && resolvedClientID != "" && subClientID != resolvedClientID {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.subscriptionPlanClientDrift",
+			"Subscription and price plan belong to different clients — recognition blocked. [DEFAULT]",
+		))
+	}
+
 	// 5. List ProductPricePlans for this PricePlan
 	ppps := uc.listProductPricePlans(ctx, pricePlanID)
 

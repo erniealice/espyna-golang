@@ -611,7 +611,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
 		LEFT JOIN price_plan pp ON s.price_plan_id = pp.id AND pp.active = true
 		LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = true
-		WHERE s.id = $1 AND s.active = true
+		-- Active filter intentionally omitted: detail-page lookups must work
+		-- for deactivated subscriptions too (so operators can review/restore).
+		-- Active scoping belongs at the LIST level, not the by-id lookup.
+		WHERE s.id = $1
 	`
 
 	// Get DB connection from dbOps interface

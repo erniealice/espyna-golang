@@ -107,7 +107,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 			s.date_created,
 			s.date_modified,
 			s.supplier_type,
-			s.company_name,
+			s.name,
 			s.tax_id,
 			s.registration_number,
 			s.street_address,
@@ -123,6 +123,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 			s.client_id,
 			s.website,
 			s.notes,
+			s.timezone,
 			s.category_id,
 			s.payment_term_id,
 			u.id as user_id_value,
@@ -146,7 +147,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		dateCreated        time.Time
 		dateModified       time.Time
 		supplierType       *string
-		companyName        *string
+		name               *string
 		taxId              *string
 		registrationNumber *string
 		streetAddress      *string
@@ -162,6 +163,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		clientId           *string
 		website            *string
 		notes              *string
+		timezone           *string
 		categoryId         *string
 		userIdValue        *string
 		userFirstName      *string
@@ -179,7 +181,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		&dateCreated,
 		&dateModified,
 		&supplierType,
-		&companyName,
+		&name,
 		&taxId,
 		&registrationNumber,
 		&streetAddress,
@@ -195,6 +197,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		&clientId,
 		&website,
 		&notes,
+		&timezone,
 		&categoryId,
 		&paymentTermID,
 		&userIdValue,
@@ -212,10 +215,10 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 
 	supplier := buildSupplierFromScan(
 		id, userId, active, internalId, dateCreated, dateModified,
-		supplierType, companyName, taxId, registrationNumber,
+		supplierType, name, taxId, registrationNumber,
 		streetAddress, city, province, postalCode, country,
 		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
-		status, clientId, website, notes, categoryId,
+		status, clientId, website, notes, timezone, categoryId,
 		paymentTermID,
 		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 	)
@@ -355,7 +358,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 	}
 
 	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
-	searchFields := []string{"s.company_name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
+	searchFields := []string{"s.name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
 	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
 
 	whereSQL := "WHERE s.workspace_id = $1"
@@ -380,7 +383,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				s.date_created,
 				s.date_modified,
 				s.supplier_type,
-				s.company_name,
+				s.name,
 				s.tax_id,
 				s.registration_number,
 				s.street_address,
@@ -396,6 +399,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				s.client_id,
 				s.website,
 				s.notes,
+				s.timezone,
 				s.category_id,
 				s.payment_term_id,
 				COALESCE(pt.name, '') as payment_term_name,
@@ -440,7 +444,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			dateCreated        time.Time
 			dateModified       time.Time
 			supplierType       *string
-			companyName        *string
+			name               *string
 			taxId              *string
 			registrationNumber *string
 			streetAddress      *string
@@ -456,6 +460,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			clientId           *string
 			website            *string
 			notes              *string
+			timezone           *string
 			categoryId         *string
 			paymentTermID      *string
 			paymentTermName    string
@@ -475,7 +480,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			&dateCreated,
 			&dateModified,
 			&supplierType,
-			&companyName,
+			&name,
 			&taxId,
 			&registrationNumber,
 			&streetAddress,
@@ -491,6 +496,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			&clientId,
 			&website,
 			&notes,
+			&timezone,
 			&categoryId,
 			&paymentTermID,
 			&paymentTermName,
@@ -509,10 +515,10 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 
 		supplier := buildSupplierFromScan(
 			id, userId, active, internalId, dateCreated, dateModified,
-			supplierType, companyName, taxId, registrationNumber,
+			supplierType, name, taxId, registrationNumber,
 			streetAddress, city, province, postalCode, country,
 			defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
-			status, clientId, website, notes, categoryId,
+			status, clientId, website, notes, timezone, categoryId,
 			paymentTermID,
 			userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 		)
@@ -580,7 +586,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 				s.date_created,
 				s.date_modified,
 				s.supplier_type,
-				s.company_name,
+				s.name,
 				s.tax_id,
 				s.registration_number,
 				s.street_address,
@@ -596,6 +602,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 				s.client_id,
 				s.website,
 				s.notes,
+				s.timezone,
 				s.category_id,
 				s.payment_term_id,
 				-- User fields (1:1 relationship)
@@ -622,7 +629,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		dateCreated        time.Time
 		dateModified       time.Time
 		supplierType       *string
-		companyName        *string
+		name               *string
 		taxId              *string
 		registrationNumber *string
 		streetAddress      *string
@@ -638,6 +645,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		clientId           *string
 		website            *string
 		notes              *string
+		timezone           *string
 		categoryId         *string
 		paymentTermID      *string
 		userIdValue        *string
@@ -655,7 +663,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		&dateCreated,
 		&dateModified,
 		&supplierType,
-		&companyName,
+		&name,
 		&taxId,
 		&registrationNumber,
 		&streetAddress,
@@ -671,6 +679,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		&clientId,
 		&website,
 		&notes,
+		&timezone,
 		&categoryId,
 		&paymentTermID,
 		&userIdValue,
@@ -688,10 +697,10 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 
 	supplier := buildSupplierFromScan(
 		id, userId, active, internalId, dateCreated, dateModified,
-		supplierType, companyName, taxId, registrationNumber,
+		supplierType, name, taxId, registrationNumber,
 		streetAddress, city, province, postalCode, country,
 		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
-		status, clientId, website, notes, categoryId,
+		status, clientId, website, notes, timezone, categoryId,
 		paymentTermID,
 		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 	)
@@ -771,10 +780,10 @@ func (r *PostgresSupplierRepository) loadSupplierCategories(ctx context.Context,
 func buildSupplierFromScan(
 	id string, userId *string, active bool, internalId *string,
 	dateCreated time.Time, dateModified time.Time,
-	supplierType *string, companyName *string, taxId *string, registrationNumber *string,
+	supplierType *string, name *string, taxId *string, registrationNumber *string,
 	streetAddress *string, city *string, province *string, postalCode *string, country *string,
 	defaultCurrency *string, paymentTerms *string, leadTimeDays *int32, creditLimit *int64,
-	status *string, clientId *string, website *string, notes *string, categoryId *string,
+	status *string, clientId *string, website *string, notes *string, timezone *string, categoryId *string,
 	paymentTermID *string,
 	userIdValue *string, userFirstName *string, userLastName *string,
 	userEmailAddress *string, userPhoneNumber *string,
@@ -796,8 +805,8 @@ func buildSupplierFromScan(
 	if supplierType != nil {
 		supplier.SupplierType = *supplierType
 	}
-	if companyName != nil {
-		supplier.CompanyName = *companyName
+	if name != nil {
+		supplier.Name = *name
 	}
 	supplier.TaxId = taxId
 	supplier.RegistrationNumber = registrationNumber
@@ -814,6 +823,7 @@ func buildSupplierFromScan(
 	supplier.ClientId = clientId
 	supplier.Website = website
 	supplier.Notes = notes
+	supplier.Timezone = timezone
 	supplier.CategoryId = categoryId
 	if paymentTermID != nil {
 		supplier.PaymentTermId = paymentTermID

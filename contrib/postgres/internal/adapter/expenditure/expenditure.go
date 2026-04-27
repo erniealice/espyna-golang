@@ -287,7 +287,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.approved_by,
 				ex.purchase_order_id,
 				ex.supplier_id,
-				COALESCE(s.company_name, '') as vendor_name,
+				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
 			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = true
@@ -298,7 +298,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			       ex.name ILIKE $2 OR
 			       ex.reference_number ILIKE $2 OR
 			       ex.status ILIKE $2 OR
-			       s.company_name ILIKE $2)
+			       s.name ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -502,7 +502,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 				ex.approved_by,
 				ex.purchase_order_id,
 				ex.supplier_id,
-				COALESCE(s.company_name, '') as vendor_name,
+				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
 			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = true

@@ -7,6 +7,10 @@ import (
 	expenditureattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
 	expenditurecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
+	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
+	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
+	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
+	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
 
 	expenditureuc "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
@@ -141,6 +145,192 @@ func ConfigureExpenditureDomain(expenditureUseCases *expenditureuc.ExpenditureUs
 			Method:  "POST",
 			Path:    "/api/expenditure/expenditure-attribute/list",
 			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenditureAttribute.ListExpenditureAttributes, &expenditureattributepb.ListExpenditureAttributesRequest{}),
+		})
+	}
+
+	// Supplier Contract entity routes
+	if expenditureUseCases.SupplierContract != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.CreateSupplierContract, &suppliercontractpb.CreateSupplierContractRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.ReadSupplierContract, &suppliercontractpb.ReadSupplierContractRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.UpdateSupplierContract, &suppliercontractpb.UpdateSupplierContractRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.DeleteSupplierContract, &suppliercontractpb.DeleteSupplierContractRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.ListSupplierContracts, &suppliercontractpb.ListSupplierContractsRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/get-list-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.GetSupplierContractListPageData, &suppliercontractpb.GetSupplierContractListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/get-item-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.GetSupplierContractItemPageData, &suppliercontractpb.GetSupplierContractItemPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/approve",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.ApproveSupplierContract, &suppliercontractpb.ApproveSupplierContractRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract/terminate",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContract.TerminateSupplierContract, &suppliercontractpb.TerminateSupplierContractRequest{}),
+		})
+	}
+
+	// Supplier Contract Line entity routes
+	if expenditureUseCases.SupplierContractLine != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-line/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractLine.CreateSupplierContractLine, &suppliercontractlinepb.CreateSupplierContractLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-line/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractLine.ReadSupplierContractLine, &suppliercontractlinepb.ReadSupplierContractLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-line/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractLine.UpdateSupplierContractLine, &suppliercontractlinepb.UpdateSupplierContractLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-line/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractLine.DeleteSupplierContractLine, &suppliercontractlinepb.DeleteSupplierContractLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-line/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractLine.ListSupplierContractLines, &suppliercontractlinepb.ListSupplierContractLinesRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-line/get-list-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractLine.GetSupplierContractLineListPageData, &suppliercontractlinepb.GetSupplierContractLineListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-line/get-item-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractLine.GetSupplierContractLineItemPageData, &suppliercontractlinepb.GetSupplierContractLineItemPageDataRequest{}),
+		})
+	}
+
+	// Procurement Request entity routes
+	if expenditureUseCases.ProcurementRequest != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.CreateProcurementRequest, &procurementrequestpb.CreateProcurementRequestRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.ReadProcurementRequest, &procurementrequestpb.ReadProcurementRequestRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.UpdateProcurementRequest, &procurementrequestpb.UpdateProcurementRequestRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.DeleteProcurementRequest, &procurementrequestpb.DeleteProcurementRequestRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.ListProcurementRequests, &procurementrequestpb.ListProcurementRequestsRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/get-list-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.GetProcurementRequestListPageData, &procurementrequestpb.GetProcurementRequestListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/get-item-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.GetProcurementRequestItemPageData, &procurementrequestpb.GetProcurementRequestItemPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/submit",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.SubmitProcurementRequest, &procurementrequestpb.SubmitProcurementRequestRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/approve",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.ApproveProcurementRequest, &procurementrequestpb.ApproveProcurementRequestRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/reject",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.RejectProcurementRequest, &procurementrequestpb.RejectProcurementRequestRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request/spawn-purchase-order",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequest.SpawnPurchaseOrder, &procurementrequestpb.SpawnPurchaseOrderRequest{}),
+		})
+	}
+
+	// Procurement Request Line entity routes
+	if expenditureUseCases.ProcurementRequestLine != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request-line/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.CreateProcurementRequestLine, &procurementrequestlinepb.CreateProcurementRequestLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request-line/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.ReadProcurementRequestLine, &procurementrequestlinepb.ReadProcurementRequestLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request-line/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.UpdateProcurementRequestLine, &procurementrequestlinepb.UpdateProcurementRequestLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request-line/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.DeleteProcurementRequestLine, &procurementrequestlinepb.DeleteProcurementRequestLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request-line/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.ListProcurementRequestLines, &procurementrequestlinepb.ListProcurementRequestLinesRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request-line/get-list-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.GetProcurementRequestLineListPageData, &procurementrequestlinepb.GetProcurementRequestLineListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/procurement-request-line/get-item-page-data",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.GetProcurementRequestLineItemPageData, &procurementrequestlinepb.GetProcurementRequestLineItemPageDataRequest{}),
 		})
 	}
 

@@ -74,8 +74,8 @@ func (uc *UpdateSupplierUseCase) Execute(ctx context.Context, req *supplierpb.Up
 	}
 
 	// Business logic validation
-	if req.Data.CompanyName == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.company_name_required", "Supplier company name is required [DEFAULT]"))
+	if req.Data.Name == "" {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_required", "Supplier name is required [DEFAULT]"))
 	}
 
 	// Call repository

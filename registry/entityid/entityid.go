@@ -124,10 +124,14 @@ const (
 
 // Expenditure domain
 const (
-	Expenditure          = "expenditure"
-	ExpenditureAttribute = "expenditure_attribute"
-	ExpenditureCategory  = "expenditure_category"
-	ExpenditureLineItem  = "expenditure_line_item"
+	Expenditure                = "expenditure"
+	ExpenditureAttribute       = "expenditure_attribute"
+	ExpenditureCategory        = "expenditure_category"
+	ExpenditureLineItem        = "expenditure_line_item"
+	SupplierContract           = "supplier_contract"
+	SupplierContractLine       = "supplier_contract_line"
+	ProcurementRequest         = "procurement_request"
+	ProcurementRequestLine     = "procurement_request_line"
 )
 
 // Inventory domain
@@ -309,7 +313,12 @@ var ProductEntities = []string{
 var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue}
 
 // ExpenditureEntities lists all entity IDs in the Expenditure domain.
-var ExpenditureEntities = []string{Expenditure, ExpenditureAttribute, ExpenditureCategory, ExpenditureLineItem, Prepayment, PurchaseOrder, PurchaseOrderLineItem}
+var ExpenditureEntities = []string{
+	Expenditure, ExpenditureAttribute, ExpenditureCategory, ExpenditureLineItem,
+	Prepayment, PurchaseOrder, PurchaseOrderLineItem,
+	SupplierContract, SupplierContractLine,
+	ProcurementRequest, ProcurementRequestLine,
+}
 
 // InventoryEntities lists all entity IDs in the Inventory domain.
 var InventoryEntities = []string{

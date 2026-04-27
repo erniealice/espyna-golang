@@ -215,6 +215,10 @@ func (uc *CreateClientUseCase) applyBusinessLogic(client *clientpb.Client) *clie
 
 	// Business logic: Set active status for new clients
 	client.Active = true
+	if client.Status == nil || *client.Status == "" {
+		active := "active"
+		client.Status = &active
+	}
 
 	// Business logic: Set creation audit fields
 	client.DateCreated = &[]int64{now.UnixMilli()}[0]

@@ -228,7 +228,13 @@ func (uc *UpdateSubscriptionUseCase) validateBusinessRules(ctx context.Context, 
 	return nil
 }
 
-// validateEntityReferences validates that all referenced entities exist
+// validateEntityReferences validates that all referenced entities exist.
+//
+// Plan §3.3 — when the chosen PricePlan is client-scoped (client_id != ""), it
+// must match the subscription's client_id. The check resolves the
+// subscription's effective client_id from the request body when present, else
+// from the existing record (partial updates that change PricePlan but not
+// ClientId still need to be gated).
 func (uc *UpdateSubscriptionUseCase) validateEntityReferences(ctx context.Context, subscription *subscriptionpb.Subscription) error {
 	// Validate PricePlan entity reference
 	if subscription.PricePlanId != "" {
@@ -240,6 +246,27 @@ func (uc *UpdateSubscriptionUseCase) validateEntityReferences(ctx context.Contex
 		}
 		if !pricePlan.Data[0].Active {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.price_plan_not_active", "[ERR-DEFAULT] Price plan is not active"))
+		}
+
+		// §3.3 — client-scope mismatch hard reject. Resolve effective
+		// client_id (request body wins; fall back to existing record).
+		ppClientID := pricePlan.Data[0].GetClientId()
+		if ppClientID != "" {
+			effectiveClientID := subscription.ClientId
+			if effectiveClientID == "" && subscription.Id != "" {
+				if existingResp, err := uc.repositories.Subscription.ReadSubscription(ctx, &subscriptionpb.ReadSubscriptionRequest{
+					Data: &subscriptionpb.Subscription{Id: subscription.Id},
+				}); err == nil && existingResp != nil && len(existingResp.GetData()) > 0 {
+					effectiveClientID = existingResp.GetData()[0].GetClientId()
+				}
+			}
+			if ppClientID != effectiveClientID {
+				return errors.New(contextutil.GetTranslatedMessageWithContext(
+					ctx, uc.services.TranslationService,
+					"subscription.errors.planClientMismatch",
+					"This package belongs to a different client and cannot be attached here. [DEFAULT]",
+				))
+			}
 		}
 	}
 

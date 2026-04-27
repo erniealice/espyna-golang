@@ -76,9 +76,9 @@ func getDisbursementPivotDimensionConfig(tc TableConfig, dimension string) pivot
 		}
 	case "supplier":
 		return pivotDimensionConfig{
-			selectKey: "COALESCE(s.company_name, 'Unknown')",
+			selectKey: "COALESCE(s.name, 'Unknown')",
 			selectID:  "COALESCE(e.supplier_id, '__none__')",
-			groupBy:   "e.supplier_id, s.company_name",
+			groupBy:   "e.supplier_id, s.name",
 		}
 	case "supplier_category":
 		return pivotDimensionConfig{

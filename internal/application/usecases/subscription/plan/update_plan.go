@@ -3,6 +3,8 @@ package plan
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -133,7 +135,11 @@ func (uc *UpdatePlanUseCase) executeCore(ctx context.Context, req *planpb.Update
 	// Persist the Plan update first.
 	resp, err := uc.repositories.Plan.UpdatePlan(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.update_failed", "plan update failed [DEFAULT]"))
+		log.Printf("UpdatePlan repo error: planID=%s clientIDChanging=%v old=%q new=%q parentID=%v err=%v",
+			planID, clientIDChanging, oldClientID, newClientID, req.Data.ParentId, err)
+		return nil, fmt.Errorf("%s: %w",
+			contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.update_failed", "plan update failed"),
+			err)
 	}
 
 	// §3.2 cascade — propagate the new client_id to every child PricePlan.

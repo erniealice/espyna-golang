@@ -2,14 +2,22 @@ package price_plan
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 )
 
-// PricePlanRepositories groups all repository dependencies for price plan use cases
+// PricePlanRepositories groups all repository dependencies for price plan use cases.
+//
+// PriceSchedule + Client refs are required for the auto-resolve-or-create
+// client-scoped PriceSchedule path on CreatePricePlan / UpdatePricePlan
+// (plan §3.2 / §4.4 of 20260427-plan-client-scope, wired 2026-04-28).
 type PricePlanRepositories struct {
-	PricePlan priceplanpb.PricePlanDomainServiceServer // Primary entity repository
-	Plan      planpb.PlanDomainServiceServer           // Entity reference dependency
+	PricePlan     priceplanpb.PricePlanDomainServiceServer
+	Plan          planpb.PlanDomainServiceServer
+	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
+	Client        clientpb.ClientDomainServiceServer
 }
 
 // PricePlanServices groups all business service dependencies for price plan use cases
@@ -61,6 +69,7 @@ func NewUseCases(
 		TransactionService:   services.TransactionService,
 		TranslationService:   services.TranslationService,
 		ReferenceChecker:     services.ReferenceChecker,
+		IDService:            services.IDService,
 	}
 
 	deleteRepos := DeletePricePlanRepositories{

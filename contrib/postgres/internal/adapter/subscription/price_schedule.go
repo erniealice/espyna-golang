@@ -80,6 +80,16 @@ func (r *PostgresPriceScheduleRepository) CreatePriceSchedule(ctx context.Contex
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Empty optional FKs ("" from the inactive scope picker) must arrive at
+	// postgres as SQL NULL — the Scope radio (2026-04-28) clears the inactive
+	// FK on save, and an empty literal would trip the FK constraint.
+	if v, ok := data["client_id"].(string); ok && v == "" {
+		data["client_id"] = nil
+	}
+	if v, ok := data["location_id"].(string); ok && v == "" {
+		data["location_id"] = nil
+	}
+
 	// Create document using common operations.
 	// date_time_start / date_time_end arrive as RFC3339 strings (protojson
 	// representation of google.protobuf.Timestamp). PostgreSQL TIMESTAMPTZ
@@ -155,6 +165,17 @@ func (r *PostgresPriceScheduleRepository) UpdatePriceSchedule(ctx context.Contex
 	var data map[string]any
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	// Empty optional FK values must reach the column as SQL NULL — the
+	// scope radio (2026-04-28) flips between location-scoped and client-scoped
+	// schedules, clearing the inactive FK each time. EmitDefaultValues serialises
+	// nil/&"" as the empty string which would trip the FK constraint.
+	if v, ok := data["client_id"].(string); ok && v == "" {
+		data["client_id"] = nil
+	}
+	if v, ok := data["location_id"].(string); ok && v == "" {
+		data["location_id"] = nil
 	}
 
 	// Update document using common operations.

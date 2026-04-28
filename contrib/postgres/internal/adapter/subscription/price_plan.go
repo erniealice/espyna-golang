@@ -79,6 +79,13 @@ func (r *PostgresPricePlanRepository) CreatePricePlan(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Empty optional FK ("" from a blank picker) must arrive at postgres as
+	// SQL NULL — both client_id and the schedule-scoped FK columns. Mirrors
+	// the UpdatePricePlan normalisation below.
+	if v, ok := data["client_id"].(string); ok && v == "" {
+		data["client_id"] = nil
+	}
+
 	// Create document using common operations
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
@@ -149,6 +156,16 @@ func (r *PostgresPricePlanRepository) UpdatePricePlan(ctx context.Context, req *
 	// Always include active flag — proto3 omits bool=false during JSON marshal,
 	// which would silently skip deactivation via the form toggle.
 	data["active"] = req.Data.GetActive()
+
+	// Always include client_id so cascades from Plan client_id changes (espyna
+	// update_plan §3.2) actually clear the FK column. protojson omits nil
+	// optional strings (silent skip) and serializes &"" as "" (FK violation).
+	// Force-write: empty/nil → SQL NULL; non-empty → the value.
+	if cid := req.Data.GetClientId(); cid == "" {
+		data["client_id"] = nil
+	} else {
+		data["client_id"] = cid
+	}
 
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)

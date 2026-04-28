@@ -10,7 +10,6 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -233,8 +232,9 @@ func (uc *CustomizePlanForClientUseCase) executeCore(
 	if derivedName == "" {
 		derivedName = uc.fallbackScheduleName(client)
 	}
-	resolvedSchedule, reused, err := resolveOrCreateClientPriceSchedule(
-		ctx, &uc.repositories,
+	resolvedSchedule, reused, err := ResolveOrCreateClientPriceSchedule(
+		ctx,
+		&ResolveOrCreateClientScheduleRepos{PriceSchedule: uc.repositories.PriceSchedule},
 		uc.services.IDService,
 		workspaceID,
 		scheduleLocationID(sourceSchedule),
@@ -574,127 +574,6 @@ func (uc *CustomizePlanForClientUseCase) fallbackScheduleName(client *clientpb.C
 }
 
 // ----- helper utilities ----------------------------------------------------
-
-// resolveOrCreateClientPriceSchedule looks up an existing client-scoped
-// PriceSchedule for `(workspaceID, locationID, clientID, active=true)`. When
-// found it returns the row with `reused=true`; when missing it creates a new
-// schedule from the supplied template + derived name and returns
-// `reused=false`.
-//
-// Caller passes a pre-built `derivedName` (e.g. "Cruz Engineering - Rate
-// Cards"); helper does NOT read lyngua. See plan §4.4.
-func resolveOrCreateClientPriceSchedule(
-	ctx context.Context,
-	repos *CustomizePlanForClientRepositories,
-	idSvc ports.IDService,
-	workspaceID, locationID, clientID, derivedName string,
-	template *priceschedulepb.PriceSchedule,
-) (*priceschedulepb.PriceSchedule, bool, error) {
-	if repos == nil || repos.PriceSchedule == nil {
-		return nil, false, errors.New("price_schedule repository unavailable")
-	}
-
-	// Look up matching client schedule (workspace + location + client + active).
-	filters := []*commonpb.TypedFilter{
-		stringEqFilter("client_id", clientID),
-		boolEqFilter("active", true),
-	}
-	if locationID != "" {
-		filters = append(filters, stringEqFilter("location_id", locationID))
-	}
-	if workspaceID != "" {
-		filters = append(filters, stringEqFilter("workspace_id", workspaceID))
-	}
-
-	listResp, err := repos.PriceSchedule.ListPriceSchedules(ctx, &priceschedulepb.ListPriceSchedulesRequest{
-		Filters: &commonpb.FilterRequest{Filters: filters},
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	if listResp != nil {
-		for _, ps := range listResp.GetData() {
-			// Belt-and-braces: even if the adapter doesn't honour the
-			// client_id filter, the use case must not reuse a master
-			// schedule for a client.
-			if ps.GetClientId() != clientID {
-				continue
-			}
-			if locationID != "" && ps.GetLocationId() != locationID {
-				continue
-			}
-			return ps, true, nil
-		}
-	}
-
-	// Not found — create.
-	now := time.Now()
-	newID := ""
-	if idSvc != nil {
-		newID = idSvc.GenerateID()
-	} else {
-		newID = fmt.Sprintf("ps-%d", now.UnixNano())
-	}
-	clientCopy := clientID
-	create := &priceschedulepb.PriceSchedule{
-		Id:                 newID,
-		Name:               derivedName,
-		Active:             true,
-		ClientId:           &clientCopy,
-		DateCreated:        ptrInt64(now.UnixMilli()),
-		DateCreatedString:  ptrString(now.Format(time.RFC3339)),
-		DateModified:       ptrInt64(now.UnixMilli()),
-		DateModifiedString: ptrString(now.Format(time.RFC3339)),
-	}
-	if locationID != "" {
-		locCopy := locationID
-		create.LocationId = &locCopy
-	}
-	if template != nil {
-		if template.GetDateTimeStart() != nil {
-			create.DateTimeStart = template.GetDateTimeStart()
-		}
-		if template.GetDateTimeEnd() != nil {
-			create.DateTimeEnd = template.GetDateTimeEnd()
-		}
-	}
-	createResp, err := repos.PriceSchedule.CreatePriceSchedule(ctx, &priceschedulepb.CreatePriceScheduleRequest{
-		Data: create,
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	if createResp == nil || len(createResp.GetData()) == 0 {
-		return nil, false, errors.New("create price schedule returned no data")
-	}
-	return createResp.GetData()[0], false, nil
-}
-
-// stringEqFilter returns a STRING_EQUALS TypedFilter — small helper to keep
-// resolveOrCreate readable.
-func stringEqFilter(field, value string) *commonpb.TypedFilter {
-	return &commonpb.TypedFilter{
-		Field: field,
-		FilterType: &commonpb.TypedFilter_StringFilter{
-			StringFilter: &commonpb.StringFilter{
-				Value:    value,
-				Operator: commonpb.StringOperator_STRING_EQUALS,
-			},
-		},
-	}
-}
-
-// boolEqFilter returns a BOOLEAN_EQUALS TypedFilter for the active flag.
-func boolEqFilter(field string, value bool) *commonpb.TypedFilter {
-	return &commonpb.TypedFilter{
-		Field: field,
-		FilterType: &commonpb.TypedFilter_BooleanFilter{
-			BooleanFilter: &commonpb.BooleanFilter{
-				Value: value,
-			},
-		},
-	}
-}
 
 // scheduleLocationID safely reads the location_id from a (possibly nil)
 // schedule.

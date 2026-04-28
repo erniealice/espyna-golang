@@ -9,14 +9,22 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 )
 
-// UpdatePricePlanRepositories groups all repository dependencies
+// UpdatePricePlanRepositories groups all repository dependencies.
+//
+// PriceSchedule + Client refs added 2026-04-28 — same auto-resolve-or-create
+// rationale as CreatePricePlanRepositories. UpdatePricePlan reuses the path
+// when an operator clears the schedule field on a client-scoped PricePlan.
 type UpdatePricePlanRepositories struct {
-	PricePlan priceplanpb.PricePlanDomainServiceServer // Primary entity repository
-	Plan      planpb.PlanDomainServiceServer           // Entity reference dependency
+	PricePlan     priceplanpb.PricePlanDomainServiceServer
+	Plan          planpb.PlanDomainServiceServer
+	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
+	Client        clientpb.ClientDomainServiceServer
 }
 
 // UpdatePricePlanServices groups all business service dependencies
@@ -25,6 +33,7 @@ type UpdatePricePlanServices struct {
 	TransactionService   ports.TransactionService   // Current: Database transactions
 	TranslationService   ports.TranslationService
 	ReferenceChecker     ports.ReferenceChecker // §3.5 — N>1 active subscription confirm gate
+	IDService            ports.IDService        // 2026-04-28 — needed for client-scope schedule auto-create
 }
 
 // UpdatePricePlanUseCase handles the business logic for updating price_plans
@@ -174,30 +183,56 @@ func (uc *UpdatePricePlanUseCase) validateBusinessRules(ctx context.Context, pri
 // cascades the parent Plan's client_id onto the request body — server-side
 // coercion per §3.2 keeps the denormalized invariant
 // `price_plan.client_id == plan.client_id` true on every write.
+//
+// 2026-04-28 addition: same auto-resolve-or-create-client-schedule behaviour
+// as CreatePricePlan when the body submits an empty price_schedule_id under
+// a client-scoped Plan, and the same scheduleClientMismatch reject path
+// when an explicit pick belongs to a different client.
 func (uc *UpdatePricePlanUseCase) validateEntityReferences(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
-	// Validate Plan entity reference
-	if pricePlan.PlanId != "" {
-		planId := pricePlan.PlanId
-		plan, err := uc.repositories.Plan.ReadPlan(ctx, &planpb.ReadPlanRequest{
-			Data: &planpb.Plan{Id: &planId},
-		})
-		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_validation_failed", "failed to validate plan entity reference")
-			return fmt.Errorf("%s: %w", msg, err)
-		}
-		if plan == nil || plan.Data == nil || len(plan.Data) == 0 {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_found", "referenced plan with ID '%s' does not exist")
-			return fmt.Errorf(msg, pricePlan.PlanId)
-		}
-		if !plan.Data[0].Active {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_active", "referenced plan with ID '%s' is not active")
-			return fmt.Errorf(msg, pricePlan.PlanId)
-		}
+	if pricePlan.PlanId == "" {
+		return nil
+	}
+	planId := pricePlan.PlanId
+	plan, err := uc.repositories.Plan.ReadPlan(ctx, &planpb.ReadPlanRequest{
+		Data: &planpb.Plan{Id: &planId},
+	})
+	if err != nil {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_validation_failed", "failed to validate plan entity reference")
+		return fmt.Errorf("%s: %w", msg, err)
+	}
+	if plan == nil || plan.Data == nil || len(plan.Data) == 0 {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_found", "referenced plan with ID '%s' does not exist")
+		return fmt.Errorf(msg, pricePlan.PlanId)
+	}
+	if !plan.Data[0].Active {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_active", "referenced plan with ID '%s' is not active")
+		return fmt.Errorf(msg, pricePlan.PlanId)
+	}
 
-		// §3.2 cascade — server-coerce PricePlan.client_id from the parent
-		// Plan, overwriting any body-supplied value.
-		parentClientID := plan.Data[0].GetClientId()
-		pricePlan.ClientId = stringPtrOrNil(parentClientID)
+	// §3.2 cascade — server-coerce PricePlan.client_id from the parent
+	// Plan, overwriting any body-supplied value.
+	parentClientID := plan.Data[0].GetClientId()
+	pricePlan.ClientId = stringPtrOrNil(parentClientID)
+
+	// Drawer hides the Name field by design — when the operator submits no
+	// name, fall back to the parent Plan's name. Operator-supplied names win.
+	if pricePlan.GetName() == "" {
+		if pn := plan.Data[0].GetName(); pn != "" {
+			pricePlan.Name = &pn
+		}
+	}
+
+	// §3.2 / §4.4 — auto-resolve-or-create matching client PriceSchedule.
+	if err := applyClientScopedScheduleRule(
+		ctx,
+		pricePlan,
+		plan.Data[0],
+		uc.repositories.PriceSchedule,
+		uc.repositories.Client,
+		uc.services.IDService,
+		uc.services.TranslationService,
+	); err != nil {
+		return err
 	}
 
 	return nil

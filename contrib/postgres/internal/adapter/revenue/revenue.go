@@ -6,11 +6,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -22,6 +24,18 @@ import (
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 )
+
+// periodMarkerUniqueIndex is the partial unique index added by migration
+// 20260428100000_revenue_period_marker_unique. When the concurrent-Generate
+// race loses, postgres returns a unique_violation referencing this constraint.
+// The CreateRevenue path translates that into the same `period_already_invoiced`
+// shape the read-time idempotency check uses, so the drawer's blocking banner
+// renders identically regardless of which side caught the conflict.
+const periodMarkerUniqueIndex = "idx_revenue_subscription_period_unique"
+
+// ErrPeriodAlreadyInvoiced is the sentinel the recognize use case looks for to
+// surface the user-facing "period already invoiced" banner.
+var ErrPeriodAlreadyInvoiced = errors.New("period_already_invoiced")
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.Revenue, func(conn any, tableName string) (any, error) {
@@ -84,6 +98,13 @@ func (r *PostgresRevenueRepository) CreateRevenue(ctx context.Context, req *reve
 
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
+		// Concurrent-Generate race: the partial unique index on
+		// (subscription_id, period_marker) caught the second writer. Surface
+		// as the same period_already_invoiced sentinel the read-time
+		// idempotency check uses so the drawer can render one banner.
+		if isPeriodMarkerUniqueViolation(err) {
+			return nil, fmt.Errorf("%w: %v", ErrPeriodAlreadyInvoiced, err)
+		}
 		return nil, fmt.Errorf("failed to create revenue: %w", err)
 	}
 
@@ -102,6 +123,23 @@ func (r *PostgresRevenueRepository) CreateRevenue(ctx context.Context, req *reve
 		Success: true,
 		Data:    []*revenuepb.Revenue{revenue},
 	}, nil
+}
+
+// isPeriodMarkerUniqueViolation returns true when err comes from the partial
+// unique index on (subscription_id, period_marker). lib/pq surfaces the
+// constraint name on pq.Error.Constraint; a substring match in the message
+// is the fallback when the error is wrapped through dbOps.Create.
+func isPeriodMarkerUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		if pqErr.Code.Name() == "unique_violation" && pqErr.Constraint == periodMarkerUniqueIndex {
+			return true
+		}
+	}
+	return strings.Contains(err.Error(), periodMarkerUniqueIndex)
 }
 
 // ReadRevenue retrieves a revenue record by ID

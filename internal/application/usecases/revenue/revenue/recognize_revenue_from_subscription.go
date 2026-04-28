@@ -166,6 +166,10 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		return nil, err
 	}
 
+	// 2a. Normalize incoherent kind × basis cells per plan §3.6 / followups §1.
+	// Mutates the in-memory pointer only — does NOT write back to the DB.
+	normalizePricePlan(pricePlan)
+
 	// 3. Hydrate context (client, payment term, price schedule)
 	client := uc.readClient(ctx, sub.GetClientId())
 	priceSchedule := uc.readPriceSchedule(ctx, pricePlan.GetPriceScheduleId())
@@ -247,6 +251,18 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		lines, treatments = buildBundleLine(pricePlan)
 	}
 
+	// 9a. Empty-line guard (followups §2). Outside the TOTAL_PACKAGE fallback,
+	// a zero-line Revenue is never legitimate — reject so callers (drawer,
+	// skip-header autoPopulate, future schedulers) cannot accidentally write
+	// an unbillable invoice.
+	if len(lines) == 0 {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.no_lines_to_invoice",
+			"Cannot create an invoice with no line items [DEFAULT]",
+		))
+	}
+
 	// 10. Build header per plan §3.4
 	revenueDate := strings.TrimSpace(req.GetRevenueDate())
 	if revenueDate == "" {
@@ -306,6 +322,29 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 
 	createdRevenue, err := uc.persistRevenue(ctx, header)
 	if err != nil {
+		// DB-level race: the partial unique index on (subscription_id,
+		// period_marker) caught a concurrent insert. Re-list and surface the
+		// same conflict shape the read-time idempotency check uses so the
+		// drawer renders one consistent banner.
+		if strings.Contains(err.Error(), "period_already_invoiced") &&
+			periodStart != "" && periodEnd != "" {
+			fresh := uc.listRevenuesForSubscription(ctx, subscriptionID)
+			if conflictID := findIdempotencyConflict(fresh, periodStart, periodEnd); conflictID != "" {
+				resp := &revenuepb.CreateRevenueWithLineItemsResponse{
+					Success:              false,
+					ConflictingRevenueId: stringPtrLocal(conflictID),
+					Error: &commonpb.Error{
+						Code: "period_already_invoiced",
+						Message: contextutil.GetTranslatedMessageWithContext(
+							ctx, uc.services.TranslationService,
+							"revenue.errors.period_already_invoiced",
+							"An invoice already exists for this period [DEFAULT]",
+						),
+					},
+				}
+				return resp, errors.New(resp.GetError().GetMessage())
+			}
+		}
 		return nil, err
 	}
 
@@ -489,6 +528,51 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) collectPriorLinePPPIDs(
 		}
 	}
 	return out
+}
+
+// normalizePricePlan coerces incoherent kind × basis cells and clears fields
+// that have no meaning under the resulting combination. Mirrors plan §3.6 of
+// the parent revenue-recognition plan; called once per Execute so the rest of
+// the engine can rely on a coherent in-memory PricePlan.
+//
+// The mutation is local to the in-memory pointer the use case operates on —
+// nothing here writes back to the database. The drawer's default-period
+// calculation reads the same pointer, so cycle/term clearing keeps the drawer
+// and engine in sync on legacy rows.
+func normalizePricePlan(pp *priceplanpb.PricePlan) {
+	if pp == nil {
+		return
+	}
+	kind := pp.GetBillingKind()
+	basis := pp.GetAmountBasis()
+
+	// Coerce incoherent cells.
+	if kind == priceplanpb.BillingKind_BILLING_KIND_ONE_TIME &&
+		basis == priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE {
+		coerced := priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE
+		pp.AmountBasis = coerced
+		basis = coerced
+	}
+	if kind == priceplanpb.BillingKind_BILLING_KIND_RECURRING &&
+		basis == priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE {
+		coerced := priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE
+		pp.AmountBasis = coerced
+		basis = coerced
+	}
+
+	// Clear billing_cycle_* when the cell has no cadence.
+	if kind == priceplanpb.BillingKind_BILLING_KIND_ONE_TIME ||
+		basis != priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE {
+		pp.BillingCycleValue = nil
+		pp.BillingCycleUnit = nil
+	}
+
+	// Clear default_term_* on open-ended recurring (kind=RECURRING, basis=PER_CYCLE).
+	if kind == priceplanpb.BillingKind_BILLING_KIND_RECURRING &&
+		basis == priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE {
+		pp.DefaultTermValue = nil
+		pp.DefaultTermUnit = nil
+	}
 }
 
 // buildLineItems materializes the line items for the recognition.

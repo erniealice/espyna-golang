@@ -140,7 +140,12 @@ func NewUseCases(
 	)
 
 	pricePlanUC := pricePlanUseCases.NewUseCases(
-		pricePlanUseCases.PricePlanRepositories{PricePlan: repos.PricePlan, Plan: repos.Plan},
+		pricePlanUseCases.PricePlanRepositories{
+			PricePlan:     repos.PricePlan,
+			Plan:          repos.Plan,
+			PriceSchedule: repos.PriceSchedule,
+			Client:        repos.Client,
+		},
 		pricePlanUseCases.PricePlanServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,

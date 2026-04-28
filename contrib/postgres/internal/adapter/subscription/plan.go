@@ -64,6 +64,13 @@ func (r *PostgresPlanRepository) CreatePlan(ctx context.Context, req *planpb.Cre
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Empty optional FK ("" from a blank picker) must arrive at postgres as
+	// SQL NULL, otherwise plan_client_id_fkey rejects the insert. Mirrors the
+	// UpdatePlan normalisation below.
+	if v, ok := data["client_id"].(string); ok && v == "" {
+		data["client_id"] = nil
+	}
+
 	// Create document using common operations
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
@@ -134,6 +141,17 @@ func (r *PostgresPlanRepository) UpdatePlan(ctx context.Context, req *planpb.Upd
 	// Always include active flag — proto3 omits bool=false during JSON marshal,
 	// which would silently skip deactivation via the form toggle.
 	data["active"] = req.Data.GetActive()
+
+	// Always include client_id so master ↔ client_id transitions actually
+	// reach the column. protojson omits nil optional strings (would silently
+	// keep the old FK), and serializes &"" as "" (would trip
+	// plan_client_id_fkey since '' is not a valid FK). Force-write: empty
+	// or nil → SQL NULL; non-empty → the value.
+	if cid := req.Data.GetClientId(); cid == "" {
+		data["client_id"] = nil
+	} else {
+		data["client_id"] = cid
+	}
 
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, *req.Data.Id, data)

@@ -548,6 +548,370 @@ func TestRecognize_EmptyPPPs_TotalPackage_BundleLine(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Tests — scenarios.md additional coverage (2026-04-28)
+// ---------------------------------------------------------------------------
+
+// E-2 · Free trial / all-zero cycle — generates a valid draft Revenue with total = 0.
+func TestRecognize_FreeTrialZeroAmount(t *testing.T) {
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-zero", "pp-zero", "client-zero"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-zero",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			AmountBasis:     priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE,
+			BillingCurrency: "PHP",
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-zero", "pp-zero", 0, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Trial Visit"),
+		},
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	if _, err := uc.Execute(context.Background(), basicReq("sub-zero")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rli.created) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(rli.created))
+	}
+	if rli.created[0].GetTotalPrice() != 0 {
+		t.Errorf("expected total_price 0, got %d", rli.created[0].GetTotalPrice())
+	}
+	if revRepo.created.GetTotalAmount() != 0 {
+		t.Errorf("expected header total 0, got %d", revRepo.created.GetTotalAmount())
+	}
+	if revRepo.created.GetStatus() != "draft" {
+		t.Errorf("expected status=draft, got %q", revRepo.created.GetStatus())
+	}
+}
+
+// E-5 · Subscription / plan client drift — guards the recognition flow from a
+// desynced client identity (sub.client_id ≠ pricePlan.client_id).
+func TestRecognize_SubscriptionPlanClientDrift(t *testing.T) {
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-drift", "pp-drift", "client-A"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-drift",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			BillingCurrency: "PHP",
+			ClientId:        stringPtrTest("client-B"),
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-drift", "pp-drift", 50000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Hours"),
+		},
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	if _, err := uc.Execute(context.Background(), basicReq("sub-drift")); err == nil {
+		t.Fatal("expected client-drift error, got nil")
+	}
+	if revRepo.created != nil {
+		t.Error("expected no revenue created on client drift")
+	}
+	if len(rli.created) != 0 {
+		t.Errorf("expected no lines on client drift, got %d", len(rli.created))
+	}
+}
+
+// E-8 · Operator removes a line via override — that PPP is filtered out before
+// the treatment switch so neither the line nor a treatment badge is emitted.
+func TestRecognize_OperatorRemovesLine(t *testing.T) {
+	removed := true
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-rm", "pp-rm", "client-rm"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-rm",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			BillingCurrency: "PHP",
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-keep", "pp-rm", 30000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Keep"),
+			ppp("ppp-drop", "pp-rm", 20000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Drop"),
+		},
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	req := basicReq("sub-rm")
+	req.Overrides = []*revenuepb.LineItemOverride{
+		{ProductPricePlanId: "ppp-drop", Removed: &removed},
+	}
+	if _, err := uc.Execute(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rli.created) != 1 {
+		t.Fatalf("expected 1 line after removal, got %d", len(rli.created))
+	}
+	if got := rli.created[0].GetProductPricePlanId(); got != "ppp-keep" {
+		t.Errorf("expected only ppp-keep, got %q", got)
+	}
+	if revRepo.created.GetTotalAmount() != 30000 {
+		t.Errorf("expected header total 30000, got %d", revRepo.created.GetTotalAmount())
+	}
+}
+
+// E-9 · Operator overrides amount + quantity — total_price = int64(unit*qty).
+// 12000 × 1.5 = 18000 (no rounding loss at this scale).
+func TestRecognize_OperatorOverridesAmountAndQuantity(t *testing.T) {
+	unit := int64(12000)
+	qty := 1.5
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-ov", "pp-ov", "client-ov"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-ov",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			BillingCurrency: "PHP",
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-ov", "pp-ov", 10000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Item"),
+		},
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	req := basicReq("sub-ov")
+	req.Overrides = []*revenuepb.LineItemOverride{
+		{ProductPricePlanId: "ppp-ov", UnitPrice: &unit, Quantity: &qty},
+	}
+	if _, err := uc.Execute(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rli.created) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(rli.created))
+	}
+	got := rli.created[0]
+	if got.GetUnitPrice() != 12000 {
+		t.Errorf("expected unit 12000, got %d", got.GetUnitPrice())
+	}
+	if got.GetQuantity() != 1.5 {
+		t.Errorf("expected qty 1.5, got %f", got.GetQuantity())
+	}
+	if got.GetTotalPrice() != 18000 {
+		t.Errorf("expected total 18000, got %d", got.GetTotalPrice())
+	}
+	if revRepo.created.GetTotalAmount() != 18000 {
+		t.Errorf("expected header total 18000, got %d", revRepo.created.GetTotalAmount())
+	}
+}
+
+// E-10 · Skip-header path (manual revenue-add → autoPopulateLineItems delegate).
+// Caller has already created the Revenue header; only line items are written,
+// and the idempotency check is bypassed even with a colliding period marker.
+func TestRecognize_SkipHeaderPath(t *testing.T) {
+	skip := true
+	existingID := "rev-existing-header"
+	periodStart := "2026-04-01T00:00:00Z"
+	periodEnd := "2026-04-30T23:59:59Z"
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-skip", "pp-skip", "client-skip"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-skip",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			BillingCurrency: "PHP",
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-skip", "pp-skip", 25000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Hours"),
+		},
+		// A prior revenue with a colliding period marker would normally trip the
+		// idempotency block, but skip_header bypasses the check.
+		priorRevenues: []*revenuepb.Revenue{
+			{
+				Id:     "rev-collide",
+				Status: "draft",
+				Notes:  stringPtrTest("Period: " + periodStart + " → " + periodEnd),
+			},
+		},
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	req := basicReq("sub-skip")
+	req.SkipHeader = &skip
+	req.ExistingRevenueId = &existingID
+	req.PeriodStart = &periodStart
+	req.PeriodEnd = &periodEnd
+	resp, err := uc.Execute(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.GetSuccess() {
+		t.Fatal("expected success")
+	}
+	if revRepo.created != nil {
+		t.Error("expected no header insert under skip_header=true")
+	}
+	if len(resp.GetData()) != 0 {
+		t.Errorf("expected no Revenue rows in response, got %d", len(resp.GetData()))
+	}
+	if len(rli.created) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(rli.created))
+	}
+	if rli.created[0].GetRevenueId() != existingID {
+		t.Errorf("expected revenue_id=%q, got %q", existingID, rli.created[0].GetRevenueId())
+	}
+}
+
+// E-11 · Dry-run preview — gating runs, preview is returned, nothing written.
+func TestRecognize_DryRunPreview(t *testing.T) {
+	dry := true
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-dry", "pp-dry", "client-dry"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-dry",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			BillingCurrency: "PHP",
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-dry", "pp-dry", 40000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Hours"),
+			ppp("ppp-dry-i", "pp-dry", 5000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_ONE_TIME_INITIAL, "Setup"),
+		},
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	req := basicReq("sub-dry")
+	req.DryRun = &dry
+	resp, err := uc.Execute(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.GetSuccess() {
+		t.Fatal("expected success")
+	}
+	if revRepo.created != nil {
+		t.Error("expected no Revenue insert under dry_run")
+	}
+	if len(rli.created) != 0 {
+		t.Errorf("expected no line items written, got %d", len(rli.created))
+	}
+	if len(resp.GetPreviewLines()) != 2 {
+		t.Fatalf("expected 2 preview lines, got %d", len(resp.GetPreviewLines()))
+	}
+}
+
+// S-3 · ONE_TIME × DERIVED_FROM_LINES — all PPPs included regardless of
+// billing_treatment; every line gets the `one_time` badge; header total = sum.
+func TestRecognize_OneTimeDerivedFromLines(t *testing.T) {
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-otd", "pp-otd", "client-otd"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-otd",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_ONE_TIME,
+			AmountBasis:     priceplanpb.AmountBasis_AMOUNT_BASIS_DERIVED_FROM_LINES,
+			BillingCurrency: "PHP",
+			BillingAmount:   999999, // ignored under DERIVED_FROM_LINES
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-photo", "pp-otd", 5000000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Photography"),
+			ppp("ppp-cater", "pp-otd", 15000000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_ONE_TIME_INITIAL, "Catering"),
+			ppp("ppp-venue", "pp-otd", 8000000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Venue"),
+		},
+	}
+	uc, revRepo, _ := buildUseCase(t, mocks)
+	resp, err := uc.Execute(context.Background(), basicReq("sub-otd"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resp.GetPreviewLines()) != 3 {
+		t.Fatalf("expected 3 preview lines, got %d", len(resp.GetPreviewLines()))
+	}
+	for i, p := range resp.GetPreviewLines() {
+		if p.GetTreatment() != treatmentOneTime {
+			t.Errorf("line %d: expected one_time, got %q", i, p.GetTreatment())
+		}
+	}
+	if got := revRepo.created.GetTotalAmount(); got != 28000000 {
+		t.Errorf("expected header total 28000000 (sum), got %d", got)
+	}
+}
+
+// Followups §1 integration · ONE_TIME × PER_CYCLE legacy plan with a stale
+// billing_cycle should normalize to TOTAL_PACKAGE inside Execute and produce
+// the canonical S-1 single-bundle-line output.
+func TestRecognize_OneTimePerCycle_NormalizesToBundleLine(t *testing.T) {
+	cycleVal := int32(1)
+	cycleUnit := "month"
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-norm", "pp-norm", "client-norm"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:                "pp-norm",
+			Name:              stringPtrTest("Laser 6-Session"),
+			BillingKind:       priceplanpb.BillingKind_BILLING_KIND_ONE_TIME,
+			AmountBasis:       priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE, // legacy / incoherent
+			BillingCurrency:   "PHP",
+			BillingAmount:     120000000,
+			BillingCycleValue: &cycleVal,  // stale
+			BillingCycleUnit:  &cycleUnit, // stale
+		},
+		productPricePlans: nil, // empty PPP list → bundle fallback should fire after coercion
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	if _, err := uc.Execute(context.Background(), basicReq("sub-norm")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mocks.pricePlan.GetAmountBasis() != priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE {
+		t.Errorf("expected basis coerced to TOTAL_PACKAGE, got %v", mocks.pricePlan.GetAmountBasis())
+	}
+	if mocks.pricePlan.BillingCycleValue != nil || mocks.pricePlan.BillingCycleUnit != nil {
+		t.Error("expected billing_cycle_* cleared by normalization")
+	}
+	if len(rli.created) != 1 {
+		t.Fatalf("expected 1 bundle line after coercion, got %d", len(rli.created))
+	}
+	if rli.created[0].GetUnitPrice() != 120000000 {
+		t.Errorf("expected unit_price 120000000, got %d", rli.created[0].GetUnitPrice())
+	}
+	if revRepo.created.GetTotalAmount() != 120000000 {
+		t.Errorf("expected header total 120000000, got %d", revRepo.created.GetTotalAmount())
+	}
+}
+
+// Followups §2 · Empty PPPs under non-TOTAL_PACKAGE basis must reject rather
+// than silently writing a zero-line, zero-total Revenue.
+func TestRecognize_EmptyLines_NonTotalPackage_Rejects(t *testing.T) {
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-empty", "pp-empty", "client-empty"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-empty",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			AmountBasis:     priceplanpb.AmountBasis_AMOUNT_BASIS_DERIVED_FROM_LINES,
+			BillingCurrency: "PHP",
+		},
+		productPricePlans: nil,
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	if _, err := uc.Execute(context.Background(), basicReq("sub-empty")); err == nil {
+		t.Fatal("expected no_lines_to_invoice error, got nil")
+	}
+	if revRepo.created != nil {
+		t.Error("expected no Revenue created on empty-line rejection")
+	}
+	if len(rli.created) != 0 {
+		t.Errorf("expected zero line items, got %d", len(rli.created))
+	}
+}
+
+// Followups §2 · All operator overrides removed → every PPP filtered → reject.
+func TestRecognize_EmptyLines_AfterAllOperatorRemovals_Rejects(t *testing.T) {
+	removed := true
+	mocks := &recognizeMocks{
+		subscription: activeSubscription("sub-allrm", "pp-allrm", "client-allrm"),
+		pricePlan: &priceplanpb.PricePlan{
+			Id:              "pp-allrm",
+			BillingKind:     priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			AmountBasis:     priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE,
+			BillingCurrency: "PHP",
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-only", "pp-allrm", 30000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Only line"),
+		},
+	}
+	uc, revRepo, rli := buildUseCase(t, mocks)
+	req := basicReq("sub-allrm")
+	req.Overrides = []*revenuepb.LineItemOverride{
+		{ProductPricePlanId: "ppp-only", Removed: &removed},
+	}
+	if _, err := uc.Execute(context.Background(), req); err == nil {
+		t.Fatal("expected no_lines_to_invoice error after all-removed, got nil")
+	}
+	if revRepo.created != nil {
+		t.Error("expected no Revenue created when all lines removed")
+	}
+	if len(rli.created) != 0 {
+		t.Errorf("expected zero line items, got %d", len(rli.created))
+	}
+}
+
 // stringPtrTest returns &s — local helper to avoid importing the package's
 // stringPtrLocal across test+source boundaries.
 func stringPtrTest(s string) *string {

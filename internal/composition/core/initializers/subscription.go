@@ -23,6 +23,7 @@ func InitializeSubscription(
 		subscription.SubscriptionRepositories{
 			Balance:               repos.Balance,
 			BalanceAttribute:      repos.BalanceAttribute,
+			BillingEvent:          repos.BillingEvent,
 			Client:                repos.Client,
 			Invoice:               repos.Invoice,
 			InvoiceAttribute:      repos.InvoiceAttribute,

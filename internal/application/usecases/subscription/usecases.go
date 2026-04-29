@@ -24,6 +24,7 @@ import (
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -40,6 +41,7 @@ import (
 type SubscriptionRepositories struct {
 	Balance               balancepb.BalanceDomainServiceServer
 	BalanceAttribute      balanceattributepb.BalanceAttributeDomainServiceServer
+	BillingEvent          billingeventpb.BillingEventDomainServiceServer
 	Client                clientpb.ClientDomainServiceServer
 	Invoice               invoicepb.InvoiceDomainServiceServer
 	InvoiceAttribute      invoiceattributepb.InvoiceAttributeDomainServiceServer
@@ -69,6 +71,13 @@ type SubscriptionUseCases struct {
 	ProductPricePlan      *productPricePlanUseCases.UseCases
 	Subscription          *subscriptionUseCases.UseCases
 	SubscriptionAttribute *subscriptionAttributeUseCases.UseCases
+
+	// BillingEvent exposes the BillingEvent domain server directly (no use-case
+	// wrapper yet). centymo views invoke ListBySubscription / SetStatus through
+	// this for the milestone-billing Package tab + mark-ready/waive handlers.
+	// nil-safe: when the adapter isn't registered, callers degrade to empty
+	// milestone lists and disable the mark-ready button.
+	BillingEvent billingeventpb.BillingEventDomainServiceServer
 }
 
 // NewUseCases creates all subscription use cases with proper constructor injection.
@@ -263,5 +272,6 @@ func NewUseCases(
 		ProductPricePlan:      productPricePlanUC,
 		Subscription:          subscriptionUC,
 		SubscriptionAttribute: subscriptionAttributeUC,
+		BillingEvent:          repos.BillingEvent,
 	}
 }

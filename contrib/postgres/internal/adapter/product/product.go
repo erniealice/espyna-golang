@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
-	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -255,10 +253,11 @@ func (r *PostgresProductRepository) ListProducts(ctx context.Context, req *produ
 	}, nil
 }
 
-// GetProductListPageData retrieves products with advanced filtering, sorting, searching, and pagination using CTE
-// This method aggregates two types of relationships:
-// - product_attribute (1:Many) - Direct attributes on the product
-// - product_plan (Many:Many via junction) - Plans associated with the product
+// GetProductListPageData retrieves products by composing over ListProducts.
+//
+// Canonical pattern (plan 20260429-pagedata-canonicalize §3): the page-data
+// layer adds caller intent (active filter, pagination metadata) on top of the
+// field-agnostic ListProducts adapter. Avoids drift when proto fields are added.
 func (r *PostgresProductRepository) GetProductListPageData(
 	ctx context.Context,
 	req *productpb.GetProductListPageDataRequest,
@@ -269,212 +268,41 @@ func (r *PostgresProductRepository) GetProductListPageData(
 
 	// Default pagination values
 	limit := int32(50)
-	offset := int32(0)
 	page := int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
+			page = offsetPag.Page
 		}
 	}
 
-	// Sort with allowlist validation
-	sortAllowlist := map[string]string{
-		"name":          "p.name",
-		"sku":           "p.name", // product table has no sku; fall back to name
-		"status":        "p.active",
-		"date_created":  "p.date_created",
-		"date_modified": "p.date_modified",
-	}
-	sortCol := "p.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
-			sortCol = col
-		}
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-
-	// Build parameterized WHERE clauses via shared helper (starts at $1)
-	searchFields := []string{"p.name", "p.sku", "p.description"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
-
-	var whereStr string
-	if len(filterClauses) > 0 {
-		whereStr = " AND " + strings.Join(filterClauses, " AND ")
-	}
-
-	// Parameterized LIMIT/OFFSET come after filter args
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
-	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
-
-	// CTE Query - Single round-trip with two separate aggregations for relationships
-	// Performance Notes:
-	// - INDEX RECOMMENDATION: Create indexes on all junction table foreign keys (product_id, plan_id)
-	// - INDEX RECOMMENDATION: Create indexes on active flags for all junction and related tables
-	// - INDEX RECOMMENDATION: Create index on product.name and product.description for search performance
-	// - Uses 2 separate CTEs to aggregate each relationship type independently
-	// - COALESCE ensures empty arrays when no relationships exist (never NULL)
-	query := `
-		WITH
-		product_attributes_agg AS (
-			SELECT
-				pa.product_id,
-				jsonb_agg(jsonb_build_object(
-					'id', pa.id,
-					'attribute_id', pa.attribute_id,
-					'value', pa.value
-				) ORDER BY pa.id) as attributes
-			FROM product_attribute pa
-			WHERE pa.active = true
-			GROUP BY pa.product_id
-		),
-		product_plans_agg AS (
-			SELECT
-				pp.product_id,
-				jsonb_agg(jsonb_build_object(
-					'id', pp.id,
-					'plan_id', pp.plan_id,
-					'name', p.name,
-					'description', p.description,
-					'price', p.price,
-					'currency', p.currency
-				) ORDER BY pp.id) as plans
-			FROM product_plan pp
-			JOIN plan p ON pp.plan_id = p.id
-			WHERE pp.active = true AND p.active = true
-			GROUP BY pp.product_id
-		),
-		enriched AS (
-			SELECT
-				p.id,
-				p.date_created,
-				p.date_modified,
-				p.active,
-				p.name,
-				p.description,
-				p.price,
-				p.currency,
-				p.line_id,
-				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
-				COALESCE(ppa.plans, '[]'::jsonb) as product_plans,
-				COUNT(*) OVER() AS total_count
-			FROM product p
-			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
-			LEFT JOIN product_plans_agg ppa ON p.id = ppa.product_id
-			WHERE p.active = true` + whereStr + `
-		)
-		SELECT * FROM enriched
-		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
-		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
-
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	// Delegate field projection + filtering to the canonical ListProducts.
+	lr, err := r.ListProducts(ctx, &productpb.ListProductsRequest{
+		Search:     req.Search,
+		Filters:    req.Filters,
+		Sort:       req.Sort,
+		Pagination: req.Pagination,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to query product list page data: %w", err)
-	}
-	defer rows.Close()
-
-	var products []*productpb.Product
-	var totalCount int64
-
-	for rows.Next() {
-		var (
-			id                string
-			dateCreated       time.Time
-			dateModified      time.Time
-			active            bool
-			name              string
-			description       *string
-			price             sql.NullInt64 // Model D: price column is nullable
-			currency          string
-			lineID            *string
-			productAttributes []byte // jsonb
-			productPlans      []byte // jsonb
-			total             int64
-		)
-
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&dateModified,
-			&active,
-			&name,
-			&description,
-			&price,
-			&currency,
-			&lineID,
-			&productAttributes,
-			&productPlans,
-			&total,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan product row: %w", err)
-		}
-
-		totalCount = total
-
-		product := &productpb.Product{
-			Id:       id,
-			Active:   active,
-			Name:     name,
-			Currency: currency,
-		}
-		if price.Valid {
-			p := price.Int64
-			product.Price = &p
-		}
-
-		// Handle nullable description field
-		if description != nil {
-			product.Description = description
-		}
-
-		// Handle nullable line_id field
-		if lineID != nil {
-			product.LineId = lineID
-		}
-
-		// Parse timestamps if provided
-		if !dateCreated.IsZero() {
-			ts := dateCreated.UnixMilli()
-			product.DateCreated = &ts
-			dcStr := dateCreated.Format(time.RFC3339)
-			product.DateCreatedString = &dcStr
-		}
-		if !dateModified.IsZero() {
-			ts := dateModified.UnixMilli()
-			product.DateModified = &ts
-			dmStr := dateModified.Format(time.RFC3339)
-			product.DateModifiedString = &dmStr
-		}
-
-		// Note: The aggregated relationship data (productAttributes, productPlans)
-		// is available in JSONB format but not directly mapped to the Product protobuf structure
-		// in this list view. This is intentional as the Product message doesn't include these
-		// nested relationships in its schema. If needed, these could be returned in a future
-		// enhanced response structure or processed separately.
-
-		products = append(products, product)
+		return nil, fmt.Errorf("failed to list products: %w", err)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating product rows: %w", err)
+	// Preserve page-data intent: only active products on this surface.
+	all := lr.GetData()
+	products := make([]*productpb.Product, 0, len(all))
+	for _, p := range all {
+		if p != nil && p.GetActive() {
+			products = append(products, p)
+		}
 	}
 
-	// Calculate pagination metadata
+	totalCount := int64(len(products))
 	totalPages := int32(0)
 	if limit > 0 {
 		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
 	}
-
 	hasNext := page < totalPages
 	hasPrev := page > 1
 
@@ -491,177 +319,44 @@ func (r *PostgresProductRepository) GetProductListPageData(
 	}, nil
 }
 
-// GetProductItemPageData retrieves a single product with enhanced item page data using CTE
-// This method aggregates all three relationship types for a complete product view
+// GetProductItemPageData retrieves a single product by composing over ReadProduct.
+//
+// Canonical pattern (plan 20260429-pagedata-canonicalize §3): delegate the full
+// proto field projection to ReadProduct (which round-trips through dbOps.Read +
+// protojson with DiscardUnknown — picks up new fields automatically). The
+// page-data layer only enforces caller intent (active filter, "not found" if
+// inactive) and adjacent denorms. Per plan §3 caveats, default_variant lookup
+// stays via ReadProductVariant when the response message carries that field;
+// the current GetProductItemPageDataResponse only carries Product, so no extra
+// reads are needed here.
 func (r *PostgresProductRepository) GetProductItemPageData(
 	ctx context.Context,
 	req *productpb.GetProductItemPageDataRequest,
 ) (*productpb.GetProductItemPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get product item page data request is required")
-	}
-	if req.ProductId == "" {
+	if req == nil || req.ProductId == "" {
 		return nil, fmt.Errorf("product ID is required")
 	}
 
-	// CTE Query - Single round-trip with three separate aggregations for relationships
-	query := `
-		WITH
-		product_attributes_agg AS (
-			SELECT
-				pa.product_id,
-				jsonb_agg(jsonb_build_object(
-					'id', pa.id,
-					'attribute_id', pa.attribute_id,
-					'value', pa.value
-				) ORDER BY pa.id) as attributes
-			FROM product_attribute pa
-			WHERE pa.active = true AND pa.product_id = $1
-			GROUP BY pa.product_id
-		),
-		product_plans_agg AS (
-			SELECT
-				pp.product_id,
-				jsonb_agg(jsonb_build_object(
-					'id', pp.id,
-					'plan_id', pp.plan_id,
-					'name', p.name,
-					'description', p.description,
-					'price', p.price,
-					'currency', p.currency
-				) ORDER BY pp.id) as plans
-			FROM product_plan pp
-			JOIN plan p ON pp.plan_id = p.id
-			WHERE pp.active = true AND p.active = true AND pp.product_id = $1
-			GROUP BY pp.product_id
-		),
-		enriched AS (
-			SELECT
-				p.id,
-				p.date_created,
-				p.date_modified,
-				p.active,
-				p.name,
-				p.description,
-				p.price,
-				p.currency,
-				p.line_id,
-				COALESCE(paa.attributes, '[]'::jsonb) as product_attributes,
-				COALESCE(ppa.plans, '[]'::jsonb) as product_plans
-			FROM product p
-			LEFT JOIN product_attributes_agg paa ON p.id = paa.product_id
-			LEFT JOIN product_plans_agg ppa ON p.id = ppa.product_id
-			WHERE p.id = $1 AND p.active = true
-		)
-		SELECT * FROM enriched LIMIT 1;
-	`
-
-	row := r.db.QueryRowContext(ctx, query, req.ProductId)
-
-	var (
-		id                string
-		dateCreated       time.Time
-		dateModified      time.Time
-		active            bool
-		name              string
-		description       *string
-		price             sql.NullInt64 // Model D: price column is nullable
-		currency          string
-		lineID            *string
-		productAttributes []byte // jsonb
-		productPlans      []byte // jsonb
-	)
-
-	err := row.Scan(
-		&id,
-		&dateCreated,
-		&dateModified,
-		&active,
-		&name,
-		&description,
-		&price,
-		&currency,
-		&lineID,
-		&productAttributes,
-		&productPlans,
-	)
-	if err == sql.ErrNoRows {
+	rr, err := r.ReadProduct(ctx, &productpb.ReadProductRequest{
+		Data: &productpb.Product{Id: req.ProductId},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(rr.GetData()) == 0 {
 		return nil, fmt.Errorf("product with ID '%s' not found", req.ProductId)
 	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query product item page data: %w", err)
-	}
+	product := rr.GetData()[0]
 
-	product := &productpb.Product{
-		Id:       id,
-		Active:   active,
-		Name:     name,
-		Currency: currency,
+	// Preserve page-data intent: only active products on this surface.
+	if !product.GetActive() {
+		return nil, fmt.Errorf("product with ID '%s' not found", req.ProductId)
 	}
-	if price.Valid {
-		p := price.Int64
-		product.Price = &p
-	}
-
-	// Handle nullable description field
-	if description != nil {
-		product.Description = description
-	}
-
-	// Handle nullable line_id field
-	if lineID != nil {
-		product.LineId = lineID
-	}
-
-	// Handle date fields
-
-	// Parse timestamps if provided
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		product.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		product.DateCreatedString = &dcStr
-	}
-	if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		product.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		product.DateModifiedString = &dmStr
-	}
-
-	// Note: The aggregated relationship data (productAttributes, productPlans)
-	// is available in JSONB format but not directly mapped to the Product protobuf structure.
-	// This is intentional as the Product message doesn't include these nested relationships in
-	// its schema. If needed, these could be returned in a future enhanced response structure
-	// or processed separately for frontend consumption.
 
 	return &productpb.GetProductItemPageDataResponse{
 		Product: product,
 		Success: true,
 	}, nil
-}
-
-// parseTimestamp converts string timestamp to Unix timestamp (milliseconds)
-func parseTimestamp(timestampStr string) (int64, error) {
-	// Try parsing as RFC3339 format first (most common)
-	if t, err := time.Parse(time.RFC3339, timestampStr); err == nil {
-		return t.UnixMilli(), nil
-	}
-
-	// Try other common formats
-	formats := []string{
-		"2006-01-02T15:04:05Z",
-		"2006-01-02 15:04:05",
-		"2006-01-02T15:04:05.000Z",
-	}
-
-	for _, format := range formats {
-		if t, err := time.Parse(format, timestampStr); err == nil {
-			return t.UnixMilli(), nil
-		}
-	}
-
-	return 0, fmt.Errorf("unable to parse timestamp: %s", timestampStr)
 }
 
 // NewProductRepository creates a new PostgreSQL product repository (old-style constructor)

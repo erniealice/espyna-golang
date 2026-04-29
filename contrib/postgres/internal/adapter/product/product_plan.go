@@ -218,7 +218,11 @@ func (r *PostgresProductPlanRepository) ListProductPlans(ctx context.Context, re
 	}, nil
 }
 
-// GetProductPlanListPageData retrieves product plans with advanced filtering, sorting, searching, and pagination using CTE
+// GetProductPlanListPageData retrieves product plans by composing over ListProductPlans.
+//
+// Canonical pattern (plan 20260429-pagedata-canonicalize §3): delegate field
+// projection to ListProductPlans (field-agnostic via protojson DiscardUnknown)
+// and only enforce caller intent (active filter, pagination metadata) here.
 func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 	ctx context.Context,
 	req *productplanpb.GetProductPlanListPageDataRequest,
@@ -227,127 +231,91 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		return nil, fmt.Errorf("request required")
 	}
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
-	limit, offset, page := int32(50), int32(0), int32(1)
+	limit, page := int32(50), int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
 		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
 			page = offsetPag.Page
-			offset = (page - 1) * limit
 		}
 	}
 
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-
-	// Build optional plan_id filter
-	planIDFilter := ""
-	var queryArgs []any
-	queryArgs = append(queryArgs, searchPattern, limit, offset)
-	if req.Filters != nil {
-		for _, f := range req.Filters.GetFilters() {
-			if f.GetField() == "plan_id" {
-				if sf := f.GetStringFilter(); sf != nil {
-					planIDFilter = " AND plan_id = $4"
-					queryArgs = append(queryArgs, sf.GetValue())
-				}
-			}
-		}
-	}
-
-	query := `WITH enriched AS (SELECT id, name, description, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1)` + planIDFilter + `), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	lr, err := r.ListProductPlans(ctx, &productplanpb.ListProductPlansRequest{
+		Search:     req.Search,
+		Filters:    req.Filters,
+		Sort:       req.Sort,
+		Pagination: req.Pagination,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return nil, fmt.Errorf("failed to list product plans: %w", err)
 	}
-	defer rows.Close()
 
-	var productPlans []*productplanpb.ProductPlan
-	var totalCount int64
-	for rows.Next() {
-		var id, name, productId string
-		var description *string
-		var planId *string
-		var active bool
-		var dateCreated, dateModified time.Time
-		var total int64
-		if err := rows.Scan(&id, &name, &description, &productId, &planId, &active, &dateCreated, &dateModified, &total); err != nil {
-			return nil, fmt.Errorf("scan failed: %w", err)
+	// Preserve page-data intent: only active product_plan rows on this surface.
+	all := lr.GetData()
+	productPlans := make([]*productplanpb.ProductPlan, 0, len(all))
+	for _, pp := range all {
+		if pp != nil && pp.GetActive() {
+			productPlans = append(productPlans, pp)
 		}
-		totalCount = total
-		productPlan := &productplanpb.ProductPlan{Id: id, Name: name, ProductId: productId, Active: active}
-		if description != nil {
-			productPlan.Description = description
-		}
-		if planId != nil {
-			productPlan.PlanId = *planId
-		}
-		if !dateCreated.IsZero() {
-			ts := dateCreated.UnixMilli()
-			productPlan.DateCreated = &ts
-			dcStr := dateCreated.Format(time.RFC3339)
-			productPlan.DateCreatedString = &dcStr
-		}
-		if !dateModified.IsZero() {
-			ts := dateModified.UnixMilli()
-			productPlan.DateModified = &ts
-			dmStr := dateModified.Format(time.RFC3339)
-			productPlan.DateModifiedString = &dmStr
-		}
-		productPlans = append(productPlans, productPlan)
 	}
-	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
-	return &productplanpb.GetProductPlanListPageDataResponse{ProductPlanList: productPlans, Pagination: &commonpb.PaginationResponse{TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages, HasNext: page < totalPages, HasPrev: page > 1}, Success: true}, nil
+
+	totalCount := int64(len(productPlans))
+	totalPages := int32(0)
+	if limit > 0 {
+		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	}
+
+	return &productplanpb.GetProductPlanListPageDataResponse{
+		ProductPlanList: productPlans,
+		Pagination: &commonpb.PaginationResponse{
+			TotalItems:  int32(totalCount),
+			CurrentPage: &page,
+			TotalPages:  &totalPages,
+			HasNext:     page < totalPages,
+			HasPrev:     page > 1,
+		},
+		Success: true,
+	}, nil
 }
 
-// GetProductPlanItemPageData retrieves product plan item page data
-func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.Context, req *productplanpb.GetProductPlanItemPageDataRequest) (*productplanpb.GetProductPlanItemPageDataResponse, error) {
+// GetProductPlanItemPageData retrieves a single product plan by composing over
+// ReadProductPlan.
+//
+// Canonical pattern (plan 20260429-pagedata-canonicalize §3): per the
+// ProductPlan caveat, denormalization of the parent Plan + Product would stay
+// via dual reads (ReadPlan + ReadProduct), but the response message
+// (GetProductPlanItemPageDataResponse) only carries ProductPlan, so no extras
+// are needed here. ReadProductPlan handles the full proto field projection via
+// dbOps.Read + protojson DiscardUnknown.
+func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(
+	ctx context.Context,
+	req *productplanpb.GetProductPlanItemPageDataRequest,
+) (*productplanpb.GetProductPlanItemPageDataResponse, error) {
 	if req == nil || req.ProductPlanId == "" {
 		return nil, fmt.Errorf("product plan ID required")
 	}
-	query := `SELECT id, name, description, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
-	row := r.db.QueryRowContext(ctx, query, req.ProductPlanId)
-	var id, name, productId string
-	var description *string
-	var planId *string
-	var active bool
-	var dateCreated, dateModified time.Time
-	if err := row.Scan(&id, &name, &description, &productId, &planId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
+
+	rr, err := r.ReadProductPlan(ctx, &productplanpb.ReadProductPlanRequest{
+		Data: &productplanpb.ProductPlan{Id: req.ProductPlanId},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(rr.GetData()) == 0 {
 		return nil, fmt.Errorf("product plan not found")
-	} else if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	productPlan := &productplanpb.ProductPlan{Id: id, Name: name, ProductId: productId, Active: active}
-	if description != nil {
-		productPlan.Description = description
+	productPlan := rr.GetData()[0]
+
+	// Preserve page-data intent: only active product_plan rows on this surface.
+	if !productPlan.GetActive() {
+		return nil, fmt.Errorf("product plan not found")
 	}
-	if planId != nil {
-		productPlan.PlanId = *planId
-	}
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		productPlan.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		productPlan.DateCreatedString = &dcStr
-	}
-	if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		productPlan.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		productPlan.DateModifiedString = &dmStr
-	}
-	return &productplanpb.GetProductPlanItemPageDataResponse{ProductPlan: productPlan, Success: true}, nil
+
+	return &productplanpb.GetProductPlanItemPageDataResponse{
+		ProductPlan: productPlan,
+		Success:     true,
+	}, nil
 }
 
 // ListByPlan retrieves all product plans for a given plan, ordered by date_created DESC

@@ -266,7 +266,7 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		}
 	}
 
-	query := `WITH enriched AS (SELECT id, name, description, product_id, plan_id, job_template_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1)` + planIDFilter + `), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, name, description, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1 OR product_id ILIKE $1)` + planIDFilter + `), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -279,11 +279,10 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		var id, name, productId string
 		var description *string
 		var planId *string
-		var jobTemplateID *string
 		var active bool
 		var dateCreated, dateModified time.Time
 		var total int64
-		if err := rows.Scan(&id, &name, &description, &productId, &planId, &jobTemplateID, &active, &dateCreated, &dateModified, &total); err != nil {
+		if err := rows.Scan(&id, &name, &description, &productId, &planId, &active, &dateCreated, &dateModified, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
@@ -293,9 +292,6 @@ func (r *PostgresProductPlanRepository) GetProductPlanListPageData(
 		}
 		if planId != nil {
 			productPlan.PlanId = *planId
-		}
-		if jobTemplateID != nil {
-			productPlan.JobTemplateId = jobTemplateID
 		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -320,15 +316,14 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	if req == nil || req.ProductPlanId == "" {
 		return nil, fmt.Errorf("product plan ID required")
 	}
-	query := `SELECT id, name, description, product_id, plan_id, job_template_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, product_id, plan_id, active, date_created, date_modified FROM product_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPlanId)
 	var id, name, productId string
 	var description *string
 	var planId *string
-	var jobTemplateID *string
 	var active bool
 	var dateCreated, dateModified time.Time
-	if err := row.Scan(&id, &name, &description, &productId, &planId, &jobTemplateID, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
+	if err := row.Scan(&id, &name, &description, &productId, &planId, &active, &dateCreated, &dateModified); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("product plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -339,9 +334,6 @@ func (r *PostgresProductPlanRepository) GetProductPlanItemPageData(ctx context.C
 	}
 	if planId != nil {
 		productPlan.PlanId = *planId
-	}
-	if jobTemplateID != nil {
-		productPlan.JobTemplateId = jobTemplateID
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
@@ -368,7 +360,7 @@ func (r *PostgresProductPlanRepository) ListByPlan(
 	}
 
 	query := `
-		SELECT pp.id, pp.name, pp.description, pp.product_id, pp.plan_id, pp.job_template_id, pp.active, pp.date_created, pp.date_modified
+		SELECT pp.id, pp.name, pp.description, pp.product_id, pp.plan_id, pp.active, pp.date_created, pp.date_modified
 		FROM product_plan pp
 		WHERE pp.plan_id = $1 AND pp.active = true
 		ORDER BY pp.date_created DESC
@@ -384,17 +376,16 @@ func (r *PostgresProductPlanRepository) ListByPlan(
 	for rows.Next() {
 		var (
 			id            string
-			name          string
-			description   *string
-			productId     string
-			planId        *string
-			jobTemplateID *string
-			active        bool
-			dateCreated   time.Time
-			dateModified  time.Time
+			name         string
+			description  *string
+			productId    string
+			planId       *string
+			active       bool
+			dateCreated  time.Time
+			dateModified time.Time
 		)
 
-		if err := rows.Scan(&id, &name, &description, &productId, &planId, &jobTemplateID, &active, &dateCreated, &dateModified); err != nil {
+		if err := rows.Scan(&id, &name, &description, &productId, &planId, &active, &dateCreated, &dateModified); err != nil {
 			return nil, fmt.Errorf("failed to scan product plan row: %w", err)
 		}
 
@@ -404,9 +395,6 @@ func (r *PostgresProductPlanRepository) ListByPlan(
 		}
 		if planId != nil {
 			item.PlanId = *planId
-		}
-		if jobTemplateID != nil {
-			item.JobTemplateId = jobTemplateID
 		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()

@@ -440,7 +440,9 @@ func (uc *CustomizePlanForClientUseCase) cloneProductPlans(
 			Active:             true,
 			ProductId:          src.GetProductId(),
 			PlanId:             newPlanID,
-			JobTemplateId:      copyStringPtr(src.JobTemplateId),
+			// ProductPlan.job_template_id (field 14) is reserved as of
+			// 20260429 (auto-spawn-jobs-from-subscription) — the JobTemplate
+			// anchor moved to Plan.job_template_id.
 			ProductVariantId:   copyStringPtr(src.ProductVariantId),
 			DateCreated:        ptrInt64(now.UnixMilli()),
 			DateCreatedString:  ptrString(now.Format(time.RFC3339)),

@@ -660,7 +660,7 @@ func (r *PostgresJobRepository) GetJobsByClient(
 		       job_template_id, origin_type, origin_id, client_id,
 		       demand_type, fulfillment_type, cost_flow_type, billing_rule_type,
 		       status, approval_status, posting_status, billing_status,
-		       location_id, created_by
+		       location_id, created_by, parent_job_id
 		FROM %s
 		WHERE client_id = $1 AND active = true
 		ORDER BY date_created DESC
@@ -697,10 +697,10 @@ func (r *PostgresJobRepository) GetJobsByOrigin(
 		       job_template_id, origin_type, origin_id, client_id,
 		       demand_type, fulfillment_type, cost_flow_type, billing_rule_type,
 		       status, approval_status, posting_status, billing_status,
-		       location_id, created_by
+		       location_id, created_by, parent_job_id
 		FROM %s
 		WHERE origin_type = $1 AND origin_id = $2 AND active = true
-		ORDER BY date_created DESC
+		ORDER BY parent_job_id NULLS FIRST, date_created ASC
 	`, r.tableName)
 
 	rows, err := r.db.QueryContext(ctx, query, req.OriginType.String(), req.OriginId)
@@ -801,6 +801,7 @@ func (r *PostgresJobRepository) scanJobRows(rows *sql.Rows) ([]*pb.Job, error) {
 			billingStatus   sql.NullString
 			locationID      sql.NullString
 			createdBy       sql.NullString
+			parentJobID     sql.NullString
 		)
 
 		if err := rows.Scan(
@@ -808,7 +809,7 @@ func (r *PostgresJobRepository) scanJobRows(rows *sql.Rows) ([]*pb.Job, error) {
 			&jobTemplateID, &originType, &originID, &clientID,
 			&demandType, &fulfillmentType, &costFlowType, &billingRuleType,
 			&status, &approvalStatus, &postingStatus, &billingStatus,
-			&locationID, &createdBy,
+			&locationID, &createdBy, &parentJobID,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan job row: %w", err)
 		}
@@ -833,6 +834,9 @@ func (r *PostgresJobRepository) scanJobRows(rows *sql.Rows) ([]*pb.Job, error) {
 		}
 		if createdBy.Valid {
 			job.CreatedBy = &createdBy.String
+		}
+		if parentJobID.Valid {
+			job.ParentJobId = &parentJobID.String
 		}
 
 		if originType.Valid {

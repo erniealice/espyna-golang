@@ -24,6 +24,22 @@ func ConfigurePayrollDomain(payrollUseCases *payrolluc.PayrollUseCases) contract
 
 	routes := []contracts.RouteConfiguration{}
 
+	// Orchestration routes — generate-cycles and calculate (the centerpiece)
+	if payrollUseCases.GeneratePayCycles != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/payroll/payroll-run/generate-cycles",
+			Handler: contracts.NewGenericHandler(payrollUseCases.GeneratePayCycles, &payrollrunpb.GeneratePayCyclesRequest{}),
+		})
+	}
+	if payrollUseCases.CalculatePayrollRun != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/payroll/payroll-run/calculate",
+			Handler: contracts.NewGenericHandler(payrollUseCases.CalculatePayrollRun, &payrollrunpb.CalculatePayrollRunRequest{}),
+		})
+	}
+
 	// PayrollRun routes
 	if payrollUseCases.PayrollRun != nil {
 		if payrollUseCases.PayrollRun.CreatePayrollRun != nil {

@@ -8,14 +8,26 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 
 	// Protobuf domain services - Payroll domain
+	leavebalancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/leave_balance"
+	leaverequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/leave_request"
+	leavetypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/leave_type"
+	paycyclepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/pay_cycle"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
+	ratebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/rate_band"
+	ratetablepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/rate_table"
 )
 
 // PayrollRepositories contains all payroll domain repositories
 type PayrollRepositories struct {
 	PayrollRun        payrollrunpb.PayrollRunDomainServiceServer
 	PayrollRemittance payrollremittancepb.PayrollRemittanceDomainServiceServer
+	PayCycle          paycyclepb.PayCycleDomainServiceServer
+	RateTable         ratetablepb.RateTableDomainServiceServer
+	RateBand          ratebandpb.RateBandDomainServiceServer
+	LeaveType         leavetypepb.LeaveTypeDomainServiceServer
+	LeaveBalance      leavebalancepb.LeaveBalanceDomainServiceServer
+	LeaveRequest      leaverequestpb.LeaveRequestDomainServiceServer
 }
 
 // NewPayrollRepositories creates and returns a new set of PayrollRepositories.
@@ -50,6 +62,24 @@ func NewPayrollRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.PayrollRemittance); r != nil {
 		repos.PayrollRemittance = r.(payrollremittancepb.PayrollRemittanceDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PayCycle); r != nil {
+		repos.PayCycle = r.(paycyclepb.PayCycleDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RateTable); r != nil {
+		repos.RateTable = r.(ratetablepb.RateTableDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RateBand); r != nil {
+		repos.RateBand = r.(ratebandpb.RateBandDomainServiceServer)
+	}
+	if r := tryCreate(entityid.LeaveType); r != nil {
+		repos.LeaveType = r.(leavetypepb.LeaveTypeDomainServiceServer)
+	}
+	if r := tryCreate(entityid.LeaveBalance); r != nil {
+		repos.LeaveBalance = r.(leavebalancepb.LeaveBalanceDomainServiceServer)
+	}
+	if r := tryCreate(entityid.LeaveRequest); r != nil {
+		repos.LeaveRequest = r.(leaverequestpb.LeaveRequestDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

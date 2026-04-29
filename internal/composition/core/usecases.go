@@ -598,7 +598,9 @@ func (uci *UseCaseInitializer) initializeWorkflowUseCases(container *Container) 
 	return workflowUseCases, nil
 }
 
-// initializePayrollUseCases initializes Payroll domain use cases (2 entities: PayrollRun, PayrollRemittance)
+// initializePayrollUseCases initializes Payroll domain use cases.
+// Loads payroll, entity, and expenditure repos so the orchestrator can
+// fan out to employees and write payslip Expenditures.
 func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (*payroll.PayrollUseCases, error) {
 	fmt.Printf("💼 Initializing Payroll use cases...\n")
 
@@ -609,6 +611,19 @@ func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (
 	}
 	fmt.Printf("✅ Got payroll repositories\n")
 
+	// Cross-domain repos for the orchestrator. Failure to load these is non-fatal:
+	// payroll CRUD still works; only Calculate/GeneratePayCycles will be unavailable.
+	entityRepos, eErr := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if eErr != nil {
+		fmt.Printf("⚠️  Payroll: entity repos unavailable for orchestrator: %v\n", eErr)
+		entityRepos = nil
+	}
+	expenditureRepos, xErr := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if xErr != nil {
+		fmt.Printf("⚠️  Payroll: expenditure repos unavailable for orchestrator: %v\n", xErr)
+		expenditureRepos = nil
+	}
+
 	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
 	if err != nil {
 		fmt.Printf("❌ Failed to get services: %v\n", err)
@@ -616,7 +631,7 @@ func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	payrollUseCases, err := initializers.InitializePayroll(repos, authSvc, txSvc, i18nSvc, idSvc)
+	payrollUseCases, err := initializers.InitializePayroll(repos, entityRepos, expenditureRepos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize payroll use cases: %v\n", err)
 		return nil, err

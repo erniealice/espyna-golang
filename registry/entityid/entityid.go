@@ -70,13 +70,15 @@ const (
 	StaffAttribute    = "staff_attribute"
 	PaymentTerm       = "payment_term"
 	Session           = "session"
-	Supplier          = "supplier"
-	SupplierAttribute = "supplier_attribute"
-	SupplierCategory  = "supplier_category"
-	User              = "user"
-	Workspace         = "workspace"
-	WorkspaceUser     = "workspace_user"
-	WorkspaceUserRole = "workspace_user_role"
+	Supplier               = "supplier"
+	SupplierAttribute      = "supplier_attribute"
+	SupplierCategory       = "supplier_category"
+	SupplierDependent      = "supplier_dependent"
+	SupplierLifecycleEvent = "supplier_lifecycle_event"
+	User                   = "user"
+	Workspace              = "workspace"
+	WorkspaceUser          = "workspace_user"
+	WorkspaceUserRole      = "workspace_user_role"
 )
 
 // Event domain
@@ -266,6 +268,12 @@ const (
 const (
 	PayrollRun        = "payroll_run"
 	PayrollRemittance = "payroll_remittance"
+	PayCycle          = "pay_cycle"
+	RateTable         = "rate_table"
+	RateBand          = "rate_band"
+	LeaveType         = "leave_type"
+	LeaveBalance      = "leave_balance"
+	LeaveRequest      = "leave_request"
 )
 
 // ---------------------------------------------------------------------------
@@ -287,6 +295,7 @@ var EntityEntities = []string{
 	PaymentTerm,
 	Session,
 	Supplier, SupplierAttribute, SupplierCategory,
+	SupplierDependent, SupplierLifecycleEvent,
 	User,
 	Workspace, WorkspaceUser, WorkspaceUserRole,
 }
@@ -382,7 +391,11 @@ var LedgerAccountingEntities = []string{
 }
 
 // PayrollEntities lists all entity IDs in the Payroll domain.
-var PayrollEntities = []string{PayrollRun, PayrollRemittance}
+var PayrollEntities = []string{
+	PayrollRun, PayrollRemittance,
+	PayCycle, RateTable, RateBand,
+	LeaveType, LeaveBalance, LeaveRequest,
+}
 
 // Fulfillment domain
 const (

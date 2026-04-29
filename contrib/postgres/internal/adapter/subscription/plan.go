@@ -7,12 +7,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	planlocationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_location"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -227,390 +230,271 @@ func (r *PostgresPlanRepository) ListPlans(ctx context.Context, req *planpb.List
 	}, nil
 }
 
-// GetPlanListPageData retrieves a paginated, filtered, sorted, and searchable list of plans with location relationships
-// This method uses CTEs (Common Table Expressions) to optimize query performance by loading all data in a single query
-// TODO: Add unit tests for GetPlanListPageData
+// GetPlanListPageData retrieves a paginated, filtered, sorted, and searchable
+// list of plans with adjacent plan_location relationships. Canonicalized to
+// delegate field-agnostic plan loading to the generic List path (dbOps.List +
+// protojson DiscardUnknown round-trip), so new proto fields surface here
+// automatically. Adjacent denorm: plan_locations are loaded in a single
+// `plan_id IN (...)` lookup followed by one `location_id IN (...)` lookup —
+// never per-row N+1.
 func (r *PostgresPlanRepository) GetPlanListPageData(ctx context.Context, req *planpb.GetPlanListPageDataRequest) (*planpb.GetPlanListPageDataResponse, error) {
-	// Extract pagination parameters with defaults
-	limit := int32(20)
-	page := int32(1)
-	if req.Pagination != nil && req.Pagination.Limit > 0 {
-		limit = req.Pagination.Limit
-		if limit > 100 {
-			limit = 100 // Cap at 100 items per page
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
-	}
-	offset := (page - 1) * limit
-
-	// Extract search query
-	searchQuery := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchQuery = "%" + req.Search.Query + "%"
+	if req == nil {
+		req = &planpb.GetPlanListPageDataRequest{}
 	}
 
-	// Extract sort parameters with defaults
-	sortField := "date_created"
-	sortDirection := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == 1 { // DESC enum value
-			sortDirection = "DESC"
-		} else {
-			sortDirection = "ASC"
-		}
+	// Preserve the page-data caller intent: only active plans on the list page.
+	filters := mergeActiveFilter(req.GetFilters(), true)
+	params := &interfaces.ListParams{
+		Search:     req.GetSearch(),
+		Filters:    filters,
+		Sort:       req.GetSort(),
+		Pagination: req.GetPagination(),
 	}
 
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_active ON plan(active) WHERE active = true;
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_name_trgm ON plan USING gin(name gin_trgm_ops);
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_description_trgm ON plan USING gin(description gin_trgm_ops);
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_date_created ON plan(date_created DESC);
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_location_plan_id ON plan_location(plan_id);
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_location_location_id ON plan_location(location_id);
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_location_active ON plan_location(active) WHERE active = true;
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_location_active ON location(active) WHERE active = true;
-
-	// Build the CTE query following the translation plan pattern
-	query := `
-		WITH
-		-- CTE 1: Aggregate plan_location relationships with location details
-		plan_locations_agg AS (
-			SELECT
-				pl.plan_id,
-				array_agg(
-					DISTINCT jsonb_build_object(
-						'id', pl.id,
-						'plan_id', pl.plan_id,
-						'location_id', pl.location_id,
-						'date_created', pl.date_created,
-						'date_modified', pl.date_modified,
-						'active', pl.active,
-						'location', jsonb_build_object(
-							'id', l.id,
-							'name', l.name,
-							'address', l.address,
-							'date_created', l.date_created,
-							'date_modified', l.date_modified,
-							'active', l.active,
-							'description', l.description
-						)
-					) ORDER BY l.name ASC
-				) FILTER (WHERE l.id IS NOT NULL) as plan_locations
-			FROM plan_location pl
-			INNER JOIN location l ON pl.location_id = l.id
-			WHERE pl.active = true AND l.active = true
-			GROUP BY pl.plan_id
-		),
-
-		-- CTE 2: Apply search filter
-		search_filtered AS (
-			SELECT p.*
-			FROM plan p
-			WHERE p.active = true
-				AND ($1::text = '' OR
-					p.name ILIKE $1 OR
-					p.description ILIKE $1)
-		),
-
-		-- CTE 3: Join with locations and prepare for sorting
-		enriched AS (
-			SELECT
-				sf.id,
-				sf.name,
-				sf.description,
-				sf.active,
-				sf.date_created,
-				sf.date_modified
-				COALESCE(pla.plan_locations, ARRAY[]::jsonb[]) as plan_locations
-			FROM search_filtered sf
-			LEFT JOIN plan_locations_agg pla ON sf.id = pla.plan_id
-		),
-
-		-- CTE 4: Apply sorting
-		sorted AS (
-			SELECT * FROM enriched
-			ORDER BY
-				CASE WHEN $4 = 'name' AND $5 = 'ASC' THEN name END ASC,
-				CASE WHEN $4 = 'name' AND $5 = 'DESC' THEN name END DESC,
-				CASE WHEN $4 = 'description' AND $5 = 'ASC' THEN description END ASC,
-				CASE WHEN $4 = 'description' AND $5 = 'DESC' THEN description END DESC,
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC
-		),
-
-		-- CTE 5: Calculate total count for pagination
-		total_count AS (
-			SELECT count(*) as total FROM sorted
-		)
-
-		-- Final SELECT with pagination
-		SELECT
-			s.id,
-			s.name,
-			s.description,
-			s.active,
-			s.date_created,
-			s.date_modified,
-			s.plan_locations,
-			tc.total as _total_count
-		FROM sorted s
-		CROSS JOIN total_count tc
-		LIMIT $2 OFFSET $3
-	`
-
-	// Get DB connection from dbOps interface
-	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
-	if !ok {
-		return nil, fmt.Errorf("database operations does not support raw SQL queries")
-	}
-
-	// Execute query
-	rows, err := db.GetDB().QueryContext(ctx, query,
-		searchQuery,   // $1
-		limit,         // $2
-		offset,        // $3
-		sortField,     // $4
-		sortDirection, // $5
-	)
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute GetPlanListPageData query: %w", err)
+		return nil, fmt.Errorf("failed to list plans: %w", err)
 	}
-	defer rows.Close()
 
-	var plans []*planpb.Plan
-	var totalCount int32
+	// Field-agnostic round-trip: every column on `plan` arrives as a Plan field
+	// via protojson DiscardUnknown — drift-proof for new proto fields.
+	plans := make([]*planpb.Plan, 0, len(listResult.Data))
+	planIDs := make([]string, 0, len(listResult.Data))
+	for _, row := range listResult.Data {
+		plan, err := planFromMap(row)
+		if err != nil || plan == nil {
+			continue
+		}
+		plans = append(plans, plan)
+		if plan.GetId() != "" {
+			planIDs = append(planIDs, plan.GetId())
+		}
+	}
 
-	for rows.Next() {
-		var (
-			id                 string
-			name               string
-			description        string
-			active             bool
-			dateCreated        sql.NullInt64
-			dateCreatedString  sql.NullString
-			dateModified       sql.NullInt64
-			dateModifiedString sql.NullString
-			planLocationsJSON  []byte
-			rowTotalCount      int32
-		)
-
-		err := rows.Scan(
-			&id,
-			&name,
-			&description,
-			&active,
-			&dateCreated,
-			&dateModified,
-			&planLocationsJSON,
-			&rowTotalCount,
-		)
+	// Adjacent denorm: load plan_locations for the page in one shot, attach.
+	if len(planIDs) > 0 {
+		byPlan, err := r.loadPlanLocationsByPlanIDs(ctx, planIDs)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan plan row: %w", err)
+			return nil, fmt.Errorf("failed to load plan_locations for page: %w", err)
 		}
-
-		totalCount = rowTotalCount
-
-		// Build plan message
-		plan := &planpb.Plan{
-			Id:          &id,
-			Name:        name,
-			Description: &description,
-			Active:      active,
-		}
-
-		if dateCreated.Valid {
-			plan.DateCreated = &dateCreated.Int64
-		}
-		if dateCreatedString.Valid {
-			plan.DateCreatedString = &dateCreatedString.String
-		}
-		if dateModified.Valid {
-			plan.DateModified = &dateModified.Int64
-		}
-		if dateModifiedString.Valid {
-			plan.DateModifiedString = &dateModifiedString.String
-		}
-
-		// Parse plan_locations JSON array
-		if len(planLocationsJSON) > 0 {
-			var planLocations []map[string]any
-			if err := json.Unmarshal(planLocationsJSON, &planLocations); err == nil {
-				// Convert to protobuf PlanLocation messages
-				for _, plData := range planLocations {
-					plJSON, _ := json.Marshal(plData)
-					var planLocation planlocationpb.PlanLocation
-					if err := protojson.Unmarshal(plJSON, &planLocation); err == nil {
-						plan.PlanLocations = append(plan.PlanLocations, &planLocation)
-					}
-				}
+		for _, p := range plans {
+			if locs, ok := byPlan[p.GetId()]; ok {
+				p.PlanLocations = locs
 			}
 		}
-
-		plans = append(plans, plan)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating plan rows: %w", err)
-	}
-
-	// Build pagination response
-	totalPages := (totalCount + limit - 1) / limit
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
-	paginationResponse := &commonpb.PaginationResponse{
-		TotalItems:  totalCount,
-		CurrentPage: &page,
-		TotalPages:  &totalPages,
-		HasNext:     hasNext,
-		HasPrev:     hasPrev,
 	}
 
 	return &planpb.GetPlanListPageDataResponse{
 		Success:    true,
 		PlanList:   plans,
-		Pagination: paginationResponse,
+		Pagination: listResult.Pagination,
 	}, nil
 }
 
-// GetPlanItemPageData retrieves a single plan with all related location data expanded
-// This method uses CTEs (Common Table Expressions) to load all related data in a single query
-// TODO: Add unit tests for GetPlanItemPageData
+// GetPlanItemPageData retrieves a single plan with adjacent plan_location
+// relationships expanded. Canonicalized to delegate the plan load to ReadPlan
+// (dbOps.Read + protojson DiscardUnknown), so every Plan proto field surfaces
+// here automatically — drift-proof. Adjacent denorm: plan_locations + nested
+// Location are loaded with two targeted lookups (plan_location filtered by
+// plan_id, then location filtered by id IN (...)).
 func (r *PostgresPlanRepository) GetPlanItemPageData(ctx context.Context, req *planpb.GetPlanItemPageDataRequest) (*planpb.GetPlanItemPageDataResponse, error) {
-	if req.PlanId == "" {
+	if req == nil || req.PlanId == "" {
 		return nil, fmt.Errorf("plan ID is required")
 	}
 
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_id ON plan(id);
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_location_plan_id ON plan_location(plan_id);
-	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_plan_location_location_id ON plan_location(location_id);
-
-	// Build CTE query to fetch plan with all related data
-	query := `
-		WITH
-		-- CTE 1: Aggregate plan_location relationships with location details
-		plan_locations_agg AS (
-			SELECT
-				pl.plan_id,
-				array_agg(
-					DISTINCT jsonb_build_object(
-						'id', pl.id,
-						'plan_id', pl.plan_id,
-						'location_id', pl.location_id,
-						'date_created', pl.date_created,
-						'date_modified', pl.date_modified,
-						'active', pl.active,
-						'location', jsonb_build_object(
-							'id', l.id,
-							'name', l.name,
-							'address', l.address,
-							'date_created', l.date_created,
-							'date_modified', l.date_modified,
-							'active', l.active,
-							'description', l.description
-						)
-					) ORDER BY l.name ASC
-				) FILTER (WHERE l.id IS NOT NULL) as plan_locations
-			FROM plan_location pl
-			INNER JOIN location l ON pl.location_id = l.id
-			WHERE pl.plan_id = $1 AND pl.active = true AND l.active = true
-			GROUP BY pl.plan_id
-		)
-
-		-- Final SELECT with all related data
-		SELECT
-			p.id,
-			p.name,
-			p.description,
-			p.active,
-			p.date_created,
-			p.date_modified
-			COALESCE(pla.plan_locations, ARRAY[]::jsonb[]) as plan_locations
-		FROM plan p
-		LEFT JOIN plan_locations_agg pla ON p.id = pla.plan_id
-		WHERE p.id = $1 AND p.active = true
-	`
-
-	// Get DB connection from dbOps interface
-	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
-	if !ok {
-		return nil, fmt.Errorf("database operations does not support raw SQL queries")
+	rr, err := r.ReadPlan(ctx, &planpb.ReadPlanRequest{Data: &planpb.Plan{Id: &req.PlanId}})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read plan: %w", err)
 	}
-
-	// Execute query
-	var (
-		id                 string
-		name               string
-		description        string
-		active             bool
-		dateCreated        sql.NullInt64
-		dateCreatedString  sql.NullString
-		dateModified       sql.NullInt64
-		dateModifiedString sql.NullString
-		planLocationsJSON  []byte
-	)
-
-	err := db.GetDB().QueryRowContext(ctx, query, req.PlanId).Scan(
-		&id,
-		&name,
-		&description,
-		&active,
-		&dateCreated,
-		&dateModified,
-		&planLocationsJSON,
-	)
-	if err == sql.ErrNoRows {
+	if len(rr.GetData()) == 0 {
 		return nil, fmt.Errorf("plan not found with ID: %s", req.PlanId)
 	}
+	plan := rr.GetData()[0]
+
+	// Adjacent denorm: plan_locations (active) with nested Location (active),
+	// loaded in two targeted queries — no per-row reads.
+	byPlan, err := r.loadPlanLocationsByPlanIDs(ctx, []string{req.PlanId})
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute GetPlanItemPageData query: %w", err)
+		return nil, fmt.Errorf("failed to load plan_locations: %w", err)
 	}
-
-	// Build plan message
-	plan := &planpb.Plan{
-		Id:          &id,
-		Name:        name,
-		Description: &description,
-		Active:      active,
-	}
-
-	if dateCreated.Valid {
-		plan.DateCreated = &dateCreated.Int64
-	}
-	if dateCreatedString.Valid {
-		plan.DateCreatedString = &dateCreatedString.String
-	}
-	if dateModified.Valid {
-		plan.DateModified = &dateModified.Int64
-	}
-	if dateModifiedString.Valid {
-		plan.DateModifiedString = &dateModifiedString.String
-	}
-
-	// Parse plan_locations JSON array
-	if len(planLocationsJSON) > 0 {
-		var planLocations []map[string]any
-		if err := json.Unmarshal(planLocationsJSON, &planLocations); err == nil {
-			// Convert to protobuf PlanLocation messages
-			for _, plData := range planLocations {
-				plJSON, _ := json.Marshal(plData)
-				var planLocation planlocationpb.PlanLocation
-				if err := protojson.Unmarshal(plJSON, &planLocation); err == nil {
-					plan.PlanLocations = append(plan.PlanLocations, &planLocation)
-				}
-			}
-		}
+	if locs, ok := byPlan[req.PlanId]; ok {
+		plan.PlanLocations = locs
 	}
 
 	return &planpb.GetPlanItemPageDataResponse{
 		Success: true,
 		Plan:    plan,
 	}, nil
+}
+
+// planFromMap converts a `plan` row (column->value map) into a Plan proto via
+// the canonical protojson DiscardUnknown round-trip. Field-agnostic — any new
+// column with a matching proto field arrives automatically.
+func planFromMap(row map[string]any) (*planpb.Plan, error) {
+	resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(row))
+	if err != nil {
+		return nil, err
+	}
+	plan := &planpb.Plan{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, plan); err != nil {
+		return nil, err
+	}
+	return plan, nil
+}
+
+// mergeActiveFilter returns a FilterRequest with `active = <value>` enforced.
+// If the caller already supplied an explicit `active` filter, that wins
+// (preserves caller intent — e.g. an admin toggle to show inactive rows).
+func mergeActiveFilter(in *commonpb.FilterRequest, active bool) *commonpb.FilterRequest {
+	out := &commonpb.FilterRequest{}
+	if in != nil {
+		out.Logic = in.GetLogic()
+		out.Filters = append(out.Filters, in.GetFilters()...)
+		for _, f := range in.GetFilters() {
+			if f.GetField() == "active" && f.GetBooleanFilter() != nil {
+				return out
+			}
+		}
+	}
+	out.Filters = append(out.Filters, &commonpb.TypedFilter{
+		Field: "active",
+		FilterType: &commonpb.TypedFilter_BooleanFilter{
+			BooleanFilter: &commonpb.BooleanFilter{Value: active},
+		},
+	})
+	return out
+}
+
+// loadPlanLocationsByPlanIDs returns a map keyed by plan_id of attached, active
+// PlanLocation rows with their Location nested. Two queries total:
+//
+//  1. plan_location WHERE plan_id IN (ids) AND active = true
+//  2. location WHERE id IN (location_ids) AND active = true
+//
+// Both pass through dbOps.List → protojson DiscardUnknown so the field set
+// stays drift-proof. Within each plan_id, results are sorted by location.name
+// ASC to match the prior CTE ordering.
+func (r *PostgresPlanRepository) loadPlanLocationsByPlanIDs(ctx context.Context, planIDs []string) (map[string][]*planlocationpb.PlanLocation, error) {
+	out := make(map[string][]*planlocationpb.PlanLocation)
+	if len(planIDs) == 0 {
+		return out, nil
+	}
+
+	planIDValues := make([]string, len(planIDs))
+	copy(planIDValues, planIDs)
+
+	plLinks, err := r.dbOps.List(ctx, "plan_location", &interfaces.ListParams{
+		Filters: &commonpb.FilterRequest{
+			Filters: []*commonpb.TypedFilter{
+				{
+					Field: "plan_id",
+					FilterType: &commonpb.TypedFilter_ListFilter{
+						ListFilter: &commonpb.ListFilter{
+							Operator: commonpb.ListOperator_LIST_IN,
+							Values:   planIDValues,
+						},
+					},
+				},
+				{
+					Field: "active",
+					FilterType: &commonpb.TypedFilter_BooleanFilter{
+						BooleanFilter: &commonpb.BooleanFilter{Value: true},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list plan_location: %w", err)
+	}
+	if plLinks == nil || len(plLinks.Data) == 0 {
+		return out, nil
+	}
+
+	links := make([]*planlocationpb.PlanLocation, 0, len(plLinks.Data))
+	locIDSet := make(map[string]struct{})
+	for _, row := range plLinks.Data {
+		js, err := json.Marshal(postgresCore.DenormalizeKeys(row))
+		if err != nil {
+			continue
+		}
+		pl := &planlocationpb.PlanLocation{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(js, pl); err != nil {
+			continue
+		}
+		links = append(links, pl)
+		if pl.GetLocationId() != "" {
+			locIDSet[pl.GetLocationId()] = struct{}{}
+		}
+	}
+
+	locByID := make(map[string]*locationpb.Location, len(locIDSet))
+	if len(locIDSet) > 0 {
+		locIDs := make([]string, 0, len(locIDSet))
+		for id := range locIDSet {
+			locIDs = append(locIDs, id)
+		}
+		locResult, err := r.dbOps.List(ctx, "location", &interfaces.ListParams{
+			Filters: &commonpb.FilterRequest{
+				Filters: []*commonpb.TypedFilter{
+					{
+						Field: "id",
+						FilterType: &commonpb.TypedFilter_ListFilter{
+							ListFilter: &commonpb.ListFilter{
+								Operator: commonpb.ListOperator_LIST_IN,
+								Values:   locIDs,
+							},
+						},
+					},
+					{
+						Field: "active",
+						FilterType: &commonpb.TypedFilter_BooleanFilter{
+							BooleanFilter: &commonpb.BooleanFilter{Value: true},
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list location: %w", err)
+		}
+		if locResult != nil {
+			for _, row := range locResult.Data {
+				js, err := json.Marshal(postgresCore.DenormalizeKeys(row))
+				if err != nil {
+					continue
+				}
+				loc := &locationpb.Location{}
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(js, loc); err != nil {
+					continue
+				}
+				if loc.GetId() != "" {
+					locByID[loc.GetId()] = loc
+				}
+			}
+		}
+	}
+
+	for _, pl := range links {
+		if loc, ok := locByID[pl.GetLocationId()]; ok {
+			pl.Location = loc
+		} else {
+			// Skip links whose Location is missing or inactive (matches prior
+			// `INNER JOIN ... AND l.active = true` semantics).
+			continue
+		}
+		out[pl.GetPlanId()] = append(out[pl.GetPlanId()], pl)
+	}
+
+	// Stable order within each plan: location.name ASC, mirroring the prior
+	// CTE's `ORDER BY l.name ASC`.
+	for k := range out {
+		sort.SliceStable(out[k], func(i, j int) bool {
+			return strings.ToLower(out[k][i].GetLocation().GetName()) <
+				strings.ToLower(out[k][j].GetLocation().GetName())
+		})
+	}
+	return out, nil
 }
 
 // SearchPlansByName searches active plans by name using ILIKE

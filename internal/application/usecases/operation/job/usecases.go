@@ -147,6 +147,7 @@ func NewUseCases(
 				JobTemplatePhase: repositories.JobTemplatePhase,
 				JobPhase:         repositories.JobPhase,
 				BillingEvent:     repositories.BillingEvent,
+				Subscription:     repositories.Subscription,
 				PricePlan:        repositories.PricePlan,
 				ProductPricePlan: repositories.ProductPricePlan,
 			},

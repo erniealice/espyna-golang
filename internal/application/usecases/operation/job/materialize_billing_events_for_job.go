@@ -10,7 +10,6 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
@@ -18,6 +17,7 @@ import (
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // MaterializeBillingEventsForJobRepositories groups every cross-domain repo
@@ -29,6 +29,9 @@ type MaterializeBillingEventsForJobRepositories struct {
 	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobPhase         jobphasepb.JobPhaseDomainServiceServer
 	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	// Subscription is required when the request omits SubscriptionID — used to
+	// derive the price_plan_id for percent-precedence resolution.
+	Subscription     subscriptionpb.SubscriptionDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 }
@@ -169,41 +172,53 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 		}
 	}
 
-	// 4. Read PricePlan via subscription_id only when we need percent or
-	// gated-PPP totals. To keep the use case narrow, we resolve it lazily
-	// only when the phase needs derived amounts.
+	// 4. Resolve the parent PricePlan eagerly so percent-precedence
+	// (`billing_percent_bps × pricePlan.billing_amount / 10000`) and
+	// PPP-sum branches both have the data they need. The Job → Subscription
+	// link is `job.origin_type=SUBSCRIPTION + job.origin_id=subscription_id`;
+	// the Subscription carries the `price_plan_id`. Failure to resolve is
+	// non-fatal — the use case falls through to the fixed/PPP-sum branches
+	// for templates that don't need percent math.
 	var (
 		pricePlan *priceplanpb.PricePlan
 		ppps      []*productpriceplanpb.ProductPricePlan
 	)
-	resolvePricePlan := func() *priceplanpb.PricePlan {
-		if pricePlan != nil {
-			return pricePlan
+	if uc.repositories.Subscription != nil && uc.repositories.PricePlan != nil {
+		subResp, subErr := uc.repositories.Subscription.ReadSubscription(
+			ctx, &subscriptionpb.ReadSubscriptionRequest{Data: &subscriptionpb.Subscription{Id: subscriptionID}},
+		)
+		if subErr == nil && subResp != nil && len(subResp.GetData()) > 0 {
+			if planID := subResp.GetData()[0].GetPricePlanId(); planID != "" {
+				ppResp, ppErr := uc.repositories.PricePlan.ReadPricePlan(
+					ctx, &priceplanpb.ReadPricePlanRequest{Data: &priceplanpb.PricePlan{Id: planID}},
+				)
+				if ppErr == nil && ppResp != nil && len(ppResp.GetData()) > 0 {
+					pricePlan = ppResp.GetData()[0]
+				}
+			}
 		}
-		if uc.repositories.PricePlan == nil {
-			return nil
-		}
-		// PricePlan can't be looked up by subscription_id directly without a
-		// Subscription read. Use the dedicated Subscription read path
-		// upstream — for v1, the caller is expected to supply pricePlan
-		// indirectly via the subscription's price_plan_id. The
-		// MaterializeBillingEventsForJobRequest doesn't carry it explicitly,
-		// so we leave pricePlan == nil and let resolveBillableAmount fall
-		// back to fixed/no-amount paths (no percent / no derived sum).
-		return nil
 	}
-	resolvePPPs := func(planID string) []*productpriceplanpb.ProductPricePlan {
+	resolvePPPs := func() []*productpriceplanpb.ProductPricePlan {
 		if ppps != nil {
 			return ppps
 		}
 		if uc.repositories.ProductPricePlan == nil {
-			return nil
+			return []*productpriceplanpb.ProductPricePlan{}
 		}
 		resp, err := uc.repositories.ProductPricePlan.ListProductPricePlans(
 			ctx, &productpriceplanpb.ListProductPricePlansRequest{},
 		)
 		if err != nil || resp == nil {
-			return nil
+			return []*productpriceplanpb.ProductPricePlan{}
+		}
+		// Filter to the resolved PricePlan's rows when known. When PricePlan
+		// resolution fails, fall back to all rows — `resolveBillableAmount`
+		// further filters by `job_template_phase_id` so the cross-plan
+		// pollution risk is bounded to plans that share template-phase IDs
+		// (rare but possible).
+		planID := ""
+		if pricePlan != nil {
+			planID = pricePlan.GetId()
 		}
 		out := make([]*productpriceplanpb.ProductPricePlan, 0, len(resp.GetData()))
 		for _, ppp := range resp.GetData() {
@@ -243,20 +258,26 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 			continue
 		}
 
-		amount := resolveBillableAmount(tpl, resolvePricePlan(), resolvePPPs(""))
-		if amount <= 0 {
-			// No amount resolvable yet — still create the row so the UI has
-			// something to render; downstream operator-edit can fix it. But
-			// keep it active = true and let recognize-revenue reject zero-
-			// amount events when they go READY.
-			amount = tpl.GetBillingAmount()
+		amount := resolveBillableAmount(tpl, pricePlan, resolvePPPs())
+		// Resolve currency: a fixed billing_amount carries its own currency
+		// (per plan §2.3); percent + PPP-sum paths inherit from the parent
+		// PricePlan. Falls back to template-phase currency last.
+		currency := ""
+		if tpl.GetBillingAmount() > 0 {
+			currency = tpl.GetBillingCurrency()
+		}
+		if currency == "" && pricePlan != nil {
+			currency = pricePlan.GetBillingCurrency()
+		}
+		if currency == "" {
+			currency = tpl.GetBillingCurrency()
 		}
 
 		ev := &billingeventpb.BillingEvent{
 			Active:             true,
 			SubscriptionId:     subscriptionID,
 			BillableAmount:     amount,
-			BillingCurrency:    tpl.GetBillingCurrency(),
+			BillingCurrency:    currency,
 			Status:             billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_UNSPECIFIED,
 			Trigger:            billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_UNSPECIFIED,
 			DateCreated:        &dc,
@@ -316,11 +337,3 @@ func resolveBillableAmount(
 	return sum
 }
 
-// errMaterializeFailed is a small helper to keep the error code consistent
-// when the use case caller wraps results into a typed PB response. Currently
-// unused — kept here as a hook for the centymo route handler when Phase D
-// lands.
-var errMaterializeFailed = &commonpb.Error{
-	Code:    "materialize_billing_events_failed",
-	Message: "Failed to materialize billing events",
-}

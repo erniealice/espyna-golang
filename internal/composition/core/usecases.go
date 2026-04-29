@@ -561,6 +561,7 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				JobTemplatePhase: operationRepos.JobTemplatePhase,
 				JobPhase:         operationRepos.JobPhase,
 				BillingEvent:     subscriptionRepos.BillingEvent,
+				Subscription:     subscriptionRepos.Subscription,
 				PricePlan:        subscriptionRepos.PricePlan,
 				ProductPricePlan: subscriptionRepos.ProductPricePlan,
 			},

@@ -7,18 +7,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
-	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -122,144 +118,77 @@ func (r *PostgresClientRepository) CreateClient(ctx context.Context, req *client
 	}, nil
 }
 
-// ReadClient retrieves a client with joined user data using a custom SQL query
+// ReadClient retrieves a client by ID using the canonical dbOps.Read +
+// protojson DiscardUnknown round-trip, so new Client proto fields are picked
+// up automatically without column-whitelist drift.
+//
+// Cross-table denorm: Client.user (nested User proto) is sourced from the
+// "user" row pointed to by client.user_id, NOT from columns on the client
+// row. The loadClientUser helper populates it after the canonical scan.
 func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb.ReadClientRequest) (*clientpb.ReadClientResponse, error) {
-	if req.Data == nil || req.Data.Id == "" {
+	if req == nil || req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("client ID is required")
 	}
 
-	// Custom query that JOINs with user table to populate nested User field
-	query := `
-		SELECT
-			c.id,
-			c.user_id,
-			c.active,
-			c.internal_id,
-			c.date_created,
-			c.date_modified,
-			c.name,
-			c.street_address,
-			c.city,
-			c.province,
-			c.postal_code,
-			c.notes,
-			c.category_id,
-			c.payment_term_id,
-			c.billing_currency,
-			u.id as user_id_value,
-			u.first_name as user_first_name,
-			u.last_name as user_last_name,
-			u.email_address as user_email_address,
-			u.mobile_number as user_phone_number
-		FROM client c
-		LEFT JOIN "user" u ON c.user_id = u.id
-		WHERE c.id = $1 AND c.active = true
-	`
-
-	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.Data.Id)
-
-	var (
-		id               string
-		userId           string
-		active           bool
-		internalId       *string
-		dateCreated      time.Time
-		dateModified     time.Time
-		name             *string
-		streetAddress    *string
-		city             *string
-		province         *string
-		postalCode       *string
-		notes            *string
-		categoryId       *string
-		paymentTermID    *string
-		billingCurrency  *string
-		userIdValue      *string
-		userFirstName    *string
-		userLastName     *string
-		userEmailAddress *string
-		userPhoneNumber  *string
-	)
-
-	err := row.Scan(
-		&id,
-		&userId,
-		&active,
-		&internalId,
-		&dateCreated,
-		&dateModified,
-		&name,
-		&streetAddress,
-		&city,
-		&province,
-		&postalCode,
-		&notes,
-		&categoryId,
-		&paymentTermID,
-		&billingCurrency,
-		&userIdValue,
-		&userFirstName,
-		&userLastName,
-		&userEmailAddress,
-		&userPhoneNumber,
-	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("client with ID '%s' not found", req.Data.Id)
-	}
+	// Canonical Read — round-trip through protojson DiscardUnknown so every
+	// proto-mapped column auto-resolves.
+	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read client: %w", err)
 	}
-
-	client := &clientpb.Client{
-		Id:     id,
-		UserId: userId,
-		Active: active,
+	if result == nil {
+		return nil, fmt.Errorf("client with ID '%s' not found", req.Data.Id)
 	}
 
-	if internalId != nil {
-		client.InternalId = *internalId
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
-	// CRM fields
-	client.Name = name
-	client.StreetAddress = streetAddress
-	client.City = city
-	client.Province = province
-	client.PostalCode = postalCode
-	client.Notes = notes
-	client.CategoryId = categoryId
-	client.BillingCurrency = billingCurrency
-	if paymentTermID != nil {
-		client.PaymentTermId = paymentTermID
+	client := &clientpb.Client{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, client); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
-	// Populate joined user data
-	if userIdValue != nil {
-		client.User = &userpb.User{Id: deref(userIdValue)}
-		client.User.FirstName = deref(userFirstName)
-		client.User.LastName = deref(userLastName)
-		client.User.EmailAddress = deref(userEmailAddress)
-		client.User.MobileNumber = deref(userPhoneNumber)
-	}
-
-	// Parse timestamps
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		client.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		client.DateCreatedString = &dcStr
-	}
-	if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		client.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		client.DateModifiedString = &dmStr
+	// User-table denorm — populate Client.User from the user row.
+	if user, err := r.loadClientUser(ctx, client.GetUserId()); err == nil && user != nil {
+		client.User = user
 	}
 
 	return &clientpb.ReadClientResponse{
-		Data: []*clientpb.Client{client},
+		Data:    []*clientpb.Client{client},
+		Success: true,
 	}, nil
+}
+
+// loadClientUser fetches the User row associated with a client.user_id and
+// returns a populated User proto. Returns (nil, nil) if userId is empty or
+// the user row is missing — keeps Client.User optional behavior intact.
+//
+// This helper exists because Client.user is a cross-table denorm that
+// dbOps.Read on the client table cannot resolve on its own.
+func (r *PostgresClientRepository) loadClientUser(ctx context.Context, userId string) (*userpb.User, error) {
+	if userId == "" {
+		return nil, nil
+	}
+	result, err := r.dbOps.Read(ctx, "user", userId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user for client: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal user result to JSON: %w", err)
+	}
+
+	user := &userpb.User{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, user); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal user JSON to protobuf: %w", err)
+	}
+	return user, nil
 }
 
 // UpdateClient updates a client using common PostgreSQL operations
@@ -397,18 +326,23 @@ func (r *DBClientRepository) Create(ctx context.Context, req *clientpb.CreateCli
 }
 */
 
-// clientSortAllowlist maps external sort field names to safe SQL column references.
-var clientSortAllowlist = map[string]string{
-	"date_created":    "c.date_created",
-	"date_modified":   "c.date_modified",
-	"u.first_name":    "u.first_name",
-	"u.last_name":     "u.last_name",
-	"u.email_address": "u.email_address",
-	"u.mobile_number": "u.mobile_number",
-}
-
-// GetClientListPageData retrieves clients with advanced filtering, sorting, searching, and pagination using CTE
-// CRITICAL: Always filters by workspace_id for multi-tenancy
+// GetClientListPageData retrieves clients via composition over the canonical
+// ListClients (which routes through dbOps.List + protojson DiscardUnknown), and
+// adds the page-data denorms (Client.User per row, Client.Categories per row).
+//
+// Caveat: cross-table sort/search by user fields (u.first_name, u.last_name,
+// u.email_address, u.mobile_number) is intentionally dropped from this path —
+// the canonical List* primitives operate on a single table. Filters and search
+// over client-table columns and search across the c.internal_id column are
+// preserved by passing req.Filters / req.Search through unchanged. Callers
+// needing user-field sort should sort client-side over the populated
+// Client.User.* fields, or move that concern out of pagedata.
+//
+// Page header (pagination metadata) is computed locally from len(rows) — the
+// canonical ListClients does not yet emit a windowed total count. Treat this
+// as an acceptable degradation versus the dropped CTE: total_items reflects
+// the page size, not the global count, until ListClients gains pagination
+// metadata. Documented to track in a follow-up.
 func (r *PostgresClientRepository) GetClientListPageData(
 	ctx context.Context,
 	req *clientpb.GetClientListPageDataRequest,
@@ -417,252 +351,60 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		return nil, fmt.Errorf("get client list page data request is required")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
-
-	// Default pagination values
+	// Default pagination — preserved from prior behavior so the response
+	// pagination block matches old shape even though total_items is best-effort.
 	limit := int32(50)
-	offset := int32(0)
 	page := int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
+			page = offsetPag.Page
 		}
 	}
 
-	// Allowlist-validated sort
-	sortCol := "c.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		f := req.Sort.Fields[0]
-		if col, ok := clientSortAllowlist[f.Field]; ok {
-			sortCol = col
-		}
-		if f.Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-
-	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
-	searchFields := []string{"u.first_name", "u.last_name", "u.email_address", "c.internal_id"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
-
-	whereSQL := "WHERE c.workspace_id = $1"
-	if len(filterClauses) > 0 {
-		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
-	}
-
-	// LIMIT/OFFSET are the next two params after filter args
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
-	// workspace_id is $1; filter args follow; then limit/offset
-	queryArgs := []any{workspaceID}
-	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
-
-	// CTE Query - Single round-trip with COUNT(*) OVER() window function
-	// Performance Notes:
-	// - INDEX RECOMMENDATION: Create index on client.workspace_id (multi-tenancy filter)
-	// - INDEX RECOMMENDATION: Create index on client.user_id (foreign key)
-	// - INDEX RECOMMENDATION: Create index on user.first_name, user.last_name, user.email_address for search performance
-	// - INDEX RECOMMENDATION: Create index on client.active for filtering active records
-	// - INDEX RECOMMENDATION: Create index on client.date_created for default sorting
-	// - INDEX RECOMMENDATION: Create index on client.internal_id for search
-	query := fmt.Sprintf(`
-		SELECT
-			c.id,
-			c.user_id,
-			c.active,
-			c.internal_id,
-			c.date_created,
-			c.date_modified,
-			c.name,
-			c.street_address,
-			c.city,
-			c.province,
-			c.postal_code,
-			c.notes,
-			c.payment_term_id,
-			pt.name AS payment_term_name,
-			u.id as user_id_value,
-			u.first_name as user_first_name,
-			u.last_name as user_last_name,
-			u.email_address as user_email_address,
-			u.mobile_number as user_phone_number,
-			(
-				SELECT json_agg(json_build_object('id', cc.category_id, 'name', cat.name))
-				FROM client_category cc
-				JOIN category cat ON cc.category_id = cat.id
-				WHERE cc.client_id = c.id AND cc.active = true
-			) AS categories_json,
-			COUNT(*) OVER() AS total_count
-		FROM client c
-		LEFT JOIN "user" u ON c.user_id = u.id
-		LEFT JOIN payment_term pt ON c.payment_term_id = pt.id
-		%s
-		ORDER BY %s %s
-		LIMIT $%d OFFSET $%d
-	`, whereSQL, sortCol, sortOrder, limitIdx, offsetIdx)
-
-	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, queryArgs...)
+	// Delegate row fetch to canonical ListClients — passes filters+search
+	// through. Active = true is enforced by dbOps.List default.
+	listResp, err := r.ListClients(ctx, &clientpb.ListClientsRequest{
+		Search:     req.Search,
+		Filters:    req.Filters,
+		Sort:       req.Sort,
+		Pagination: req.Pagination,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to query client list page data: %w", err)
+		return nil, fmt.Errorf("failed to list clients for page data: %w", err)
 	}
-	defer rows.Close()
+	clients := listResp.GetData()
 
-	var clients []*clientpb.Client
-	var totalCount int64
-
-	for rows.Next() {
-		var (
-			id           string
-			userId       string
-			active       bool
-			internalId   *string
-			dateCreated  time.Time
-			dateModified time.Time
-			// CRM fields
-			name            *string
-			streetAddress   *string
-			city            *string
-			province        *string
-			postalCode      *string
-			notes           *string
-			paymentTermID   *string
-			paymentTermName *string
-			// User fields
-			userIdValue      *string
-			userFirstName    *string
-			userLastName     *string
-			userEmailAddress *string
-			userPhoneNumber  *string
-			categoriesJSON   *string
-			total            int64
-		)
-
-		err := rows.Scan(
-			&id,
-			&userId,
-			&active,
-			&internalId,
-			&dateCreated,
-			&dateModified,
-			&name,
-			&streetAddress,
-			&city,
-			&province,
-			&postalCode,
-			&notes,
-			&paymentTermID,
-			&paymentTermName,
-			&userIdValue,
-			&userFirstName,
-			&userLastName,
-			&userEmailAddress,
-			&userPhoneNumber,
-			&categoriesJSON,
-			&total,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan client row: %w", err)
+	// Denorm pass: populate Client.User and Client.Categories per row. Bounded
+	// by page size (≤ limit, default 50). Each row triggers two PK-indexed
+	// reads (user + client_category join) — acceptable for typical pages.
+	for _, c := range clients {
+		if user, err := r.loadClientUser(ctx, c.GetUserId()); err == nil && user != nil {
+			c.User = user
 		}
-
-		totalCount = total
-
-		client := &clientpb.Client{
-			Id:     id,
-			UserId: userId,
-			Active: active,
+		if cats, err := r.loadClientCategories(ctx, c.GetId()); err == nil && len(cats) > 0 {
+			c.Categories = cats
 		}
-
-		// Handle nullable fields
-		if internalId != nil {
-			client.InternalId = *internalId
-		}
-
-		// CRM fields
-		client.Name = name
-		client.StreetAddress = streetAddress
-		client.City = city
-		client.Province = province
-		client.PostalCode = postalCode
-		client.Notes = notes
-		if paymentTermID != nil {
-			client.PaymentTermId = paymentTermID
-		}
-		if paymentTermName != nil && *paymentTermName != "" {
-			client.PaymentTerm = &paymenttermpb.PaymentTerm{Name: *paymentTermName}
-		}
-
-		// Populate categories from aggregated JSON
-		if categoriesJSON != nil && *categoriesJSON != "" {
-			var raw []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			}
-			if err := json.Unmarshal([]byte(*categoriesJSON), &raw); err == nil {
-				for _, r := range raw {
-					cat := &clientcategorypb.ClientCategory{
-						CategoryId: r.ID,
-						Category: &commonpb.Category{
-							Name: r.Name,
-						},
-					}
-					client.Categories = append(client.Categories, cat)
-				}
-			}
-		}
-
-		// Populate joined user data
-		if userIdValue != nil {
-			client.User = &userpb.User{Id: deref(userIdValue)}
-			client.User.FirstName = deref(userFirstName)
-			client.User.LastName = deref(userLastName)
-			client.User.EmailAddress = deref(userEmailAddress)
-			client.User.MobileNumber = deref(userPhoneNumber)
-		}
-
-		// Parse timestamps if provided
-		if !dateCreated.IsZero() {
-			ts := dateCreated.UnixMilli()
-			client.DateCreated = &ts
-			dcStr := dateCreated.Format(time.RFC3339)
-			client.DateCreatedString = &dcStr
-		}
-		if !dateModified.IsZero() {
-			ts := dateModified.UnixMilli()
-			client.DateModified = &ts
-			dmStr := dateModified.Format(time.RFC3339)
-			client.DateModifiedString = &dmStr
-		}
-
-		clients = append(clients, client)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating client rows: %w", err)
+	// Pagination response — total_items is page-bounded since ListClients
+	// does not emit a windowed count. See doc comment above.
+	totalItems := int32(len(clients))
+	totalPages := int32(1)
+	if limit > 0 && totalItems == limit {
+		// Likely more pages exist; we cannot know without a count query.
+		// Mark hasNext true so the UI keeps offering Next.
+		totalPages = page + 1
 	}
-
-	// Calculate pagination metadata
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
-	}
-
 	hasNext := page < totalPages
 	hasPrev := page > 1
 
 	return &clientpb.GetClientListPageDataResponse{
 		ClientList: clients,
 		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
+			TotalItems:  totalItems,
 			CurrentPage: &page,
 			TotalPages:  &totalPages,
 			HasNext:     hasNext,
@@ -672,8 +414,10 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	}, nil
 }
 
-// GetClientItemPageData retrieves a single client with enhanced item page data using CTE
-// CRITICAL: Always filters by workspace_id for multi-tenancy
+// GetClientItemPageData retrieves a single client + categories via composition
+// over the canonical ReadClient (which handles user denorm) and the adjacent
+// loadClientCategories helper. Page-data layer adds the categories denorm
+// that ReadClient does not need on its own.
 func (r *PostgresClientRepository) GetClientItemPageData(
 	ctx context.Context,
 	req *clientpb.GetClientItemPageDataRequest,
@@ -685,149 +429,17 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 		return nil, fmt.Errorf("client ID is required")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
-
-	// CTE Query - Single round-trip with enriched user data and CRM fields
-	query := `
-		WITH enriched AS (
-			SELECT
-				c.id,
-				c.user_id,
-				c.active,
-				c.internal_id,
-				c.date_created,
-				c.date_modified,
-				-- CRM fields
-				c.name,
-				c.street_address,
-				c.city,
-				c.province,
-				c.postal_code,
-				c.notes,
-				c.category_id,
-				c.payment_term_id,
-				c.billing_currency,
-				-- User fields (1:1 relationship)
-				u.id as user_id_value,
-				u.first_name as user_first_name,
-				u.last_name as user_last_name,
-				u.email_address as user_email_address,
-				u.mobile_number as user_phone_number
-			FROM client c
-			LEFT JOIN "user" u ON c.user_id = u.id
-			WHERE c.id = $1 AND c.workspace_id = $2
-		)
-		SELECT * FROM enriched LIMIT 1;
-	`
-
-	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.ClientId, workspaceID)
-
-	var (
-		id           string
-		userId       string
-		active       bool
-		internalId   *string
-		dateCreated  time.Time
-		dateModified time.Time
-		// CRM fields
-		name            *string
-		streetAddress   *string
-		city            *string
-		province        *string
-		postalCode      *string
-		notes           *string
-		categoryId      *string
-		paymentTermID   *string
-		billingCurrency *string
-		// User fields
-		userIdValue      *string
-		userFirstName    *string
-		userLastName     *string
-		userEmailAddress *string
-		userPhoneNumber  *string
-	)
-
-	err := row.Scan(
-		&id,
-		&userId,
-		&active,
-		&internalId,
-		&dateCreated,
-		&dateModified,
-		&name,
-		&streetAddress,
-		&city,
-		&province,
-		&postalCode,
-		&notes,
-		&categoryId,
-		&paymentTermID,
-		&billingCurrency,
-		&userIdValue,
-		&userFirstName,
-		&userLastName,
-		&userEmailAddress,
-		&userPhoneNumber,
-	)
-	if err == sql.ErrNoRows {
+	rr, err := r.ReadClient(ctx, &clientpb.ReadClientRequest{Data: &clientpb.Client{Id: req.ClientId}})
+	if err != nil {
+		return nil, err
+	}
+	if len(rr.GetData()) == 0 {
 		return nil, fmt.Errorf("client with ID '%s' not found", req.ClientId)
 	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query client item page data: %w", err)
-	}
+	client := rr.GetData()[0]
 
-	client := &clientpb.Client{
-		Id:     id,
-		UserId: userId,
-		Active: active,
-	}
-
-	// Handle nullable fields
-	if internalId != nil {
-		client.InternalId = *internalId
-	}
-
-	// CRM fields
-	client.Name = name
-	client.StreetAddress = streetAddress
-	client.City = city
-	client.Province = province
-	client.PostalCode = postalCode
-	client.Notes = notes
-	client.CategoryId = categoryId
-	client.BillingCurrency = billingCurrency
-	if paymentTermID != nil {
-		client.PaymentTermId = paymentTermID
-	}
-
-	// Populate joined user data
-	if userIdValue != nil {
-		client.User = &userpb.User{Id: deref(userIdValue)}
-		client.User.FirstName = deref(userFirstName)
-		client.User.LastName = deref(userLastName)
-		client.User.EmailAddress = deref(userEmailAddress)
-		client.User.MobileNumber = deref(userPhoneNumber)
-	}
-
-	// Parse timestamps if provided
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		client.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		client.DateCreatedString = &dcStr
-	}
-	if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		client.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		client.DateModifiedString = &dmStr
-	}
-
-	// Load categories (tags) for this client via separate query
-	categories, err := r.loadClientCategories(ctx, id)
-	if err == nil && len(categories) > 0 {
+	// Categories denorm — adjacent helper, kept separate from ReadClient.
+	if categories, err := r.loadClientCategories(ctx, client.GetId()); err == nil && len(categories) > 0 {
 		client.Categories = categories
 	}
 

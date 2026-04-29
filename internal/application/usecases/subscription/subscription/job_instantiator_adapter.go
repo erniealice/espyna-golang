@@ -20,10 +20,15 @@ type MaterializeJobsForSubscriptionInstantiator struct {
 }
 
 // InstantiateJobsFromPlan implements the legacy port. Only subscriptionID
-// is used; the other arguments are intentionally ignored — the new use
-// case resolves them itself via cross-domain reads.
+// and spawnJobs are used; the other arguments are intentionally ignored —
+// the new use case resolves them itself via cross-domain reads.
+//
+// 2026-04-29 auto-spawn-jobs-from-subscription plan §5.1 — spawnJobs is
+// forwarded straight through. When false the underlying use case skips the
+// spawn with SkipReasonOperatorOptOut so the operator's toggle decision is
+// honored.
 func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlan(
-	ctx context.Context, _, _, subscriptionID, _ string,
+	ctx context.Context, _, _, subscriptionID, _ string, spawnJobs bool,
 ) error {
 	if a == nil || a.UseCase == nil {
 		return nil
@@ -33,7 +38,7 @@ func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlan(
 	}
 	_, err := a.UseCase.Execute(ctx, MaterializeJobsForSubscriptionRequest{
 		SubscriptionId: subscriptionID,
-		SpawnJobs:      true,
+		SpawnJobs:      spawnJobs,
 	})
 	return err
 }

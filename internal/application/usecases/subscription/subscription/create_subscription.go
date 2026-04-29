@@ -85,10 +85,20 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	}
 
 	// After successful creation, instantiate jobs from the plan (best-effort, non-blocking).
+	//
+	// 2026-04-29 auto-spawn-jobs-from-subscription plan §5.1 — the operator's
+	// "Spawn Jobs on Create" toggle is propagated from the centymo view layer
+	// via context (see espyna shared/context/spawn_jobs.go). When unset, fall
+	// back to true to preserve the legacy default-on behavior for any callers
+	// that did not adopt the toggle yet.
 	if uc.services.JobTemplateInstantiator != nil && pricePlan != nil {
 		wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+		spawnJobs := true
+		if override, set := contextutil.ExtractSpawnJobsOverride(ctx); set {
+			spawnJobs = override
+		}
 		if jiErr := uc.services.JobTemplateInstantiator.InstantiateJobsFromPlan(
-			ctx, pricePlan.PlanId, enrichedSubscription.ClientId, enrichedSubscription.Id, wsID,
+			ctx, pricePlan.PlanId, enrichedSubscription.ClientId, enrichedSubscription.Id, wsID, spawnJobs,
 		); jiErr != nil {
 			log.Printf("Warning: job instantiation failed for subscription %s: %v", enrichedSubscription.Id, jiErr)
 			// Do not fail subscription creation — log and continue.

@@ -11,8 +11,15 @@ import (
 
 // JobTemplateInstantiator creates job hierarchies from templates linked to a plan.
 // Optional — if nil, no jobs are created on subscription creation.
+//
+// 2026-04-29 auto-spawn-jobs-from-subscription plan §5.1 — the spawnJobs bool
+// carries the operator's "Spawn Jobs on Create" toggle decision from the
+// centymo view layer through CreateSubscriptionUseCase. When false, the
+// implementor must skip the spawn entirely (the new
+// MaterializeJobsForSubscriptionUseCase short-circuits on this flag with
+// SkipReasonOperatorOptOut). When true, normal spawn proceeds.
 type JobTemplateInstantiator interface {
-	InstantiateJobsFromPlan(ctx context.Context, planID, clientID, subscriptionID, workspaceID string) error
+	InstantiateJobsFromPlan(ctx context.Context, planID, clientID, subscriptionID, workspaceID string, spawnJobs bool) error
 }
 
 // SubscriptionRepositories groups all repository dependencies

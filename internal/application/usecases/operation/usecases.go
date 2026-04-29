@@ -31,6 +31,7 @@ import (
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
@@ -65,6 +66,7 @@ type OperationRepositories struct {
 	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
 	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplateRelation  jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
 	JobActivity          jobactivitypb.JobActivityDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
@@ -99,6 +101,12 @@ type OperationUseCases struct {
 	TaskOutcomeCheck     *taskOutcomeCheckUseCases.UseCases
 	PhaseOutcomeSummary  *phaseOutcomeSummaryUseCases.UseCases
 	JobOutcomeSummary    *jobOutcomeSummaryUseCases.UseCases
+
+	// 2026-04-29 auto-spawn-jobs-from-subscription Phase D — exposed for the
+	// centymo subscription drawer's spawn-jobs detection (no use-case wrapper
+	// yet; consumers call ListByParent directly via the proto-generated
+	// domain service interface). nil-safe.
+	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
 }
 
 // NewUseCases creates all operation use cases with proper constructor injection
@@ -287,5 +295,7 @@ func NewUseCases(
 		TaskOutcomeCheck:     taskOutcomeCheckUC,
 		PhaseOutcomeSummary:  phaseOutcomeSummaryUC,
 		JobOutcomeSummary:    jobOutcomeSummaryUC,
+		// 2026-04-29 auto-spawn-jobs-from-subscription Phase D.
+		JobTemplateRelation: repos.JobTemplateRelation,
 	}
 }

@@ -22,13 +22,14 @@ func InitializeOperation(
 	idSvc ports.IDService,
 ) (*operation.OperationUseCases, error) {
 	opRepos := operation.OperationRepositories{
-		Job:              repos.Job,
-		JobPhase:         repos.JobPhase,
-		JobTask:          repos.JobTask,
-		JobTemplate:      repos.JobTemplate,
-		JobTemplatePhase: repos.JobTemplatePhase,
-		JobTemplateTask:  repos.JobTemplateTask,
-		JobActivity:      repos.JobActivity,
+		Job:                 repos.Job,
+		JobPhase:            repos.JobPhase,
+		JobTask:             repos.JobTask,
+		JobTemplate:         repos.JobTemplate,
+		JobTemplatePhase:    repos.JobTemplatePhase,
+		JobTemplateTask:     repos.JobTemplateTask,
+		JobTemplateRelation: repos.JobTemplateRelation,
+		JobActivity:         repos.JobActivity,
 	}
 	if subRepos != nil {
 		opRepos.BillingEvent = subRepos.BillingEvent

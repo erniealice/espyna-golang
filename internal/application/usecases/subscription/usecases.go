@@ -78,6 +78,12 @@ type SubscriptionUseCases struct {
 	// nil-safe: when the adapter isn't registered, callers degrade to empty
 	// milestone lists and disable the mark-ready button.
 	BillingEvent billingeventpb.BillingEventDomainServiceServer
+
+	// MaterializeJobsForSubscription exposes the auto-spawn-jobs-from-
+	// subscription use case (plan §3) directly so centymo's retroactive
+	// spawn handler + create-form opt-out can invoke it. nil-safe.
+	// 2026-04-29 auto-spawn-jobs-from-subscription Phase D.
+	MaterializeJobsForSubscription *subscriptionUseCases.MaterializeJobsForSubscriptionUseCase
 }
 
 // NewUseCases creates all subscription use cases with proper constructor injection.

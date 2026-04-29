@@ -605,6 +605,16 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 		fmt.Printf("❌ Failed to initialize subscription use cases: %v\n", err)
 		return nil, err
 	}
+	// 2026-04-29 auto-spawn-jobs-from-subscription Phase D — expose the
+	// concrete use case so centymo's create-form opt-out + retroactive
+	// spawn handler can call it directly.
+	if subscriptionUseCases != nil && opErr == nil {
+		// `mjfs` is in scope only when operation repos resolved. Capture
+		// from the instantiator wrapper to keep the nil branches clean.
+		if inst, ok := jobTemplateInstantiator.(*subscriptionUseCase.MaterializeJobsForSubscriptionInstantiator); ok && inst != nil {
+			subscriptionUseCases.MaterializeJobsForSubscription = inst.UseCase
+		}
+	}
 	fmt.Printf("✅ Subscription domain initialized successfully: %v\n", subscriptionUseCases != nil)
 
 	return subscriptionUseCases, nil

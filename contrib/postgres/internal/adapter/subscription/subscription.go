@@ -595,6 +595,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 				'name', pp.name,
 				'description', pp.description,
 				'active', pp.active,
+				'billing_kind', pp.billing_kind,
+				'amount_basis', pp.amount_basis,
+				'billing_amount', pp.billing_amount,
+				'billing_currency', pp.billing_currency,
 				'date_created', (EXTRACT(EPOCH FROM pp.date_created) * 1000)::bigint,
 				'date_modified', (EXTRACT(EPOCH FROM pp.date_modified) * 1000)::bigint,
 				'plan', jsonb_build_object(

@@ -10,12 +10,15 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"google.golang.org/protobuf/proto"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
@@ -46,6 +49,11 @@ type RecognizeRevenueFromSubscriptionRepositories struct {
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
 	PaymentTerm      paymenttermpb.PaymentTermDomainServiceServer
+
+	// Milestone-billing branch (Phase C — milestone-billing plan §3).
+	// Optional — when nil, MILESTONE plans are rejected with a clear error.
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 }
 
 // RecognizeRevenueFromSubscriptionServices groups all business service
@@ -170,6 +178,35 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	// Mutates the in-memory pointer only — does NOT write back to the DB.
 	normalizePricePlan(pricePlan)
 
+	// 2b. MILESTONE pre-branch normalization (milestone-billing plan §3).
+	// MILESTONE plans never carry billing_cycle_*; the drawer clears it but we
+	// defend in the use case in case a legacy or seeded row leaks through.
+	if pricePlan.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_MILESTONE {
+		pricePlan.BillingCycleValue = nil
+		pricePlan.BillingCycleUnit = nil
+	}
+
+	// 2c. Reject mismatched billing_event_id × billing_kind combos before any
+	// other work. Both checks here keep the rest of the file's logic
+	// candidate-agnostic — non-MILESTONE branches never see milestone fields.
+	billingEventID := strings.TrimSpace(req.GetBillingEventId())
+	switch {
+	case pricePlan.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_MILESTONE:
+		if billingEventID == "" {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+				ctx, uc.services.TranslationService,
+				"revenue.errors.milestone_required",
+				"A billing event is required for milestone plans [DEFAULT]",
+			))
+		}
+	case billingEventID != "":
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.milestone_not_applicable",
+			"Billing event id is only valid on milestone plans [DEFAULT]",
+		))
+	}
+
 	// 3. Hydrate context (client, payment term, price schedule)
 	client := uc.readClient(ctx, sub.GetClientId())
 	priceSchedule := uc.readPriceSchedule(ctx, pricePlan.GetPriceScheduleId())
@@ -205,6 +242,12 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 			"revenue.errors.subscriptionPlanClientDrift",
 			"Subscription and price plan belong to different clients — recognition blocked. [DEFAULT]",
 		))
+	}
+
+	// 4a. MILESTONE branch — entirely separate write path. The remainder of
+	// this function is unchanged for ONE_TIME / RECURRING / CONTRACT plans.
+	if pricePlan.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_MILESTONE {
+		return uc.executeMilestone(ctx, req, sub, pricePlan, priceSchedule, client, planCurrency)
 	}
 
 	// 5. List ProductPricePlans for this PricePlan
@@ -914,4 +957,442 @@ func buildNotes(start, end string, warnings []string) string {
 // of the stringPtr helper used elsewhere in the package.
 func stringPtrLocal(s string) *string {
 	return &s
+}
+
+// ---------------------------------------------------------------------------
+// MILESTONE branch (milestone-billing plan §3 + flow.md §11)
+// ---------------------------------------------------------------------------
+
+// executeMilestone handles BILLING_KIND_MILESTONE plans end-to-end:
+//
+//  1. Read BillingEvent, validate subscription match + status.
+//  2. Idempotency: if a non-cancelled Revenue already references this event,
+//     return conflicting_revenue_id (no second insert).
+//  3. Resolve target amount (override or full).
+//  4. Over-billing guard: sum of BillingEvents under the same template phase
+//     for the same subscription cannot exceed the template-resolved total.
+//  5. Build lines from PPP rows tagged with the same job_template_phase_id.
+//  6. Atomic write: Revenue + RevenueLineItems + UpdateBillingEvent.
+//  7. Optional child DEFERRED event when leave_remainder_open=true.
+//
+// Currency check has already happened in executeCore (shared across kinds).
+func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
+	ctx context.Context,
+	req *revenuepb.CreateRevenueWithLineItemsRequest,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	priceSchedule *priceschedulepb.PriceSchedule,
+	client *clientpb.Client,
+	planCurrency string,
+) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
+	if uc.repositories.BillingEvent == nil {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_repository_unavailable",
+			"Billing event repository is not configured [DEFAULT]",
+		))
+	}
+
+	billingEventID := strings.TrimSpace(req.GetBillingEventId())
+
+	// 1. Read BillingEvent + sanity-check.
+	evResp, err := uc.repositories.BillingEvent.ReadBillingEvent(ctx, &billingeventpb.ReadBillingEventRequest{
+		Data: &billingeventpb.BillingEvent{Id: billingEventID},
+	})
+	if err != nil || evResp == nil || len(evResp.GetData()) == 0 {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_not_found",
+			"Billing event not found [DEFAULT]",
+		))
+	}
+	ev := evResp.GetData()[0]
+
+	if ev.GetSubscriptionId() != sub.GetId() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_mismatch",
+			"Billing event does not belong to this subscription [DEFAULT]",
+		))
+	}
+
+	switch ev.GetStatus() {
+	case billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY,
+		billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_DEFERRED:
+		// ok
+	default:
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_not_ready",
+			"Billing event is not ready to be invoiced [DEFAULT]",
+		))
+	}
+
+	// 2. Idempotency — billing_event_id is the milestone key. We scan prior
+	// revenues for the same subscription so the existing list-cache pattern
+	// stays unified between the recurring and milestone branches.
+	priorRevenues := uc.listRevenuesForSubscription(ctx, sub.GetId())
+	for _, rev := range priorRevenues {
+		if rev.GetStatus() == "cancelled" {
+			continue
+		}
+		if rev.GetBillingEventId() == ev.GetId() {
+			conflictID := rev.GetId()
+			resp := &revenuepb.CreateRevenueWithLineItemsResponse{
+				Success:              false,
+				ConflictingRevenueId: &conflictID,
+				Error: &commonpb.Error{
+					Code: "conflicting_revenue_id",
+					Message: contextutil.GetTranslatedMessageWithContext(
+						ctx, uc.services.TranslationService,
+						"revenue.errors.milestone_already_invoiced",
+						"This milestone has already been invoiced [DEFAULT]",
+					),
+				},
+			}
+			return resp, errors.New(resp.GetError().GetMessage())
+		}
+	}
+
+	// 3. Resolve target amount (override wins, else full event amount).
+	originalEventAmount := ev.GetBillableAmount()
+	target := originalEventAmount
+	if req.OverrideTotalAmount != nil {
+		target = req.GetOverrideTotalAmount()
+	}
+	if target <= 0 {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.invalid_target_amount",
+			"Bill amount must be greater than zero [DEFAULT]",
+		))
+	}
+	if target > originalEventAmount {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.target_exceeds_event",
+			"Bill amount cannot exceed the milestone amount [DEFAULT]",
+		))
+	}
+
+	// 4. Over-billing guard — sum of all events under the same template phase
+	// for the same subscription must not exceed the template-resolved total.
+	if jtpID := strings.TrimSpace(ev.GetJobTemplatePhaseId()); jtpID != "" {
+		templateTotal := uc.resolveTemplatePhaseAmount(ctx, jtpID, pricePlan)
+		if templateTotal > 0 {
+			otherSum := uc.sumBillableUnderPhase(ctx, sub.GetId(), jtpID, ev.GetId())
+			if otherSum+target > templateTotal {
+				return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+					ctx, uc.services.TranslationService,
+					"revenue.errors.over_billing_rejected",
+					"Total billed under this milestone would exceed the template amount [DEFAULT]",
+				))
+			}
+		}
+	}
+
+	// 5. Build line items from PPPs gated by this template phase. Operator
+	// per-line overrides apply just like in the recurring branch.
+	allPPPs := uc.listProductPricePlans(ctx, pricePlan.GetId())
+	gatedPPPs := filterPPPsByTemplatePhase(allPPPs, ev.GetJobTemplatePhaseId())
+	overridesByPPP := indexOverrides(req.GetOverrides())
+	var lines []*revenuelineitempb.RevenueLineItem
+	var treatments []string
+	for _, ppp := range gatedPPPs {
+		if ov := overridesByPPP[ppp.GetId()]; ov != nil && ov.GetRemoved() {
+			continue
+		}
+		unitPrice := ppp.GetBillingAmount()
+		quantity := 1.0
+		description := describeLine(ppp)
+		if ov := overridesByPPP[ppp.GetId()]; ov != nil {
+			if ov.UnitPrice != nil {
+				unitPrice = *ov.UnitPrice
+			}
+			if ov.Quantity != nil {
+				quantity = *ov.Quantity
+			}
+			if ov.Description != nil && *ov.Description != "" {
+				description = *ov.Description
+			}
+		}
+		totalPrice := int64(float64(unitPrice) * quantity)
+		pppID := ppp.GetId()
+		lines = append(lines, &revenuelineitempb.RevenueLineItem{
+			Description:        description,
+			Quantity:           quantity,
+			UnitPrice:          unitPrice,
+			TotalPrice:         totalPrice,
+			LineItemType:       "item",
+			ProductPricePlanId: &pppID,
+		})
+		treatments = append(treatments, treatmentOneTime)
+	}
+
+	// Empty-line guard: when no PPP is gated by this phase (or operator removed
+	// all of them), fall back to a single bundle line so the milestone is still
+	// represented as a billable row.
+	if len(lines) == 0 {
+		bundleName := pricePlan.GetName()
+		if bundleName == "" {
+			bundleName = "Milestone"
+		}
+		lines = []*revenuelineitempb.RevenueLineItem{
+			{
+				Description:  bundleName,
+				Quantity:     1,
+				UnitPrice:    target,
+				TotalPrice:   target,
+				LineItemType: "item",
+			},
+		}
+		treatments = []string{treatmentOneTime}
+	}
+
+	// When the operator overrides the total, scale lines proportionally so
+	// they sum to the target. This is a soft compromise — full per-line
+	// editing arrives via Phase D's drawer overrides; here we only need a
+	// numerically-coherent invoice.
+	if req.OverrideTotalAmount != nil {
+		scaleLineItemsToTarget(lines, target)
+	}
+
+	previewLines := buildPreviewLines(lines, treatments)
+
+	if req.GetDryRun() {
+		return &revenuepb.CreateRevenueWithLineItemsResponse{
+			Success:      true,
+			PreviewLines: previewLines,
+		}, nil
+	}
+
+	// 6. Atomic write — Revenue header, line items, then BillingEvent mutation.
+	revenueDate := strings.TrimSpace(req.GetRevenueDate())
+	if revenueDate == "" {
+		revenueDate = time.Now().UTC().Format("2006-01-02")
+	}
+
+	header := uc.buildHeader(req, sub, pricePlan, priceSchedule, client, planCurrency, "", "", revenueDate, target, nil)
+	// Wire milestone traceability FKs onto the header.
+	if jpID := ev.GetJobPhaseId(); jpID != "" {
+		jp := jpID
+		header.JobPhaseId = &jp
+	}
+	beID := ev.GetId()
+	header.BillingEventId = &beID
+
+	createdRevenue, err := uc.persistRevenue(ctx, header)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.persistLineItems(ctx, createdRevenue.GetId(), lines); err != nil {
+		return nil, err
+	}
+
+	// Mutate the original event to BILLED at the actual amount.
+	mutated := proto.Clone(ev).(*billingeventpb.BillingEvent)
+	mutated.Status = billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_BILLED
+	mutated.BillableAmount = target
+	revenueID := createdRevenue.GetId()
+	mutated.RevenueId = &revenueID
+	billedAt := time.Now().UnixMilli()
+	mutated.BilledAt = &billedAt
+	if reason := strings.TrimSpace(req.GetPartialReason()); reason != "" {
+		mutated.Reason = &reason
+	}
+	if _, err := uc.repositories.BillingEvent.UpdateBillingEvent(
+		ctx, &billingeventpb.UpdateBillingEventRequest{Data: mutated},
+	); err != nil {
+		return nil, fmt.Errorf("update billing_event: %w", err)
+	}
+
+	// 7. Optional DEFERRED child for the unbilled remainder.
+	if req.GetLeaveRemainderOpen() && target < originalEventAmount {
+		remainder := originalEventAmount - target
+		child := &billingeventpb.BillingEvent{
+			Active:         true,
+			SubscriptionId: ev.GetSubscriptionId(),
+			BillableAmount: remainder,
+			BillingCurrency: ev.GetBillingCurrency(),
+			Status:  billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_DEFERRED,
+			Trigger: billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_MANUAL_LATE,
+		}
+		if v := ev.GetJobId(); v != "" {
+			child.JobId = &v
+		}
+		if v := ev.GetJobPhaseId(); v != "" {
+			child.JobPhaseId = &v
+		}
+		if v := ev.GetJobTemplatePhaseId(); v != "" {
+			child.JobTemplatePhaseId = &v
+		}
+		if v := ev.GetProductPricePlanId(); v != "" {
+			child.ProductPricePlanId = &v
+		}
+		parent := ev.GetId()
+		child.ParentEventId = &parent
+		seqLabel := nextPartialLabel(ev.GetSequenceLabel())
+		child.SequenceLabel = &seqLabel
+		if uc.services.IDService != nil {
+			child.Id = uc.services.IDService.GenerateID()
+		}
+		now := time.Now()
+		dc := now.UnixMilli()
+		dcs := now.Format(time.RFC3339)
+		child.DateCreated = &dc
+		child.DateCreatedString = &dcs
+		child.DateModified = &dc
+		child.DateModifiedString = &dcs
+		if _, err := uc.repositories.BillingEvent.CreateBillingEvent(
+			ctx, &billingeventpb.CreateBillingEventRequest{Data: child},
+		); err != nil {
+			return nil, fmt.Errorf("create deferred billing_event: %w", err)
+		}
+	}
+
+	return &revenuepb.CreateRevenueWithLineItemsResponse{
+		Success:      true,
+		Data:         []*revenuepb.Revenue{createdRevenue},
+		PreviewLines: previewLines,
+	}, nil
+}
+
+// resolveTemplatePhaseAmount returns the resolved monetary cap for a template
+// phase under a given PricePlan. Order of resolution:
+//
+//  1. Fixed billing_amount on the JobTemplatePhase.
+//  2. billing_percent_bps × pricePlan.billing_amount / 10000.
+//  3. Sum of ProductPricePlan amounts gated by this phase (FK match).
+//
+// Returns 0 when no rule matches — callers should treat 0 as "no over-billing
+// cap configured" and skip the guard.
+func (uc *RecognizeRevenueFromSubscriptionUseCase) resolveTemplatePhaseAmount(
+	ctx context.Context, jobTemplatePhaseID string, pricePlan *priceplanpb.PricePlan,
+) int64 {
+	if uc.repositories.JobTemplatePhase == nil {
+		return 0
+	}
+	resp, err := uc.repositories.JobTemplatePhase.ReadJobTemplatePhase(ctx, &jobtemplatephasepb.ReadJobTemplatePhaseRequest{
+		Data: &jobtemplatephasepb.JobTemplatePhase{Id: jobTemplatePhaseID},
+	})
+	if err != nil || resp == nil || len(resp.GetData()) == 0 {
+		return 0
+	}
+	phase := resp.GetData()[0]
+	if v := phase.GetBillingAmount(); v > 0 {
+		return v
+	}
+	if pct := phase.GetBillingPercentBps(); pct > 0 {
+		return (pricePlan.GetBillingAmount() * int64(pct)) / 10000
+	}
+	// Derive from gated PPPs.
+	var sum int64
+	for _, ppp := range uc.listProductPricePlans(ctx, pricePlan.GetId()) {
+		if ppp.GetJobTemplatePhaseId() == jobTemplatePhaseID {
+			sum += ppp.GetBillingAmount()
+		}
+	}
+	return sum
+}
+
+// sumBillableUnderPhase returns the total committed billable amount across
+// every other BillingEvent (excluding the current one) under the same
+// (subscription, template_phase) combo whose status is one of the
+// reservation states (READY, BILLED, DEFERRED). Used to enforce the
+// over-billing guard from flow.md §11.
+func (uc *RecognizeRevenueFromSubscriptionUseCase) sumBillableUnderPhase(
+	ctx context.Context, subscriptionID, jobTemplatePhaseID, currentEventID string,
+) int64 {
+	if uc.repositories.BillingEvent == nil {
+		return 0
+	}
+	resp, err := uc.repositories.BillingEvent.ListBySubscription(
+		ctx, &billingeventpb.ListBillingEventsBySubscriptionRequest{SubscriptionId: subscriptionID},
+	)
+	if err != nil || resp == nil {
+		return 0
+	}
+	var sum int64
+	for _, e := range resp.GetBillingEvents() {
+		if e.GetId() == currentEventID {
+			continue
+		}
+		if e.GetJobTemplatePhaseId() != jobTemplatePhaseID {
+			continue
+		}
+		switch e.GetStatus() {
+		case billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY,
+			billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_BILLED,
+			billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_DEFERRED:
+			sum += e.GetBillableAmount()
+		}
+	}
+	return sum
+}
+
+// filterPPPsByTemplatePhase returns the PPPs whose job_template_phase_id
+// matches the supplied id. When id is empty (event not gated by a phase),
+// returns the input unchanged so all PPPs flow through.
+func filterPPPsByTemplatePhase(
+	ppps []*productpriceplanpb.ProductPricePlan, jobTemplatePhaseID string,
+) []*productpriceplanpb.ProductPricePlan {
+	if jobTemplatePhaseID == "" {
+		return ppps
+	}
+	out := make([]*productpriceplanpb.ProductPricePlan, 0, len(ppps))
+	for _, ppp := range ppps {
+		if ppp.GetJobTemplatePhaseId() == jobTemplatePhaseID {
+			out = append(out, ppp)
+		}
+	}
+	return out
+}
+
+// scaleLineItemsToTarget rewrites unit_price/total_price on lines so the sum
+// equals target. Last-line-fixup absorbs the rounding loss. Quantity is left
+// untouched — operators see the same per-line fractional breakdown they'd
+// get from a manual override.
+func scaleLineItemsToTarget(lines []*revenuelineitempb.RevenueLineItem, target int64) {
+	if len(lines) == 0 || target <= 0 {
+		return
+	}
+	var current int64
+	for _, l := range lines {
+		current += l.GetTotalPrice()
+	}
+	if current == target || current <= 0 {
+		// Already correct or zero-valued — write the target onto a single line
+		// so callers downstream still produce a coherent header sum.
+		if current != target && len(lines) == 1 {
+			lines[0].UnitPrice = target
+			lines[0].TotalPrice = target
+		}
+		return
+	}
+	var assigned int64
+	for i, l := range lines {
+		var allocated int64
+		if i == len(lines)-1 {
+			allocated = target - assigned
+		} else {
+			allocated = (l.GetTotalPrice() * target) / current
+			assigned += allocated
+		}
+		l.TotalPrice = allocated
+		if l.GetQuantity() > 0 {
+			l.UnitPrice = int64(float64(allocated) / l.GetQuantity())
+		} else {
+			l.UnitPrice = allocated
+		}
+	}
+}
+
+// nextPartialLabel returns the sequence label for a child DEFERRED event
+// spawned by leave_remainder_open. We deliberately keep this a string —
+// operators understand "M3 partial #2" better than a structured field.
+func nextPartialLabel(parentLabel string) string {
+	if strings.TrimSpace(parentLabel) == "" {
+		return "partial #2"
+	}
+	return parentLabel + " (continued)"
 }

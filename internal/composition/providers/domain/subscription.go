@@ -13,6 +13,7 @@ import (
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -29,6 +30,7 @@ import (
 type SubscriptionRepositories struct {
 	Balance               balancepb.BalanceDomainServiceServer
 	BalanceAttribute      balanceattributepb.BalanceAttributeDomainServiceServer
+	BillingEvent          billingeventpb.BillingEventDomainServiceServer
 	Client                clientpb.ClientDomainServiceServer // Cross-domain dependency
 	Invoice               invoicepb.InvoiceDomainServiceServer
 	InvoiceAttribute      invoiceattributepb.InvoiceAttributeDomainServiceServer
@@ -116,6 +118,17 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		return nil, fmt.Errorf("failed to create balance_attribute repository: %w", err)
 	}
 
+	// BillingEvent repository — drives the milestone-billing engine branch
+	// (recognize_revenue_from_subscription) and the OnJobPhaseCompleted hook.
+	// Best-effort: when no adapter is registered (e.g. mock-only tests), the
+	// recognize use case fails the MILESTONE branch with a clear error. Other
+	// branches (ONE_TIME / RECURRING / CONTRACT) are unaffected.
+	var billingEventServer billingeventpb.BillingEventDomainServiceServer
+	billingEventRepo, err := repoCreator.CreateRepository(entityid.BillingEvent, conn, tableConfig.TableName(entityid.BillingEvent))
+	if err == nil {
+		billingEventServer = billingEventRepo.(billingeventpb.BillingEventDomainServiceServer)
+	}
+
 	invoiceAttributeRepo, err := repoCreator.CreateRepository(entityid.InvoiceAttribute, conn, tableConfig.TableName(entityid.InvoiceAttribute))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invoice_attribute repository: %w", err)
@@ -141,6 +154,7 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 	return &SubscriptionRepositories{
 		Balance:               balanceRepo.(balancepb.BalanceDomainServiceServer),
 		BalanceAttribute:      balanceAttributeRepo.(balanceattributepb.BalanceAttributeDomainServiceServer),
+		BillingEvent:          billingEventServer,
 		Client:                clientRepo.(clientpb.ClientDomainServiceServer),
 		Invoice:               invoiceRepo.(invoicepb.InvoiceDomainServiceServer),
 		InvoiceAttribute:      invoiceAttributeRepo.(invoiceattributepb.InvoiceAttributeDomainServiceServer),

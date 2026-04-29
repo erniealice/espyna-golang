@@ -338,6 +338,13 @@ func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*
 }
 
 // initializeOperationUseCases initializes Operation domain use cases.
+//
+// Cross-domain reads (Subscription / PricePlan / ProductPricePlan / BillingEvent)
+// are sourced from the Subscription domain provider so the
+// MaterializeBillingEventsForJob use case and the OnJobPhaseCompleted hook
+// can fire (milestone-billing plan §3). Failure to load the subscription
+// provider degrades to nil — the operation use cases still wire up, just
+// without the cross-domain branches.
 func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container) (*operation.OperationUseCases, error) {
 	fmt.Printf("⚙️ Initializing Operation use cases...\n")
 
@@ -348,6 +355,12 @@ func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container)
 	}
 	fmt.Printf("✅ Got operation repositories\n")
 
+	subRepos, subErr := domain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if subErr != nil {
+		fmt.Printf("⚠️  Subscription provider unavailable for operation cross-domain wiring: %v\n", subErr)
+		subRepos = nil
+	}
+
 	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
 	if err != nil {
 		fmt.Printf("❌ Failed to get services: %v\n", err)
@@ -355,7 +368,7 @@ func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container)
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	operationUseCases, err := initializers.InitializeOperation(repos, authSvc, txSvc, i18nSvc, idSvc)
+	operationUseCases, err := initializers.InitializeOperation(repos, subRepos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize operation use cases: %v\n", err)
 		return nil, err

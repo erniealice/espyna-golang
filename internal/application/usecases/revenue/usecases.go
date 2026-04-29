@@ -23,10 +23,15 @@ import (
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 
 	// Cross-domain dependencies for the recognize-revenue use case
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+
+	// Milestone-billing branch — operation domain reads.
+	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 )
 
 // RevenueRepositories contains all revenue domain repositories.
@@ -53,6 +58,12 @@ type RevenueRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
+
+	// Milestone-billing branch (Phase C — milestone-billing plan §3).
+	// Optional — only required when MILESTONE plans are billed.
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	Job              jobpb.JobDomainServiceServer
 }
 
 // RevenueUseCases contains all revenue-related use cases
@@ -82,6 +93,11 @@ func NewUseCases(
 			PriceSchedule:    repos.PriceSchedule,
 			Client:           repos.Client,
 			PaymentTerm:      repos.PaymentTerm,
+
+			// Milestone-billing branch reads (Phase C).
+			BillingEvent:     repos.BillingEvent,
+			JobTemplatePhase: repos.JobTemplatePhase,
+			Job:              repos.Job,
 		},
 		revenueUseCases.RevenueServices{
 			AuthorizationService: authSvc,

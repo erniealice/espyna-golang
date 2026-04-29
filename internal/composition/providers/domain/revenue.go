@@ -20,10 +20,17 @@ import (
 
 	// Protobuf domain services - Subscription domain (cross-domain dependency
 	// for the recognize-revenue use case)
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+
+	// Protobuf domain services - Operation domain (cross-domain dependency for
+	// the milestone-billing branch of recognize-revenue and for
+	// MaterializeBillingEventsForJob).
+	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 )
 
 // RevenueRepositories contains all revenue domain repositories.
@@ -48,6 +55,15 @@ type RevenueRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
+
+	// Cross-domain dependencies for the milestone-billing engine branch
+	// (Phase C — milestone-billing plan §3) and the
+	// MaterializeBillingEventsForJob use case. All optional — the use case
+	// rejects MILESTONE branch with `billing_event_repository_unavailable`
+	// when nil.
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	Job              jobpb.JobDomainServiceServer
 }
 
 // NewRevenueRepositories creates and returns a new set of RevenueRepositories.
@@ -111,6 +127,17 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.Client); r != nil {
 		repos.Client = r.(clientpb.ClientDomainServiceServer)
+	}
+
+	// Milestone-billing cross-domain reads (Phase C).
+	if r := tryCreate(entityid.BillingEvent); r != nil {
+		repos.BillingEvent = r.(billingeventpb.BillingEventDomainServiceServer)
+	}
+	if r := tryCreate(entityid.JobTemplatePhase); r != nil {
+		repos.JobTemplatePhase = r.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer)
+	}
+	if r := tryCreate(entityid.Job); r != nil {
+		repos.Job = r.(jobpb.JobDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

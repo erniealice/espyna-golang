@@ -5,8 +5,11 @@ import (
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
@@ -26,6 +29,12 @@ type RevenueRepositories struct {
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
 	PaymentTerm      paymenttermpb.PaymentTermDomainServiceServer
+
+	// Milestone-billing branch (Phase C — milestone-billing plan §3).
+	// Optional — only required when MILESTONE PricePlans are billed.
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	Job              jobpb.JobDomainServiceServer
 }
 
 // RevenueServices groups all business service dependencies for revenue use cases
@@ -117,6 +126,9 @@ func NewUseCases(
 		PriceSchedule:    repositories.PriceSchedule,
 		Client:           repositories.Client,
 		PaymentTerm:      repositories.PaymentTerm,
+
+		BillingEvent:     repositories.BillingEvent,
+		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	recognizeServices := RecognizeRevenueFromSubscriptionServices{
 		AuthorizationService: services.AuthorizationService,

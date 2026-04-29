@@ -37,9 +37,27 @@ import (
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+
+	// Cross-domain dependency for the OnJobPhaseCompleted hook + the
+	// MaterializeBillingEventsForJob use case (milestone-billing plan §3).
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
+	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
-// OperationRepositories contains all operation domain repositories
+// OperationRepositories contains all operation domain repositories.
+//
+// BillingEvent + Subscription + PricePlan + ProductPricePlan are cross-domain
+// reads required by:
+//
+//   - OnJobPhaseCompleted hook in UpdateJobPhaseUseCase (milestone-billing
+//     plan §3 / flow.md §11) — reads BillingEvent.
+//   - MaterializeBillingEventsForJob use case — reads Subscription / PricePlan /
+//     ProductPricePlan to resolve per-phase billable amounts.
+//
+// All four are optional. When nil, the milestone-billing branches no-op or
+// return a clear validation error.
 type OperationRepositories struct {
 	Job                  jobpb.JobDomainServiceServer
 	JobPhase             jobphasepb.JobPhaseDomainServiceServer
@@ -56,6 +74,12 @@ type OperationRepositories struct {
 	TaskOutcomeCheck     taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
 	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
 	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
+
+	// Milestone-billing cross-domain reads (Phase C).
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	Subscription     subscriptionpb.SubscriptionDomainServiceServer
+	PricePlan        priceplanpb.PricePlanDomainServiceServer
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 }
 
 // OperationUseCases contains all operation-related use cases
@@ -86,7 +110,16 @@ func NewUseCases(
 	idService ports.IDService,
 ) *OperationUseCases {
 	jobUC := jobUseCases.NewUseCases(
-		jobUseCases.JobRepositories{Job: repos.Job},
+		jobUseCases.JobRepositories{
+			Job:              repos.Job,
+			JobTemplate:      repos.JobTemplate,
+			JobTemplatePhase: repos.JobTemplatePhase,
+			JobPhase:         repos.JobPhase,
+			BillingEvent:     repos.BillingEvent,
+			Subscription:     repos.Subscription,
+			PricePlan:        repos.PricePlan,
+			ProductPricePlan: repos.ProductPricePlan,
+		},
 		jobUseCases.JobServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,
@@ -96,7 +129,10 @@ func NewUseCases(
 	)
 
 	jobPhaseUC := jobPhaseUseCases.NewUseCases(
-		jobPhaseUseCases.JobPhaseRepositories{JobPhase: repos.JobPhase},
+		jobPhaseUseCases.JobPhaseRepositories{
+			JobPhase:     repos.JobPhase,
+			BillingEvent: repos.BillingEvent,
+		},
 		jobPhaseUseCases.JobPhaseServices{
 			AuthorizationService: authSvc,
 			TransactionService:   txSvc,

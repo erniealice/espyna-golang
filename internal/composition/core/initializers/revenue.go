@@ -26,6 +26,11 @@ func InitializeRevenue(
 			ProductPricePlan: repos.ProductPricePlan,
 			PriceSchedule:    repos.PriceSchedule,
 			Client:           repos.Client,
+
+			// Milestone-billing branch (Phase C — milestone-billing plan §3).
+			BillingEvent:     repos.BillingEvent,
+			JobTemplatePhase: repos.JobTemplatePhase,
+			Job:              repos.Job,
 		},
 		authSvc,
 		txSvc,

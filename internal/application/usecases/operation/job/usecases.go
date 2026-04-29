@@ -12,11 +12,31 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
+	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
-// JobRepositories groups all repository dependencies
+// JobRepositories groups all repository dependencies.
+//
+// JobTemplate, JobTemplatePhase, JobPhase, BillingEvent, Subscription,
+// PricePlan, and ProductPricePlan are cross-domain reads required by the
+// MaterializeBillingEventsForJob use case (milestone-billing plan §3 +
+// flow.md §3.3). Optional — when nil, MaterializeBillingEventsForJob
+// returns a clear validation error.
 type JobRepositories struct {
-	Job pb.JobDomainServiceServer
+	Job              pb.JobDomainServiceServer
+	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobPhase         jobphasepb.JobPhaseDomainServiceServer
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	Subscription     subscriptionpb.SubscriptionDomainServiceServer
+	PricePlan        priceplanpb.PricePlanDomainServiceServer
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 }
 
 // JobServices groups all business service dependencies
@@ -29,16 +49,17 @@ type JobServices struct {
 
 // UseCases contains all job-related use cases
 type UseCases struct {
-	CreateJob          *CreateJobUseCase
-	ReadJob            *ReadJobUseCase
-	UpdateJob          *UpdateJobUseCase
-	DeleteJob          *DeleteJobUseCase
-	ListJobs           *ListJobsUseCase
-	GetJobListPageData *GetJobListPageDataUseCase
-	GetJobItemPageData *GetJobItemPageDataUseCase
-	GetJobsByClient    *GetJobsByClientUseCase
-	GetJobsByOrigin    *GetJobsByOriginUseCase
-	UpdateJobStatus    *UpdateJobStatusUseCase
+	CreateJob                       *CreateJobUseCase
+	ReadJob                         *ReadJobUseCase
+	UpdateJob                       *UpdateJobUseCase
+	DeleteJob                       *DeleteJobUseCase
+	ListJobs                        *ListJobsUseCase
+	GetJobListPageData              *GetJobListPageDataUseCase
+	GetJobItemPageData              *GetJobItemPageDataUseCase
+	GetJobsByClient                 *GetJobsByClientUseCase
+	GetJobsByOrigin                 *GetJobsByOriginUseCase
+	UpdateJobStatus                 *UpdateJobStatusUseCase
+	MaterializeBillingEventsForJob  *MaterializeBillingEventsForJobUseCase
 }
 
 // NewUseCases creates a new collection of job use cases
@@ -120,6 +141,22 @@ func NewUseCases(
 				TranslationService:   services.TranslationService,
 			},
 		},
+		MaterializeBillingEventsForJob: NewMaterializeBillingEventsForJobUseCase(
+			MaterializeBillingEventsForJobRepositories{
+				Job:              repositories.Job,
+				JobTemplatePhase: repositories.JobTemplatePhase,
+				JobPhase:         repositories.JobPhase,
+				BillingEvent:     repositories.BillingEvent,
+				PricePlan:        repositories.PricePlan,
+				ProductPricePlan: repositories.ProductPricePlan,
+			},
+			MaterializeBillingEventsForJobServices{
+				AuthorizationService: services.AuthorizationService,
+				TransactionService:   services.TransactionService,
+				TranslationService:   services.TranslationService,
+				IDService:            services.IDService,
+			},
+		),
 	}
 }
 

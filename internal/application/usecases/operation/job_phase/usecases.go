@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -11,11 +12,17 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
 
-// JobPhaseRepositories groups all repository dependencies
+// JobPhaseRepositories groups all repository dependencies.
+//
+// BillingEvent is optional — only required to power the OnJobPhaseCompleted
+// hook (milestone-billing plan §3 + flow.md §11). When nil, the hook is a
+// no-op.
 type JobPhaseRepositories struct {
-	JobPhase pb.JobPhaseDomainServiceServer
+	JobPhase     pb.JobPhaseDomainServiceServer
+	BillingEvent billingeventpb.BillingEventDomainServiceServer
 }
 
 // JobPhaseServices groups all business service dependencies
@@ -62,7 +69,10 @@ func NewUseCases(
 			},
 		},
 		UpdateJobPhase: &UpdateJobPhaseUseCase{
-			repositories: UpdateJobPhaseRepositories{JobPhase: repositories.JobPhase},
+			repositories: UpdateJobPhaseRepositories{
+				JobPhase:     repositories.JobPhase,
+				BillingEvent: repositories.BillingEvent,
+			},
 			services: UpdateJobPhaseServices{
 				AuthorizationService: services.AuthorizationService,
 				TransactionService:   services.TransactionService,
@@ -205,7 +215,8 @@ func (uc *ReadJobPhaseUseCase) Execute(ctx context.Context, req *pb.ReadJobPhase
 // ---- UpdateJobPhase ----
 
 type UpdateJobPhaseRepositories struct {
-	JobPhase pb.JobPhaseDomainServiceServer
+	JobPhase     pb.JobPhaseDomainServiceServer
+	BillingEvent billingeventpb.BillingEventDomainServiceServer
 }
 type UpdateJobPhaseServices struct {
 	AuthorizationService ports.AuthorizationService
@@ -227,6 +238,15 @@ func (uc *UpdateJobPhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobP
 	if strings.TrimSpace(req.Data.Name) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.name_required", "job phase name is required"))
 	}
+
+	// Snapshot the prior status so we can detect the PHASE_COMPLETED transition
+	// for the OnJobPhaseCompleted hook (milestone-billing plan §3 / flow.md §11).
+	priorStatus := pb.PhaseStatus_PHASE_STATUS_UNSPECIFIED
+	if existing, err := uc.repositories.JobPhase.ReadJobPhase(ctx, &pb.ReadJobPhaseRequest{Data: &pb.JobPhase{Id: req.Data.Id}}); err == nil &&
+		existing != nil && len(existing.GetData()) > 0 {
+		priorStatus = existing.GetData()[0].GetStatus()
+	}
+
 	now := time.Now()
 	dm := now.UnixMilli()
 	dms := now.Format(time.RFC3339)
@@ -237,7 +257,44 @@ func (uc *UpdateJobPhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobP
 	if err != nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.errors.update_failed", "job phase update failed [DEFAULT]"))
 	}
+
+	// OnJobPhaseCompleted hook — one-way (revert does NOT roll back any
+	// already-billed milestone). Fires only when status crosses into
+	// COMPLETED for the first time.
+	if priorStatus != pb.PhaseStatus_PHASE_STATUS_COMPLETED &&
+		req.Data.GetStatus() == pb.PhaseStatus_PHASE_STATUS_COMPLETED {
+		uc.fireOnJobPhaseCompleted(ctx, req.Data)
+	}
+
 	return &pb.UpdateJobPhaseResponse{Success: true, Data: []*pb.JobPhase{req.Data}}, nil
+}
+
+// fireOnJobPhaseCompleted advances every billing_event row linked to the
+// supplied phase from UNSPECIFIED → READY (with trigger=PHASE_COMPLETED).
+// Best-effort: the hook never blocks the phase update itself, even if any
+// individual billing_event update fails.
+func (uc *UpdateJobPhaseUseCase) fireOnJobPhaseCompleted(ctx context.Context, phase *pb.JobPhase) {
+	if uc.repositories.BillingEvent == nil || phase == nil || phase.GetId() == "" {
+		return
+	}
+	resp, err := uc.repositories.BillingEvent.ListByJobPhase(ctx, &billingeventpb.ListBillingEventsByJobPhaseRequest{
+		JobPhaseId: phase.GetId(),
+	})
+	if err != nil || resp == nil {
+		return
+	}
+	for _, ev := range resp.GetBillingEvents() {
+		if ev.GetStatus() != billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_UNSPECIFIED {
+			continue
+		}
+		if _, err := uc.repositories.BillingEvent.SetStatus(ctx, &billingeventpb.SetBillingEventStatusRequest{
+			BillingEventId: ev.GetId(),
+			Status:         billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY,
+			Trigger:        billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_PHASE_COMPLETED,
+		}); err != nil {
+			log.Printf("OnJobPhaseCompleted: failed to advance billing_event %s: %v", ev.GetId(), err)
+		}
+	}
 }
 
 // ---- DeleteJobPhase ----

@@ -150,6 +150,7 @@ const (
 const (
 	Balance               = "balance"
 	BalanceAttribute      = "balance_attribute"
+	BillingEvent          = "billing_event"
 	Invoice               = "invoice"
 	InvoiceAttribute      = "invoice_attribute"
 	License               = "license"
@@ -338,6 +339,7 @@ var InventoryEntities = []string{
 // SubscriptionEntities lists all entity IDs in the Subscription domain.
 var SubscriptionEntities = []string{
 	Balance, BalanceAttribute,
+	BillingEvent,
 	Invoice, InvoiceAttribute,
 	License, LicenseHistory,
 	Plan, PlanAttribute, PlanSettings,

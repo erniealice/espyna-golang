@@ -269,7 +269,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 	}
 
-	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR billing_currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR billing_currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -284,7 +284,10 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		var active bool
 		var dateCreated, dateModified time.Time
 		var priceScheduleId sql.NullString
-		if err := rows.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err != nil {
+		var billingKindRaw, amountBasisRaw sql.NullInt32
+		var billingCycleValue, defaultTermValue sql.NullInt32
+		var billingCycleUnit, defaultTermUnit sql.NullString
+		if err := rows.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId, &billingKindRaw, &amountBasisRaw, &billingCycleValue, &billingCycleUnit, &defaultTermValue, &defaultTermUnit); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
@@ -297,6 +300,26 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 		if priceScheduleId.Valid && priceScheduleId.String != "" {
 			pricePlan.PriceScheduleId = &priceScheduleId.String
+		}
+		if billingKindRaw.Valid {
+			pricePlan.BillingKind = priceplanpb.BillingKind(billingKindRaw.Int32)
+		}
+		if amountBasisRaw.Valid {
+			pricePlan.AmountBasis = priceplanpb.AmountBasis(amountBasisRaw.Int32)
+		}
+		if billingCycleValue.Valid {
+			v := billingCycleValue.Int32
+			pricePlan.BillingCycleValue = &v
+		}
+		if billingCycleUnit.Valid {
+			pricePlan.BillingCycleUnit = &billingCycleUnit.String
+		}
+		if defaultTermValue.Valid {
+			v := defaultTermValue.Int32
+			pricePlan.DefaultTermValue = &v
+		}
+		if defaultTermUnit.Valid {
+			pricePlan.DefaultTermUnit = &defaultTermUnit.String
 		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -322,7 +345,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	if req == nil || req.PricePlanId == "" {
 		return nil, fmt.Errorf("price plan ID required")
 	}
-	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id FROM price_plan WHERE id = $1 AND active = true`
+	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM price_plan WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
 	var id, planId, billingCurrency string
 	var name, description sql.NullString
@@ -330,7 +353,10 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	var active bool
 	var dateCreated, dateModified time.Time
 	var priceScheduleId sql.NullString
-	if err := row.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId); err == sql.ErrNoRows {
+	var billingKindRaw, amountBasisRaw sql.NullInt32
+	var billingCycleValue, defaultTermValue sql.NullInt32
+	var billingCycleUnit, defaultTermUnit sql.NullString
+	if err := row.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId, &billingKindRaw, &amountBasisRaw, &billingCycleValue, &billingCycleUnit, &defaultTermValue, &defaultTermUnit); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -344,6 +370,26 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	}
 	if priceScheduleId.Valid && priceScheduleId.String != "" {
 		pricePlan.PriceScheduleId = &priceScheduleId.String
+	}
+	if billingKindRaw.Valid {
+		pricePlan.BillingKind = priceplanpb.BillingKind(billingKindRaw.Int32)
+	}
+	if amountBasisRaw.Valid {
+		pricePlan.AmountBasis = priceplanpb.AmountBasis(amountBasisRaw.Int32)
+	}
+	if billingCycleValue.Valid {
+		v := billingCycleValue.Int32
+		pricePlan.BillingCycleValue = &v
+	}
+	if billingCycleUnit.Valid {
+		pricePlan.BillingCycleUnit = &billingCycleUnit.String
+	}
+	if defaultTermValue.Valid {
+		v := defaultTermValue.Int32
+		pricePlan.DefaultTermValue = &v
+	}
+	if defaultTermUnit.Valid {
+		pricePlan.DefaultTermUnit = &defaultTermUnit.String
 	}
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()

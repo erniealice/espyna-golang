@@ -16,6 +16,7 @@ import (
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
@@ -32,6 +33,7 @@ type OperationRepositories struct {
 	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
 	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplateRelation  jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
 	JobActivity          jobactivitypb.JobActivityDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
@@ -86,6 +88,14 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		return nil, fmt.Errorf("failed to create job_template_task repository: %w", err)
 	}
 
+	// JobTemplateRelation — auto-spawn-jobs-from-subscription Phase B.5 entity.
+	// Best-effort: when no adapter is registered (e.g. mock-only tests),
+	// MaterializeJobsForSubscription proceeds with the root template only.
+	var jobTemplateRelationServer jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+	if jobTemplateRelationRepo, jtrErr := repoCreator.CreateRepository(entityid.JobTemplateRelation, conn, tableConfig.TableName(entityid.JobTemplateRelation)); jtrErr == nil {
+		jobTemplateRelationServer = jobTemplateRelationRepo.(jobtemplaterelationpb.JobTemplateRelationDomainServiceServer)
+	}
+
 	jobActivityRepo, err := repoCreator.CreateRepository(entityid.JobActivity, conn, tableConfig.TableName(entityid.JobActivity))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_activity repository: %w", err)
@@ -138,6 +148,7 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		JobTemplate:          jobTemplateRepo.(jobtemplatepb.JobTemplateDomainServiceServer),
 		JobTemplatePhase:     jobTemplatePhaseRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer),
 		JobTemplateTask:      jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
+		JobTemplateRelation:  jobTemplateRelationServer,
 		JobActivity:          jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
 		OutcomeCriteria:      outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),
 		CriteriaThreshold:    criteriaThresholdRepo.(criteriathresholdpb.CriteriaThresholdDomainServiceServer),

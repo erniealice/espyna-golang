@@ -18,6 +18,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/composition/providers"
@@ -40,13 +41,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
-	jobTemplateUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template"
+	jobUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 
@@ -541,29 +543,57 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	// Build the JobTemplateInstantiator from operation + product repos (best-effort: nil on failure).
-	var jobTemplateInstantiator *jobTemplateUseCase.InstantiateJobsFromPlanUseCase
+	// Build the JobTemplateInstantiator port from
+	// MaterializeJobsForSubscriptionUseCase per
+	// docs/plan/20260429-auto-spawn-jobs-from-subscription/ Phases A-C.
+	// Best-effort: when operation repos are unavailable (mock-only test
+	// runs, environments without the operation domain), the instantiator
+	// stays nil and subscription create proceeds without spawning Jobs.
+	var jobTemplateInstantiator subscriptionUseCase.JobTemplateInstantiator
 	operationRepos, opErr := domain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
-	productRepos, prodErr := domain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
-	if opErr != nil || prodErr != nil {
-		fmt.Printf("⚠️  Job instantiation service unavailable (operation repos: %v, product repos: %v)\n", opErr, prodErr)
+	if opErr != nil {
+		fmt.Printf("⚠️  MaterializeJobsForSubscription unavailable (operation repos: %v)\n", opErr)
 	} else {
-		jobTemplateInstantiator = jobTemplateUseCase.NewInstantiateJobsFromPlanUseCase(
-			jobTemplateUseCase.InstantiateJobsFromPlanRepositories{
-				ProductPlan:      productRepos.ProductPlan,
-				JobTemplate:      operationRepos.JobTemplate,
-				JobTemplatePhase: operationRepos.JobTemplatePhase,
-				JobTemplateTask:  operationRepos.JobTemplateTask,
+		// Build the milestone-billing invoker from the operation/job use case.
+		mbeFor := jobUseCase.NewMaterializeBillingEventsForJobUseCase(
+			jobUseCase.MaterializeBillingEventsForJobRepositories{
 				Job:              operationRepos.Job,
+				JobTemplatePhase: operationRepos.JobTemplatePhase,
 				JobPhase:         operationRepos.JobPhase,
-				JobTask:          operationRepos.JobTask,
+				BillingEvent:     subscriptionRepos.BillingEvent,
+				PricePlan:        subscriptionRepos.PricePlan,
+				ProductPricePlan: subscriptionRepos.ProductPricePlan,
 			},
-			jobTemplateUseCase.InstantiateJobsFromPlanServices{
-				TransactionService: txSvc,
-				IDService:          idSvc,
+			jobUseCase.MaterializeBillingEventsForJobServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idSvc,
 			},
 		)
-		fmt.Printf("✅ Job instantiation service wired\n")
+		mjfs := subscriptionUseCase.NewMaterializeJobsForSubscriptionUseCase(
+			subscriptionUseCase.MaterializeJobsForSubscriptionRepositories{
+				Subscription:        subscriptionRepos.Subscription,
+				PricePlan:           subscriptionRepos.PricePlan,
+				Plan:                subscriptionRepos.Plan,
+				JobTemplate:         operationRepos.JobTemplate,
+				JobTemplatePhase:    operationRepos.JobTemplatePhase,
+				JobTemplateTask:     operationRepos.JobTemplateTask,
+				JobTemplateRelation: operationRepos.JobTemplateRelation,
+				Job:                 operationRepos.Job,
+				JobPhase:            operationRepos.JobPhase,
+				JobTask:             operationRepos.JobTask,
+			},
+			subscriptionUseCase.MaterializeJobsForSubscriptionServices{
+				AuthorizationService:           authSvc,
+				TransactionService:             txSvc,
+				TranslationService:             i18nSvc,
+				IDService:                      idSvc,
+				MaterializeBillingEventsForJob: &materializeBillingEventsAdapter{uc: mbeFor},
+			},
+		)
+		jobTemplateInstantiator = &subscriptionUseCase.MaterializeJobsForSubscriptionInstantiator{UseCase: mjfs}
+		fmt.Printf("✅ MaterializeJobsForSubscription wired\n")
 	}
 
 	// Use composition initializer to wire everything together. The reference
@@ -810,4 +840,26 @@ func (uci *UseCaseInitializer) initializeIntegrationUseCases(container *Containe
 	}
 
 	return integrationUC
+}
+
+
+// materializeBillingEventsAdapter adapts the MaterializeBillingEventsForJob
+// use case to the narrow MaterializeBillingEventsForJobInvoker interface
+// consumed by MaterializeJobsForSubscription (plan §3.7). The adapter
+// translates the (ctx, jobID, subscriptionID) shape into the use case's
+// request struct.
+type materializeBillingEventsAdapter struct {
+	uc *jobUseCase.MaterializeBillingEventsForJobUseCase
+}
+
+// Execute satisfies subscriptionUseCase.MaterializeBillingEventsForJobInvoker.
+func (a *materializeBillingEventsAdapter) Execute(ctx context.Context, jobID, subscriptionID string) error {
+	if a == nil || a.uc == nil {
+		return nil
+	}
+	_, err := a.uc.Execute(ctx, jobUseCase.MaterializeBillingEventsForJobRequest{
+		JobID:          jobID,
+		SubscriptionID: subscriptionID,
+	})
+	return err
 }

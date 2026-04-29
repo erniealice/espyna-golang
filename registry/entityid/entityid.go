@@ -194,10 +194,11 @@ const (
 
 // Operation domain
 const (
-	JobTemplate       = "job_template"
-	JobTemplatePhase  = "job_template_phase"
-	JobTemplateTask   = "job_template_task"
-	Job               = "job"
+	JobTemplate         = "job_template"
+	JobTemplatePhase    = "job_template_phase"
+	JobTemplateTask     = "job_template_task"
+	JobTemplateRelation = "job_template_relation"
+	Job                 = "job"
 	JobPhase          = "job_phase"
 	JobTask           = "job_task"
 	JobActivity       = "job_activity"
@@ -370,7 +371,7 @@ var WorkflowEntities = []string{
 
 // OperationEntities lists all entity IDs in the Operation domain.
 var OperationEntities = []string{
-	JobTemplate, JobTemplatePhase, JobTemplateTask,
+	JobTemplate, JobTemplatePhase, JobTemplateTask, JobTemplateRelation,
 	Job, JobPhase, JobTask, JobActivity,
 	ActivityLabor, ActivityMaterial, ActivityExpense,
 	JobSettlement, InventoryMovement,

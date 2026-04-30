@@ -270,29 +270,83 @@ func (uc *UpdateJobPhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobP
 }
 
 // fireOnJobPhaseCompleted advances every billing_event row linked to the
-// supplied phase from UNSPECIFIED → READY (with trigger=PHASE_COMPLETED).
+// supplied phase from UNSPECIFIED → READY. Two transitions are wired:
+//
+//  1. Milestone-billing path: ListByJobPhase → mark UNSPECIFIED events READY
+//     with trigger=PHASE_COMPLETED. (Original behaviour.)
+//  2. AD_HOC × PER_OCCURRENCE path: when ALL phases of the parent Job are
+//     COMPLETED, ListByJob → mark UNSPECIFIED events READY with
+//     trigger=VISIT_COMPLETED. AD_HOC events have job_phase_id = NULL by
+//     design (ad-hoc plan §2.6), so the milestone path can't see them.
+//
 // Best-effort: the hook never blocks the phase update itself, even if any
 // individual billing_event update fails.
+//
+// Codex MAJ-3 fix.
+// See docs/plan/20260501-ad-hoc-subscription-billing/plan.md §3.5.
 func (uc *UpdateJobPhaseUseCase) fireOnJobPhaseCompleted(ctx context.Context, phase *pb.JobPhase) {
 	if uc.repositories.BillingEvent == nil || phase == nil || phase.GetId() == "" {
 		return
 	}
-	resp, err := uc.repositories.BillingEvent.ListByJobPhase(ctx, &billingeventpb.ListBillingEventsByJobPhaseRequest{
+
+	// (1) Milestone path — ListByJobPhase.
+	if resp, err := uc.repositories.BillingEvent.ListByJobPhase(ctx, &billingeventpb.ListBillingEventsByJobPhaseRequest{
 		JobPhaseId: phase.GetId(),
-	})
-	if err != nil || resp == nil {
+	}); err == nil && resp != nil {
+		for _, ev := range resp.GetBillingEvents() {
+			if ev.GetStatus() != billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_UNSPECIFIED {
+				continue
+			}
+			if _, err := uc.repositories.BillingEvent.SetStatus(ctx, &billingeventpb.SetBillingEventStatusRequest{
+				BillingEventId: ev.GetId(),
+				Status:         billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY,
+				Trigger:        billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_PHASE_COMPLETED,
+			}); err != nil {
+				log.Printf("OnJobPhaseCompleted: failed to advance billing_event %s: %v", ev.GetId(), err)
+			}
+		}
+	}
+
+	// (2) AD_HOC path — fires only when every sibling phase under the same
+	// Job is COMPLETED. The ListByJob lookup excludes the milestone-event
+	// case because milestone events DO have a job_phase_id and were already
+	// caught in (1) above (UNSPECIFIED → READY filter is idempotent).
+	jobID := phase.GetJobId()
+	if jobID == "" {
 		return
 	}
-	for _, ev := range resp.GetBillingEvents() {
+	siblingResp, err := uc.repositories.JobPhase.ListByJob(ctx, &pb.ListJobPhasesByJobRequest{JobId: jobID})
+	if err != nil || siblingResp == nil {
+		return
+	}
+	for _, sibling := range siblingResp.GetJobPhases() {
+		if !sibling.GetActive() {
+			continue
+		}
+		if sibling.GetStatus() != pb.PhaseStatus_PHASE_STATUS_COMPLETED {
+			return // at least one phase still pending — defer the trigger
+		}
+	}
+	// All phases COMPLETED → flip any AD_HOC events on this Job.
+	jobEvents, err := uc.repositories.BillingEvent.ListByJob(ctx, &billingeventpb.ListBillingEventsByJobRequest{
+		JobId: jobID,
+	})
+	if err != nil || jobEvents == nil {
+		return
+	}
+	for _, ev := range jobEvents.GetBillingEvents() {
 		if ev.GetStatus() != billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_UNSPECIFIED {
 			continue
 		}
+		// Defensive — milestone events already caught in (1) and are now
+		// READY; only AD_HOC events with NULL job_phase_id remain at
+		// UNSPECIFIED here.
 		if _, err := uc.repositories.BillingEvent.SetStatus(ctx, &billingeventpb.SetBillingEventStatusRequest{
 			BillingEventId: ev.GetId(),
 			Status:         billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY,
-			Trigger:        billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_PHASE_COMPLETED,
+			Trigger:        billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_VISIT_COMPLETED,
 		}); err != nil {
-			log.Printf("OnJobPhaseCompleted: failed to advance billing_event %s: %v", ev.GetId(), err)
+			log.Printf("OnJobPhaseCompleted (AD_HOC): failed to advance billing_event %s: %v", ev.GetId(), err)
 		}
 	}
 }

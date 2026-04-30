@@ -208,6 +208,9 @@ func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 	if err := validateMilestoneCyclicBlock(ctx, uc.services.TranslationService, pricePlan, plan.Data[0]); err != nil {
 		return err
 	}
+	if err := validateAdHoc(ctx, uc.services.TranslationService, pricePlan, plan.Data[0]); err != nil {
+		return err
+	}
 
 	// §3.2 cascade — server-coerce PricePlan.client_id from the parent Plan.
 	// Any body-supplied value is ignored to keep the denormalized invariant

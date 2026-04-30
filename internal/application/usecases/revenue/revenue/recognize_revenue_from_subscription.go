@@ -238,10 +238,33 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		pricePlan.BillingCycleUnit = nil
 	}
 
+	// 2c-pre. AD_HOC dispatch — runs BEFORE the milestone-only billing_event_id
+	// rejection (codex CRIT-2). AD_HOC × PER_OCCURRENCE legitimately uses
+	// billing_event_id, so it must be evaluated above that switch.
+	// See docs/plan/20260501-ad-hoc-subscription-billing/plan.md §4.2.
+	billingEventID := strings.TrimSpace(req.GetBillingEventId())
+	if pricePlan.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_AD_HOC {
+		// Currency + client-drift checks run here so AD_HOC inherits them.
+		client := uc.readClient(ctx, sub.GetClientId())
+		priceSchedule := uc.readPriceSchedule(ctx, pricePlan.GetPriceScheduleId())
+		planCurrency := pricePlan.GetBillingCurrency()
+		clientCurrency := ""
+		if client != nil {
+			clientCurrency = client.GetBillingCurrency()
+		}
+		if clientCurrency != "" && planCurrency != "" && clientCurrency != planCurrency {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+				ctx, uc.services.TranslationService,
+				"revenue.errors.currency_mismatch",
+				"Client billing currency does not match the rate card [DEFAULT]",
+			))
+		}
+		return uc.executeAdHoc(ctx, req, sub, pricePlan, priceSchedule, client, planCurrency, billingEventID)
+	}
+
 	// 2c. Reject mismatched billing_event_id × billing_kind combos before any
 	// other work. Both checks here keep the rest of the file's logic
 	// candidate-agnostic — non-MILESTONE branches never see milestone fields.
-	billingEventID := strings.TrimSpace(req.GetBillingEventId())
 	switch {
 	case pricePlan.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_MILESTONE:
 		if billingEventID == "" {
@@ -1396,6 +1419,331 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 		); err != nil {
 			return nil, fmt.Errorf("create deferred billing_event: %w", err)
 		}
+	}
+
+	return &revenuepb.CreateRevenueWithLineItemsResponse{
+		Success:      true,
+		Data:         []*revenuepb.Revenue{createdRevenue},
+		PreviewLines: previewLines,
+	}, nil
+}
+
+// adHocPoolNotesMarker is the idempotency token written into Revenue.notes for
+// AD_HOC × TOTAL_PACKAGE pool invoices. Per ad-hoc plan §4.1: idempotency keys
+// on (subscription_id, "pool_initial"). We scan revenue.notes for this marker
+// rather than adding a dedicated DB column — keeps the proto stable and
+// matches the existing recurring-period notes-scan pattern.
+const adHocPoolNotesMarker = "ad_hoc_pool_initial"
+
+// executeAdHoc handles BILLING_KIND_AD_HOC plans for both variants:
+//
+//	TOTAL_PACKAGE  — prepaid pool; one Revenue per subscription, marker
+//	                 "ad_hoc_pool_initial" in notes; idempotent on second call.
+//	PER_OCCURRENCE — pay-per-call; one Revenue per BillingEvent; idempotent
+//	                 on billing_event_id (DB partial unique index from
+//	                 20260501120010 backstops).
+//
+// Currency + client-drift checks already happened in Execute (callsite); we
+// receive client + planCurrency pre-resolved so this function only worries
+// about AD_HOC-specific shape.
+//
+// See docs/plan/20260501-ad-hoc-subscription-billing/plan.md §4.1 + §4.2.
+func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHoc(
+	ctx context.Context,
+	req *revenuepb.CreateRevenueWithLineItemsRequest,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	priceSchedule *priceschedulepb.PriceSchedule,
+	client *clientpb.Client,
+	planCurrency string,
+	billingEventID string,
+) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
+	basis := pricePlan.GetAmountBasis()
+	switch basis {
+	case priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE:
+		return uc.executeAdHocPool(ctx, req, sub, pricePlan, priceSchedule, client, planCurrency)
+	case priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE:
+		return uc.executeAdHocPerCall(ctx, req, sub, pricePlan, priceSchedule, client, planCurrency, billingEventID)
+	default:
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.ad_hoc_invalid_basis",
+			"AD_HOC plans require amount_basis = TOTAL_PACKAGE or PER_OCCURRENCE [DEFAULT]",
+		))
+	}
+}
+
+// executeAdHocPool — prepaid pool, single bundle invoice covering all entitled
+// usages. Revenue.period_start/end are NULL (the pool is timeless); operator
+// can re-call without double-creating thanks to the notes-marker idempotency.
+func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPool(
+	ctx context.Context,
+	req *revenuepb.CreateRevenueWithLineItemsRequest,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	priceSchedule *priceschedulepb.PriceSchedule,
+	client *clientpb.Client,
+	planCurrency string,
+) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
+	// Idempotency — scan prior revenues on this subscription for the
+	// pool-initial marker.
+	priorRevenues := uc.listRevenuesForSubscription(ctx, sub.GetId())
+	for _, rev := range priorRevenues {
+		if rev.GetStatus() == "cancelled" {
+			continue
+		}
+		if strings.Contains(rev.GetNotes(), adHocPoolNotesMarker) {
+			conflictID := rev.GetId()
+			resp := &revenuepb.CreateRevenueWithLineItemsResponse{
+				Success:              false,
+				ConflictingRevenueId: &conflictID,
+				Error: &commonpb.Error{
+					Code: "conflicting_revenue_id",
+					Message: contextutil.GetTranslatedMessageWithContext(
+						ctx, uc.services.TranslationService,
+						"revenue.errors.ad_hoc_pool_already_invoiced",
+						"This pool subscription has already been invoiced [DEFAULT]",
+					),
+				},
+			}
+			return resp, errors.New(resp.GetError().GetMessage())
+		}
+	}
+
+	target := pricePlan.GetBillingAmount()
+	if target <= 0 {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.invalid_target_amount",
+			"Bill amount must be greater than zero [DEFAULT]",
+		))
+	}
+
+	// Resolve entitled count (subscription override beats template — codex MAJ-1).
+	entitled := pricePlan.GetEntitledOccurrences()
+	if v := sub.GetEntitledOccurrencesOverride(); v > 0 {
+		entitled = v
+	}
+
+	bundleName := pricePlan.GetName()
+	if bundleName == "" {
+		bundleName = "Pool"
+	}
+	if entitled > 0 {
+		bundleName = fmt.Sprintf("%s — %d entitlements", bundleName, entitled)
+	}
+
+	lines := []*revenuelineitempb.RevenueLineItem{
+		{
+			Description:  bundleName,
+			Quantity:     1,
+			UnitPrice:    target,
+			TotalPrice:   target,
+			LineItemType: "item",
+		},
+	}
+	previewLines := buildPreviewLines(lines, []string{treatmentOneTime})
+
+	if req.GetDryRun() {
+		return &revenuepb.CreateRevenueWithLineItemsResponse{
+			Success:      true,
+			PreviewLines: previewLines,
+		}, nil
+	}
+
+	revenueDate := strings.TrimSpace(req.GetRevenueDate())
+	if revenueDate == "" {
+		revenueDate = time.Now().UTC().Format("2006-01-02")
+	}
+
+	// buildHeader mixes the period suffix into the name + builds the notes
+	// string — pass the marker through warnings so it lands in notes.
+	header := uc.buildHeader(req, sub, pricePlan, priceSchedule, client, planCurrency,
+		"", "", revenueDate, target, []string{adHocPoolNotesMarker})
+
+	createdRevenue, err := uc.persistRevenue(ctx, header)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.persistLineItems(ctx, createdRevenue.GetId(), lines); err != nil {
+		return nil, err
+	}
+
+	return &revenuepb.CreateRevenueWithLineItemsResponse{
+		Success:      true,
+		Data:         []*revenuepb.Revenue{createdRevenue},
+		PreviewLines: previewLines,
+	}, nil
+}
+
+// executeAdHocPerCall — pay-per-call, single line per delivered usage. Revenue
+// is keyed on billing_event_id (partial unique index from 20260501120010
+// guarantees no double-insert at the DB level — codex CRIT-3).
+func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
+	ctx context.Context,
+	req *revenuepb.CreateRevenueWithLineItemsRequest,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	priceSchedule *priceschedulepb.PriceSchedule,
+	client *clientpb.Client,
+	planCurrency string,
+	billingEventID string,
+) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
+	if billingEventID == "" {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.ad_hoc_per_call_event_required",
+			"A billing event is required for per-occurrence AD_HOC plans [DEFAULT]",
+		))
+	}
+	if uc.repositories.BillingEvent == nil {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_repository_unavailable",
+			"Billing event repository is not configured [DEFAULT]",
+		))
+	}
+
+	// Read + validate the BillingEvent.
+	evResp, err := uc.repositories.BillingEvent.ReadBillingEvent(ctx, &billingeventpb.ReadBillingEventRequest{
+		Data: &billingeventpb.BillingEvent{Id: billingEventID},
+	})
+	if err != nil || evResp == nil || len(evResp.GetData()) == 0 {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_not_found",
+			"Billing event not found [DEFAULT]",
+		))
+	}
+	ev := evResp.GetData()[0]
+	if ev.GetSubscriptionId() != sub.GetId() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_mismatch",
+			"Billing event does not belong to this subscription [DEFAULT]",
+		))
+	}
+	if ev.GetTrigger() != billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_VISIT_COMPLETED {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.ad_hoc_event_not_ready",
+			"Usage is not yet completed; cannot recognize revenue [DEFAULT]",
+		))
+	}
+	if ev.GetStatus() != billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.billing_event_not_ready",
+			"Billing event is not ready to be invoiced [DEFAULT]",
+		))
+	}
+
+	// Application-side idempotency mirrors milestone billing — DB partial
+	// unique index (codex CRIT-3) is the ultimate backstop.
+	priorRevenues := uc.listRevenuesForSubscription(ctx, sub.GetId())
+	for _, rev := range priorRevenues {
+		if rev.GetStatus() == "cancelled" {
+			continue
+		}
+		if rev.GetBillingEventId() == ev.GetId() {
+			conflictID := rev.GetId()
+			resp := &revenuepb.CreateRevenueWithLineItemsResponse{
+				Success:              false,
+				ConflictingRevenueId: &conflictID,
+				Error: &commonpb.Error{
+					Code: "conflicting_revenue_id",
+					Message: contextutil.GetTranslatedMessageWithContext(
+						ctx, uc.services.TranslationService,
+						"revenue.errors.ad_hoc_per_call_already_invoiced",
+						"This usage has already been invoiced [DEFAULT]",
+					),
+				},
+			}
+			return resp, errors.New(resp.GetError().GetMessage())
+		}
+	}
+
+	target := ev.GetBillableAmount()
+	if target <= 0 {
+		target = pricePlan.GetBillingAmount()
+	}
+	if target <= 0 {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"revenue.errors.invalid_target_amount",
+			"Bill amount must be greater than zero [DEFAULT]",
+		))
+	}
+
+	// Build the per-usage line. Description includes the event id suffix so
+	// operators can correlate the line back to the BillingEvent without a
+	// follow-on Job lookup. Phase D's drawer will enrich this with the
+	// usage_ordinal + request_date once the centymo view layer reads the Job.
+	desc := pricePlan.GetName()
+	if desc == "" {
+		desc = "Usage"
+	}
+	if evShort := ev.GetId(); len(evShort) > 0 {
+		short := evShort
+		if len(short) > 8 {
+			short = short[len(short)-8:]
+		}
+		desc = fmt.Sprintf("%s — Usage (%s)", desc, short)
+	}
+	periodStart := ""
+	periodEnd := ""
+
+	lines := []*revenuelineitempb.RevenueLineItem{
+		{
+			Description:  desc,
+			Quantity:     1,
+			UnitPrice:    target,
+			TotalPrice:   target,
+			LineItemType: "item",
+		},
+	}
+	previewLines := buildPreviewLines(lines, []string{treatmentOneTime})
+
+	if req.GetDryRun() {
+		return &revenuepb.CreateRevenueWithLineItemsResponse{
+			Success:      true,
+			PreviewLines: previewLines,
+		}, nil
+	}
+
+	revenueDate := strings.TrimSpace(req.GetRevenueDate())
+	if revenueDate == "" {
+		revenueDate = time.Now().UTC().Format("2006-01-02")
+	}
+
+	header := uc.buildHeader(req, sub, pricePlan, priceSchedule, client, planCurrency,
+		periodStart, periodEnd, revenueDate, target, nil)
+	beID := ev.GetId()
+	header.BillingEventId = &beID
+	if v := ev.GetJobPhaseId(); v != "" {
+		header.JobPhaseId = &v
+	}
+
+	createdRevenue, err := uc.persistRevenue(ctx, header)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.persistLineItems(ctx, createdRevenue.GetId(), lines); err != nil {
+		return nil, err
+	}
+
+	// Mark the BillingEvent BILLED.
+	mutated := proto.Clone(ev).(*billingeventpb.BillingEvent)
+	mutated.Status = billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_BILLED
+	mutated.BillableAmount = target
+	revenueID := createdRevenue.GetId()
+	mutated.RevenueId = &revenueID
+	billedAt := time.Now().UnixMilli()
+	mutated.BilledAt = &billedAt
+	if _, err := uc.repositories.BillingEvent.UpdateBillingEvent(
+		ctx, &billingeventpb.UpdateBillingEventRequest{Data: mutated},
+	); err != nil {
+		return nil, fmt.Errorf("update billing_event: %w", err)
 	}
 
 	return &revenuepb.CreateRevenueWithLineItemsResponse{

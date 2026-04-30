@@ -21,6 +21,7 @@ import (
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
@@ -39,13 +40,25 @@ import (
 // Algorithm: cyclic-subscription-jobs plan §3 (cycle algorithm), §4 (composition
 // with materialize-jobs), §5 (recognize-piggyback trigger contract).
 
-// ---- Skip reason constants (plan §3.7) ----
+// ---- Skip reason constants (plan §3.7 + ad-hoc plan §3.4) ----
 
 const (
 	InstanceSkipReasonNonCyclicPlan        = "non_cyclic_plan"
 	InstanceSkipReasonNoTemplate           = "no_template"
 	InstanceSkipReasonMilestoneUnsupported = "milestone_unsupported"
 	InstanceSkipReasonNoPendingCycles      = "no_pending_cycles"
+	// AD_HOC × TOTAL_PACKAGE: requested usage but used >= resolvedEntitlement.
+	InstanceSkipReasonEntitlementExhausted = "entitlement_exhausted"
+	// AD_HOC × TOTAL_PACKAGE without entitled_occurrences set on PricePlan
+	// (and no per-subscription override) — defensive; the validator should
+	// have blocked the PricePlan save.
+	InstanceSkipReasonEntitlementRequired = "entitlement_required"
+	// AD_HOC × {TOTAL_PACKAGE, PER_OCCURRENCE} without Plan.job_template_id —
+	// usage Jobs need ops tracking. Validator should have blocked at PricePlan
+	// save (see ad-hoc plan §6: pay_per_call_no_template + pool_no_template).
+	InstanceSkipReasonAdHocNoTemplate = "ad_hoc_no_template"
+	// AD_HOC × invalid amount_basis. Defensive — validator-only path.
+	InstanceSkipReasonAdHocInvalidBasis = "ad_hoc_invalid_basis"
 )
 
 // MaxBackfillCycles caps a single backfill request (plan §15 risk). If a
@@ -67,6 +80,10 @@ type MaterializeInstanceJobsForSubscriptionRepositories struct {
 	Job                 jobpb.JobDomainServiceServer
 	JobPhase            jobphasepb.JobPhaseDomainServiceServer
 	JobTask             jobtaskpb.JobTaskDomainServiceServer
+	// AD_HOC × PER_OCCURRENCE: a paired BillingEvent is created at usage spawn.
+	// Optional — when nil and PricePlan is AD_HOC × PER_OCCURRENCE, the use
+	// case returns a wired-out error so the operator sees the misconfig early.
+	BillingEvent billingeventpb.BillingEventDomainServiceServer
 }
 
 // MaterializeInstanceJobsForSubscriptionServices bundles the standard service
@@ -92,6 +109,11 @@ type MaterializeInstanceJobsForSubscriptionRequest struct {
 	SubscriptionId   string
 	CyclePeriodStart string
 	Backfill         bool
+
+	// AD_HOC only: operator-supplied request date for the new usage Job
+	// (ISO 8601 YYYY-MM-DD). Defaults to today (UTC) when empty. Ignored on
+	// cyclic plans.
+	UsageRequestDate string
 }
 
 // SpawnedInstanceCycle is one cycle's spawn result.
@@ -132,10 +154,10 @@ func NewMaterializeInstanceJobsForSubscriptionUseCase(
 
 // eligibleForInstanceSpawn reports whether the PricePlan's billing_kind
 // participates in the two-tier engagement+instance Job model. Cyclic kinds
-// drive auto-spawn at cycle boundaries; the AD_HOC plan (downstream) extends
-// this predicate with its own OR-branch — see plan §19.3.
+// drive auto-spawn at cycle boundaries; AD_HOC kinds drive operator-requested
+// usage spawns. See cyclic plan §19.3 + ad-hoc plan §3.1.
 //
-// NAMED FUNCTION: the AD_HOC plan extends this; do not inline.
+// NAMED FUNCTION: do not inline.
 func eligibleForInstanceSpawn(pp *priceplanpb.PricePlan) bool {
 	if pp == nil {
 		return false
@@ -147,8 +169,32 @@ func eligibleForInstanceSpawn(pp *priceplanpb.PricePlan) bool {
 	if kind == priceplanpb.BillingKind_BILLING_KIND_CONTRACT && pp.GetBillingCycleValue() > 0 {
 		return true
 	}
-	// Future: AD_HOC plan adds "|| kind == BILLING_KIND_AD_HOC" here.
+	if kind == priceplanpb.BillingKind_BILLING_KIND_AD_HOC {
+		return true
+	}
 	return false
+}
+
+// IsAdHoc returns true when the PricePlan uses the event-driven AD_HOC kind.
+// Both AD_HOC × TOTAL_PACKAGE (prepaid pool) and AD_HOC × PER_OCCURRENCE
+// (pay-per-call) flow through the same use case but diverge on entitlement
+// gate and BillingEvent spawn — see executeAdHoc.
+func IsAdHoc(pp *priceplanpb.PricePlan) bool {
+	if pp == nil {
+		return false
+	}
+	return pp.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_AD_HOC
+}
+
+// resolvedEntitlement returns the AD_HOC × TOTAL_PACKAGE pool size:
+// Subscription.entitled_occurrences_override (when > 0) wins over
+// PricePlan.entitled_occurrences. Codex MAJ-1: keeps the catalog template
+// shared while letting "Extend pool" be a per-subscription operation.
+func resolvedEntitlement(sub *subscriptionpb.Subscription, pp *priceplanpb.PricePlan) int32 {
+	if v := sub.GetEntitledOccurrencesOverride(); v > 0 {
+		return v
+	}
+	return pp.GetEntitledOccurrences()
 }
 
 // IsCyclic is the public mirror of eligibleForInstanceSpawn for callers that
@@ -222,6 +268,13 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 	}
 	templateID := plan.GetJobTemplateId()
 	if templateID == "" {
+		// AD_HOC has its own skip reason since the validator check differs
+		// (pool_no_template + pay_per_call_no_template — see ad-hoc plan §6).
+		if IsAdHoc(pricePlan) {
+			return &MaterializeInstanceJobsForSubscriptionResponse{
+				SkippedReason: InstanceSkipReasonAdHocNoTemplate,
+			}, nil
+		}
 		return &MaterializeInstanceJobsForSubscriptionResponse{
 			SkippedReason: InstanceSkipReasonNoTemplate,
 		}, nil
@@ -230,6 +283,13 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcs := now.Format(time.RFC3339)
+
+	// AD_HOC dispatch — fully separate write path. The cyclic algorithm
+	// below this branch is only invoked for RECURRING / CONTRACT-with-cycle.
+	// See ad-hoc plan §3.2.
+	if IsAdHoc(pricePlan) {
+		return uc.executeAdHoc(ctx, dc, dcs, now, sub, pricePlan, plan, req)
+	}
 
 	// Compute cycle window list.
 	cycleStarts, cappedAt, err := uc.computeCyclesToSpawn(ctx, sub, pricePlan, req, now)
@@ -1179,4 +1239,354 @@ func cycleJobName(sub *subscriptionpb.Subscription, cycleIdx int32) string {
 		return fmt.Sprintf("Cycle %d", cycleIdx)
 	}
 	return fmt.Sprintf("%s — Cycle %d", name, cycleIdx)
+}
+
+// usageJobName returns "<sub.name> — Usage <ordinal>" (or just "Usage <ordinal>"
+// when the subscription has no name). Vertical-neutral phrasing — the lyngua
+// layer overrides "Usage" to "Visit" / "Appointment" / "Service Call" / etc.
+// per business tier.
+func usageJobName(sub *subscriptionpb.Subscription, ordinal int32) string {
+	name := strings.TrimSpace(sub.GetName())
+	if name == "" {
+		return fmt.Sprintf("Usage %d", ordinal)
+	}
+	return fmt.Sprintf("%s — Usage %d", name, ordinal)
+}
+
+// ---- AD_HOC algorithm — executeAdHoc ----------------------------------------
+//
+// AD_HOC plans spawn one usage Job per operator request. Two variants:
+//   - TOTAL_PACKAGE  (prepaid pool):     gate on resolvedEntitlement; no BillingEvent
+//   - PER_OCCURRENCE (pay-per-call):     no gate; spawn paired BillingEvent
+//
+// Both variants share the engagement Job + ONCE_AT_ENGAGEMENT_START onboarding
+// path with cyclic plans. They diverge from cycle math only at the per-usage
+// spawn step.
+//
+// Idempotency: cycle_period_start carries the composite key
+// `YYYY-MM-DD#NNNN` (date + zero-padded ordinal). The cyclic plan's partial
+// unique index `(origin_id, cycle_period_start) WHERE parent_job_id IS NOT
+// NULL AND cycle_period_start IS NOT NULL` extends to AD_HOC for free —
+// codex CRIT-4. The usage_request_date + usage_ordinal companion columns
+// expose the parts for sort/query.
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
+	ctx context.Context, dc int64, dcs string, now time.Time,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	plan *planpb.Plan,
+	req MaterializeInstanceJobsForSubscriptionRequest,
+) (*MaterializeInstanceJobsForSubscriptionResponse, error) {
+	basis := pricePlan.GetAmountBasis()
+	if basis != priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE &&
+		basis != priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE {
+		return &MaterializeInstanceJobsForSubscriptionResponse{
+			SkippedReason: InstanceSkipReasonAdHocInvalidBasis,
+		}, nil
+	}
+	if basis == priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE && uc.repositories.BillingEvent == nil {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"subscription.errors.materialize_instance_jobs_billing_event_repo_required",
+			"BillingEvent repository is required for AD_HOC × PER_OCCURRENCE [DEFAULT]",
+		))
+	}
+
+	// Resolve usage request date — operator-supplied wins, otherwise today UTC.
+	requestDate := strings.TrimSpace(req.UsageRequestDate)
+	if requestDate == "" {
+		requestDate = now.UTC().Format("2006-01-02")
+	}
+	if _, err := time.Parse("2006-01-02", requestDate); err != nil {
+		return nil, fmt.Errorf("parse usage_request_date %q: %w", requestDate, err)
+	}
+
+	resp := &MaterializeInstanceJobsForSubscriptionResponse{}
+
+	writeFn := func(txCtx context.Context) error {
+		// Reset on retry.
+		resp.SpawnedCycles = resp.SpawnedCycles[:0]
+		resp.OnceAtStartJobs = resp.OnceAtStartJobs[:0]
+		resp.EngagementWasNewlyCreated = false
+		resp.SkippedReason = ""
+
+		engagementJob, isNew, err := uc.findOrCreateEngagementJob(txCtx, dc, dcs, sub, pricePlan)
+		if err != nil {
+			return err
+		}
+		resp.EngagementJob = engagementJob
+		resp.EngagementWasNewlyCreated = isNew
+
+		// First-call onboarding (mirrors cyclic path). Onboarding fires once
+		// per engagement regardless of kind.
+		isFirstEverCall, err := uc.isFirstEverCallAdHoc(txCtx, sub.GetId(), engagementJob.GetId())
+		if err != nil {
+			return err
+		}
+		if isFirstEverCall {
+			onceJobs, err := uc.spawnOnceAtEngagementStart(txCtx, dc, dcs, sub, pricePlan, plan, engagementJob)
+			if err != nil {
+				return err
+			}
+			resp.OnceAtStartJobs = onceJobs
+		}
+
+		// Count existing usage Jobs under this engagement. Equal to
+		// "redeemed_count" per ad-hoc plan §2.4.
+		used, err := uc.countUsageJobs(txCtx, sub.GetId(), engagementJob.GetId())
+		if err != nil {
+			return err
+		}
+
+		// TOTAL_PACKAGE entitlement gate.
+		if basis == priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE {
+			entitled := resolvedEntitlement(sub, pricePlan)
+			if entitled <= 0 {
+				resp.SkippedReason = InstanceSkipReasonEntitlementRequired
+				return nil
+			}
+			if used >= entitled {
+				resp.SkippedReason = InstanceSkipReasonEntitlementExhausted
+				return nil
+			}
+		}
+
+		ordinal := used + 1
+		visitKey := fmt.Sprintf("%s#%04d", requestDate, ordinal)
+
+		// Idempotency — partial unique index would catch a same-key INSERT.
+		// Read-side check sidesteps the wasted INSERT in the common path.
+		if existing, err := uc.findExistingCycleJob(txCtx, sub.GetId(), visitKey); err != nil {
+			return err
+		} else if existing != nil {
+			resp.SpawnedCycles = append(resp.SpawnedCycles, SpawnedInstanceCycle{
+				CycleIndex:       existing.GetCycleIndex(),
+				CyclePeriodStart: existing.GetCyclePeriodStart(),
+				Jobs:             []*jobpb.Job{existing},
+			})
+			return nil
+		}
+
+		usageJob, err := uc.spawnUsageJob(txCtx, dc, dcs, sub, pricePlan, plan, engagementJob,
+			ordinal, requestDate, visitKey, basis)
+		if err != nil {
+			return err
+		}
+		if err := uc.spawnPhasesAndTasks(txCtx, dc, dcs, usageJob, plan.GetJobTemplateId()); err != nil {
+			return err
+		}
+
+		// PER_OCCURRENCE: paired BillingEvent for per-visit billing audit.
+		if basis == priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE {
+			if err := uc.spawnAdHocBillingEvent(txCtx, dc, sub, pricePlan, usageJob); err != nil {
+				return err
+			}
+		}
+
+		resp.SpawnedCycles = append(resp.SpawnedCycles, SpawnedInstanceCycle{
+			CycleIndex:       ordinal,
+			CyclePeriodStart: visitKey,
+			Jobs:             []*jobpb.Job{usageJob},
+		})
+		return nil
+	}
+
+	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, writeFn); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := writeFn(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return resp, nil
+}
+
+// countUsageJobs returns the number of usage Jobs (parent_job_id == engagement,
+// usage_ordinal != NULL) under this subscription. Onboarding children are
+// excluded because they have no usage_ordinal. Equivalent to ad-hoc plan
+// §2.4's `COUNT(*)` query.
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) countUsageJobs(
+	ctx context.Context, originID, engagementJobID string,
+) (int32, error) {
+	rows, err := uc.listExistingJobsForOrigin(ctx, originID)
+	if err != nil {
+		return 0, err
+	}
+	var count int32
+	for _, j := range rows {
+		if j.GetParentJobId() != engagementJobID {
+			continue
+		}
+		if j.GetUsageOrdinal() == 0 {
+			continue
+		}
+		count++
+	}
+	return count, nil
+}
+
+// isFirstEverCallAdHoc mirrors isFirstEverCall but discriminates on
+// usage_ordinal rather than cycle_index. AD_HOC + cyclic engagements never
+// coexist (validator blocks AD_HOC × cycle_value > 0), so the two predicates
+// don't interact.
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) isFirstEverCallAdHoc(
+	ctx context.Context, originID, engagementJobID string,
+) (bool, error) {
+	rows, err := uc.listExistingJobsForOrigin(ctx, originID)
+	if err != nil {
+		return false, err
+	}
+	for _, j := range rows {
+		if j.GetParentJobId() != engagementJobID {
+			continue
+		}
+		if j.GetUsageOrdinal() == 0 {
+			continue
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+// spawnUsageJob writes one AD_HOC usage Job. cycle_period_start carries the
+// composite uniqueness key `YYYY-MM-DD#NNNN`; the date and ordinal also live
+// in usage_request_date + usage_ordinal for sort/query convenience.
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnUsageJob(
+	ctx context.Context, dc int64, dcs string,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	plan *planpb.Plan,
+	engagementJob *jobpb.Job,
+	ordinal int32, requestDate, visitKey string,
+	basis priceplanpb.AmountBasis,
+) (*jobpb.Job, error) {
+	tpl, err := uc.readJobTemplate(ctx, plan.GetJobTemplateId())
+	if err != nil {
+		return nil, err
+	}
+	if !tpl.GetActive() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.TranslationService,
+			"subscription.errors.template_inactive",
+			"job template is inactive [DEFAULT]",
+		))
+	}
+
+	jobID := ""
+	if uc.services.IDService != nil {
+		jobID = uc.services.IDService.GenerateID()
+	} else {
+		jobID = fmt.Sprintf("usg-%d", time.Now().UnixNano())
+	}
+	templateID := tpl.GetId()
+	originID := sub.GetId()
+	clientID := sub.GetClientId()
+	parentID := engagementJob.GetId()
+
+	// AD_HOC usage Jobs carry NON_BILLABLE because the billing trigger lives
+	// on the paired BillingEvent (for PER_OCCURRENCE) or on the pool invoice
+	// fired at Subscription.Create (for TOTAL_PACKAGE). Job-level rule type
+	// is operational metadata only.
+	billingRule := enumspb.BillingRuleType_BILLING_RULE_TYPE_NON_BILLABLE
+	_ = basis
+
+	ordinalLocal := ordinal
+	visitKeyLocal := visitKey
+	requestDateLocal := requestDate
+
+	job := &jobpb.Job{
+		Id:                 jobID,
+		Name:               usageJobName(sub, ordinal),
+		JobTemplateId:      &templateID,
+		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+		OriginId:           &originID,
+		ClientId:           &clientID,
+		Status:             enumspb.JobStatus_JOB_STATUS_PLANNED,
+		BillingRuleType:    billingRule,
+		Active:             true,
+		ParentJobId:        &parentID,
+		// AD_HOC reuses cycle_index as the per-engagement ordinal (visit/appointment/etc.)
+		// and cycle_period_start as the composite uniqueness key. The view
+		// layer parses back to date+ordinal via usage_request_date + usage_ordinal.
+		CycleIndex:         &ordinalLocal,
+		CyclePeriodStart:   &visitKeyLocal,
+		UsageRequestDate:   &requestDateLocal,
+		UsageOrdinal:       &ordinalLocal,
+		DateCreated:        &dc,
+		DateCreatedString:  &dcs,
+		DateModified:       &dc,
+		DateModifiedString: &dcs,
+	}
+	if tpl.DefaultFulfillmentType != nil {
+		job.FulfillmentType = *tpl.DefaultFulfillmentType
+	}
+	if tpl.DefaultCostFlowType != nil {
+		job.CostFlowType = *tpl.DefaultCostFlowType
+	}
+	if tpl.WorkspaceId != nil && *tpl.WorkspaceId != "" {
+		v := *tpl.WorkspaceId
+		job.WorkspaceId = &v
+	} else if wsID := contextutil.ExtractWorkspaceIDFromContext(ctx); wsID != "" {
+		v := wsID
+		job.WorkspaceId = &v
+	}
+	if tpl.Revision != nil {
+		v := *tpl.Revision
+		job.JobTemplateRevisionSnapshot = &v
+	}
+	if templateID != "" {
+		v := templateID
+		job.JobTemplateRevisionId = &v
+	}
+	_ = pricePlan
+
+	respCreate, err := uc.repositories.Job.CreateJob(ctx, &jobpb.CreateJobRequest{Data: job})
+	if err != nil {
+		return nil, fmt.Errorf("create_usage_job (ordinal=%d, key=%s): %w", ordinal, visitKey, err)
+	}
+	if respCreate != nil && len(respCreate.GetData()) > 0 {
+		return respCreate.GetData()[0], nil
+	}
+	return job, nil
+}
+
+// spawnAdHocBillingEvent creates a BillingEvent paired to a PER_OCCURRENCE
+// usage Job. status=UNSPECIFIED; trigger=UNSPECIFIED; flips to READY +
+// VISIT_COMPLETED when the visit's last phase completes (Phase C hook).
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnAdHocBillingEvent(
+	ctx context.Context, dc int64,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	usageJob *jobpb.Job,
+) error {
+	eventID := ""
+	if uc.services.IDService != nil {
+		eventID = uc.services.IDService.GenerateID()
+	} else {
+		eventID = fmt.Sprintf("evt-%d", time.Now().UnixNano())
+	}
+	jobID := usageJob.GetId()
+	dcLocal := dc
+	dcsLocal := time.UnixMilli(dc).UTC().Format(time.RFC3339)
+
+	event := &billingeventpb.BillingEvent{
+		Id:                 eventID,
+		SubscriptionId:     sub.GetId(),
+		JobId:              &jobID,
+		BillableAmount:     pricePlan.GetBillingAmount(),
+		BillingCurrency:    pricePlan.GetBillingCurrency(),
+		Status:             billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_UNSPECIFIED,
+		Trigger:            billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_UNSPECIFIED,
+		Active:             true,
+		DateCreated:        &dcLocal,
+		DateCreatedString:  &dcsLocal,
+		DateModified:       &dcLocal,
+		DateModifiedString: &dcsLocal,
+	}
+	if _, err := uc.repositories.BillingEvent.CreateBillingEvent(ctx,
+		&billingeventpb.CreateBillingEventRequest{Data: event}); err != nil {
+		return fmt.Errorf("create_ad_hoc_billing_event (job=%s): %w", jobID, err)
+	}
+	return nil
 }

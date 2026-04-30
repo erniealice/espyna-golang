@@ -17,10 +17,23 @@ import (
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
+
+// ---- BillingEvent stub (AD_HOC × PER_OCCURRENCE) ----
+
+type stubBillingEventRepo struct {
+	billingeventpb.UnimplementedBillingEventDomainServiceServer
+	created []*billingeventpb.BillingEvent
+}
+
+func (r *stubBillingEventRepo) CreateBillingEvent(_ context.Context, req *billingeventpb.CreateBillingEventRequest) (*billingeventpb.CreateBillingEventResponse, error) {
+	r.created = append(r.created, req.Data)
+	return &billingeventpb.CreateBillingEventResponse{Data: []*billingeventpb.BillingEvent{req.Data}, Success: true}, nil
+}
 
 // ============================================================================
 // Stub repositories for the cyclic-instance use case.
@@ -83,6 +96,8 @@ type instFixture struct {
 	jobs     *stubInstanceJobRepo
 	phases   *stubJobPhaseRepo
 	tasks    *stubJobTaskRepo
+	events   *stubBillingEventRepo
+	subRepo  *stubSubscriptionRepo
 }
 
 type instFixtureOpts struct {
@@ -90,10 +105,18 @@ type instFixtureOpts struct {
 	subDateTimeStart     time.Time
 	subName              string
 	billingKind          priceplanpb.BillingKind
+	amountBasis          priceplanpb.AmountBasis
+	billingAmount        int64
 	billingCycleValue    int32
 	billingCycleUnit     string
 	visitsPerCycle       int32
 	planJobTemplateID    string
+	// AD_HOC × TOTAL_PACKAGE knobs (codex MAJ-1).
+	entitledOccurrences         int32
+	entitledOccurrencesOverride int32
+	// AD_HOC × PER_OCCURRENCE: omit BillingEvent repo to exercise the
+	// repo-required error path.
+	omitBillingEventRepo bool
 	templates            map[string]*jobtemplatepb.JobTemplate
 	phasesByTpl          map[string][]*jobtemplatephasepb.JobTemplatePhase
 	tasksByPhase         map[string][]*jobtemplatetaskpb.JobTemplateTask
@@ -126,16 +149,19 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 		subName = "TestSub"
 	}
 
-	subRepo := &stubSubscriptionRepo{rows: map[string]*subscriptionpb.Subscription{
-		subID: {
-			Id:            subID,
-			Active:        subActive,
-			ClientId:      "client-1",
-			PricePlanId:   pricePlanID,
-			Name:          subName,
-			DateTimeStart: timestamppb.New(opts.subDateTimeStart),
-		},
-	}}
+	subRow := &subscriptionpb.Subscription{
+		Id:            subID,
+		Active:        subActive,
+		ClientId:      "client-1",
+		PricePlanId:   pricePlanID,
+		Name:          subName,
+		DateTimeStart: timestamppb.New(opts.subDateTimeStart),
+	}
+	if opts.entitledOccurrencesOverride > 0 {
+		v := opts.entitledOccurrencesOverride
+		subRow.EntitledOccurrencesOverride = &v
+	}
+	subRepo := &stubSubscriptionRepo{rows: map[string]*subscriptionpb.Subscription{subID: subRow}}
 
 	cycleVal := opts.billingCycleValue
 	cycleUnit := opts.billingCycleUnit
@@ -144,6 +170,8 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 		Active:          true,
 		PlanId:          planID,
 		BillingKind:     opts.billingKind,
+		AmountBasis:     opts.amountBasis,
+		BillingAmount:   opts.billingAmount,
 		BillingCurrency: "PHP",
 	}
 	if cycleVal > 0 {
@@ -152,6 +180,10 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 	}
 	if cycleUnit != "" {
 		pp.BillingCycleUnit = &cycleUnit
+	}
+	if opts.entitledOccurrences > 0 {
+		v := opts.entitledOccurrences
+		pp.EntitledOccurrences = &v
 	}
 	ppRepo := &stubPricePlanRepo{rows: map[string]*priceplanpb.PricePlan{pricePlanID: pp}}
 
@@ -191,20 +223,25 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 	jobRepo := &stubInstanceJobRepo{preExisting: opts.preExistingJobs}
 	jobPhaseRepo := &stubJobPhaseRepo{}
 	jobTaskRepo := &stubJobTaskRepo{}
+	eventRepo := &stubBillingEventRepo{}
 
+	repos := MaterializeInstanceJobsForSubscriptionRepositories{
+		Subscription:        subRepo,
+		PricePlan:           ppRepo,
+		Plan:                planRepo,
+		JobTemplate:         tplRepo,
+		JobTemplatePhase:    phaseRepo,
+		JobTemplateTask:     taskRepo,
+		JobTemplateRelation: relRepo,
+		Job:                 jobRepo,
+		JobPhase:            jobPhaseRepo,
+		JobTask:             jobTaskRepo,
+	}
+	if !opts.omitBillingEventRepo {
+		repos.BillingEvent = eventRepo
+	}
 	uc := NewMaterializeInstanceJobsForSubscriptionUseCase(
-		MaterializeInstanceJobsForSubscriptionRepositories{
-			Subscription:        subRepo,
-			PricePlan:           ppRepo,
-			Plan:                planRepo,
-			JobTemplate:         tplRepo,
-			JobTemplatePhase:    phaseRepo,
-			JobTemplateTask:     taskRepo,
-			JobTemplateRelation: relRepo,
-			Job:                 jobRepo,
-			JobPhase:            jobPhaseRepo,
-			JobTask:             jobTaskRepo,
-		},
+		repos,
 		MaterializeInstanceJobsForSubscriptionServices{
 			AuthorizationService: ports.NewNoOpAuthorizationService(),
 			TransactionService:   stubTxService{},
@@ -212,7 +249,7 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 			IDService:            ports.NewNoOpIDService(),
 		},
 	)
-	return &instFixture{uc: uc, jobs: jobRepo, phases: jobPhaseRepo, tasks: jobTaskRepo}
+	return &instFixture{uc: uc, jobs: jobRepo, phases: jobPhaseRepo, tasks: jobTaskRepo, events: eventRepo, subRepo: subRepo}
 }
 
 // hasFieldExplicitlyFalse is a tiny helper so callers can distinguish "default
@@ -909,6 +946,8 @@ func TestEligibleForInstanceSpawn(t *testing.T) {
 		{"contract_without_cycle", &priceplanpb.PricePlan{BillingKind: priceplanpb.BillingKind_BILLING_KIND_CONTRACT}, false},
 		{"one_time", &priceplanpb.PricePlan{BillingKind: priceplanpb.BillingKind_BILLING_KIND_ONE_TIME}, false},
 		{"milestone", &priceplanpb.PricePlan{BillingKind: priceplanpb.BillingKind_BILLING_KIND_MILESTONE}, false},
+		{"ad_hoc_total_package", &priceplanpb.PricePlan{BillingKind: priceplanpb.BillingKind_BILLING_KIND_AD_HOC, AmountBasis: priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE}, true},
+		{"ad_hoc_per_occurrence", &priceplanpb.PricePlan{BillingKind: priceplanpb.BillingKind_BILLING_KIND_AD_HOC, AmountBasis: priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE}, true},
 		{"nil", nil, false},
 	}
 	for _, tc := range cases {
@@ -919,6 +958,331 @@ func TestEligibleForInstanceSpawn(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// AD_HOC test cases (ad-hoc-subscription-billing plan §10.1)
+// ============================================================================
+
+// Common fixture for AD_HOC tests.
+func adHocFixture(t *testing.T, opts instFixtureOpts) *instFixture {
+	t.Helper()
+	rootID := "tpl-aircon"
+	if opts.planJobTemplateID == "" {
+		opts.planJobTemplateID = rootID
+	}
+	if opts.templates == nil {
+		opts.templates = map[string]*jobtemplatepb.JobTemplate{
+			rootID: {Id: rootID, Active: true, Name: "Aircon Service"},
+		}
+	}
+	if opts.subActive == false && opts.billingKind == priceplanpb.BillingKind_BILLING_KIND_UNSPECIFIED {
+		opts.subActive = true
+		opts.billingKind = priceplanpb.BillingKind_BILLING_KIND_AD_HOC
+	}
+	if opts.billingAmount == 0 {
+		opts.billingAmount = 2_500_00 // ₱2,500.00 per visit
+	}
+	return newInstFixture(t, opts)
+}
+
+// AdHoc-1: AD_HOC × TOTAL_PACKAGE, fresh sub, request 1 visit → 1 usage Job,
+// ordinal=1, no BillingEvent.
+func TestMaterializeInstanceJobs_AdHoc1_PoolFreshSpawnsOneVisit(t *testing.T) {
+	f := adHocFixture(t, instFixtureOpts{
+		subActive:           true,
+		billingKind:         priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis:         priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE,
+		entitledOccurrences: 5,
+		billingAmount:       25_000_00,
+	})
+	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId:   "sub-1",
+		UsageRequestDate: "2026-09-12",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.SkippedReason != "" {
+		t.Fatalf("unexpected skip: %q", resp.SkippedReason)
+	}
+	if len(resp.SpawnedCycles) != 1 || len(resp.SpawnedCycles[0].Jobs) != 1 {
+		t.Fatalf("expected 1 spawned usage; got %+v", resp.SpawnedCycles)
+	}
+	job := resp.SpawnedCycles[0].Jobs[0]
+	if job.GetUsageOrdinal() != 1 {
+		t.Errorf("usage_ordinal want 1, got %d", job.GetUsageOrdinal())
+	}
+	if job.GetUsageRequestDate() != "2026-09-12" {
+		t.Errorf("usage_request_date want 2026-09-12, got %q", job.GetUsageRequestDate())
+	}
+	if got, want := job.GetCyclePeriodStart(), "2026-09-12#0001"; got != want {
+		t.Errorf("composite cycle_period_start want %q, got %q", want, got)
+	}
+	if len(f.events.created) != 0 {
+		t.Errorf("TOTAL_PACKAGE must NOT spawn BillingEvent; got %d", len(f.events.created))
+	}
+}
+
+// AdHoc-2: AD_HOC × PER_OCCURRENCE, fresh sub → 1 usage Job + 1 BillingEvent
+// (status=UNSPECIFIED, trigger=UNSPECIFIED, billable_amount = pricePlan.amount).
+func TestMaterializeInstanceJobs_AdHoc2_PerCallSpawnsBillingEvent(t *testing.T) {
+	f := adHocFixture(t, instFixtureOpts{
+		subActive:     true,
+		billingKind:   priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis:   priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE,
+		billingAmount: 2_500_00,
+	})
+	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId:   "sub-1",
+		UsageRequestDate: "2026-09-12",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.SkippedReason != "" {
+		t.Fatalf("unexpected skip: %q", resp.SkippedReason)
+	}
+	if len(f.events.created) != 1 {
+		t.Fatalf("PER_OCCURRENCE must spawn 1 BillingEvent; got %d", len(f.events.created))
+	}
+	ev := f.events.created[0]
+	if ev.GetSubscriptionId() != "sub-1" {
+		t.Errorf("event.subscription_id want sub-1, got %q", ev.GetSubscriptionId())
+	}
+	if ev.GetJobId() != resp.SpawnedCycles[0].Jobs[0].GetId() {
+		t.Errorf("event.job_id must point at the usage Job")
+	}
+	if ev.GetStatus() != billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_UNSPECIFIED {
+		t.Errorf("event.status want UNSPECIFIED, got %v", ev.GetStatus())
+	}
+	if ev.GetTrigger() != billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_UNSPECIFIED {
+		t.Errorf("event.trigger want UNSPECIFIED, got %v", ev.GetTrigger())
+	}
+	if ev.GetBillableAmount() != 2_500_00 {
+		t.Errorf("event.billable_amount want 250000, got %d", ev.GetBillableAmount())
+	}
+}
+
+// AdHoc-3: AD_HOC × TOTAL_PACKAGE, 5 visits used, request 6th → entitlement_exhausted.
+func TestMaterializeInstanceJobs_AdHoc3_PoolEntitlementExhausted(t *testing.T) {
+	// Pre-seed engagement + 5 prior usage Jobs.
+	pre := []*jobpb.Job{
+		mkEngagementShell("eng-1", "sub-1"),
+	}
+	for i := int32(1); i <= 5; i++ {
+		pre = append(pre, mkUsageJob("usg-"+rune2s(i), "sub-1", "eng-1", i, "2026-08-0"+rune2s(i)))
+	}
+	f := adHocFixture(t, instFixtureOpts{
+		subActive:           true,
+		billingKind:         priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis:         priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE,
+		entitledOccurrences: 5,
+		preExistingJobs:     pre,
+	})
+	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId:   "sub-1",
+		UsageRequestDate: "2026-09-12",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.SkippedReason != InstanceSkipReasonEntitlementExhausted {
+		t.Fatalf("want entitlement_exhausted, got %q", resp.SkippedReason)
+	}
+	if len(resp.SpawnedCycles) != 0 {
+		t.Errorf("blocked spawn must NOT add cycle entries; got %+v", resp.SpawnedCycles)
+	}
+}
+
+// AdHoc-4: Subscription override beats PricePlan template (codex MAJ-1).
+// Template entitled=3, override=10, used=5 → next spawn allowed.
+func TestMaterializeInstanceJobs_AdHoc4_PoolUsesOverrideOverTemplate(t *testing.T) {
+	pre := []*jobpb.Job{mkEngagementShell("eng-1", "sub-1")}
+	for i := int32(1); i <= 5; i++ {
+		pre = append(pre, mkUsageJob("usg-"+rune2s(i), "sub-1", "eng-1", i, "2026-08-0"+rune2s(i)))
+	}
+	f := adHocFixture(t, instFixtureOpts{
+		subActive:                   true,
+		billingKind:                 priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis:                 priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE,
+		entitledOccurrences:         3,  // template default
+		entitledOccurrencesOverride: 10, // per-subscription extension
+		preExistingJobs:             pre,
+	})
+	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId:   "sub-1",
+		UsageRequestDate: "2026-09-12",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.SkippedReason != "" {
+		t.Fatalf("override should permit spawn; got skip %q", resp.SkippedReason)
+	}
+	if len(resp.SpawnedCycles) != 1 || resp.SpawnedCycles[0].Jobs[0].GetUsageOrdinal() != 6 {
+		t.Errorf("expected ordinal=6 spawn under override; got %+v", resp.SpawnedCycles)
+	}
+}
+
+// AdHoc-5: AD_HOC without Plan.job_template_id skips with ad_hoc_no_template.
+// (Validator at PricePlan save should also block this combo per ad-hoc plan
+// §6: pool_no_template + pay_per_call_no_template — defensive coverage here.)
+func TestMaterializeInstanceJobs_AdHoc5_NoTemplateSkips(t *testing.T) {
+	// Build directly without adHocFixture so we can leave job_template_id nil.
+	f := newInstFixture(t, instFixtureOpts{
+		subActive:           true,
+		billingKind:         priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis:         priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE,
+		entitledOccurrences: 5,
+		// planJobTemplateID intentionally empty — fixture leaves Plan.job_template_id nil.
+	})
+	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId:   "sub-1",
+		UsageRequestDate: "2026-09-12",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.SkippedReason != InstanceSkipReasonAdHocNoTemplate {
+		t.Errorf("want ad_hoc_no_template; got %q", resp.SkippedReason)
+	}
+	if len(resp.SpawnedCycles) != 0 {
+		t.Errorf("no usage Job should be created when template is missing")
+	}
+}
+
+// AdHoc-6: ordinal increments across consecutive spawns on the same date.
+// 3 usages on the same date → ordinals 1, 2, 3; composite keys are distinct
+// even though usage_request_date repeats.
+func TestMaterializeInstanceJobs_AdHoc6_OrdinalIncrementsSameDay(t *testing.T) {
+	f := adHocFixture(t, instFixtureOpts{
+		subActive:     true,
+		billingKind:   priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis:   priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE,
+		billingAmount: 2_500_00,
+	})
+	ctx := context.Background()
+	for i := 1; i <= 3; i++ {
+		resp, err := f.uc.Execute(ctx, MaterializeInstanceJobsForSubscriptionRequest{
+			SubscriptionId:   "sub-1",
+			UsageRequestDate: "2026-09-12",
+		})
+		if err != nil {
+			t.Fatalf("Execute #%d: %v", i, err)
+		}
+		if resp.SkippedReason != "" {
+			t.Fatalf("Execute #%d skipped: %q", i, resp.SkippedReason)
+		}
+		got := resp.SpawnedCycles[0].Jobs[0]
+		if int(got.GetUsageOrdinal()) != i {
+			t.Errorf("call %d: usage_ordinal want %d, got %d", i, i, got.GetUsageOrdinal())
+		}
+	}
+	// All 3 composite keys must be distinct so the partial unique index doesn't fire.
+	keys := map[string]bool{}
+	for _, j := range f.jobs.created {
+		if j.GetParentJobId() == "" {
+			continue
+		}
+		keys[j.GetCyclePeriodStart()] = true
+	}
+	if len(keys) != 3 {
+		t.Errorf("expected 3 distinct composite keys, got %v", keys)
+	}
+	if len(f.events.created) != 3 {
+		t.Errorf("expected 3 BillingEvents (one per PER_OCCURRENCE usage), got %d", len(f.events.created))
+	}
+}
+
+// AdHoc-7: AD_HOC × PER_OCCURRENCE without BillingEvent repo errors before
+// any Job is created.
+func TestMaterializeInstanceJobs_AdHoc7_PerCallNoBillingEventRepoErrors(t *testing.T) {
+	f := adHocFixture(t, instFixtureOpts{
+		subActive:            true,
+		billingKind:          priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis:          priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE,
+		billingAmount:        2_500_00,
+		omitBillingEventRepo: true,
+	})
+	_, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId:   "sub-1",
+		UsageRequestDate: "2026-09-12",
+	})
+	if err == nil {
+		t.Fatalf("expected error when BillingEvent repo is nil for PER_OCCURRENCE")
+	}
+	if !strings.Contains(err.Error(), "BillingEvent") {
+		t.Errorf("expected BillingEvent error, got %v", err)
+	}
+	if len(f.jobs.created) != 0 {
+		t.Errorf("repo-required check must run before any Job is created; got %d", len(f.jobs.created))
+	}
+}
+
+// AdHoc-8: AD_HOC × invalid amount_basis (PER_CYCLE) → ad_hoc_invalid_basis skip.
+func TestMaterializeInstanceJobs_AdHoc8_InvalidBasisSkips(t *testing.T) {
+	f := adHocFixture(t, instFixtureOpts{
+		subActive:   true,
+		billingKind: priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
+		amountBasis: priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE, // illegal
+	})
+	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId: "sub-1",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.SkippedReason != InstanceSkipReasonAdHocInvalidBasis {
+		t.Errorf("want ad_hoc_invalid_basis; got %q", resp.SkippedReason)
+	}
+}
+
+// ---- AD_HOC fixture helpers ----
+
+func mkEngagementShell(jobID, subID string) *jobpb.Job {
+	originID := subID
+	clientID := "client-1"
+	return &jobpb.Job{
+		Id:         jobID,
+		OriginType: enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+		OriginId:   &originID,
+		ClientId:   &clientID,
+		Active:     true,
+	}
+}
+
+func mkUsageJob(jobID, subID, parentID string, ordinal int32, requestDate string) *jobpb.Job {
+	originID := subID
+	parent := parentID
+	clientID := "client-1"
+	idx := ordinal
+	rd := requestDate
+	composite := requestDate + "#" + zeroPad4(ordinal)
+	return &jobpb.Job{
+		Id:                 jobID,
+		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+		OriginId:           &originID,
+		ClientId:           &clientID,
+		ParentJobId:        &parent,
+		CycleIndex:         &idx,
+		CyclePeriodStart:   &composite,
+		UsageRequestDate:   &rd,
+		UsageOrdinal:       &idx,
+		Active:             true,
+	}
+}
+
+func zeroPad4(n int32) string {
+	s := ""
+	for _, d := range []int32{1000, 100, 10, 1} {
+		v := (n / d) % 10
+		s += string(rune('0' + v))
+	}
+	return s
+}
+
+// rune2s converts a single-digit int32 to its ASCII representation. Test-only.
+func rune2s(n int32) string { return string(rune('0' + (n % 10))) }
 
 // ---- Compile-time assert: usage of common imports avoid "unused" errors. ----
 

@@ -634,6 +634,9 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				Job:                 operationRepos.Job,
 				JobPhase:            operationRepos.JobPhase,
 				JobTask:             operationRepos.JobTask,
+				// AD_HOC × PER_OCCURRENCE spawns paired BillingEvents.
+				// See ad-hoc-subscription-billing plan §3.2.
+				BillingEvent:        subscriptionRepos.BillingEvent,
 			},
 			subscriptionUseCase.MaterializeInstanceJobsForSubscriptionServices{
 				AuthorizationService: authSvc,

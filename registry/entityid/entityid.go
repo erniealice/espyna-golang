@@ -51,25 +51,25 @@ const (
 
 // Entity domain
 const (
-	Admin             = "admin"
-	Client            = "client"
-	ClientAttribute   = "client_attribute"
-	ClientCategory    = "client_category"
-	Delegate          = "delegate"
-	DelegateAttribute = "delegate_attribute"
-	DelegateClient    = "delegate_client"
-	Group             = "group"
-	GroupAttribute    = "group_attribute"
-	Location          = "location"
-	LocationArea      = "location_area"
-	LocationAttribute = "location_attribute"
-	Permission        = "permission"
-	Role              = "role"
-	RolePermission    = "role_permission"
-	Staff             = "staff"
-	StaffAttribute    = "staff_attribute"
-	PaymentTerm       = "payment_term"
-	Session           = "session"
+	Admin                  = "admin"
+	Client                 = "client"
+	ClientAttribute        = "client_attribute"
+	ClientCategory         = "client_category"
+	Delegate               = "delegate"
+	DelegateAttribute      = "delegate_attribute"
+	DelegateClient         = "delegate_client"
+	Group                  = "group"
+	GroupAttribute         = "group_attribute"
+	Location               = "location"
+	LocationArea           = "location_area"
+	LocationAttribute      = "location_attribute"
+	Permission             = "permission"
+	Role                   = "role"
+	RolePermission         = "role_permission"
+	Staff                  = "staff"
+	StaffAttribute         = "staff_attribute"
+	PaymentTerm            = "payment_term"
+	Session                = "session"
 	Supplier               = "supplier"
 	SupplierAttribute      = "supplier_attribute"
 	SupplierCategory       = "supplier_category"
@@ -83,16 +83,16 @@ const (
 
 // Event domain
 const (
-	Event               = "event"
-	EventAttendee       = "event_attendee"
-	EventAttribute      = "event_attribute"
-	EventClient         = "event_client"
-	EventOccurrence     = "event_occurrence"
-	EventProduct        = "event_product"
-	EventRecurrence     = "event_recurrence"
-	EventResource       = "event_resource"
-	EventTag            = "event_tag"
-	EventTagAssignment  = "event_tag_assignment"
+	Event              = "event"
+	EventAttendee      = "event_attendee"
+	EventAttribute     = "event_attribute"
+	EventClient        = "event_client"
+	EventOccurrence    = "event_occurrence"
+	EventProduct       = "event_product"
+	EventRecurrence    = "event_recurrence"
+	EventResource      = "event_resource"
+	EventTag           = "event_tag"
+	EventTagAssignment = "event_tag_assignment"
 )
 
 // Product domain
@@ -126,14 +126,14 @@ const (
 
 // Expenditure domain
 const (
-	Expenditure                = "expenditure"
-	ExpenditureAttribute       = "expenditure_attribute"
-	ExpenditureCategory        = "expenditure_category"
-	ExpenditureLineItem        = "expenditure_line_item"
-	SupplierContract           = "supplier_contract"
-	SupplierContractLine       = "supplier_contract_line"
-	ProcurementRequest         = "procurement_request"
-	ProcurementRequestLine     = "procurement_request_line"
+	Expenditure            = "expenditure"
+	ExpenditureAttribute   = "expenditure_attribute"
+	ExpenditureCategory    = "expenditure_category"
+	ExpenditureLineItem    = "expenditure_line_item"
+	SupplierContract       = "supplier_contract"
+	SupplierContractLine   = "supplier_contract_line"
+	ProcurementRequest     = "procurement_request"
+	ProcurementRequestLine = "procurement_request_line"
 )
 
 // Inventory domain
@@ -199,14 +199,14 @@ const (
 	JobTemplateTask     = "job_template_task"
 	JobTemplateRelation = "job_template_relation"
 	Job                 = "job"
-	JobPhase          = "job_phase"
-	JobTask           = "job_task"
-	JobActivity       = "job_activity"
-	ActivityLabor     = "activity_labor"
-	ActivityMaterial  = "activity_material"
-	ActivityExpense   = "activity_expense"
-	JobSettlement     = "job_settlement"
-	InventoryMovement = "inventory_movement"
+	JobPhase            = "job_phase"
+	JobTask             = "job_task"
+	JobActivity         = "job_activity"
+	ActivityLabor       = "activity_labor"
+	ActivityMaterial    = "activity_material"
+	ActivityExpense     = "activity_expense"
+	JobSettlement       = "job_settlement"
+	InventoryMovement   = "inventory_movement"
 )
 
 // Operation domain — Layer 7: Outcome
@@ -259,6 +259,21 @@ const (
 const (
 	PurchaseOrder         = "purchase_order"
 	PurchaseOrderLineItem = "purchase_order_line_item"
+)
+
+// Expenditure domain — Supplier Pricing Symmetry (SPS Wave 2: 2026-04-30)
+//
+// SupplierContractPriceSchedule + Line model date-windowed pricing under a
+// supplier contract (mirrors the sales-side PriceSchedule). ExpenseRecognition
+// + Line model accrual-basis recognized expense (mirrors Revenue). AccruedExpense
+// + Settlement model accrual-side commitments (no sales-side counterpart).
+const (
+	SupplierContractPriceSchedule     = "supplier_contract_price_schedule"
+	SupplierContractPriceScheduleLine = "supplier_contract_price_schedule_line"
+	ExpenseRecognition                = "expense_recognition"
+	ExpenseRecognitionLine            = "expense_recognition_line"
+	AccruedExpense                    = "accrued_expense"
+	AccruedExpenseSettlement          = "accrued_expense_settlement"
 )
 
 // Revenue domain — Deferred Revenue (extends existing Revenue)
@@ -329,6 +344,10 @@ var ExpenditureEntities = []string{
 	Prepayment, PurchaseOrder, PurchaseOrderLineItem,
 	SupplierContract, SupplierContractLine,
 	ProcurementRequest, ProcurementRequestLine,
+	// SPS Wave 2 (2026-04-30)
+	SupplierContractPriceSchedule, SupplierContractPriceScheduleLine,
+	ExpenseRecognition, ExpenseRecognitionLine,
+	AccruedExpense, AccruedExpenseSettlement,
 }
 
 // InventoryEntities lists all entity IDs in the Inventory domain.

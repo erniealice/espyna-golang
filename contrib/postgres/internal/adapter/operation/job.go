@@ -282,7 +282,10 @@ func (r *PostgresJobRepository) GetJobListPageData(
 				j.posting_status,
 				j.billing_status,
 				j.location_id,
-				j.created_by
+				j.created_by,
+				j.cycle_index,
+				j.cycle_period_start,
+				j.cycle_period_end
 			FROM job j
 			WHERE j.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -310,26 +313,29 @@ func (r *PostgresJobRepository) GetJobListPageData(
 
 	for rows.Next() {
 		var (
-			id              string
-			dateCreated     time.Time
-			dateModified    time.Time
-			active          bool
-			name            string
-			jobTemplateID   sql.NullString
-			originType      sql.NullString
-			originID        sql.NullString
-			clientID        sql.NullString
-			demandType      sql.NullString
-			fulfillmentType sql.NullString
-			costFlowType    sql.NullString
-			billingRuleType sql.NullString
-			status          sql.NullString
-			approvalStatus  sql.NullString
-			postingStatus   sql.NullString
-			billingStatus   sql.NullString
-			locationID      sql.NullString
-			createdBy       sql.NullString
-			total           int64
+			id               string
+			dateCreated      time.Time
+			dateModified     time.Time
+			active           bool
+			name             string
+			jobTemplateID    sql.NullString
+			originType       sql.NullString
+			originID         sql.NullString
+			clientID         sql.NullString
+			demandType       sql.NullString
+			fulfillmentType  sql.NullString
+			costFlowType     sql.NullString
+			billingRuleType  sql.NullString
+			status           sql.NullString
+			approvalStatus   sql.NullString
+			postingStatus    sql.NullString
+			billingStatus    sql.NullString
+			locationID       sql.NullString
+			createdBy        sql.NullString
+			cycleIndex       sql.NullInt32
+			cyclePeriodStart sql.NullString
+			cyclePeriodEnd   sql.NullString
+			total            int64
 		)
 
 		err := rows.Scan(
@@ -352,6 +358,9 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			&billingStatus,
 			&locationID,
 			&createdBy,
+			&cycleIndex,
+			&cyclePeriodStart,
+			&cyclePeriodEnd,
 			&total,
 		)
 		if err != nil {
@@ -380,6 +389,15 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		}
 		if createdBy.Valid {
 			job.CreatedBy = &createdBy.String
+		}
+		if cycleIndex.Valid {
+			job.CycleIndex = &cycleIndex.Int32
+		}
+		if cyclePeriodStart.Valid {
+			job.CyclePeriodStart = &cyclePeriodStart.String
+		}
+		if cyclePeriodEnd.Valid {
+			job.CyclePeriodEnd = &cyclePeriodEnd.String
 		}
 
 		// Map enum strings to proto enums
@@ -502,7 +520,10 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 			j.posting_status,
 			j.billing_status,
 			j.location_id,
-			j.created_by
+			j.created_by,
+			j.cycle_index,
+			j.cycle_period_start,
+			j.cycle_period_end
 		FROM job j
 		WHERE j.id = $1 AND j.active = true
 	`
@@ -510,25 +531,28 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.JobId)
 
 	var (
-		id              string
-		dateCreated     time.Time
-		dateModified    time.Time
-		active          bool
-		name            string
-		jobTemplateID   sql.NullString
-		originType      sql.NullString
-		originID        sql.NullString
-		clientID        sql.NullString
-		demandType      sql.NullString
-		fulfillmentType sql.NullString
-		costFlowType    sql.NullString
-		billingRuleType sql.NullString
-		status          sql.NullString
-		approvalStatus  sql.NullString
-		postingStatus   sql.NullString
-		billingStatus   sql.NullString
-		locationID      sql.NullString
-		createdBy       sql.NullString
+		id               string
+		dateCreated      time.Time
+		dateModified     time.Time
+		active           bool
+		name             string
+		jobTemplateID    sql.NullString
+		originType       sql.NullString
+		originID         sql.NullString
+		clientID         sql.NullString
+		demandType       sql.NullString
+		fulfillmentType  sql.NullString
+		costFlowType     sql.NullString
+		billingRuleType  sql.NullString
+		status           sql.NullString
+		approvalStatus   sql.NullString
+		postingStatus    sql.NullString
+		billingStatus    sql.NullString
+		locationID       sql.NullString
+		createdBy        sql.NullString
+		cycleIndex       sql.NullInt32
+		cyclePeriodStart sql.NullString
+		cyclePeriodEnd   sql.NullString
 	)
 
 	err := row.Scan(
@@ -551,6 +575,9 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 		&billingStatus,
 		&locationID,
 		&createdBy,
+		&cycleIndex,
+		&cyclePeriodStart,
+		&cyclePeriodEnd,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("job with ID '%s' not found", req.JobId)
@@ -579,6 +606,15 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 	}
 	if createdBy.Valid {
 		job.CreatedBy = &createdBy.String
+	}
+	if cycleIndex.Valid {
+		job.CycleIndex = &cycleIndex.Int32
+	}
+	if cyclePeriodStart.Valid {
+		job.CyclePeriodStart = &cyclePeriodStart.String
+	}
+	if cyclePeriodEnd.Valid {
+		job.CyclePeriodEnd = &cyclePeriodEnd.String
 	}
 
 	if originType.Valid {
@@ -660,7 +696,8 @@ func (r *PostgresJobRepository) GetJobsByClient(
 		       job_template_id, origin_type, origin_id, client_id,
 		       demand_type, fulfillment_type, cost_flow_type, billing_rule_type,
 		       status, approval_status, posting_status, billing_status,
-		       location_id, created_by, parent_job_id
+		       location_id, created_by, parent_job_id,
+		       cycle_index, cycle_period_start, cycle_period_end
 		FROM %s
 		WHERE client_id = $1 AND active = true
 		ORDER BY date_created DESC
@@ -697,7 +734,8 @@ func (r *PostgresJobRepository) GetJobsByOrigin(
 		       job_template_id, origin_type, origin_id, client_id,
 		       demand_type, fulfillment_type, cost_flow_type, billing_rule_type,
 		       status, approval_status, posting_status, billing_status,
-		       location_id, created_by, parent_job_id
+		       location_id, created_by, parent_job_id,
+		       cycle_index, cycle_period_start, cycle_period_end
 		FROM %s
 		WHERE origin_type = $1 AND origin_id = $2 AND active = true
 		ORDER BY parent_job_id NULLS FIRST, date_created ASC
@@ -782,26 +820,29 @@ func (r *PostgresJobRepository) scanJobRows(rows *sql.Rows) ([]*pb.Job, error) {
 
 	for rows.Next() {
 		var (
-			id              string
-			dateCreated     time.Time
-			dateModified    time.Time
-			active          bool
-			name            string
-			jobTemplateID   sql.NullString
-			originType      sql.NullString
-			originID        sql.NullString
-			clientID        sql.NullString
-			demandType      sql.NullString
-			fulfillmentType sql.NullString
-			costFlowType    sql.NullString
-			billingRuleType sql.NullString
-			status          sql.NullString
-			approvalStatus  sql.NullString
-			postingStatus   sql.NullString
-			billingStatus   sql.NullString
-			locationID      sql.NullString
-			createdBy       sql.NullString
-			parentJobID     sql.NullString
+			id               string
+			dateCreated      time.Time
+			dateModified     time.Time
+			active           bool
+			name             string
+			jobTemplateID    sql.NullString
+			originType       sql.NullString
+			originID         sql.NullString
+			clientID         sql.NullString
+			demandType       sql.NullString
+			fulfillmentType  sql.NullString
+			costFlowType     sql.NullString
+			billingRuleType  sql.NullString
+			status           sql.NullString
+			approvalStatus   sql.NullString
+			postingStatus    sql.NullString
+			billingStatus    sql.NullString
+			locationID       sql.NullString
+			createdBy        sql.NullString
+			parentJobID      sql.NullString
+			cycleIndex       sql.NullInt32
+			cyclePeriodStart sql.NullString
+			cyclePeriodEnd   sql.NullString
 		)
 
 		if err := rows.Scan(
@@ -810,6 +851,7 @@ func (r *PostgresJobRepository) scanJobRows(rows *sql.Rows) ([]*pb.Job, error) {
 			&demandType, &fulfillmentType, &costFlowType, &billingRuleType,
 			&status, &approvalStatus, &postingStatus, &billingStatus,
 			&locationID, &createdBy, &parentJobID,
+			&cycleIndex, &cyclePeriodStart, &cyclePeriodEnd,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan job row: %w", err)
 		}
@@ -837,6 +879,15 @@ func (r *PostgresJobRepository) scanJobRows(rows *sql.Rows) ([]*pb.Job, error) {
 		}
 		if parentJobID.Valid {
 			job.ParentJobId = &parentJobID.String
+		}
+		if cycleIndex.Valid {
+			job.CycleIndex = &cycleIndex.Int32
+		}
+		if cyclePeriodStart.Valid {
+			job.CyclePeriodStart = &cyclePeriodStart.String
+		}
+		if cyclePeriodEnd.Valid {
+			job.CyclePeriodEnd = &cyclePeriodEnd.String
 		}
 
 		if originType.Valid {

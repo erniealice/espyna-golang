@@ -84,6 +84,18 @@ type SubscriptionUseCases struct {
 	// spawn handler + create-form opt-out can invoke it. nil-safe.
 	// 2026-04-29 auto-spawn-jobs-from-subscription Phase D.
 	MaterializeJobsForSubscription *subscriptionUseCases.MaterializeJobsForSubscriptionUseCase
+
+	// MaterializeInstanceJobsForSubscription exposes the cyclic-instance-
+	// Job spawn use case (cyclic-subscription-jobs plan §3) so:
+	//   1. The recognize-revenue piggyback (plan §5.2) can call it after
+	//      successful revenue recognition.
+	//   2. The Operations tab "Spawn this cycle now" / "Backfill missing
+	//      cycles" handlers can invoke it directly.
+	// nil-safe — when unwired (operation domain unavailable), the cyclic
+	// flow degrades gracefully: engagement Jobs spawn at Subscription.Create
+	// but no cycle Jobs materialize.
+	// 2026-04-30 cyclic-subscription-jobs Phase B.
+	MaterializeInstanceJobsForSubscription *subscriptionUseCases.MaterializeInstanceJobsForSubscriptionUseCase
 }
 
 // NewUseCases creates all subscription use cases with proper constructor injection.

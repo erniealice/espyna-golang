@@ -209,6 +209,14 @@ func (uc *UpdatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 		return fmt.Errorf(msg, pricePlan.PlanId)
 	}
 
+	// 2026-04-30 cyclic-subscription-jobs plan §6 — reject MILESTONE × cyclic.
+	// See create_price_plan.go for the full rationale; this guard is the
+	// symmetric Update-side defense. Same lyngua key
+	// `price_plan.validation.milestoneCyclicBlock`.
+	if err := validateMilestoneCyclicBlock(ctx, uc.services.TranslationService, pricePlan, plan.Data[0]); err != nil {
+		return err
+	}
+
 	// §3.2 cascade — server-coerce PricePlan.client_id from the parent
 	// Plan, overwriting any body-supplied value.
 	parentClientID := plan.Data[0].GetClientId()

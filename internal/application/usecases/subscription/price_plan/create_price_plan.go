@@ -193,6 +193,22 @@ func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 		return fmt.Errorf(msg, pricePlan.PlanId)
 	}
 
+	// 2026-04-30 cyclic-subscription-jobs plan §6 — reject MILESTONE × cyclic.
+	//
+	// Milestone billing implies a one-time fixed schedule (e.g., 4 milestone
+	// payments over a project), which doesn't compose with recurring per-visit
+	// cycles. The cyclic indicator on the Plan side is visits_per_cycle > 1
+	// (the plan defaults to 1 for non-cyclic Plans). On the PricePlan side, a
+	// non-zero billing_cycle_value also implies a recurring cadence.
+	//
+	// Both branches surface the same lyngua key
+	// `price_plan.validation.milestoneCyclicBlock` so the drawer renders one
+	// consistent banner. The PricePlan-edit drawer disables the MILESTONE
+	// option client-side; this is the server-side defense.
+	if err := validateMilestoneCyclicBlock(ctx, uc.services.TranslationService, pricePlan, plan.Data[0]); err != nil {
+		return err
+	}
+
 	// §3.2 cascade — server-coerce PricePlan.client_id from the parent Plan.
 	// Any body-supplied value is ignored to keep the denormalized invariant
 	// `price_plan.client_id == plan.client_id` true by construction.

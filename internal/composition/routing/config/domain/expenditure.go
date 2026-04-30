@@ -3,14 +3,19 @@ package domain
 import (
 	"fmt"
 
+	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 	expenditureattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
 	expenditurecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
+	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
+	expenserecognitionlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_line"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
+	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
+	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
 
 	expenditureuc "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
@@ -331,6 +336,231 @@ func ConfigureExpenditureDomain(expenditureUseCases *expenditureuc.ExpenditureUs
 			Method:  "POST",
 			Path:    "/api/expenditure/procurement-request-line/get-item-page-data",
 			Handler: contracts.NewGenericHandler(expenditureUseCases.ProcurementRequestLine.GetProcurementRequestLineItemPageData, &procurementrequestlinepb.GetProcurementRequestLineItemPageDataRequest{}),
+		})
+	}
+
+	// SPS Wave 2 (2026-04-30): Supplier Contract Price Schedule
+	if expenditureUseCases.SupplierContractPriceSchedule != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceSchedule.CreateSupplierContractPriceSchedule, &scpspb.CreateSupplierContractPriceScheduleRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceSchedule.ReadSupplierContractPriceSchedule, &scpspb.ReadSupplierContractPriceScheduleRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceSchedule.UpdateSupplierContractPriceSchedule, &scpspb.UpdateSupplierContractPriceScheduleRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceSchedule.DeleteSupplierContractPriceSchedule, &scpspb.DeleteSupplierContractPriceScheduleRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceSchedule.ListSupplierContractPriceSchedules, &scpspb.ListSupplierContractPriceSchedulesRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule/activate",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceSchedule.ActivateSupplierContractPriceSchedule, &scpspb.ActivateSupplierContractPriceScheduleRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule/supersede",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceSchedule.SupersedeSupplierContractPriceSchedule, &scpspb.SupersedeSupplierContractPriceScheduleRequest{}),
+		})
+	}
+
+	// Supplier Contract Price Schedule Line
+	if expenditureUseCases.SupplierContractPriceScheduleLine != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule-line/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceScheduleLine.CreateSupplierContractPriceScheduleLine, &scpslpb.CreateSupplierContractPriceScheduleLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule-line/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceScheduleLine.ReadSupplierContractPriceScheduleLine, &scpslpb.ReadSupplierContractPriceScheduleLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule-line/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceScheduleLine.UpdateSupplierContractPriceScheduleLine, &scpslpb.UpdateSupplierContractPriceScheduleLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule-line/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceScheduleLine.DeleteSupplierContractPriceScheduleLine, &scpslpb.DeleteSupplierContractPriceScheduleLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/supplier-contract-price-schedule-line/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.SupplierContractPriceScheduleLine.ListSupplierContractPriceScheduleLines, &scpslpb.ListSupplierContractPriceScheduleLinesRequest{}),
+		})
+	}
+
+	// Expense Recognition
+	if expenditureUseCases.ExpenseRecognition != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.CreateExpenseRecognition, &expenserecognitionpb.CreateExpenseRecognitionRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.ReadExpenseRecognition, &expenserecognitionpb.ReadExpenseRecognitionRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.UpdateExpenseRecognition, &expenserecognitionpb.UpdateExpenseRecognitionRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.DeleteExpenseRecognition, &expenserecognitionpb.DeleteExpenseRecognitionRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.ListExpenseRecognitions, &expenserecognitionpb.ListExpenseRecognitionsRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/recognize-from-expenditure",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.RecognizeFromExpenditure, &expenserecognitionpb.RecognizeFromExpenditureRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/recognize-from-contract",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.RecognizeFromContract, &expenserecognitionpb.RecognizeFromContractRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/reverse",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.ReverseExpenseRecognition, &expenserecognitionpb.ReverseExpenseRecognitionRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition/get-unrecognized-expenditures",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognition.GetUnrecognizedExpenditures, &expenserecognitionpb.GetUnrecognizedExpendituresRequest{}),
+		})
+	}
+
+	// Expense Recognition Line
+	if expenditureUseCases.ExpenseRecognitionLine != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition-line/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognitionLine.CreateExpenseRecognitionLine, &expenserecognitionlinepb.CreateExpenseRecognitionLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition-line/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognitionLine.ReadExpenseRecognitionLine, &expenserecognitionlinepb.ReadExpenseRecognitionLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition-line/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognitionLine.UpdateExpenseRecognitionLine, &expenserecognitionlinepb.UpdateExpenseRecognitionLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition-line/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognitionLine.DeleteExpenseRecognitionLine, &expenserecognitionlinepb.DeleteExpenseRecognitionLineRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/expense-recognition-line/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.ExpenseRecognitionLine.ListExpenseRecognitionLines, &expenserecognitionlinepb.ListExpenseRecognitionLinesRequest{}),
+		})
+	}
+
+	// Accrued Expense
+	if expenditureUseCases.AccruedExpense != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.CreateAccruedExpense, &accruedexpensepb.CreateAccruedExpenseRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.ReadAccruedExpense, &accruedexpensepb.ReadAccruedExpenseRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.UpdateAccruedExpense, &accruedexpensepb.UpdateAccruedExpenseRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.DeleteAccruedExpense, &accruedexpensepb.DeleteAccruedExpenseRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.ListAccruedExpenses, &accruedexpensepb.ListAccruedExpensesRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense/accrue-from-contract",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.AccrueFromContract, &accruedexpensepb.AccrueFromContractRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense/reverse-accrual",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.ReverseAccrual, &accruedexpensepb.ReverseAccrualRequest{}),
+		})
+		// SPS Wave 2 (2026-04-30 supplier-pricing-symmetry) — SettleAccrual
+		// is the SOLE writer of AccruedExpense.settled_amount /
+		// remaining_amount / (PARTIAL|SETTLED) status. The Execute shim on
+		// SettleAccrualUseCase delegates to SettleAccrual().
+		if expenditureUseCases.AccruedExpense.SettleAccrual != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/expenditure/accrued-expense/settle-accrual",
+				Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpense.SettleAccrual, &accruedexpensepb.SettleAccrualRequest{}),
+			})
+		}
+	}
+
+	// Accrued Expense Settlement (HIGH-3 join table)
+	if expenditureUseCases.AccruedExpenseSettlement != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense-settlement/create",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpenseSettlement.CreateAccruedExpenseSettlement, &accruedexpensepb.CreateAccruedExpenseSettlementRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense-settlement/read",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpenseSettlement.ReadAccruedExpenseSettlement, &accruedexpensepb.ReadAccruedExpenseSettlementRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense-settlement/update",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpenseSettlement.UpdateAccruedExpenseSettlement, &accruedexpensepb.UpdateAccruedExpenseSettlementRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense-settlement/delete",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpenseSettlement.DeleteAccruedExpenseSettlement, &accruedexpensepb.DeleteAccruedExpenseSettlementRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/expenditure/accrued-expense-settlement/list",
+			Handler: contracts.NewGenericHandler(expenditureUseCases.AccruedExpenseSettlement.ListAccruedExpenseSettlements, &accruedexpensepb.ListAccruedExpenseSettlementsRequest{}),
 		})
 	}
 

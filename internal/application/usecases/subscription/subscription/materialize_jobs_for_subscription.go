@@ -173,6 +173,21 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 		return nil, err
 	}
 
+	// 2026-04-30 cyclic-subscription-jobs plan §4 — cyclic branch.
+	//
+	// For cyclic PricePlans (RECURRING, or CONTRACT with billing_cycle_value > 0),
+	// this use case spawns ONLY the engagement-shell Job (no template, no
+	// phases) plus any ONCE_AT_ENGAGEMENT_START children. The per-cycle
+	// instance Jobs are spawned LATER by
+	// MaterializeInstanceJobsForSubscription — triggered either by the
+	// recognize-revenue piggyback (plan §5.2) or by an operator action.
+	//
+	// The non-cyclic path below remains UNCHANGED — phase4-subscription
+	// regression specs (08-15) and the new C2 composition test are the canary.
+	if IsCyclic(pricePlan) {
+		return uc.executeCyclicEngagementShell(ctx, sub, pricePlan, plan, relations)
+	}
+
 	type spawnEntry struct {
 		templateID string
 		isRoot     bool
@@ -462,6 +477,142 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 	resp, err := uc.repositories.Job.CreateJob(ctx, &jobpb.CreateJobRequest{Data: job})
 	if err != nil {
 		return nil, fmt.Errorf("create_job (template=%s): %w", templateID, err)
+	}
+	if resp != nil && len(resp.GetData()) > 0 {
+		return resp.GetData()[0], nil
+	}
+	return job, nil
+}
+
+// executeCyclicEngagementShell handles the cyclic branch (cyclic-subscription-
+// jobs plan §4): spawn the engagement-shell Job (no template, no phases),
+// then spawn any ONCE_AT_ENGAGEMENT_START child Jobs. NO cycle Jobs are
+// spawned here — those come later via MaterializeInstanceJobsForSubscription.
+//
+// The whole sequence runs in a single transaction so Subscription.Create
+// rolls back cleanly if any step fails. This preserves the atomic-rollback
+// semantics of the non-cyclic path; the recognize-piggyback path
+// (recognize_revenue_from_subscription.go) uses a non-fatal warning instead.
+func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicEngagementShell(
+	ctx context.Context,
+	sub *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	plan *planpb.Plan,
+	relations []*jobtemplaterelationpb.JobTemplateRelation,
+) (*MaterializeJobsForSubscriptionResponse, error) {
+	now := time.Now()
+	dc := now.UnixMilli()
+	dcs := now.Format(time.RFC3339)
+
+	var spawnedJobs []*jobpb.Job
+
+	writeFn := func(txCtx context.Context) error {
+		spawnedJobs = spawnedJobs[:0]
+		// 1. Engagement shell — no template, no phases. Status ACTIVE so the
+		// shell stays open for life of subscription.
+		shell, err := uc.spawnEngagementShell(txCtx, dc, dcs, sub, pricePlan)
+		if err != nil {
+			return err
+		}
+		spawnedJobs = append(spawnedJobs, shell)
+
+		// 2. ONCE_AT_ENGAGEMENT_START children — spawn each as a child of the
+		// engagement shell (parent_job_id=shell.id, cycle_index=NULL). These
+		// fire ONCE per engagement, not per cycle.
+		for _, rel := range relations {
+			if !rel.GetActive() {
+				continue
+			}
+			if rel.GetRelationType() != jobtemplaterelationpb.JobTemplateRelationType_JOB_TEMPLATE_RELATION_TYPE_ONCE_AT_ENGAGEMENT_START {
+				// SUB_TEMPLATE relations are NOT spawned in the cyclic branch.
+				// In v1 they're treated as cycle-template extensions, which
+				// belong on the cycle Job (out of scope for the engagement
+				// shell). The cyclic plan §11.2 C3 documents this decision —
+				// quietly skip rather than reject.
+				continue
+			}
+			childID := rel.GetChildTemplateId()
+			if childID == "" {
+				continue
+			}
+			tpl, err := uc.readJobTemplate(txCtx, childID)
+			if err != nil {
+				return err
+			}
+			if !tpl.GetActive() {
+				return errors.New(contextutil.GetTranslatedMessageWithContext(
+					txCtx, uc.services.TranslationService,
+					"subscription.errors.template_inactive",
+					"job template is inactive [DEFAULT]",
+				))
+			}
+			child, err := uc.spawnJob(txCtx, dc, dcs, tpl.GetName(), shell.GetId(), tpl, sub, pricePlan)
+			if err != nil {
+				return err
+			}
+			spawnedJobs = append(spawnedJobs, child)
+			if err := uc.spawnPhasesAndTasks(txCtx, dc, dcs, child, tpl.GetId()); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, writeFn); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := writeFn(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	_ = plan // currently unused in cyclic shell creation; kept for symmetry
+	return &MaterializeJobsForSubscriptionResponse{SpawnedJobs: spawnedJobs}, nil
+}
+
+// spawnEngagementShell creates the cyclic engagement-shell Job: no
+// job_template_id, no phases, parent_job_id=NULL, status=ACTIVE,
+// billing_rule_type=NON_BILLABLE. cycle_* fields are NULL.
+func (uc *MaterializeJobsForSubscriptionUseCase) spawnEngagementShell(
+	ctx context.Context, dc int64, dcs string,
+	sub *subscriptionpb.Subscription, pricePlan *priceplanpb.PricePlan,
+) (*jobpb.Job, error) {
+	jobID := ""
+	if uc.services.IDService != nil {
+		jobID = uc.services.IDService.GenerateID()
+	} else {
+		jobID = fmt.Sprintf("eng-%d", time.Now().UnixNano())
+	}
+	originID := sub.GetId()
+	clientID := sub.GetClientId()
+	name := sub.GetName()
+	if name == "" {
+		name = "(engagement)"
+	}
+	job := &jobpb.Job{
+		Id:                 jobID,
+		Name:               name,
+		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+		OriginId:           &originID,
+		ClientId:           &clientID,
+		Status:             enumspb.JobStatus_JOB_STATUS_ACTIVE,
+		BillingRuleType:    enumspb.BillingRuleType_BILLING_RULE_TYPE_NON_BILLABLE,
+		Active:             true,
+		DateCreated:        &dc,
+		DateCreatedString:  &dcs,
+		DateModified:       &dc,
+		DateModifiedString: &dcs,
+	}
+	if wsID := contextutil.ExtractWorkspaceIDFromContext(ctx); wsID != "" {
+		v := wsID
+		job.WorkspaceId = &v
+	}
+	_ = pricePlan
+	resp, err := uc.repositories.Job.CreateJob(ctx, &jobpb.CreateJobRequest{Data: job})
+	if err != nil {
+		return nil, fmt.Errorf("create_engagement_shell: %w", err)
 	}
 	if resp != nil && len(resp.GetData()) > 0 {
 		return resp.GetData()[0], nil

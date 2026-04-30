@@ -137,6 +137,24 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		subscriptionUC = &subscription.SubscriptionUseCases{}
 	}
 
+	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — wire the recognize-
+	// revenue piggyback. After both subscriptionUC and revenueUC have been
+	// initialized, install the MaterializeInstanceJobsForSubscriptionInvoker
+	// adapter onto the RecognizeRevenueFromSubscription use case so that
+	// successful revenue recognition for cyclic plans triggers cycle-Job
+	// materialisation.
+	//
+	// Failure semantics — non-fatal: see RecognizeRevenueFromSubscriptionServices
+	// .MaterializeInstanceJobsForSubscription doc for the full contract.
+	if subscriptionUC != nil && subscriptionUC.MaterializeInstanceJobsForSubscription != nil &&
+		revenueUC != nil && revenueUC.Revenue != nil &&
+		revenueUC.Revenue.RecognizeRevenueFromSubscription != nil {
+		revenueUC.Revenue.RecognizeRevenueFromSubscription.SetMaterializeInstanceJobsForSubscription(
+			&materializeInstanceJobsAdapter{uc: subscriptionUC.MaterializeInstanceJobsForSubscription},
+		)
+		fmt.Printf("✅ Recognize-revenue piggyback wired (cycle-Job spawn on successful recognition)\n")
+	}
+
 	workflowUC, err := uci.initializeWorkflowUseCases(container)
 	if err != nil {
 		workflowUC = &workflow.WorkflowUseCases{}
@@ -597,6 +615,36 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 		fmt.Printf("✅ MaterializeJobsForSubscription wired\n")
 	}
 
+	// 2026-04-30 cyclic-subscription-jobs plan §3 — wire the
+	// MaterializeInstanceJobsForSubscriptionUseCase. Shares the same repos
+	// + services as MaterializeJobsForSubscription. Captured here so the
+	// downstream assignment onto the subscriptionUseCases aggregator
+	// (after InitializeSubscription) can bind it.
+	var instanceJobsUC *subscriptionUseCase.MaterializeInstanceJobsForSubscriptionUseCase
+	if opErr == nil {
+		instanceJobsUC = subscriptionUseCase.NewMaterializeInstanceJobsForSubscriptionUseCase(
+			subscriptionUseCase.MaterializeInstanceJobsForSubscriptionRepositories{
+				Subscription:        subscriptionRepos.Subscription,
+				PricePlan:           subscriptionRepos.PricePlan,
+				Plan:                subscriptionRepos.Plan,
+				JobTemplate:         operationRepos.JobTemplate,
+				JobTemplatePhase:    operationRepos.JobTemplatePhase,
+				JobTemplateTask:     operationRepos.JobTemplateTask,
+				JobTemplateRelation: operationRepos.JobTemplateRelation,
+				Job:                 operationRepos.Job,
+				JobPhase:            operationRepos.JobPhase,
+				JobTask:             operationRepos.JobTask,
+			},
+			subscriptionUseCase.MaterializeInstanceJobsForSubscriptionServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idSvc,
+			},
+		)
+		fmt.Printf("✅ MaterializeInstanceJobsForSubscription wired\n")
+	}
+
 	// Use composition initializer to wire everything together. The reference
 	// checker is plumbed through ports.NewNoOpReferenceChecker by default —
 	// the application owner (service-admin) wires the postgres-backed
@@ -614,6 +662,15 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 		// from the instantiator wrapper to keep the nil branches clean.
 		if inst, ok := jobTemplateInstantiator.(*subscriptionUseCase.MaterializeJobsForSubscriptionInstantiator); ok && inst != nil {
 			subscriptionUseCases.MaterializeJobsForSubscription = inst.UseCase
+		}
+		// 2026-04-30 cyclic-subscription-jobs Phase B — expose the cyclic
+		// instance Job spawner alongside MaterializeJobsForSubscription so:
+		//   - recognize-revenue piggyback (espyna's own Phase C wiring) can
+		//     call it after successful revenue recognition.
+		//   - Future Operations tab "Spawn this cycle now" / "Backfill" CTAs
+		//     can invoke it directly via the consumer surface.
+		if instanceJobsUC != nil {
+			subscriptionUseCases.MaterializeInstanceJobsForSubscription = instanceJobsUC
 		}
 	}
 	fmt.Printf("✅ Subscription domain initialized successfully: %v\n", subscriptionUseCases != nil)
@@ -871,6 +928,31 @@ func (a *materializeBillingEventsAdapter) Execute(ctx context.Context, jobID, su
 	_, err := a.uc.Execute(ctx, jobUseCase.MaterializeBillingEventsForJobRequest{
 		JobID:          jobID,
 		SubscriptionID: subscriptionID,
+	})
+	return err
+}
+
+// materializeInstanceJobsAdapter adapts the
+// MaterializeInstanceJobsForSubscriptionUseCase to the narrow
+// MaterializeInstanceJobsForSubscriptionInvoker interface consumed by the
+// recognize-revenue piggyback (cyclic-subscription-jobs plan §5.2). The
+// adapter translates the (ctx, subID, periodStart) shape into the use case's
+// request struct.
+type materializeInstanceJobsAdapter struct {
+	uc *subscriptionUseCase.MaterializeInstanceJobsForSubscriptionUseCase
+}
+
+// Execute satisfies revenueUseCase.MaterializeInstanceJobsForSubscriptionInvoker.
+//
+// Errors propagate to the recognize-revenue use case which converts them into
+// a non-fatal warning on the response (plan §5.2). nil-safe.
+func (a *materializeInstanceJobsAdapter) Execute(ctx context.Context, subscriptionID, cyclePeriodStart string) error {
+	if a == nil || a.uc == nil {
+		return nil
+	}
+	_, err := a.uc.Execute(ctx, subscriptionUseCase.MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId:   subscriptionID,
+		CyclePeriodStart: cyclePeriodStart,
 	})
 	return err
 }

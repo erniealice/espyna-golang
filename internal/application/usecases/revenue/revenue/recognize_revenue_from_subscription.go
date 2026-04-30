@@ -63,6 +63,42 @@ type RecognizeRevenueFromSubscriptionServices struct {
 	TransactionService   ports.TransactionService
 	TranslationService   ports.TranslationService
 	IDService            ports.IDService
+
+	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — piggyback hook.
+	//
+	// When set, the use case calls this AFTER successful revenue
+	// recognition for cyclic plans, to materialise the missing cycle Job
+	// (idempotent — returns existing if already present).
+	//
+	// Failure semantics — locked-in critical decision (plan §5.2):
+	//   The piggyback is NON-FATAL. Failure does NOT roll back the
+	//   recognized Revenue. Instead, the use case appends a structured
+	//   warning to response.Warnings with shape:
+	//       "cycle_job_spawn_failed: <err.Error()>"
+	//
+	//   This is the OPPOSITE of MaterializeJobsForSubscription's atomic-
+	//   rollback semantics for the engagement shell. Reasoning:
+	//   revenue recognition is the source of financial truth; cycle Jobs
+	//   are operational housekeeping. Failing to spawn the cycle Job
+	//   because (e.g.) the partial unique index briefly blocked it is
+	//   recoverable later via the manual "Spawn this cycle now" action.
+	//   Failing the WHOLE revenue recognition because of a downstream
+	//   housekeeping error would be wrong.
+	//
+	// nil-safe: when unset, the piggyback is skipped entirely (no warning).
+	MaterializeInstanceJobsForSubscription MaterializeInstanceJobsForSubscriptionInvoker
+}
+
+// MaterializeInstanceJobsForSubscriptionInvoker is the narrow contract for
+// the recognize-piggyback hook. The concrete use case
+// (subscription/subscription.MaterializeInstanceJobsForSubscriptionUseCase)
+// is wired by the composition layer; the interface here keeps espyna's
+// revenue package free of a cross-domain import cycle.
+//
+// Returning a non-nil error triggers the non-fatal warning shape — the
+// piggyback failure is documented inline at the call site.
+type MaterializeInstanceJobsForSubscriptionInvoker interface {
+	Execute(ctx context.Context, subscriptionID, cyclePeriodStart string) error
 }
 
 // RecognizeRevenueFromSubscriptionUseCase materializes a Revenue + N
@@ -83,6 +119,22 @@ func NewRecognizeRevenueFromSubscriptionUseCase(
 		repositories: repositories,
 		services:     services,
 	}
+}
+
+// SetMaterializeInstanceJobsForSubscription installs the recognize-piggyback
+// invoker after construction. Used by the composition layer to wire the
+// cyclic-instance-Job spawn hook (cyclic-subscription-jobs plan §5.2)
+// without threading the dependency through the entire revenue.NewUseCases
+// signature.
+//
+// Safe to call with nil — disables the piggyback (no warning, no spawn).
+func (uc *RecognizeRevenueFromSubscriptionUseCase) SetMaterializeInstanceJobsForSubscription(
+	invoker MaterializeInstanceJobsForSubscriptionInvoker,
+) {
+	if uc == nil {
+		return
+	}
+	uc.services.MaterializeInstanceJobsForSubscription = invoker
 }
 
 // Execute orchestrates the revenue recognition flow. The shape of the request
@@ -395,12 +447,98 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		return nil, err
 	}
 
+	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — recognize-piggyback.
+	//
+	// AFTER successful Revenue + RevenueLineItem persistence, fire the
+	// cycle-Job spawn for cyclic plans. This is INTENTIONALLY non-fatal:
+	// any error is appended as a structured warning and execution continues.
+	// Revenue recognition is the source of financial truth; cycle Jobs are
+	// operational housekeeping. See MaterializeInstanceJobsForSubscription
+	// service field doc for the full reasoning.
+	//
+	// Idempotency: MaterializeInstanceJobsForSubscription is idempotent —
+	// if the cycle Job already exists for this period_start, the call
+	// returns the existing row without an error.
+	//
+	// Period normalization: the recognize-revenue drawer submits an RFC3339
+	// timestamp on `period_start` (the form's date+time grid is stitched into
+	// an ISO string by the centymo handler). The instance-jobs use case
+	// expects YYYY-MM-DD because cycle math is day-grained (`time.Parse
+	// "2006-01-02"` in computeCycleEnd). Strip the time portion here so the
+	// piggyback fires with a clean date — otherwise computeCycleEnd would
+	// reject the input and the warning would silently swallow a config bug.
+	if uc.services.MaterializeInstanceJobsForSubscription != nil && IsCyclicPricePlan(pricePlan) {
+		cyclePeriodStart := normalizePeriodStartForCycleSpawn(periodStart)
+		if err := uc.services.MaterializeInstanceJobsForSubscription.Execute(
+			ctx, sub.GetId(), cyclePeriodStart,
+		); err != nil {
+			warnings = append(warnings,
+				fmt.Sprintf("cycle_job_spawn_failed: %s", err.Error()))
+		}
+	}
+
 	return &revenuepb.CreateRevenueWithLineItemsResponse{
 		Success:      true,
 		Data:         []*revenuepb.Revenue{createdRevenue},
 		PreviewLines: previewLines,
 		Warnings:     warnings,
 	}, nil
+}
+
+// normalizePeriodStartForCycleSpawn coerces the recognize-revenue drawer's
+// period_start input into a YYYY-MM-DD date that the instance-jobs use case
+// can parse with `time.Parse("2006-01-02", …)`. The drawer submits an
+// RFC3339 timestamp (date+time grid stitched into ISO format) but cycle math
+// is day-grained — passing the full RFC3339 through would trigger a parse
+// error inside computeCycleEnd and surface as a non-fatal warning, masking
+// the cycle-Job spawn failure that drives Operations-tab visibility.
+//
+// Empty input is preserved (the use case reads it as "spawn the next
+// un-spawned cycle"). Non-parseable input is also passed through unchanged
+// so the instance-jobs use case still emits the original parse error
+// verbatim — easier to diagnose downstream than a silently-swallowed value.
+func normalizePeriodStartForCycleSpawn(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	// Already a YYYY-MM-DD date — fast path.
+	if _, err := time.Parse("2006-01-02", s); err == nil {
+		return s
+	}
+	// RFC3339 (with offset). The drawer's hidden ISO field uses this shape.
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t.Format("2006-01-02")
+	}
+	// RFC3339Nano fallback in case any caller adds sub-second precision.
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t.Format("2006-01-02")
+	}
+	// Datetime-local without timezone (`2006-01-02T15:04:05`).
+	if t, err := time.Parse("2006-01-02T15:04:05", s); err == nil {
+		return t.Format("2006-01-02")
+	}
+	return s
+}
+
+// IsCyclicPricePlan returns true when the PricePlan participates in the
+// two-tier engagement+instance Job model (cyclic-subscription-jobs plan §3.1).
+//
+// Mirrors subscription.eligibleForInstanceSpawn so the recognize-revenue
+// package doesn't import the subscription package directly. The AD_HOC plan
+// (downstream) extends both predicates symmetrically.
+func IsCyclicPricePlan(pp *priceplanpb.PricePlan) bool {
+	if pp == nil {
+		return false
+	}
+	kind := pp.GetBillingKind()
+	if kind == priceplanpb.BillingKind_BILLING_KIND_RECURRING {
+		return true
+	}
+	if kind == priceplanpb.BillingKind_BILLING_KIND_CONTRACT && pp.GetBillingCycleValue() > 0 {
+		return true
+	}
+	return false
 }
 
 // readSubscription wraps the subscription RPC for clarity.
@@ -601,6 +739,16 @@ func normalizePricePlan(pp *priceplanpb.PricePlan) {
 		coerced := priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE
 		pp.AmountBasis = coerced
 		basis = coerced
+	}
+	// Per scenarios.md §2.7 row "CONTRACT | TOTAL_PACKAGE | Treated as ONE_TIME":
+	// the contract's term IS the period, so a TOTAL_PACKAGE basis charges the
+	// header amount once up-front. Coerce kind → ONE_TIME so buildLineItems
+	// stamps `treatment=one_time` and downstream cycle/term logic runs the
+	// ONE_TIME path. Mutation is in-memory only — DB row is unchanged.
+	if kind == priceplanpb.BillingKind_BILLING_KIND_CONTRACT &&
+		basis == priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE {
+		pp.BillingKind = priceplanpb.BillingKind_BILLING_KIND_ONE_TIME
+		kind = priceplanpb.BillingKind_BILLING_KIND_ONE_TIME
 	}
 
 	// Clear billing_cycle_* when the cell has no cadence.

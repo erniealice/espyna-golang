@@ -1,0 +1,43 @@
+package suppliercontractpriceschedule
+
+import (
+	"context"
+
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
+)
+
+// ListSupplierContractPriceSchedulesRepositories groups repository dependencies.
+type ListSupplierContractPriceSchedulesRepositories struct {
+	SupplierContractPriceSchedule scpspb.SupplierContractPriceScheduleDomainServiceServer
+}
+
+// ListSupplierContractPriceSchedulesServices groups service dependencies.
+type ListSupplierContractPriceSchedulesServices struct {
+	AuthorizationService ports.AuthorizationService
+	TranslationService   ports.TranslationService
+}
+
+// ListSupplierContractPriceSchedulesUseCase handles listing schedules.
+type ListSupplierContractPriceSchedulesUseCase struct {
+	repositories ListSupplierContractPriceSchedulesRepositories
+	services     ListSupplierContractPriceSchedulesServices
+}
+
+// NewListSupplierContractPriceSchedulesUseCase creates a use case with grouped dependencies.
+func NewListSupplierContractPriceSchedulesUseCase(
+	repositories ListSupplierContractPriceSchedulesRepositories,
+	services ListSupplierContractPriceSchedulesServices,
+) *ListSupplierContractPriceSchedulesUseCase {
+	return &ListSupplierContractPriceSchedulesUseCase{repositories: repositories, services: services}
+}
+
+// Execute performs the list schedules operation.
+func (uc *ListSupplierContractPriceSchedulesUseCase) Execute(ctx context.Context, req *scpspb.ListSupplierContractPriceSchedulesRequest) (*scpspb.ListSupplierContractPriceSchedulesResponse, error) {
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		entitySupplierContractPriceSchedule, ports.ActionList); err != nil {
+		return nil, err
+	}
+	return uc.repositories.SupplierContractPriceSchedule.ListSupplierContractPriceSchedules(ctx, req)
+}

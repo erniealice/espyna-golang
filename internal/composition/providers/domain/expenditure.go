@@ -11,10 +11,13 @@ import (
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 
 	// Protobuf domain services - Expenditure domain
+	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 	expenditureattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
 	expenditurecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
+	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
+	expenserecognitionlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_line"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
@@ -22,6 +25,8 @@ import (
 	purchaseorderlineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order_line_item"
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
+	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
+	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
@@ -37,6 +42,13 @@ type ExpenditureRepositories struct {
 	SupplierContractLine   suppliercontractlinepb.SupplierContractLineDomainServiceServer
 	ProcurementRequest     procurementrequestpb.ProcurementRequestDomainServiceServer
 	ProcurementRequestLine procurementrequestlinepb.ProcurementRequestLineDomainServiceServer
+	// SPS Wave 2 repositories (2026-04-30)
+	SupplierContractPriceSchedule     scpspb.SupplierContractPriceScheduleDomainServiceServer
+	SupplierContractPriceScheduleLine scpslpb.SupplierContractPriceScheduleLineDomainServiceServer
+	ExpenseRecognition                expenserecognitionpb.ExpenseRecognitionDomainServiceServer
+	ExpenseRecognitionLine            expenserecognitionlinepb.ExpenseRecognitionLineDomainServiceServer
+	AccruedExpense                    accruedexpensepb.AccruedExpenseDomainServiceServer
+	AccruedExpenseSettlement          accruedexpensepb.AccruedExpenseSettlementDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 }
@@ -100,6 +112,25 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, tableConfig *regi
 	}
 	if r := tryCreate(entityid.ProcurementRequestLine); r != nil {
 		repos.ProcurementRequestLine = r.(procurementrequestlinepb.ProcurementRequestLineDomainServiceServer)
+	}
+	// SPS Wave 2 repositories (2026-04-30)
+	if r := tryCreate(entityid.SupplierContractPriceSchedule); r != nil {
+		repos.SupplierContractPriceSchedule = r.(scpspb.SupplierContractPriceScheduleDomainServiceServer)
+	}
+	if r := tryCreate(entityid.SupplierContractPriceScheduleLine); r != nil {
+		repos.SupplierContractPriceScheduleLine = r.(scpslpb.SupplierContractPriceScheduleLineDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ExpenseRecognition); r != nil {
+		repos.ExpenseRecognition = r.(expenserecognitionpb.ExpenseRecognitionDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ExpenseRecognitionLine); r != nil {
+		repos.ExpenseRecognitionLine = r.(expenserecognitionlinepb.ExpenseRecognitionLineDomainServiceServer)
+	}
+	if r := tryCreate(entityid.AccruedExpense); r != nil {
+		repos.AccruedExpense = r.(accruedexpensepb.AccruedExpenseDomainServiceServer)
+	}
+	if r := tryCreate(entityid.AccruedExpenseSettlement); r != nil {
+		repos.AccruedExpenseSettlement = r.(accruedexpensepb.AccruedExpenseSettlementDomainServiceServer)
 	}
 	if r := tryCreate(entityid.PaymentTerm); r != nil {
 		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)

@@ -43,6 +43,12 @@ type RevenueServices struct {
 	TransactionService   ports.TransactionService
 	TranslationService   ports.TranslationService
 	IDService            ports.IDService
+
+	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — recognize-piggyback
+	// invoker. Optional; when nil the piggyback hook is skipped (no warning).
+	// See RecognizeRevenueFromSubscriptionServices.MaterializeInstanceJobsForSubscription
+	// for the full failure-semantics contract.
+	MaterializeInstanceJobsForSubscription MaterializeInstanceJobsForSubscriptionInvoker
 }
 
 // UseCases contains all revenue-related use cases
@@ -131,10 +137,11 @@ func NewUseCases(
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	recognizeServices := RecognizeRevenueFromSubscriptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		AuthorizationService:                   services.AuthorizationService,
+		TransactionService:                     services.TransactionService,
+		TranslationService:                     services.TranslationService,
+		IDService:                              services.IDService,
+		MaterializeInstanceJobsForSubscription: services.MaterializeInstanceJobsForSubscription,
 	}
 
 	return &UseCases{

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/erniealice/espyna-golang/tableparams"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -51,7 +52,7 @@ func (s SortSpec) SQLCol(viewCol string) string {
 // derives allowedSortColumns, defaultSortColumn, and defaultSortDir from a
 // SortSpec. The existing ParseTableParams signature is unchanged so the 21
 // call sites that use it directly are not broken during incremental migration.
-func ParseTableParamsFromSpec(r *http.Request, spec SortSpec) (TableQueryParams, error) {
+func ParseTableParamsFromSpec(r *http.Request, spec SortSpec) (tableparams.TableQueryParams, error) {
 	return ParseTableParams(r, spec.AllowedCols, spec.DefaultCol, spec.DefaultDir)
 }
 

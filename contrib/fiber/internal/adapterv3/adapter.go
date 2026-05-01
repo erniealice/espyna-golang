@@ -1,3 +1,5 @@
+//go:build fiber_v3
+
 package adapterv3
 
 import (

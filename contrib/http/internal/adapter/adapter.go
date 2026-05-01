@@ -1,4 +1,4 @@
-//go:build vanilla && !gin && !fiber && !fiber_v3
+//go:build vanilla
 
 package vanilla
 
@@ -16,12 +16,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/composition/contracts"
-	"github.com/erniealice/espyna-golang/internal/composition/core"
-	"github.com/erniealice/espyna-golang/internal/composition/routing"
-	"github.com/erniealice/espyna-golang/internal/composition/routing/customization"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/ports"
+	"github.com/erniealice/espyna-golang/composition/contracts"
+	"github.com/erniealice/espyna-golang/composition/core"
+	"github.com/erniealice/espyna-golang/composition/routing"
+	"github.com/erniealice/espyna-golang/composition/routing/customization"
+	"github.com/erniealice/espyna-golang/registry"
 )
 
 // =============================================================================

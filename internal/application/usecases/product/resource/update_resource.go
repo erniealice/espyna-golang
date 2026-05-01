@@ -12,8 +12,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // UpdateResourceUseCase handles the business logic for updating resources
@@ -167,7 +165,7 @@ func (uc *UpdateResourceUseCase) validateBusinessRules(ctx context.Context, reso
 	}
 
 	// Normalize name (trim spaces, proper capitalization)
-	resource.Name = cases.Title(language.English).String(strings.ToLower(name))
+	resource.Name = strings.TrimSpace(name)
 
 	// Business rule: Product ID format validation
 	if len(resource.ProductId) < 3 {

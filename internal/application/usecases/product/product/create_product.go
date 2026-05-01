@@ -182,8 +182,7 @@ func (uc *CreateProductUseCase) validateBusinessRules(ctx context.Context, produ
 		return err
 	}
 
-	// Normalize name (trim spaces, proper capitalization)
-	product.Name = strings.Title(strings.ToLower(name))
+	product.Name = strings.TrimSpace(name)
 
 	return nil
 }

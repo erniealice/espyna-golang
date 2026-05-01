@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -247,12 +248,27 @@ func (r *PostgresClientRepository) DeleteClient(ctx context.Context, req *client
 	}, nil
 }
 
-// ListClients lists clients using common PostgreSQL operations
+var clientSortableSQLCols = []string{
+	"id", "user_id", "active", "internal_id", "name",
+	"street_address", "city", "province", "postal_code", "notes",
+	"payment_term_id", "billing_currency", "status", "country", "website",
+	"date_created", "date_modified",
+}
+
+var clientSortSpec = espynahttp.SortSpec{AllowedCols: clientSortableSQLCols}
+
+// ListClients lists clients using common PostgreSQL operations.
 func (r *PostgresClientRepository) ListClients(ctx context.Context, req *clientpb.ListClientsRequest) (*clientpb.ListClientsResponse, error) {
-	// Pass through filters from the request (e.g. user_id equality for FindOrCreateClient)
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(clientSortSpec, req.GetSort(), "client"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 
 	// List documents using common operations

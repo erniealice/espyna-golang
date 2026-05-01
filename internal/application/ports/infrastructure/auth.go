@@ -47,6 +47,11 @@ type AuthService interface {
 
 	// GetProviderName returns the name of the auth provider (for logging/debugging)
 	GetProviderName() string
+
+	// ChangePassword updates the password for an authenticated user.
+	// oldPassword must match the stored hash; newPassword is validated and hashed.
+	// The caller's current session is preserved — only the password_hash is updated.
+	ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error
 }
 
 // Error codes for authentication errors (for backward compatibility)

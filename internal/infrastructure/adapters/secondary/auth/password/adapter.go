@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -36,12 +37,27 @@ func init() {
 }
 
 // buildFromEnv creates a PasswordAuthAdapter from environment variables.
-// It reads PASSWORD_AUTH_RESET_TOKEN_SECRET but does NOT open a database connection —
+// It reads PASSWORD_AUTH_RESET_TOKEN_SECRET, PASSWORD_AUTH_MAX_ATTEMPTS, and
+// PASSWORD_AUTH_LOCKOUT_MINUTES but does NOT open a database connection —
 // the connection is injected later via SetOperations (Phase 2 refactor).
 func buildFromEnv() (ports.AuthProvider, error) {
 	secret := os.Getenv("PASSWORD_AUTH_RESET_TOKEN_SECRET")
 	if secret == "" {
 		panic("FATAL: password provider requires PASSWORD_AUTH_RESET_TOKEN_SECRET to be set")
+	}
+
+	maxAttempts := defaultMaxAttempts
+	if v := os.Getenv("PASSWORD_AUTH_MAX_ATTEMPTS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			maxAttempts = parsed
+		}
+	}
+
+	lockoutMinutes := defaultLockoutMinutes
+	if v := os.Getenv("PASSWORD_AUTH_LOCKOUT_MINUTES"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			lockoutMinutes = parsed
+		}
 	}
 
 	protoConfig := &authpb.ProviderConfig{
@@ -56,8 +72,10 @@ func buildFromEnv() (ports.AuthProvider, error) {
 	}
 
 	adapter := &PasswordAuthAdapter{
-		resetSecret: secret,
-		enabled:     false,
+		resetSecret:    secret,
+		enabled:        false,
+		maxAttempts:    maxAttempts,
+		lockoutMinutes: lockoutMinutes,
 	}
 	if err := adapter.Initialize(protoConfig); err != nil {
 		return nil, fmt.Errorf("password: failed to initialize: %w", err)
@@ -83,6 +101,14 @@ func transformConfig(rawConfig map[string]any) (*authpb.ProviderConfig, error) {
 // Adapter Implementation
 // =============================================================================
 
+const (
+	// defaultMaxAttempts is the default number of failed login attempts before lockout.
+	defaultMaxAttempts = 5
+
+	// defaultLockoutMinutes is the default lockout duration in minutes.
+	defaultLockoutMinutes = 15
+)
+
 // PasswordAuthAdapter implements ports.AuthProvider and ports.AuthService
 // using injected DatabaseOperation for credential storage and session management.
 type PasswordAuthAdapter struct {
@@ -91,12 +117,18 @@ type PasswordAuthAdapter struct {
 	sessionService  *SessionService
 	resetSecret     string
 	enabled         bool
+	maxAttempts     int
+	lockoutMinutes  int
 }
 
 // newPasswordAuthAdapter creates an uninitialised PasswordAuthAdapter.
 // The caller must invoke SetOperations and Initialize before use.
 func newPasswordAuthAdapter() *PasswordAuthAdapter {
-	return &PasswordAuthAdapter{enabled: false}
+	return &PasswordAuthAdapter{
+		enabled:        false,
+		maxAttempts:    defaultMaxAttempts,
+		lockoutMinutes: defaultLockoutMinutes,
+	}
 }
 
 // Name returns the provider name.
@@ -296,7 +328,16 @@ func (a *PasswordAuthAdapter) Register(ctx context.Context, email, password, fir
 	return userID, nil
 }
 
+// errInvalidCredentials is the single generic error returned for any failed
+// login attempt (unknown user, wrong password, or account locked). Keeping it
+// as a package-level var ensures byte-identical comparison across all code paths.
+var errInvalidCredentials = fmt.Errorf("invalid email or password")
+
 // Login authenticates a user and returns a session token and identity.
+// Rate-limiting is applied: failed attempts increment a counter; after
+// maxAttempts failures the account is locked for lockoutMinutes minutes.
+// A locked account returns the same generic error as a bad-credential
+// attempt — callers cannot distinguish lockout from wrong password.
 func (a *PasswordAuthAdapter) Login(ctx context.Context, email, password string) (string, *authpb.Identity, error) {
 	if a.ops == nil {
 		return "", nil, fmt.Errorf("password: database operations not initialised")
@@ -311,7 +352,7 @@ func (a *PasswordAuthAdapter) Login(ctx context.Context, email, password string)
 		return "", nil, fmt.Errorf("failed to look up user: %w", err)
 	}
 	if row == nil {
-		return "", nil, fmt.Errorf("invalid email or password")
+		return "", nil, errInvalidCredentials
 	}
 
 	userID, _ := row["id"].(string)
@@ -320,8 +361,56 @@ func (a *PasswordAuthAdapter) Login(ctx context.Context, email, password string)
 	lastName, _ := row["last_name"].(string)
 	emailAddress, _ := row["email_address"].(string)
 
+	// --- Rate-limit precheck ---
+	// Extract failed_login_attempts (INT column).
+	var failedAttempts int
+	switch v := row["failed_login_attempts"].(type) {
+	case int64:
+		failedAttempts = int(v)
+	case int32:
+		failedAttempts = int(v)
+	case int:
+		failedAttempts = v
+	case float64:
+		failedAttempts = int(v)
+	}
+
+	// Extract locked_until (TIMESTAMPTZ column — may be nil/null).
+	var lockedUntil time.Time
+	switch v := row["locked_until"].(type) {
+	case time.Time:
+		lockedUntil = v
+	case string:
+		lockedUntil, _ = time.Parse(time.RFC3339, v)
+	}
+
+	// If the account is currently locked, reject without calling bcrypt.
+	if !lockedUntil.IsZero() && time.Now().Before(lockedUntil) {
+		return "", nil, errInvalidCredentials
+	}
+
+	// --- Credential verification ---
 	if err := a.passwordService.VerifyPassword(passwordHash, password); err != nil {
-		return "", nil, fmt.Errorf("invalid email or password")
+		// Increment counter; lock if threshold is reached.
+		newCount := failedAttempts + 1
+		updateData := map[string]any{
+			"failed_login_attempts": newCount,
+		}
+		if newCount >= a.maxAttempts {
+			updateData["locked_until"] = time.Now().Add(time.Duration(a.lockoutMinutes) * time.Minute)
+		}
+		if _, updateErr := a.ops.Update(ctx, "user", userID, updateData); updateErr != nil {
+			log.Printf("[AUTH] failed to update login attempt counter for user %s: %v", userID, updateErr)
+		}
+		return "", nil, errInvalidCredentials
+	}
+
+	// --- Success path: reset counter ---
+	if _, updateErr := a.ops.Update(ctx, "user", userID, map[string]any{
+		"failed_login_attempts": 0,
+		"locked_until":          nil,
+	}); updateErr != nil {
+		log.Printf("[AUTH] failed to reset login attempt counter for user %s: %v", userID, updateErr)
 	}
 
 	token, err := a.sessionService.CreateSession(ctx, userID)
@@ -508,6 +597,45 @@ func (a *PasswordAuthAdapter) ExecutePasswordReset(ctx context.Context, token, n
 	}
 
 	return a.sessionService.InvalidateAllUserSessions(ctx, payload.UserID)
+}
+
+// ChangePassword updates the password for an authenticated user.
+// Verifies oldPassword against the stored hash, then writes a new bcrypt hash.
+// The user's current session is NOT invalidated — only the password_hash is updated.
+// Returns a specific error (not the generic login error) when oldPassword is wrong,
+// because the caller is already authenticated and there is no enumeration risk.
+func (a *PasswordAuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
+	if a.ops == nil {
+		return fmt.Errorf("password: database operations not initialised")
+	}
+
+	row, err := a.ops.Read(ctx, "user", userID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve user: %w", err)
+	}
+	if row == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	storedHash, _ := row["password_hash"].(string)
+	if err := a.passwordService.VerifyPassword(storedHash, oldPassword); err != nil {
+		return fmt.Errorf("current password is incorrect")
+	}
+
+	newHash, err := a.passwordService.HashPassword(newPassword)
+	if err != nil {
+		// HashPassword returns "password must be at least N characters" on short input.
+		return err
+	}
+
+	_, err = a.ops.Update(ctx, "user", userID, map[string]any{
+		"password_hash": newHash,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	return nil
 }
 
 // CreateSession creates a new session for the given user ID.

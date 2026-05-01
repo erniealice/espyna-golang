@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/ports"
 )
 
 // AuthorizationMiddleware provides authorization middleware for vanilla HTTP requests

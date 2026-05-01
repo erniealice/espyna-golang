@@ -146,6 +146,11 @@ func (p *NoOpAuthAdapter) GetProviderName() string {
 	return "noop"
 }
 
+// ChangePassword is unsupported by the no-op auth provider.
+func (p *NoOpAuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
+	return fmt.Errorf("change password not supported by noop auth provider")
+}
+
 // Compile-time checks that NoOpAuthAdapter implements both interfaces
 var _ ports.AuthProvider = (*NoOpAuthAdapter)(nil)
 var _ ports.AuthService = (*NoOpAuthAdapter)(nil)

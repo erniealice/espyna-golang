@@ -228,6 +228,11 @@ func (p *MockAuthAdapter) GetProviderName() string {
 	return "mock"
 }
 
+// ChangePassword is a no-op in mock mode — real validation happens in the password adapter.
+func (p *MockAuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
+	return nil
+}
+
 // Compile-time checks that MockAuthAdapter implements both interfaces
 var _ ports.AuthProvider = (*MockAuthAdapter)(nil)
 var _ ports.AuthService = (*MockAuthAdapter)(nil)

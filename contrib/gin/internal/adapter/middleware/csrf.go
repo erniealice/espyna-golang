@@ -1,3 +1,5 @@
+//go:build gin
+
 package middleware
 
 import (

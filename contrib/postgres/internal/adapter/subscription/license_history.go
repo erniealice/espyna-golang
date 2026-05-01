@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -308,8 +309,7 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			notes                sql.NullString
 			licenseStatusBefore  int32
 			licenseStatusAfter   int32
-			dateCreated          int64
-			dateCreatedString    string
+			dateCreated          time.Time
 			active               bool
 			rowTotalCount        int32
 		)
@@ -347,8 +347,8 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			PerformedBy:         performedBy,
 			LicenseStatusBefore: licensepb.LicenseStatus(licenseStatusBefore),
 			LicenseStatusAfter:  licensepb.LicenseStatus(licenseStatusAfter),
-			DateCreated:         dateCreated,
-			DateCreatedString:   dateCreatedString,
+			DateCreated:         dateCreated.UnixMilli(),
+			DateCreatedString:   dateCreated.UTC().Format(time.RFC3339),
 			Active:              active,
 		}
 

@@ -1,3 +1,5 @@
+//go:build gin
+
 package adapter
 
 import (
@@ -122,12 +124,12 @@ func (a *GinAdapter) Initialize(container any) error {
 	// Install espyna routes
 	a.installRoutes()
 
-	// Add default health endpoint
+	// Add default health endpoint — response shape mirrors vanilla routes.go setupBasicRoutes.
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status":    "ok",
-			"timestamp": time.Now().UTC(),
-			"framework": "gin",
+			"success":   true,
+			"status":    "healthy",
+			"timestamp": time.Now().Format(time.RFC3339),
 		})
 	})
 

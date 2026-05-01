@@ -5,36 +5,33 @@ import (
 	"fmt"
 
 	dbinterfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	"github.com/erniealice/espyna-golang/ports"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
-// authProviderOperations defines the operations interface for auth without conflicting Initialize
-type authProviderOperations interface {
-	Name() string
-	GetAuthService() authServiceOperations
-	IsHealthy(ctx context.Context) error
-	Close() error
-	IsEnabled() bool
-}
+// authProviderOperations is an alias for ports.AuthProvider so the consumer
+// can talk to the underlying adapter without re-declaring the contract.
+// Re-declaring would force return-type pinning (Go interface satisfaction
+// requires exact return-type match) and silently fail at runtime when the
+// upstream adapter returns ports.AuthService rather than a local mirror type.
+type authProviderOperations = ports.AuthProvider
 
-// databaseAuthOperations defines the extended operations available with db_auth provider.
+// databaseAuthOperations defines the extended operations available with the
+// password (legacy alias: db_auth) provider.
 type databaseAuthOperations interface {
 	Register(ctx context.Context, email, password, firstName, lastName, mobileNumber string) (string, error)
 	Login(ctx context.Context, email, password string) (string, *authpb.Identity, error)
 	RequestPasswordReset(ctx context.Context, email string) (string, error)
 	ExecutePasswordReset(ctx context.Context, token, newPassword string) error
+	ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error
 	CreateSession(ctx context.Context, userID string) (string, error)
 	ValidateSession(ctx context.Context, token string) (string, error)
 	InvalidateSession(ctx context.Context, token string) error
 	GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string)
 }
 
-// authServiceOperations defines the auth service operations
-type authServiceOperations interface {
-	VerifyToken(ctx context.Context, req *authpb.ValidateJwtTokenRequest) (*authpb.ValidateJwtTokenResponse, error)
-	IsEnabled() bool
-	GetProviderName() string
-}
+// authServiceOperations is an alias for ports.AuthService — same reason as above.
+type authServiceOperations = ports.AuthService
 
 /*
  ESPYNA CONSUMER APP - Technology-Agnostic Auth Adapter
@@ -81,8 +78,18 @@ func NewAuthAdapterFromContainer(container *Container) *AuthAdapter {
 		return nil
 	}
 
-	// Cast to authProviderOperations interface (avoids Initialize method conflict)
-	provider, ok := providerContract.(authProviderOperations)
+	// The composition layer wraps providers in a generic ProviderWrapper to
+	// satisfy contracts.Provider. The wrapper does NOT implement the auth
+	// service surface (GetAuthService / IsHealthy / IsEnabled), so we must
+	// unwrap to reach the concrete adapter before type-asserting.
+	var raw any = providerContract
+	if w, ok := providerContract.(interface{ Provider() interface{} }); ok {
+		if inner := w.Provider(); inner != nil {
+			raw = inner
+		}
+	}
+
+	provider, ok := raw.(authProviderOperations)
 	if !ok {
 		return nil
 	}
@@ -305,6 +312,20 @@ func (a *AuthAdapter) InvalidateSession(ctx context.Context, token string) error
 		return fmt.Errorf("session management not supported by %s provider", a.Name())
 	}
 	return dbAuth.InvalidateSession(ctx, token)
+}
+
+// ChangePassword updates the password for an authenticated user.
+// oldPassword must match the stored hash; newPassword is validated and hashed.
+// The caller's current session is preserved (only the password_hash is updated).
+// Returns a specific error when oldPassword is wrong — the user is authenticated
+// so there is no enumeration risk.
+// Only supported by the password provider.
+func (a *AuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return fmt.Errorf("change password not supported by %s provider", a.Name())
+	}
+	return dbAuth.ChangePassword(ctx, userID, oldPassword, newPassword)
 }
 
 // GetSessionWorkspaceContext returns the workspace_user_id and workspace_id stored on the session.

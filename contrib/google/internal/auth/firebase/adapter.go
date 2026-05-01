@@ -290,6 +290,11 @@ func (p *FirebaseAuthAdapter) GetProviderName() string {
 	return "firebase"
 }
 
+// ChangePassword is not supported by the Firebase adapter; password updates flow through Firebase Auth SDK directly.
+func (p *FirebaseAuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
+	return fmt.Errorf("change password not supported by firebase auth provider; use Firebase Admin SDK")
+}
+
 // Helper function to safely extract string claims
 func getStringClaim(claims map[string]interface{}, key string) string {
 	if val, ok := claims[key]; ok {

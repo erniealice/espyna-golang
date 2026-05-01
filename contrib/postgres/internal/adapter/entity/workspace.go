@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -181,12 +182,25 @@ func (r *PostgresWorkspaceRepository) DeleteWorkspace(ctx context.Context, req *
 	}, nil
 }
 
-// ListWorkspaces lists workspaces using common PostgreSQL operations
+var workspaceSortableSQLCols = []string{
+	"id", "active", "name", "description", "private", "status",
+	"date_created", "date_modified",
+}
+
+var workspaceSortSpec = espynahttp.SortSpec{AllowedCols: workspaceSortableSQLCols}
+
+// ListWorkspaces lists workspaces using common PostgreSQL operations.
 func (r *PostgresWorkspaceRepository) ListWorkspaces(ctx context.Context, req *workspacepb.ListWorkspacesRequest) (*workspacepb.ListWorkspacesResponse, error) {
-	// List documents using common operations
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(workspaceSortSpec, req.GetSort(), "workspace"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

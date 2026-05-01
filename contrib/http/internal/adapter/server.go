@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	// Composition layer
-	"github.com/erniealice/espyna-golang/internal/composition/core"
-	vanillaMiddleware "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/http/vanilla/middleware"
+	"github.com/erniealice/espyna-golang/composition/core"
+	vanillaMiddleware "github.com/erniealice/espyna-golang/contrib/http/internal/adapter/middleware"
 )
 
 // Server represents a vanilla HTTP server with all dependencies

@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
-	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/composition/contracts"
-	"github.com/erniealice/espyna-golang/internal/composition/routing"
+	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/composition/contracts"
+	"github.com/erniealice/espyna-golang/composition/routing"
 )
 
 // setupRoutes configures all HTTP routes using the route manager.

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -284,8 +285,23 @@ func (r *PostgresSupplierRepository) DeleteSupplier(ctx context.Context, req *su
 	}, nil
 }
 
+var supplierSortableSQLCols = []string{
+	"id", "user_id", "active", "internal_id", "supplier_type", "name",
+	"tax_id", "registration_number", "street_address", "city", "province",
+	"postal_code", "country", "billing_currency", "payment_terms",
+	"lead_time_days", "credit_limit", "status", "client_id", "website",
+	"notes", "payment_term_id", "timezone", "kind", "position", "department",
+	"date_created", "date_modified",
+}
+
+var supplierSortSpec = espynahttp.SortSpec{AllowedCols: supplierSortableSQLCols}
+
 // ListSuppliers lists suppliers using common PostgreSQL operations
 func (r *PostgresSupplierRepository) ListSuppliers(ctx context.Context, req *supplierpb.ListSuppliersRequest) (*supplierpb.ListSuppliersResponse, error) {
+	if err := espynahttp.ValidateSortColumns(supplierSortSpec, req.GetSort(), "supplier"); err != nil {
+		return nil, err
+	}
+
 	// Pass through filters from the request
 	var params *interfaces.ListParams
 	if req != nil && req.Filters != nil {

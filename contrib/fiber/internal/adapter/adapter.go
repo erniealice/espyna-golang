@@ -1,3 +1,5 @@
+//go:build fiber
+
 package adapter
 
 import (
@@ -108,12 +110,12 @@ func (a *FiberAdapter) Initialize(container any) error {
 	// Install espyna routes
 	a.installRoutes()
 
-	// Add default health endpoint
+	// Add default health endpoint — response shape mirrors vanilla routes.go setupBasicRoutes.
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"status":    "ok",
-			"timestamp": time.Now().UTC(),
-			"framework": "fiber",
+			"success":   true,
+			"status":    "healthy",
+			"timestamp": time.Now().Format(time.RFC3339),
 		})
 	})
 

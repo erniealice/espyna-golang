@@ -1,8 +1,10 @@
-//go:build vanilla && !gin && !fiber && !fiber_v3
+//go:build vanilla
 
 package consumer
 
-// Import vanilla adapter to trigger registration via init()
-import (
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/http/vanilla"
-)
+// Pulls in the vanilla net/http server adapter via the contrib/http sibling
+// module. Only ONE server framework should be tagged in any given build —
+// each framework's register file uses a single positive tag (vanilla, fiber,
+// gin) so the user picks via .env CONFIG_SERVER_PROVIDER and Go enforces
+// exclusivity at link time.
+import _ "github.com/erniealice/espyna-golang/contrib/http"

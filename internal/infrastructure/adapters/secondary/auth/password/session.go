@@ -82,13 +82,14 @@ func (s *SessionService) CreateSession(ctx context.Context, userID string) (stri
 	// Resolve workspace_user for default workspace
 	wsUserID, wsID := s.resolveWorkspaceUser(ctx, userID)
 
-	expiresAt := time.Now().Add(s.expiry)
+	// expires_at is BIGINT (unix milliseconds) per the session migration.
+	expiresAtMs := time.Now().Add(s.expiry).UnixMilli()
 
 	data := map[string]any{
 		"id":         id,
 		"user_id":    userID,
 		"token":      token,
-		"expires_at": expiresAt,
+		"expires_at": expiresAtMs,
 		"active":     true,
 	}
 	// workspace_user_id and workspace_id are nullable — only include when non-empty.
@@ -121,10 +122,8 @@ func (s *SessionService) GetSessionWorkspaceContext(ctx context.Context, token s
 	}
 	// expires_at check in Go — QueryBuilder has no WhereGreaterThan.
 	// If the session is expired, return empty context.
-	if expiresAt, ok := row["expires_at"].(time.Time); ok {
-		if time.Now().After(expiresAt) {
-			return "", ""
-		}
+	if isSessionExpired(row["expires_at"]) {
+		return "", ""
 	}
 	wsUserID, _ = row["workspace_user_id"].(string)
 	wsID, _ = row["workspace_id"].(string)
@@ -153,10 +152,8 @@ func (s *SessionService) ValidateSession(ctx context.Context, token string) (str
 	}
 
 	// expires_at check in Go — QueryBuilder has no WhereGreaterThan.
-	if expiresAt, ok := row["expires_at"].(time.Time); ok {
-		if time.Now().After(expiresAt) {
-			return "", fmt.Errorf("invalid or expired session")
-		}
+	if isSessionExpired(row["expires_at"]) {
+		return "", fmt.Errorf("invalid or expired session")
 	}
 
 	userID, _ := row["user_id"].(string)
@@ -247,7 +244,6 @@ func (s *SessionService) CleanupExpiredSessions(ctx context.Context) (int64, err
 		return 0, fmt.Errorf("failed to list active sessions for expiry check: %w", err)
 	}
 
-	now := time.Now()
 	var toDelete []string
 	for _, row := range inactiveRows {
 		if id, _ := row["id"].(string); id != "" {
@@ -255,7 +251,7 @@ func (s *SessionService) CleanupExpiredSessions(ctx context.Context) (int64, err
 		}
 	}
 	for _, row := range activeRows {
-		if expiresAt, ok := row["expires_at"].(time.Time); ok && now.After(expiresAt) {
+		if isSessionExpired(row["expires_at"]) {
 			if id, _ := row["id"].(string); id != "" {
 				toDelete = append(toDelete, id)
 			}
@@ -275,4 +271,25 @@ func (s *SessionService) CleanupExpiredSessions(ctx context.Context) (int64, err
 // GetSessionExpiry returns the configured session duration.
 func (s *SessionService) GetSessionExpiry() time.Duration {
 	return s.expiry
+}
+
+// isSessionExpired checks whether a value read from the session.expires_at
+// column represents a moment already in the past. The column is BIGINT (unix
+// milliseconds), but different drivers can hand the value back as int64,
+// float64, or time.Time depending on column-coercion paths — this helper
+// normalises the comparison.
+func isSessionExpired(raw any) bool {
+	now := time.Now()
+	switch v := raw.(type) {
+	case int64:
+		return now.After(time.UnixMilli(v))
+	case int:
+		return now.After(time.UnixMilli(int64(v)))
+	case float64:
+		return now.After(time.UnixMilli(int64(v)))
+	case time.Time:
+		return now.After(v)
+	default:
+		return false
+	}
 }

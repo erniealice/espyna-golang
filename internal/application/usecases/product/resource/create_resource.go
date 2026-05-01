@@ -12,8 +12,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // CreateResourceUseCase handles the business logic for creating resources
@@ -203,7 +201,7 @@ func (uc *CreateResourceUseCase) validateBusinessRules(ctx context.Context, reso
 	}
 
 	// Normalize name (trim spaces, proper capitalization)
-	resource.Name = cases.Title(language.English).String(strings.ToLower(resource.Name))
+	resource.Name = strings.TrimSpace(resource.Name)
 
 	return nil
 }

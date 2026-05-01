@@ -170,7 +170,7 @@ func (uc *UpdateCollectionUseCase) validateBusinessRules(ctx context.Context, co
 	}
 
 	// Normalize name (trim spaces, proper capitalization)
-	collection.Name = strings.Title(strings.ToLower(name))
+	collection.Name = strings.TrimSpace(name)
 
 	return nil
 }

@@ -3,6 +3,7 @@ package espynahttp
 import (
 	"time"
 
+	"github.com/erniealice/espyna-golang/tableparams"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
@@ -11,7 +12,7 @@ import (
 // used by PostgresOperations.List(). searchFields drives ILIKE search;
 // pass nil or empty slice when the caller does not support search.
 // Timezone is applied to date filter string parsing.
-func ToListParams(p TableQueryParams, searchFields []string) interfaces.ListParams {
+func ToListParams(p tableparams.TableQueryParams, searchFields []string) interfaces.ListParams {
 	// Sort with stable tie-breaker
 	dir := commonpb.SortDirection_ASC
 	if p.SortDir == "desc" {

@@ -35,6 +35,15 @@ type (
 
 var NewAuthConfigAdapter = internal.NewAuthConfigAdapter
 
+// Audit context types — re-exported so contrib HTTP adapters can populate
+// the audit context without importing internal/.
+type AuditContext = infrastructure.AuditContext
+
+var (
+	WithAuditContext = infrastructure.WithAuditContext
+	GetAuditContext  = infrastructure.GetAuditContext
+)
+
 // Auth error codes
 const (
 	ErrCodeMissingToken = infrastructure.ErrCodeMissingToken

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -20,6 +21,32 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
+
+// collectionSortableSQLCols lists the SQL column names that are safe to sort by
+// in GetCollectionListPageData. The query uses direct ORDER BY interpolation so
+// this guard is critical — an unrecognised column is a potential SQL-injection
+// vector and must be rejected loudly before query execution.
+var collectionSortableSQLCols = []string{
+	"tc.date_created",
+	"tc.date_modified",
+	"tc.name",
+	"tc.amount",
+	"tc.status",
+	"tc.payment_date",
+	"tc.reference_number",
+}
+
+// collectionViewToSQLColMap translates view-facing sort column keys to the SQL
+// column names used in the query. Columns absent from the map pass through unchanged.
+var collectionViewToSQLColMap = map[string]string{
+	"date_created":     "tc.date_created",
+	"date_modified":    "tc.date_modified",
+	"name":             "tc.name",
+	"amount":           "tc.amount",
+	"status":           "tc.status",
+	"payment_date":     "tc.payment_date",
+	"reference_number": "tc.reference_number",
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.TreasuryCollection, func(conn any, tableName string) (any, error) {
@@ -262,6 +289,18 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
+	}
+
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := collectionViewToSQLColMap[sortField]; ok {
+		sortField = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not in the allowlist. This query
+	// uses direct ORDER BY interpolation, so an unrecognised value is a potential
+	// SQL-injection vector and must be rejected loudly before query execution.
+	if sortField != "" && !slices.Contains(collectionSortableSQLCols, sortField) {
+		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "collection", collectionSortableSQLCols)
 	}
 
 	query := `

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -19,6 +20,20 @@ import (
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/inventory_movement"
 )
+
+// inventoryMovementSortableSQLCols lists the SQL column names handled by CASE
+// WHEN branches in the sorted CTE. Any unrecognised column triggers a loud error
+// instead of silently producing no ORDER BY.
+var inventoryMovementSortableSQLCols = []string{
+	"date_created",
+	"quantity",
+	"unit_cost",
+	"movement_date",
+}
+
+// inventoryMovementViewToSQLColMap translates view-facing sort column keys to
+// the SQL column names used in the CTE. Columns absent from the map pass through unchanged.
+var inventoryMovementViewToSQLColMap = map[string]string{}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.InventoryMovement, func(conn any, tableName string) (any, error) {
@@ -239,6 +254,17 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 		} else {
 			sortDirection = "ASC"
 		}
+	}
+
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := inventoryMovementViewToSQLColMap[sortField]; ok {
+		sortField = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not handled by the CASE WHEN
+	// chain in the sorted CTE. Turns silent fall-through into an obvious error.
+	if sortField != "" && !slices.Contains(inventoryMovementSortableSQLCols, sortField) {
+		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "inventory_movement", inventoryMovementSortableSQLCols)
 	}
 
 	// JOIN with product, from_location, and to_location

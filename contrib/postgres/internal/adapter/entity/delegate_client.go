@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -17,6 +18,21 @@ import (
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// delegateClientSortableSQLCols lists the SQL column names that are safe to sort
+// by in GetDelegateClientListPageData. The query uses direct ORDER BY interpolation
+// so this guard is critical — an unrecognised column is a potential SQL-injection
+// vector and must be rejected loudly before query execution.
+var delegateClientSortableSQLCols = []string{
+	"date_created",
+	"date_modified",
+	"delegate_id",
+	"client_id",
+}
+
+// delegateClientViewToSQLColMap translates view-facing sort column keys to SQL
+// column names. Columns absent from the map pass through unchanged.
+var delegateClientViewToSQLColMap = map[string]string{}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.DelegateClient, func(conn any, tableName string) (any, error) {
@@ -236,6 +252,18 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
+	}
+
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := delegateClientViewToSQLColMap[sortField]; ok {
+		sortField = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not in the allowlist. This query
+	// uses direct ORDER BY interpolation, so an unrecognised value is a potential
+	// SQL-injection vector and must be rejected loudly before query execution.
+	if sortField != "" && !slices.Contains(delegateClientSortableSQLCols, sortField) {
+		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "delegate_client", delegateClientSortableSQLCols)
 	}
 
 	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`

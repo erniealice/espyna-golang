@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -17,6 +18,18 @@ import (
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// licenseHistorySortableSQLCols lists the SQL column names handled by CASE WHEN
+// branches in the sorted CTE. Any unrecognised column triggers a loud error
+// instead of silently producing no ORDER BY.
+var licenseHistorySortableSQLCols = []string{
+	"date_created",
+	"action",
+}
+
+// licenseHistoryViewToSQLColMap translates view-facing sort column keys to the
+// SQL column names used in the CTE. Columns absent from the map pass through unchanged.
+var licenseHistoryViewToSQLColMap = map[string]string{}
 
 // PostgresLicenseHistoryRepository implements license_history CRUD operations using PostgreSQL
 type PostgresLicenseHistoryRepository struct {
@@ -194,6 +207,17 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 		} else {
 			sortDirection = "ASC"
 		}
+	}
+
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := licenseHistoryViewToSQLColMap[sortField]; ok {
+		sortField = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not handled by the CASE WHEN
+	// chain in the sorted CTE. Turns silent fall-through into an obvious error.
+	if sortField != "" && !slices.Contains(licenseHistorySortableSQLCols, sortField) {
+		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "license_history", licenseHistorySortableSQLCols)
 	}
 
 	// Build the CTE query

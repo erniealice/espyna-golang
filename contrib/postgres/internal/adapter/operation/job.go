@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -21,6 +22,26 @@ import (
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 )
+
+// jobSortableSQLCols lists the SQL column names that are safe to sort by in
+// GetJobListPageData. The query uses direct ORDER BY interpolation so this guard
+// is critical — an unrecognised column is a potential SQL-injection vector and
+// must be rejected loudly before query execution.
+var jobSortableSQLCols = []string{
+	"j.date_created",
+	"j.date_modified",
+	"j.name",
+	"j.status",
+}
+
+// jobViewToSQLColMap translates view-facing sort column keys to the SQL column
+// names used in the query. Columns absent from the map pass through unchanged.
+var jobViewToSQLColMap = map[string]string{
+	"date_created":  "j.date_created",
+	"date_modified": "j.date_modified",
+	"name":          "j.name",
+	"status":        "j.status",
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.Job, func(conn any, tableName string) (any, error) {
@@ -259,6 +280,18 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
 			sortOrder = "DESC"
 		}
+	}
+
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := jobViewToSQLColMap[sortField]; ok {
+		sortField = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not in the allowlist. This query
+	// uses direct ORDER BY interpolation, so an unrecognised value is a potential
+	// SQL-injection vector and must be rejected loudly before query execution.
+	if sortField != "" && !slices.Contains(jobSortableSQLCols, sortField) {
+		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "job", jobSortableSQLCols)
 	}
 
 	query := `

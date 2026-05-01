@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,6 +25,23 @@ import (
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 )
+
+// revenueSortableSQLCols lists the SQL column names that are safe to sort by in
+// GetRevenueListPageData. The query uses direct ORDER BY interpolation, so any
+// unrecognised value is a potential SQL-injection vector and must be rejected
+// loudly before query execution.
+var revenueSortableSQLCols = []string{
+	"reference_number",
+	"total_amount",
+	"status",
+	"date_created",
+	"date_modified",
+	"client_name",
+}
+
+// revenueViewToSQLColMap translates view-facing sort column keys to SQL column
+// names. Columns absent from the map pass through unchanged.
+var revenueViewToSQLColMap = map[string]string{}
 
 // periodMarkerUniqueIndex is the partial unique index added by migration
 // 20260428100000_revenue_period_marker_unique. When the concurrent-Generate
@@ -294,24 +312,26 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		}
 	}
 
-	// Sort with allowlist validation
-	sortAllowlist := map[string]string{
-		"reference_number": "reference_number",
-		"total_amount":     "total_amount",
-		"status":           "status",
-		"date_created":     "date_created",
-		"date_modified":    "date_modified",
-		"client_name":      "client_name",
-	}
+	// Sort with allowlist validation.
 	sortCol := "date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
-			sortCol = col
-		}
+		sortCol = req.Sort.Fields[0].Field
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
 		}
+	}
+
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := revenueViewToSQLColMap[sortCol]; ok {
+		sortCol = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not in the allowlist. This query
+	// uses direct ORDER BY interpolation, so an unrecognised value is a potential
+	// SQL-injection vector and must be rejected loudly before query execution.
+	if sortCol != "" && !slices.Contains(revenueSortableSQLCols, sortCol) {
+		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortCol, "revenue", revenueSortableSQLCols)
 	}
 
 	// Build parameterized WHERE clauses via shared helper ($1 is reserved for workspace_id, start at $2)

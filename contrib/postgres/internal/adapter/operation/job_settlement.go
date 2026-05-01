@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -17,6 +18,19 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_settlement"
 )
+
+// jobSettlementSortableSQLCols lists the SQL column names handled by CASE WHEN
+// branches in the sorted CTE. Any unrecognised column triggers a loud error
+// instead of silently producing no ORDER BY.
+var jobSettlementSortableSQLCols = []string{
+	"date_created",
+	"allocated_amount",
+	"settlement_date",
+}
+
+// jobSettlementViewToSQLColMap translates view-facing sort column keys to the
+// SQL column names used in the CTE. Columns absent from the map pass through unchanged.
+var jobSettlementViewToSQLColMap = map[string]string{}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.JobSettlement, func(conn any, tableName string) (any, error) {
@@ -233,6 +247,17 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 		} else {
 			sortDirection = "ASC"
 		}
+	}
+
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := jobSettlementViewToSQLColMap[sortField]; ok {
+		sortField = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not handled by the CASE WHEN
+	// chain in the sorted CTE. Turns silent fall-through into an obvious error.
+	if sortField != "" && !slices.Contains(jobSettlementSortableSQLCols, sortField) {
+		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "job_settlement", jobSettlementSortableSQLCols)
 	}
 
 	query := `

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -189,12 +190,26 @@ func (r *PostgresInventoryItemRepository) DeleteInventoryItem(ctx context.Contex
 	}, nil
 }
 
+var inventoryItemSortableSQLCols = []string{
+	"id", "active", "name", "product_id", "location_id", "sku",
+	"quantity_on_hand", "quantity_reserved", "quantity_available",
+	"reorder_level", "unit_of_measure", "date_created", "date_modified",
+}
+
+var inventoryItemSortSpec = espynahttp.SortSpec{AllowedCols: inventoryItemSortableSQLCols}
+
 // ListInventoryItems lists inventory items using common PostgreSQL operations
 func (r *PostgresInventoryItemRepository) ListInventoryItems(ctx context.Context, req *inventoryitempb.ListInventoryItemsRequest) (*inventoryitempb.ListInventoryItemsResponse, error) {
-	// List documents using common operations
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(inventoryItemSortSpec, req.GetSort(), "inventory_item"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

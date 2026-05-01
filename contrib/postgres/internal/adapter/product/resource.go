@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -185,12 +186,25 @@ func (r *PostgresResourceRepository) DeleteResource(ctx context.Context, req *re
 	}, nil
 }
 
+var resourceSortableSQLCols = []string{
+	"id", "active", "name", "description", "product_id",
+	"date_created", "date_modified",
+}
+
+var resourceSortSpec = espynahttp.SortSpec{AllowedCols: resourceSortableSQLCols}
+
 // ListResources lists resources using common PostgreSQL operations
 func (r *PostgresResourceRepository) ListResources(ctx context.Context, req *resourcepb.ListResourcesRequest) (*resourcepb.ListResourcesResponse, error) {
-	// List documents using common operations
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(resourceSortSpec, req.GetSort(), "resource"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

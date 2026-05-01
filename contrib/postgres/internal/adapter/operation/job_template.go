@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -182,11 +183,26 @@ func (r *PostgresJobTemplateRepository) DeleteJobTemplate(ctx context.Context, r
 	}, nil
 }
 
+var jobTemplateSortableSQLCols = []string{
+	"id", "active", "name", "description",
+	"default_fulfillment_type", "default_cost_flow_type", "default_billing_rule_type",
+	"date_created", "date_modified",
+}
+
+var jobTemplateSortSpec = espynahttp.SortSpec{AllowedCols: jobTemplateSortableSQLCols}
+
 // ListJobTemplates lists job template records with optional filters
 func (r *PostgresJobTemplateRepository) ListJobTemplates(ctx context.Context, req *pb.ListJobTemplatesRequest) (*pb.ListJobTemplatesResponse, error) {
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(jobTemplateSortSpec, req.GetSort(), "job_template"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -166,7 +167,18 @@ func (r *PostgresProductLineRepository) DeleteProductLine(ctx context.Context, r
 	return &productlinepb.DeleteProductLineResponse{Success: true}, nil
 }
 
+var productLineSortableSQLCols = []string{
+	"id", "active", "product_id", "line_id", "sort_order",
+	"date_created", "date_modified",
+}
+
+var productLineSortSpec = espynahttp.SortSpec{AllowedCols: productLineSortableSQLCols}
+
 func (r *PostgresProductLineRepository) ListProductLines(ctx context.Context, req *productlinepb.ListProductLinesRequest) (*productlinepb.ListProductLinesResponse, error) {
+	if err := espynahttp.ValidateSortColumns(productLineSortSpec, req.GetSort(), "product_line"); err != nil {
+		return nil, err
+	}
+
 	var params *interfaces.ListParams
 	if req != nil {
 		params = &interfaces.ListParams{

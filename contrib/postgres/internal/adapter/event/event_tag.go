@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -176,11 +177,25 @@ func (r *PostgresEventTagRepository) DeleteEventTag(ctx context.Context, req *ev
 	}, nil
 }
 
+var eventTagSortableSQLCols = []string{
+	"id", "active", "name", "description", "color", "workspace_id",
+	"date_created", "date_modified",
+}
+
+var eventTagSortSpec = espynahttp.SortSpec{AllowedCols: eventTagSortableSQLCols}
+
 // ListEventTags lists event tags using common PostgreSQL operations
 func (r *PostgresEventTagRepository) ListEventTags(ctx context.Context, req *eventtagpb.ListEventTagsRequest) (*eventtagpb.ListEventTagsResponse, error) {
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(eventTagSortSpec, req.GetSort(), "event_tag"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

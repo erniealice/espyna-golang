@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -179,11 +180,27 @@ func (r *PostgresFulfillmentRepository) DeleteFulfillment(ctx context.Context, r
 	}, nil
 }
 
+var fulfillmentSortableSQLCols = []string{
+	"id", "active", "workspace_id", "revenue_id", "supplier_id",
+	"delivery_mode", "status", "provider_status", "provider_reference",
+	"delivery_cost", "currency", "expenditure_id", "scheduled_at", "delivered_at",
+	"date_created", "date_modified",
+}
+
+var fulfillmentSortSpec = espynahttp.SortSpec{AllowedCols: fulfillmentSortableSQLCols}
+
 // ListFulfillments lists fulfillment records with optional filters
 func (r *PostgresFulfillmentRepository) ListFulfillments(ctx context.Context, req *pb.ListFulfillmentsRequest) (*pb.ListFulfillmentsResponse, error) {
-	var params *interfaces.ListParams
-	if req != nil && req.Filter != nil {
-		params = &interfaces.ListParams{Filters: req.Filter}
+	if err := espynahttp.ValidateSortColumns(fulfillmentSortSpec, req.GetSort(), "fulfillment"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filter
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

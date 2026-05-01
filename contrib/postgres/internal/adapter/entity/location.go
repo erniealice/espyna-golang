@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/consumer"
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -173,12 +174,25 @@ func (r *PostgresLocationRepository) DeleteLocation(ctx context.Context, req *lo
 	}, nil
 }
 
+var locationSortableSQLCols = []string{
+	"id", "active", "name", "address", "description", "timezone",
+	"location_area_id", "workspace_id", "date_created", "date_modified",
+}
+
+var locationSortSpec = espynahttp.SortSpec{AllowedCols: locationSortableSQLCols}
+
 // ListLocations lists locations using common PostgreSQL operations
 func (r *PostgresLocationRepository) ListLocations(ctx context.Context, req *locationpb.ListLocationsRequest) (*locationpb.ListLocationsResponse, error) {
-	// List documents using common operations
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(locationSortSpec, req.GetSort(), "location"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

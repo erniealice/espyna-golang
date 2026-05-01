@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -174,12 +175,25 @@ func (r *PostgresUserRepository) DeleteUser(ctx context.Context, req *userpb.Del
 	}, nil
 }
 
+var userSortableSQLCols = []string{
+	"id", "active", "first_name", "last_name", "email_address",
+	"mobile_number", "timezone", "date_created", "date_modified",
+}
+
+var userSortSpec = espynahttp.SortSpec{AllowedCols: userSortableSQLCols}
+
 // ListUsers lists users using common PostgreSQL operations
 func (r *PostgresUserRepository) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
-	// Pass through filters from the request (e.g. email_address equality for findOrCreateUser)
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(userSortSpec, req.GetSort(), "user"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 
 	// List documents using common operations

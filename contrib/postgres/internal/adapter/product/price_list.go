@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -176,11 +177,25 @@ func (r *PostgresPriceListRepository) DeletePriceList(ctx context.Context, req *
 	}, nil
 }
 
+var priceListSortableSQLCols = []string{
+	"id", "active", "name", "description", "date_start", "date_end",
+	"location_id", "date_created", "date_modified",
+}
+
+var priceListSortSpec = espynahttp.SortSpec{AllowedCols: priceListSortableSQLCols}
+
 // ListPriceLists lists price lists using common PostgreSQL operations
 func (r *PostgresPriceListRepository) ListPriceLists(ctx context.Context, req *pricelistpb.ListPriceListsRequest) (*pricelistpb.ListPriceListsResponse, error) {
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if err := espynahttp.ValidateSortColumns(priceListSortSpec, req.GetSort(), "price_list"); err != nil {
+		return nil, err
+	}
+
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

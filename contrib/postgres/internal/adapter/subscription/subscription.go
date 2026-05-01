@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -19,6 +20,27 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// subscriptionSortableSQLCols lists the SQL column names that the sorted CTE
+// handles via CASE WHEN branches. These are SQL-side names (after ColMap
+// translation). Any unrecognised column triggers a loud error instead of
+// silently producing no ORDER BY.
+var subscriptionSortableSQLCols = []string{
+	"name",
+	"date_created",
+	"date_time_start",
+	"date_time_end",
+	"client_name",
+}
+
+// subscriptionViewToSQLColMap translates view-facing sort column keys (as
+// sent by the browser via ParseTableParamsFromSpec) to the SQL column names
+// used in the enriched CTE. Columns absent from the map pass through unchanged.
+var subscriptionViewToSQLColMap = map[string]string{
+	"date_start": "date_time_start",
+	"date_end":   "date_time_end",
+	"client":     "client_name",
+}
 
 // PostgresSubscriptionRepository implements subscription CRUD operations using PostgreSQL
 type PostgresSubscriptionRepository struct {
@@ -297,6 +319,18 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		}
 	}
 
+	// Translate view-facing column key to SQL column name via ColMap.
+	if mapped, ok := subscriptionViewToSQLColMap[sortField]; ok {
+		sortField = mapped
+	}
+
+	// Loud-failure guard: reject any sort column not handled by the CASE WHEN
+	// chain. This defends against direct API callers that bypass the HTTP layer.
+	// Empty sortField is allowed (treated as "date_created" default above).
+	if sortField != "" && !slices.Contains(subscriptionSortableSQLCols, sortField) {
+		return nil, fmt.Errorf("invalid sort column %q for subscription list (allowed SQL cols: %v)", sortField, subscriptionSortableSQLCols)
+	}
+
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_subscription_active ON subscription(active) WHERE active = true;
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_subscription_name_trgm ON subscription USING gin(name gin_trgm_ops);
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_subscription_client_id ON subscription(client_id);
@@ -332,6 +366,13 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				sf.active,
 				sf.date_created,
 				sf.date_modified,
+				-- client_name is the top-level sortable column for client sort.
+				-- Prefer c.name (company name); fall back to first_name || last_name
+				-- for individual clients without a company name.
+				COALESCE(
+					NULLIF(c.name, ''),
+					NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '')
+				) AS client_name,
 				jsonb_build_object(
 					'id', c.id,
 					'user_id', c.user_id,
@@ -385,7 +426,9 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				CASE WHEN $4 = 'date_time_start' AND $5 = 'ASC' THEN date_time_start END ASC,
 				CASE WHEN $4 = 'date_time_start' AND $5 = 'DESC' THEN date_time_start END DESC,
 				CASE WHEN $4 = 'date_time_end' AND $5 = 'ASC' THEN date_time_end END ASC,
-				CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN date_time_end END DESC
+				CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN date_time_end END DESC,
+				CASE WHEN $4 = 'client_name' AND $5 = 'ASC' THEN client_name END ASC,
+				CASE WHEN $4 = 'client_name' AND $5 = 'DESC' THEN client_name END DESC
 		),
 
 		-- CTE 4: Calculate total count for pagination

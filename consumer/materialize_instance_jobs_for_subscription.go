@@ -12,10 +12,16 @@ import (
 // CyclePeriodStart is optional — when empty, the use case spawns the next
 // un-spawned cycle from sub.date_time_start. Backfill, when true, materialises
 // every missing cycle from sub.date_time_start up to today (capped at 24).
+//
+// UsageRequestDate is the AD_HOC equivalent: when the subscription's PricePlan
+// is BILLING_KIND_AD_HOC, the use case spawns a single usage Job dated to
+// UsageRequestDate (defaults to today UTC when empty). Cycle fields are
+// ignored on AD_HOC plans.
 type MaterializeInstanceJobsForSubscriptionRequest struct {
 	SubscriptionID   string
 	CyclePeriodStart string
 	Backfill         bool
+	UsageRequestDate string
 }
 
 // MaterializeInstanceJobsForSubscriptionResponse is the public response shape.
@@ -88,6 +94,7 @@ func MaterializeInstanceJobsForSubscription(
 		SubscriptionId:   req.SubscriptionID,
 		CyclePeriodStart: req.CyclePeriodStart,
 		Backfill:         req.Backfill,
+		UsageRequestDate: req.UsageRequestDate,
 	})
 	if err != nil {
 		return nil, err

@@ -1493,7 +1493,13 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnUsageJob(
 
 	ordinalLocal := ordinal
 	visitKeyLocal := visitKey
-	requestDateLocal := requestDate
+	_ = requestDate // captured in composite cycle_period_start; usage_request_date
+	// DB column is DATE which round-trips back as epoch ms via dbOps,
+	// breaking the proto string field on read. Companion column kept in the
+	// schema for direct SQL queries (DB→view-layer joins, dashboards) but
+	// not persisted via dbOps until the proto type is reconciled (v1.5
+	// follow-up). usage_ordinal (INTEGER) round-trips cleanly so that one
+	// stays wired.
 
 	job := &jobpb.Job{
 		Id:                 jobID,
@@ -1506,12 +1512,12 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnUsageJob(
 		BillingRuleType:    billingRule,
 		Active:             true,
 		ParentJobId:        &parentID,
-		// AD_HOC reuses cycle_index as the per-engagement ordinal (visit/appointment/etc.)
-		// and cycle_period_start as the composite uniqueness key. The view
-		// layer parses back to date+ordinal via usage_request_date + usage_ordinal.
+		// AD_HOC reuses cycle_index as the per-engagement ordinal and
+		// cycle_period_start as the composite uniqueness key
+		// (`YYYY-MM-DD#NNNN`). The view layer parses back to date+ordinal
+		// via the composite + usage_ordinal field.
 		CycleIndex:         &ordinalLocal,
 		CyclePeriodStart:   &visitKeyLocal,
-		UsageRequestDate:   &requestDateLocal,
 		UsageOrdinal:       &ordinalLocal,
 		DateCreated:        &dc,
 		DateCreatedString:  &dcs,

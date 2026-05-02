@@ -19,6 +19,7 @@ import (
 	"github.com/erniealice/espyna-golang/composition/core"
 	"github.com/erniealice/espyna-golang/composition/routing"
 	"github.com/erniealice/espyna-golang/composition/routing/customization"
+	fibermw "github.com/erniealice/espyna-golang/contrib/fiber/internal/adapter/middleware"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 )
@@ -103,6 +104,11 @@ func (a *FiberAdapter) Initialize(container any) error {
 
 	// Add compression middleware
 	app.Use(compress.New())
+
+	// Populate AuditContext (ActorID, ActorType, IP, UserAgent, RequestID) on every
+	// request. Runs before business routes. Auth middleware doesn't exist for fiber
+	// yet — gracefully falls through with "system" defaults when no auth context.
+	app.Use(fibermw.AuditContext())
 
 	a.app = app
 	a.enabled = true

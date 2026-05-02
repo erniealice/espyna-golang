@@ -8,14 +8,14 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/consumer"
-	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	topref "github.com/erniealice/espyna-golang/reference"
 	"github.com/lib/pq"
 )
 
-// Compile-time guarantee that *Checker satisfies the application-layer
-// ReferenceChecker port. Without this assertion, use cases that depend on
-// the port would silently use a no-op when the postgres binding is missing.
-var _ infraports.ReferenceChecker = (*Checker)(nil)
+// Compile-time guarantee that *Checker satisfies the top-level public
+// reference.Checker interface. This assertion covers the full 21-method
+// contract so any new method added to the interface is caught at build time.
+var _ topref.Checker = (*Checker)(nil)
 
 // Checker provides batch FK reference checking for deletable state.
 // Each method returns a map where true = ID is in use and should NOT be deleted.

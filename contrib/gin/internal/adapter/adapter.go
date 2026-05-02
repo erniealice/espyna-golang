@@ -17,6 +17,7 @@ import (
 	"github.com/erniealice/espyna-golang/composition/core"
 	"github.com/erniealice/espyna-golang/composition/routing"
 	"github.com/erniealice/espyna-golang/composition/routing/customization"
+	ginmiddleware "github.com/erniealice/espyna-golang/contrib/gin/internal/adapter/middleware"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 )
@@ -117,6 +118,11 @@ func (a *GinAdapter) Initialize(container any) error {
 			param.ErrorMessage,
 		)
 	}))
+
+	// Populate AuditContext (ActorID, ActorType, IP, UserAgent, RequestID) after
+	// authentication middleware so that uid is already present in the Gin context.
+	// Must run before authorization so audit metadata is available to downstream handlers.
+	router.Use(ginmiddleware.AuditContext())
 
 	a.router = router
 	a.enabled = true

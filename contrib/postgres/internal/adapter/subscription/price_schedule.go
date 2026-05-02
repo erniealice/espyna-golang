@@ -84,11 +84,13 @@ func (r *PostgresPriceScheduleRepository) CreatePriceSchedule(ctx context.Contex
 	// Empty optional FKs ("" from the inactive scope picker) must arrive at
 	// postgres as SQL NULL — the Scope radio (2026-04-28) clears the inactive
 	// FK on save, and an empty literal would trip the FK constraint.
-	if v, ok := data["client_id"].(string); ok && v == "" {
-		data["client_id"] = nil
+	// Keys are camelCase here because protojson emits camelCase by default;
+	// normalizeKeys() inside dbOps.Create later converts them to snake_case.
+	if v, ok := data["clientId"].(string); ok && v == "" {
+		data["clientId"] = nil
 	}
-	if v, ok := data["location_id"].(string); ok && v == "" {
-		data["location_id"] = nil
+	if v, ok := data["locationId"].(string); ok && v == "" {
+		data["locationId"] = nil
 	}
 
 	// Create document using common operations.
@@ -172,11 +174,13 @@ func (r *PostgresPriceScheduleRepository) UpdatePriceSchedule(ctx context.Contex
 	// scope radio (2026-04-28) flips between location-scoped and client-scoped
 	// schedules, clearing the inactive FK each time. EmitDefaultValues serialises
 	// nil/&"" as the empty string which would trip the FK constraint.
-	if v, ok := data["client_id"].(string); ok && v == "" {
-		data["client_id"] = nil
+	// Keys are camelCase here because protojson emits camelCase by default;
+	// normalizeKeys() inside dbOps.Update later converts them to snake_case.
+	if v, ok := data["clientId"].(string); ok && v == "" {
+		data["clientId"] = nil
 	}
-	if v, ok := data["location_id"].(string); ok && v == "" {
-		data["location_id"] = nil
+	if v, ok := data["locationId"].(string); ok && v == "" {
+		data["locationId"] = nil
 	}
 
 	// Update document using common operations.

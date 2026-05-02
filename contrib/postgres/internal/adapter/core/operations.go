@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -113,16 +114,21 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 	columns := make([]string, 0, len(data))
 	placeholders := make([]string, 0, len(data))
 	values := make([]any, 0, len(data))
+	var skipped []string
 
 	i := 1
 	for column, value := range data {
 		if !validColumns[column] {
+			skipped = append(skipped, column)
 			continue
 		}
 		columns = append(columns, column)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
 		values = append(values, serializeValue(value))
 		i++
+	}
+	if len(skipped) > 0 {
+		log.Printf("PostgresOperations.Create: dropped %d unknown column(s) for table=%q skipped=%v", len(skipped), tableName, skipped)
 	}
 
 	query := fmt.Sprintf(
@@ -274,15 +280,23 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	// Build UPDATE query (only columns that exist in the table)
 	setParts := make([]string, 0, len(data))
 	values := make([]any, 0, len(data)+1)
+	var skipped []string
 
 	i := 1
 	for column, value := range data {
-		if column == "id" || !validColumns[column] {
+		if column == "id" {
+			continue
+		}
+		if !validColumns[column] {
+			skipped = append(skipped, column)
 			continue
 		}
 		setParts = append(setParts, fmt.Sprintf("%s = $%d", column, i))
 		values = append(values, serializeValue(value))
 		i++
+	}
+	if len(skipped) > 0 {
+		log.Printf("PostgresOperations.Update: dropped %d unknown column(s) for table=%q id=%q skipped=%v", len(skipped), tableName, id, skipped)
 	}
 	values = append(values, id) // Add ID as last parameter
 

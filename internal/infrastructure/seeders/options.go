@@ -1,6 +1,4 @@
-package seeders
-
-import "leapfor.xyz/vya"
+package seeder
 
 // Options configures seeder behavior
 type Options struct {

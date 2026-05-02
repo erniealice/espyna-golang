@@ -6,7 +6,6 @@ import (
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
-	"leapfor.xyz/vya"
 )
 
 // ConvertWorkflowTemplate converts a vya WorkflowTemplate to protobuf

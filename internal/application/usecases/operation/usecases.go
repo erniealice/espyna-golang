@@ -21,6 +21,9 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
+	// Dashboard use case
+	jobdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/operation/dashboard"
+
 	// Protobuf domain services for operation repositories
 	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
 	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
@@ -107,6 +110,9 @@ type OperationUseCases struct {
 	// yet; consumers call ListByParent directly via the proto-generated
 	// domain service interface). nil-safe.
 	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+
+	// Dashboard use case (nil when postgres build tag is inactive).
+	Dashboard *jobdashboard.GetJobDashboardPageDataUseCase
 }
 
 // NewUseCases creates all operation use cases with proper constructor injection
@@ -279,6 +285,21 @@ func NewUseCases(
 		},
 	)
 
+	// Wire job dashboard via type assertions on job + job_activity repos.
+	var jobDash *jobdashboard.GetJobDashboardPageDataUseCase
+	if repos.Job != nil && repos.JobActivity != nil {
+		jobQ, jOK := repos.Job.(jobdashboard.JobDashboardQueries)
+		actQ, aOK := repos.JobActivity.(jobdashboard.JobActivityDashboardQueries)
+		if jOK && aOK {
+			// Optional recent-activity interface.
+			var recentQ jobdashboard.JobActivityRecentQueries
+			if rq, ok := repos.JobActivity.(jobdashboard.JobActivityRecentQueries); ok {
+				recentQ = rq
+			}
+			jobDash = jobdashboard.NewGetJobDashboardPageDataUseCase(jobQ, actQ, recentQ)
+		}
+	}
+
 	return &OperationUseCases{
 		Job:                  jobUC,
 		JobPhase:             jobPhaseUC,
@@ -297,5 +318,6 @@ func NewUseCases(
 		JobOutcomeSummary:    jobOutcomeSummaryUC,
 		// 2026-04-29 auto-spawn-jobs-from-subscription Phase D.
 		JobTemplateRelation: repos.JobTemplateRelation,
+		Dashboard:           jobDash,
 	}
 }

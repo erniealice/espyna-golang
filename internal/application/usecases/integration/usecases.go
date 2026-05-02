@@ -21,6 +21,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
 
+	// Dashboard use case (no-op by default — see package doc)
+	integrationdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/integration/dashboard"
+
 	// Email integration use cases
 	emailUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/integration/email"
 	// Payment integration use cases
@@ -37,6 +40,10 @@ type IntegrationUseCases struct {
 	Email     *emailUseCases.UseCases
 	Scheduler *schedulerUseCases.UseCases
 	Tabular   *tabularUseCases.UseCases
+
+	// Dashboard use case — noop by default until provider stats hooks are
+	// wired. Constructed with nil queries → renders empty state.
+	Dashboard *integrationdashboard.GetIntegrationDashboardPageDataUseCase
 }
 
 // NewIntegrationUseCases creates a new collection of integration use cases
@@ -95,5 +102,8 @@ func NewIntegrationUseCases(
 		Email:     emailUC,
 		Scheduler: schedulerUC,
 		Tabular:   tabularUC,
+		// Dashboard wired with nil stats — renders empty state until provider
+		// aggregate adapters are added (see package doc for follow-up steps).
+		Dashboard: integrationdashboard.NewGetIntegrationDashboardPageDataUseCase(nil),
 	}
 }

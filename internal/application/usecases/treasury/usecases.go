@@ -13,6 +13,10 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
+	// Dashboard use cases
+	cashdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/collection/dashboard"
+	loandashboard "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/dashboard"
+
 	// Protobuf domain services for treasury repositories
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
@@ -47,6 +51,10 @@ type TreasuryUseCases struct {
 	PettyCash       *pettyCashUseCases.UseCases
 	// Loans — use cases to be created in future iterations
 	// Loan, LoanPayment, PettyCashVoucher, PettyCashReplenishment
+
+	// Dashboard use cases (nil when postgres build tag is inactive).
+	LoanDashboard *loandashboard.GetLoanDashboardPageDataUseCase
+	CashDashboard *cashdashboard.GetCashDashboardPageDataUseCase
 }
 
 // NewUseCases creates all treasury use cases with proper constructor injection
@@ -105,10 +113,30 @@ func NewUseCases(
 		},
 	)
 
+	// Wire loan dashboard via type assertions on loan repos.
+	var loanDash *loandashboard.GetLoanDashboardPageDataUseCase
+	if repos.Loan != nil && repos.LoanPayment != nil {
+		loanQ, lOK := repos.Loan.(loandashboard.LoanDashboardQueries)
+		pmtQ, pOK := repos.LoanPayment.(loandashboard.LoanPaymentDashboardQueries)
+		if lOK && pOK {
+			loanDash = loandashboard.NewGetLoanDashboardPageDataUseCase(loanQ, pmtQ)
+		}
+	}
+
+	// Wire cash dashboard via type assertion on collection repo.
+	var cashDash *cashdashboard.GetCashDashboardPageDataUseCase
+	if repos.Collection != nil {
+		if collQ, ok := repos.Collection.(cashdashboard.CollectionDashboardQueries); ok {
+			cashDash = cashdashboard.NewGetCashDashboardPageDataUseCase(collQ)
+		}
+	}
+
 	return &TreasuryUseCases{
 		Collection:      collectionUC,
 		Disbursement:    disbursementUC,
 		SecurityDeposit: securityDepositUC,
 		PettyCash:       pettyCashUC,
+		LoanDashboard:   loanDash,
+		CashDashboard:   cashDash,
 	}
 }

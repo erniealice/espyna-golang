@@ -3,6 +3,9 @@ package expenditure
 import (
 	// Expenditure use cases
 	accruedExpenseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/accrued_expense"
+
+	// Dashboard use case (purchase + expense share one use case)
+	expendituredashboard "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/dashboard"
 	accruedExpenseSettlementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/accrued_expense_settlement"
 	expenditureUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure"
 	expenditureAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_attribute"
@@ -89,6 +92,11 @@ type ExpenditureUseCases struct {
 	ExpenseRecognitionLine            *expenseRecognitionLineUseCases.UseCases
 	AccruedExpense                    *accruedExpenseUseCases.UseCases
 	AccruedExpenseSettlement          *accruedExpenseSettlementUseCases.UseCases
+
+	// Dashboard use case — shared for both purchase and expense surfaces
+	// (the request carries the Kind discriminator). Nil when postgres build
+	// tag is inactive.
+	Dashboard *expendituredashboard.GetExpenditureDashboardPageDataUseCase
 }
 
 // NewUseCases creates all expenditure use cases with proper constructor injection
@@ -306,6 +314,14 @@ func NewUseCases(
 		},
 	)
 
+	// Wire expenditure dashboard via type assertion on expenditure repo.
+	var expenditureDash *expendituredashboard.GetExpenditureDashboardPageDataUseCase
+	if repos.Expenditure != nil {
+		if eq, ok := repos.Expenditure.(expendituredashboard.ExpenditureDashboardQueries); ok {
+			expenditureDash = expendituredashboard.NewGetExpenditureDashboardPageDataUseCase(eq)
+		}
+	}
+
 	return &ExpenditureUseCases{
 		Expenditure:                       expenditureUC,
 		ExpenditureLineItem:               expenditureLineItemUC,
@@ -324,5 +340,6 @@ func NewUseCases(
 		ExpenseRecognitionLine:            expenseRecognitionLineUC,
 		AccruedExpense:                    accruedExpenseUC,
 		AccruedExpenseSettlement:          accruedExpenseSettlementUC,
+		Dashboard:                         expenditureDash,
 	}
 }

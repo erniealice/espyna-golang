@@ -6,6 +6,7 @@ require (
 	github.com/erniealice/espyna-golang v0.0.0
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gofiber/fiber/v3 v3.0.0-rc.2
+	github.com/google/uuid v1.6.0
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -18,7 +19,6 @@ require (
 	github.com/gofiber/schema v1.6.0 // indirect
 	github.com/gofiber/utils/v2 v2.0.0-rc.1 // indirect
 	github.com/google/cel-go v0.23.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

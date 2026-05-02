@@ -4,6 +4,7 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	payrollservice "github.com/erniealice/espyna-golang/internal/application/services/payroll"
+	payrolldashboard "github.com/erniealice/espyna-golang/internal/application/usecases/payroll/dashboard"
 	payrollremittanceuc "github.com/erniealice/espyna-golang/internal/application/usecases/payroll/payroll_remittance"
 	payrollrunuc "github.com/erniealice/espyna-golang/internal/application/usecases/payroll/payroll_run"
 
@@ -48,11 +49,14 @@ type CrossDomainRepositories struct {
 
 // PayrollUseCases contains all payroll-related use cases.
 type PayrollUseCases struct {
-	PayrollRun         *payrollrunuc.UseCases
-	PayrollRemittance  *payrollremittanceuc.UseCases
-	Orchestrator       *payrollservice.Orchestrator
+	PayrollRun          *payrollrunuc.UseCases
+	PayrollRemittance   *payrollremittanceuc.UseCases
+	Orchestrator        *payrollservice.Orchestrator
 	CalculatePayrollRun *payrollrunuc.CalculatePayrollRunUseCase
-	GeneratePayCycles  *payrollrunuc.GeneratePayCyclesUseCase
+	GeneratePayCycles   *payrollrunuc.GeneratePayCyclesUseCase
+
+	// Dashboard use case (nil when postgres build tag is inactive).
+	Dashboard *payrolldashboard.GetPayrollDashboardPageDataUseCase
 }
 
 // NewUseCases creates all payroll use cases with proper constructor injection.
@@ -113,11 +117,22 @@ func NewUseCases(
 		}, idService)
 	}
 
+	// Wire payroll dashboard via type assertions on payroll repos.
+	var payrollDash *payrolldashboard.GetPayrollDashboardPageDataUseCase
+	if repos.PayrollRun != nil && repos.PayrollRemittance != nil {
+		runQ, rOK := repos.PayrollRun.(payrolldashboard.PayrollRunDashboardQueries)
+		remQ, mOK := repos.PayrollRemittance.(payrolldashboard.PayrollRemittanceDashboardQueries)
+		if rOK && mOK {
+			payrollDash = payrolldashboard.NewGetPayrollDashboardPageDataUseCase(runQ, remQ)
+		}
+	}
+
 	return &PayrollUseCases{
 		PayrollRun:          payrollrunuc.NewUseCases(runRepos, runServices),
 		PayrollRemittance:   payrollremittanceuc.NewUseCases(remittanceRepos, remittanceServices),
 		Orchestrator:        orch,
 		CalculatePayrollRun: payrollrunuc.NewCalculatePayrollRunUseCase(orch, authSvc, i18nSvc, txSvc),
 		GeneratePayCycles:   payrollrunuc.NewGeneratePayCyclesUseCase(orch, authSvc, i18nSvc),
+		Dashboard:           payrollDash,
 	}
 }

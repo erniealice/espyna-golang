@@ -18,6 +18,10 @@ import (
 	fiscalPeriodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/fiscal_period"
 	journalEntryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/journal_entry"
 
+	// Dashboard use cases
+	ledgerdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/dashboard"
+	equitydashboard "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/equity_dashboard"
+
 	// Protobuf domain services for ledger repositories
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
@@ -61,6 +65,10 @@ type LedgerUseCases struct {
 	Account      *accountUseCases.UseCases
 	JournalEntry *journalEntryUseCases.UseCases
 	FiscalPeriod *fiscalPeriodUseCases.UseCases
+
+	// Dashboard use cases (nil when postgres build tag is inactive).
+	Dashboard       *ledgerdashboard.GetLedgerDashboardPageDataUseCase
+	EquityDashboard *equitydashboard.GetEquityDashboardPageDataUseCase
 }
 
 // NewUseCases creates all ledger use cases with proper constructor injection.
@@ -146,6 +154,27 @@ func NewUseCases(
 		)
 	}
 
+	// Wire ledger dashboard use case via type assertions — safe when postgres
+	// build tag is inactive (assertion fails and Dashboard stays nil).
+	var ledgerDash *ledgerdashboard.GetLedgerDashboardPageDataUseCase
+	if repos.Account != nil && repos.JournalEntry != nil {
+		accountQ, aOK := repos.Account.(ledgerdashboard.AccountDashboardQueries)
+		journalQ, jOK := repos.JournalEntry.(ledgerdashboard.JournalEntryDashboardQueries)
+		if aOK && jOK {
+			ledgerDash = ledgerdashboard.NewGetLedgerDashboardPageDataUseCase(accountQ, journalQ)
+		}
+	}
+
+	// Wire equity dashboard use case via type assertions.
+	var equityDash *equitydashboard.GetEquityDashboardPageDataUseCase
+	if repos.EquityAccount != nil && repos.EquityTransaction != nil {
+		eaQ, eaOK := repos.EquityAccount.(equitydashboard.EquityAccountDashboardQueries)
+		etQ, etOK := repos.EquityTransaction.(equitydashboard.EquityTransactionDashboardQueries)
+		if eaOK && etOK {
+			equityDash = equitydashboard.NewGetEquityDashboardPageDataUseCase(eaQ, etQ)
+		}
+	}
+
 	return &LedgerUseCases{
 		DocumentTemplate:     documentTemplateUC,
 		Attachment:           attachmentUC,
@@ -153,5 +182,7 @@ func NewUseCases(
 		Account:              accountUC,
 		JournalEntry:         journalEntryUC,
 		FiscalPeriod:         fiscalPeriodUC,
+		Dashboard:            ledgerDash,
+		EquityDashboard:      equityDash,
 	}
 }

@@ -21,6 +21,7 @@ import (
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
+	locationareapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_area"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
@@ -49,6 +50,7 @@ type EntityRepositories struct {
 	Group             grouppb.GroupDomainServiceServer
 	GroupAttribute    groupattributepb.GroupAttributeDomainServiceServer
 	Location          locationpb.LocationDomainServiceServer
+	LocationArea      locationareapb.LocationAreaDomainServiceServer
 	LocationAttribute locationattributepb.LocationAttributeDomainServiceServer
 	Permission        permissionpb.PermissionDomainServiceServer
 	Role              rolepb.RoleDomainServiceServer
@@ -124,6 +126,9 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	}
 	if r := tryCreate(entityid.Location); r != nil {
 		repos.Location = r.(locationpb.LocationDomainServiceServer)
+	}
+	if r := tryCreate(entityid.LocationArea); r != nil {
+		repos.LocationArea = r.(locationareapb.LocationAreaDomainServiceServer)
 	}
 	if r := tryCreate(entityid.LocationAttribute); r != nil {
 		repos.LocationAttribute = r.(locationattributepb.LocationAttributeDomainServiceServer)

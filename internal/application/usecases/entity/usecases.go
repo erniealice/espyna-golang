@@ -26,6 +26,10 @@ import (
 	workspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user"
 	workspaceUserRoleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user_role"
 	// Note: Protobuf imports removed as domain-level constructors are no longer used
+
+	// Dashboard use cases
+	admindashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/admin/dashboard"
+	locationdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/location/dashboard"
 )
 
 // EntityUseCases contains all entity-related use cases
@@ -53,6 +57,10 @@ type EntityUseCases struct {
 	Workspace         *workspaceUseCases.UseCases
 	WorkspaceUser     *workspaceUserUseCases.UseCases
 	WorkspaceUserRole *workspaceUserRoleUseCases.UseCases
+
+	// Dashboard use cases (nil when postgres build tag is inactive).
+	LocationDashboard *locationdashboard.GetLocationDashboardPageDataUseCase
+	AdminDashboard    *admindashboard.GetAdminDashboardPageDataUseCase
 }
 
 // Note: Domain-level constructors are no longer needed with the new architecture.

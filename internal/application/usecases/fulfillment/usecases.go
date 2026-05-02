@@ -2,6 +2,7 @@ package fulfillment
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	fulfillmentdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment/dashboard"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
 
@@ -29,6 +30,9 @@ type UseCases struct {
 	GetFulfillmentItemPageData *GetFulfillmentItemPageDataUseCase
 	TransitionStatus           *TransitionStatusUseCase
 	ListStatusEvents           *ListStatusEventsUseCase
+
+	// Dashboard use case (nil when postgres build tag is inactive).
+	Dashboard *fulfillmentdashboard.GetFulfillmentDashboardPageDataUseCase
 }
 
 // NewUseCases creates a new collection of fulfillment use cases.
@@ -36,6 +40,14 @@ func NewUseCases(
 	repositories Repositories,
 	services Services,
 ) *UseCases {
+	// Wire fulfillment dashboard via type assertion on the fulfillment repo.
+	var fulfillDash *fulfillmentdashboard.GetFulfillmentDashboardPageDataUseCase
+	if repositories.Fulfillment != nil {
+		if fq, ok := repositories.Fulfillment.(fulfillmentdashboard.FulfillmentDashboardQueries); ok {
+			fulfillDash = fulfillmentdashboard.NewGetFulfillmentDashboardPageDataUseCase(fq)
+		}
+	}
+
 	return &UseCases{
 		CreateFulfillment: &CreateFulfillmentUseCase{
 			repositories: CreateFulfillmentRepositories{Fulfillment: repositories.Fulfillment},
@@ -103,5 +115,6 @@ func NewUseCases(
 				TranslationService:   services.TranslationService,
 			},
 		},
+		Dashboard: fulfillDash,
 	}
 }

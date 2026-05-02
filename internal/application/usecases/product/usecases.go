@@ -2,6 +2,7 @@ package product
 
 import (
 	// Product use cases
+	productdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/product/dashboard"
 	lineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/line"
 	priceListUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/price_list"
 	priceProductUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/price_product"
@@ -72,6 +73,9 @@ type ProductUseCases struct {
 	ProductVariantImage  *productVariantImageUC.UseCases
 	ProductVariantOption *productVariantOptionUC.UseCases
 	Resource             *resourceUseCases.UseCases
+
+	// Dashboard use case — nil when postgres build tag is inactive.
+	Dashboard *productdashboard.GetServiceDashboardPageDataUseCase
 }
 
 // NewUseCases creates all product use cases with proper constructor injection
@@ -244,6 +248,14 @@ func NewUseCases(
 		},
 	)
 
+	// Wire service dashboard via type assertion on product repo.
+	var serviceDash *productdashboard.GetServiceDashboardPageDataUseCase
+	if repos.Product != nil {
+		if pq, ok := repos.Product.(productdashboard.ProductDashboardQueries); ok {
+			serviceDash = productdashboard.NewGetServiceDashboardPageDataUseCase(pq)
+		}
+	}
+
 	return &ProductUseCases{
 		Line:                 lineUC,
 		PriceList:            priceListUC,
@@ -258,5 +270,6 @@ func NewUseCases(
 		ProductVariantImage:  productVariantImageUseCases,
 		ProductVariantOption: productVariantOptionUseCases,
 		Resource:             resourceUC,
+		Dashboard:            serviceDash,
 	}
 }

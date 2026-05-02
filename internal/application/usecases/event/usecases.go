@@ -17,6 +17,9 @@ import (
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
+
+	// Dashboard use case
+	scheduledashboard "github.com/erniealice/espyna-golang/internal/application/usecases/event/dashboard"
 	eventAttendeepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attendee"
 	eventattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attribute"
 	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
@@ -41,6 +44,9 @@ type EventUseCases struct {
 	EventResource      *eventResourceUseCases.UseCases
 	EventTag           *eventTagUseCases.UseCases
 	EventTagAssignment *eventTagAssignmentUseCases.UseCases
+
+	// Dashboard use case (nil when postgres build tag is inactive).
+	Dashboard *scheduledashboard.GetScheduleDashboardPageDataUseCase
 }
 
 // NewEventUseCases creates a new collection of event use cases
@@ -186,6 +192,14 @@ func NewEventUseCases(
 		IDService:            sharedServices.ID,
 	}
 
+	// Wire schedule dashboard via type assertion on event repo.
+	var scheduleDash *scheduledashboard.GetScheduleDashboardPageDataUseCase
+	if eventRepo != nil {
+		if eq, ok := eventRepo.(scheduledashboard.EventDashboardRepository); ok {
+			scheduleDash = scheduledashboard.NewGetScheduleDashboardPageDataUseCase(eq)
+		}
+	}
+
 	return &EventUseCases{
 		Event:              eventUseCases.NewUseCases(eventRepositories, eventServices, transactionService),
 		EventAttendee:      eventAttendeeUseCases.NewUseCases(eventAttendeeRepositories, eventAttendeeServices),
@@ -197,5 +211,6 @@ func NewEventUseCases(
 		EventResource:      eventResourceUseCases.NewUseCases(eventResourceRepositories, eventResourceServices),
 		EventTag:           eventTagUseCases.NewUseCases(eventTagRepositories, eventTagServices),
 		EventTagAssignment: eventTagAssignmentUseCases.NewUseCases(eventTagAssignmentRepositories, eventTagAssignmentServices),
+		Dashboard:          scheduleDash,
 	}
 }

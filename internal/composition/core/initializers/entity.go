@@ -5,6 +5,10 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
+	// Dashboard use cases
+	admindashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/admin/dashboard"
+	locationdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/location/dashboard"
+
 	// Entity sub-domain use cases
 	adminUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/admin"
 	clientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client"
@@ -256,6 +260,31 @@ func InitializeEntity(
 			},
 			workspaceUserRoleUseCases.WorkspaceUserRoleServices(svc()),
 		)
+	}
+
+	// Wire location dashboard via type assertions on location + location_area repos.
+	if repos.Location != nil {
+		locQ, lOK := repos.Location.(locationdashboard.LocationDashboardRepository)
+		if lOK {
+			var areaQ locationdashboard.LocationAreaDashboardRepository
+			if repos.LocationArea != nil {
+				if aq, ok := repos.LocationArea.(locationdashboard.LocationAreaDashboardRepository); ok {
+					areaQ = aq
+				}
+			}
+			result.LocationDashboard = locationdashboard.NewGetLocationDashboardPageDataUseCase(locQ, areaQ)
+		}
+	}
+
+	// Wire admin dashboard via type assertions on permission/role/workspace_user/workspace_user_role repos.
+	if repos.Permission != nil && repos.Role != nil && repos.WorkspaceUser != nil && repos.WorkspaceUserRole != nil {
+		permQ, p1 := repos.Permission.(admindashboard.PermissionDashboardRepository)
+		roleQ, p2 := repos.Role.(admindashboard.RoleDashboardRepository)
+		wuQ, p3 := repos.WorkspaceUser.(admindashboard.WorkspaceUserDashboardRepository)
+		wurQ, p4 := repos.WorkspaceUserRole.(admindashboard.WorkspaceUserRoleDashboardRepository)
+		if p1 && p2 && p3 && p4 {
+			result.AdminDashboard = admindashboard.NewGetAdminDashboardPageDataUseCase(permQ, roleQ, wuQ, wurQ)
+		}
 	}
 
 	return result, nil

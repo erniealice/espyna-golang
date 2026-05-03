@@ -15,6 +15,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -226,11 +227,13 @@ func (r *PostgresWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Context
 		FROM workspace_user wu
 		LEFT JOIN "user" u ON wu.user_id = u.id
 		WHERE wu.active = true
+		  AND ($1::text = '' OR wu.workspace_id = $1::text)
 		ORDER BY wu.date_created DESC
 	`
 
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query)
+	rows, err := exec.QueryContext(ctx, query, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workspace users: %w", err)
 	}
@@ -668,12 +671,14 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 			LEFT JOIN "user" u ON wu.user_id = u.id AND u.active = true
 			LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
 			WHERE wu.id = $1 AND wu.active = true
+			  AND ($2::text = '' OR wu.workspace_id = $2::text)
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserId)
+	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserId, wsID)
 
 	var (
 		id           string

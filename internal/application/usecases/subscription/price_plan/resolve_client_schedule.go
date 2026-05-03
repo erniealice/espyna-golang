@@ -47,16 +47,38 @@ func applyClientScopedScheduleRule(
 		return nil
 	}
 	parentClientID := parentPlan.GetClientId()
+	submittedScheduleID := data.GetPriceScheduleId()
+
 	if parentClientID == "" {
+		// 2026-05-03 — Master parent: enforce the symmetric mutex. A master
+		// plan cannot attach to a client-scoped schedule (the view layer
+		// already filters this out, but a crafted POST or stale dropdown
+		// can still submit it). Reject with the same lyngua error used for
+		// the cross-client mismatch — operator sees one consistent message.
+		if submittedScheduleID != "" && priceScheduleRepo != nil {
+			readResp, err := priceScheduleRepo.ReadPriceSchedule(ctx, &priceschedulepb.ReadPriceScheduleRequest{
+				Data: &priceschedulepb.PriceSchedule{Id: submittedScheduleID},
+			})
+			if err == nil && readResp != nil && len(readResp.GetData()) > 0 {
+				if sched := readResp.GetData()[0]; sched.GetClientId() != "" {
+					msg := contextutil.GetTranslatedMessageWithContext(
+						ctx, translation,
+						"price_plan.errors.scheduleClientMismatch",
+						"Selected schedule belongs to a different client and cannot be attached to this price plan. [DEFAULT]",
+					)
+					return errors.New(msg)
+				}
+			}
+		}
 		// Master parent — no schedule auto-creation. Return without touching
 		// the body's price_schedule_id.
 		return nil
 	}
 
-	submittedScheduleID := data.GetPriceScheduleId()
-
-	// Operator picked a schedule explicitly — verify scope match. Master
-	// schedules pass through unchanged; only cross-client picks are rejected.
+	// Operator picked a schedule explicitly — verify scope match. The picker
+	// must now resolve to the same client; master schedules are no longer an
+	// allowed attachment target for client-scoped plans (mutually-exclusive
+	// rule shipped 2026-05-03 alongside the view-layer filter).
 	if submittedScheduleID != "" {
 		if priceScheduleRepo == nil {
 			return nil // No repo wired — defer to repository-level integrity.
@@ -71,7 +93,7 @@ func applyClientScopedScheduleRule(
 		}
 		sched := readResp.GetData()[0]
 		schedClientID := sched.GetClientId()
-		if schedClientID != "" && schedClientID != parentClientID {
+		if schedClientID != parentClientID {
 			msg := contextutil.GetTranslatedMessageWithContext(
 				ctx, translation,
 				"price_plan.errors.scheduleClientMismatch",

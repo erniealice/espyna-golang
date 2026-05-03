@@ -13,6 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -97,6 +98,8 @@ func (r *PostgresSessionRepository) ReadSession(ctx context.Context, req *sessio
 
 	switch {
 	case req.Data.Token != "":
+		// Token lookup is the auth-bootstrap path — workspace_id may not yet be
+		// in ctx, so the empty-fallback ($2='' bypasses) keeps middleware working.
 		query = `
 			SELECT
 				id, user_id, token,
@@ -105,6 +108,7 @@ func (r *PostgresSessionRepository) ReadSession(ctx context.Context, req *sessio
 				date_created, date_modified
 			FROM ` + r.tableName + `
 			WHERE token = $1 AND active = true
+			  AND ($2::text = '' OR workspace_id = $2::text)
 		`
 		arg = req.Data.Token
 	case req.Data.Id != "":
@@ -116,14 +120,16 @@ func (r *PostgresSessionRepository) ReadSession(ctx context.Context, req *sessio
 				date_created, date_modified
 			FROM ` + r.tableName + `
 			WHERE id = $1 AND active = true
+			  AND ($2::text = '' OR workspace_id = $2::text)
 		`
 		arg = req.Data.Id
 	default:
 		return nil, fmt.Errorf("session id or token is required")
 	}
 
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, arg)
+	row := exec.QueryRowContext(ctx, query, arg, wsID)
 
 	session, err := scanSession(row)
 	if err == sql.ErrNoRows {

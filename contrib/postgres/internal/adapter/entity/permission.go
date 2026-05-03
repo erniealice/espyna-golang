@@ -13,6 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -271,7 +272,8 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 				p.date_created,
 				p.date_modified
 			FROM permission p
-			WHERE ($1::text IS NULL OR $1::text = '' OR
+			WHERE ($4::text = '' OR p.workspace_id = $4::text)
+			  AND ($1::text IS NULL OR $1::text = '' OR
 				   p.name ILIKE $1 OR
 				   p.description ILIKE $1 OR
 				   p.permission_code ILIKE $1)
@@ -287,8 +289,9 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query permission list page data: %w", err)
 	}
@@ -410,11 +413,13 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 			p.date_modified
 		FROM permission p
 		WHERE p.id = $1
+		  AND ($2::text = '' OR p.workspace_id = $2::text)
 		LIMIT 1;
 	`
 
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.PermissionId)
+	row := exec.QueryRowContext(ctx, query, req.PermissionId, wsID)
 
 	var (
 		id             string

@@ -13,6 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -111,10 +112,12 @@ func (r *PostgresPaymentTermRepository) ReadPaymentTerm(ctx context.Context, req
 			display_order
 		FROM ` + r.tableName + `
 		WHERE id = $1 AND active = true
+		  AND ($2::text = '' OR workspace_id = $2::text)
 	`
 
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.Data.Id)
+	row := exec.QueryRowContext(ctx, query, req.Data.Id, wsID)
 
 	var (
 		id                 string
@@ -299,6 +302,12 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 		}
 	}
 
+	// Workspace isolation: GetPaymentTermListPageData uses raw SQL and bypasses
+	// the WorkspaceAwareOperations decorator, so we extract the workspace_id from
+	// context and filter explicitly. Empty workspace_id (service-to-service call)
+	// disables the filter — same convention as the decorator.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+
 	// CTE Query - flat table, no JOINs needed
 	// entity_scope filter: show only client-scoped and shared (both) payment terms
 	query := `
@@ -320,6 +329,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 				display_order
 			FROM ` + r.tableName + `
 			WHERE entity_scope IN ('client', 'both')
+			  AND ($4::text = '' OR workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   name ILIKE $1 OR
 				   code ILIKE $1 OR
@@ -337,7 +347,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query payment term list page data: %w", err)
 	}
@@ -456,12 +466,14 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermItemPageData(
 				display_order
 			FROM ` + r.tableName + `
 			WHERE id = $1
+			  AND ($2::text = '' OR workspace_id = $2::text)
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.PaymentTermId)
+	row := exec.QueryRowContext(ctx, query, req.PaymentTermId, wsID)
 
 	var (
 		id                 string

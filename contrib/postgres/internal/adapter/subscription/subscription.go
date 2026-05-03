@@ -13,6 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -349,6 +350,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			SELECT s.*
 			FROM subscription s
 			WHERE s.active = $7
+				AND ($8::text = '' OR s.workspace_id = $8::text)
 				AND ($1::text = '' OR
 					s.name ILIKE $1)
 				AND ($6::text = '' OR s.client_id = $6)
@@ -461,6 +463,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// Workspace isolation: this method bypasses the WorkspaceAwareOperations
+	// decorator (raw SQL via db.GetDB()), so we extract workspace_id from
+	// context and filter explicitly. Empty wsID = service-to-service call.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+
 	// Execute query
 	rows, err := db.GetDB().QueryContext(ctx, query,
 		searchQuery,    // $1
@@ -470,6 +477,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		sortDirection,  // $5
 		clientIDFilter, // $6
 		activeFilter,   // $7
+		wsID,           // $8
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetSubscriptionListPageData query: %w", err)
@@ -609,6 +617,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 			s.name,
 			s.client_id,
 			s.price_plan_id,
+			s.code,
 			s.date_time_start,
 			s.date_time_end,
 			s.active,
@@ -667,6 +676,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		-- for deactivated subscriptions too (so operators can review/restore).
 		-- Active scoping belongs at the LIST level, not the by-id lookup.
 		WHERE s.id = $1
+		  AND ($2::text = '' OR s.workspace_id = $2::text)
 	`
 
 	// Get DB connection from dbOps interface
@@ -681,6 +691,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		name          string
 		clientID      string
 		pricePlanID   string
+		code          sql.NullString
 		dateTimeStart sql.NullTime
 		dateTimeEnd   sql.NullTime
 		active        bool
@@ -690,11 +701,13 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		pricePlanJSON []byte
 	)
 
-	err := db.GetDB().QueryRowContext(ctx, query, req.SubscriptionId).Scan(
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	err := db.GetDB().QueryRowContext(ctx, query, req.SubscriptionId, wsID).Scan(
 		&id,
 		&name,
 		&clientID,
 		&pricePlanID,
+		&code,
 		&dateTimeStart,
 		&dateTimeEnd,
 		&active,
@@ -717,6 +730,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		ClientId:    clientID,
 		PricePlanId: pricePlanID,
 		Active:      active,
+	}
+	if code.Valid && code.String != "" {
+		c := code.String
+		subscription.Code = &c
 	}
 
 	if dateTimeStart.Valid {

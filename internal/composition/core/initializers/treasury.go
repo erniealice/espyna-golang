@@ -17,8 +17,9 @@ func InitializeTreasury(
 	return treasury.NewUseCases(
 		treasury.TreasuryRepositories{
 			// Existing treasury repositories
-			Collection:   repos.Collection,
-			Disbursement: repos.Disbursement,
+			Collection:           repos.Collection,
+			Disbursement:         repos.Disbursement,
+			DisbursementSchedule: repos.DisbursementSchedule,
 
 			// Loans & Petty Cash repositories
 			Loan:                   repos.Loan,

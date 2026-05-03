@@ -47,6 +47,7 @@ type UseCases struct {
 	ListSubscriptions           *ListSubscriptionsUseCase
 	GetSubscriptionListPageData *GetSubscriptionListPageDataUseCase
 	GetSubscriptionItemPageData *GetSubscriptionItemPageDataUseCase
+	CountActiveByClientIds      *CountActiveByClientIdsUseCase
 }
 
 // NewUseCases creates a new collection of subscription use cases
@@ -124,6 +125,14 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	countActiveRepos := CountActiveByClientIdsRepositories{
+		Subscription: repositories.Subscription,
+	}
+	countActiveServices := CountActiveByClientIdsServices{
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreateSubscription:          NewCreateSubscriptionUseCase(createRepos, createServices),
 		ReadSubscription:            NewReadSubscriptionUseCase(readRepos, readServices),
@@ -132,5 +141,6 @@ func NewUseCases(
 		ListSubscriptions:           NewListSubscriptionsUseCase(listRepos, listServices),
 		GetSubscriptionListPageData: NewGetSubscriptionListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetSubscriptionItemPageData: NewGetSubscriptionItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
+		CountActiveByClientIds:      NewCountActiveByClientIdsUseCase(countActiveRepos, countActiveServices),
 	}
 }

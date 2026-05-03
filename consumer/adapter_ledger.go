@@ -34,6 +34,11 @@ type LedgerReportingService interface {
 	GetClientBalances(ctx context.Context) (map[string]int64, error)
 	ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
 	ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error)
+	// Phase 7: Cash book report — simplified workspace-wide ledger of receipts and payments.
+	GetCashBookReport(ctx context.Context, req *reportpb.CashBookReportRequest) (*reportpb.CashBookReportResponse, error)
+	// Phase 8: Payables aging report — simple supplier-bucketed aging view.
+	// Named GetSimplePayablesAgingReport to avoid collision with the parameterized GetPayablesAgingReport above.
+	GetSimplePayablesAgingReport(ctx context.Context, req *reportpb.PayablesAgingReportRequest) (*reportpb.PayablesAgingReportResponse, error)
 }
 
 // LedgerReportingTableConfig configures table names for ledger reporting queries.

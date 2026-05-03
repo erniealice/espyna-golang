@@ -27,6 +27,7 @@ type UseCases struct {
 	ListAssets           *ListAssetsUseCase
 	GetAssetListPageData *GetAssetListPageDataUseCase
 	GetAssetItemPageData *GetAssetItemPageDataUseCase
+	SetAssetActive       *SetAssetActiveUseCase
 }
 
 // NewUseCases creates a new collection of asset use cases
@@ -85,6 +86,13 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	setAssetActiveRepos := SetAssetActiveRepositories(repositories)
+	setAssetActiveServices := SetAssetActiveServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreateAsset:          NewCreateAssetUseCase(createRepos, createServices),
 		ReadAsset:            NewReadAssetUseCase(readRepos, readServices),
@@ -93,6 +101,7 @@ func NewUseCases(
 		ListAssets:           NewListAssetsUseCase(listRepos, listServices),
 		GetAssetListPageData: NewGetAssetListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
 		GetAssetItemPageData: NewGetAssetItemPageDataUseCase(getItemPageDataRepos, getItemPageDataServices),
+		SetAssetActive:       NewSetAssetActiveUseCase(setAssetActiveRepos, setAssetActiveServices),
 	}
 }
 

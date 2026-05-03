@@ -149,18 +149,22 @@ func (c *Checker) GetPricePlanInUseIDs(ctx context.Context, ids []string) (map[s
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
-// GetPriceScheduleInUseIDs locks a PriceSchedule only when an active subscription
-// references one of its (active) price_plans. Empty/draft schedules — even those
-// with price_plan rows — remain deletable until money is flowing through them.
-// Mirrors the PricePlan pricing-lock semantics one level up.
+// GetPriceScheduleInUseIDs locks a PriceSchedule whenever any active
+// price_plan references it. The earlier semantic (locked only by an active
+// subscription via active price_plan) was leaky: deleting a schedule with
+// dangling PricePlans orphaned the children. Now matches the symmetric
+// PricePlan-locks-Subscription pattern one level up.
+//
+// Operators who genuinely want to wipe a schedule and its price_plans must
+// either deactivate or delete the price_plans first. There is no
+// ON DELETE CASCADE on price_plan.price_schedule_id, so this checker is the
+// authoritative gate for both single and bulk delete handlers.
 func (c *Checker) GetPriceScheduleInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	query := `
-		SELECT DISTINCT pp.price_schedule_id
-		FROM price_plan pp
-		JOIN subscription s ON s.price_plan_id = pp.id
-		WHERE pp.price_schedule_id = ANY($1)
-		  AND pp.active = true
-		  AND s.active = true`
+		SELECT DISTINCT price_schedule_id
+		FROM price_plan
+		WHERE price_schedule_id = ANY($1)
+		  AND active = true`
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 

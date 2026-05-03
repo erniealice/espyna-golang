@@ -86,15 +86,18 @@ func ResolveOrCreateClientPriceSchedule(
 		newID = fmt.Sprintf("ps-%d", now.UnixNano())
 	}
 	clientCopy := clientID
+	// 2026-05-03 — DateCreated/ModifiedString stamped in UTC so the round-trip
+	// is unambiguous regardless of the server's local tz. The int64 millis
+	// field is the canonical pair; the string is for human/debug.
 	create := &priceschedulepb.PriceSchedule{
 		Id:                 newID,
 		Name:               derivedName,
 		Active:             true,
 		ClientId:           &clientCopy,
 		DateCreated:        ptrInt64Shared(now.UnixMilli()),
-		DateCreatedString:  ptrStringShared(now.Format(time.RFC3339)),
+		DateCreatedString:  ptrStringShared(now.UTC().Format(time.RFC3339)),
 		DateModified:       ptrInt64Shared(now.UnixMilli()),
-		DateModifiedString: ptrStringShared(now.Format(time.RFC3339)),
+		DateModifiedString: ptrStringShared(now.UTC().Format(time.RFC3339)),
 	}
 	if locationID != "" {
 		locCopy := locationID

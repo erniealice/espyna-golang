@@ -18,6 +18,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
@@ -618,6 +619,52 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		Collection: collection,
 		Success:    true,
 	}, nil
+}
+
+// ListByClient lists collections for a given client by joining treasury_collection
+// to revenue on revenue.client_id. Workspace isolation is applied automatically.
+func (r *PostgresCollectionRepository) ListByClient(ctx context.Context, req *collectionpb.ListByClientRequest) (*collectionpb.ListByClientResponse, error) {
+	if req.GetClientId() == "" {
+		return nil, fmt.Errorf("client_id is required")
+	}
+
+	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
+	if !ok {
+		return nil, fmt.Errorf("database operations does not support raw SQL queries")
+	}
+
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+
+	rows, err := db.GetDB().QueryContext(ctx,
+		`SELECT c.id, c.active, c.revenue_id, c.amount, c.status, c.currency,
+		        c.reference_number, c.payment_date, c.collection_type
+		 FROM treasury_collection c
+		 JOIN revenue r ON r.id = c.revenue_id
+		 WHERE r.client_id = $1
+		   AND ($2::text = '' OR r.workspace_id = $2::text)`,
+		req.GetClientId(), wsID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ListByClient query failed: %w", err)
+	}
+	defer rows.Close()
+
+	var collections []*collectionpb.Collection
+	for rows.Next() {
+		c := &collectionpb.Collection{}
+		if scanErr := rows.Scan(
+			&c.Id, &c.Active, &c.RevenueId, &c.Amount, &c.Status, &c.Currency,
+			&c.ReferenceNumber, &c.PaymentDate, &c.CollectionType,
+		); scanErr != nil {
+			return nil, fmt.Errorf("ListByClient scan failed: %w", scanErr)
+		}
+		collections = append(collections, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListByClient rows error: %w", err)
+	}
+
+	return &collectionpb.ListByClientResponse{Data: collections, Success: true}, nil
 }
 
 // NewCollectionRepository creates a new PostgreSQL collection repository (old-style constructor)

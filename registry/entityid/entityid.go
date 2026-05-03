@@ -419,6 +419,12 @@ var PayrollEntities = []string{
 	LeaveType, LeaveBalance, LeaveRequest,
 }
 
+// Asset domain
+const (
+	Asset         = "asset"
+	AssetCategory = "asset_category"
+)
+
 // Fulfillment domain
 const (
 	Fulfillment            = "fulfillment"
@@ -430,6 +436,9 @@ const (
 
 // FulfillmentEntities lists all entity IDs in the Fulfillment domain.
 var FulfillmentEntities = []string{Fulfillment, FulfillmentItem, FulfillmentStatusEvent, FulfillmentReturn, FulfillmentReturnItem}
+
+// AssetEntities lists all entity IDs in the Asset domain.
+var AssetEntities = []string{Asset, AssetCategory}
 
 // ---------------------------------------------------------------------------
 // Consolidated slice
@@ -457,5 +466,6 @@ func buildAll() []string {
 	all = append(all, LedgerAccountingEntities...)
 	all = append(all, PayrollEntities...)
 	all = append(all, FulfillmentEntities...)
+	all = append(all, AssetEntities...)
 	return all
 }

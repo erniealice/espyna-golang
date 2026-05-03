@@ -20,11 +20,12 @@ type InventoryTransactionServices struct {
 
 // UseCases contains all inventory transaction-related use cases
 type UseCases struct {
-	CreateInventoryTransaction *CreateInventoryTransactionUseCase
-	ReadInventoryTransaction   *ReadInventoryTransactionUseCase
-	UpdateInventoryTransaction *UpdateInventoryTransactionUseCase
-	DeleteInventoryTransaction *DeleteInventoryTransactionUseCase
-	ListInventoryTransactions  *ListInventoryTransactionsUseCase
+	CreateInventoryTransaction           *CreateInventoryTransactionUseCase
+	ReadInventoryTransaction             *ReadInventoryTransactionUseCase
+	UpdateInventoryTransaction           *UpdateInventoryTransactionUseCase
+	DeleteInventoryTransaction           *DeleteInventoryTransactionUseCase
+	ListInventoryTransactions            *ListInventoryTransactionsUseCase
+	GetInventoryMovementsListPageData    *GetInventoryMovementsListPageDataUseCase
 }
 
 // NewUseCases creates a new collection of inventory transaction use cases
@@ -68,11 +69,18 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	movementsRepos := GetInventoryMovementsListPageDataRepositories(repositories)
+	movementsSvcs := GetInventoryMovementsListPageDataServices{
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
-		CreateInventoryTransaction: NewCreateInventoryTransactionUseCase(createRepos, createServices),
-		ReadInventoryTransaction:   NewReadInventoryTransactionUseCase(readRepos, readServices),
-		UpdateInventoryTransaction: NewUpdateInventoryTransactionUseCase(updateRepos, updateServices),
-		DeleteInventoryTransaction: NewDeleteInventoryTransactionUseCase(deleteRepos, deleteServices),
-		ListInventoryTransactions:  NewListInventoryTransactionsUseCase(listRepos, listServices),
+		CreateInventoryTransaction:        NewCreateInventoryTransactionUseCase(createRepos, createServices),
+		ReadInventoryTransaction:          NewReadInventoryTransactionUseCase(readRepos, readServices),
+		UpdateInventoryTransaction:        NewUpdateInventoryTransactionUseCase(updateRepos, updateServices),
+		DeleteInventoryTransaction:        NewDeleteInventoryTransactionUseCase(deleteRepos, deleteServices),
+		ListInventoryTransactions:         NewListInventoryTransactionsUseCase(listRepos, listServices),
+		GetInventoryMovementsListPageData: NewGetInventoryMovementsListPageDataUseCase(movementsRepos, movementsSvcs),
 	}
 }

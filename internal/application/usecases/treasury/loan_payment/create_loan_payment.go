@@ -131,11 +131,9 @@ func (uc *CreateLoanPaymentUseCase) enrichData(payment *loanpaymentpb.LoanPaymen
 		payment.Id = uc.services.IDService.GenerateID()
 	}
 
-	if payment.PaymentDate == 0 {
-		payment.PaymentDate = now.UnixMilli()
+	if payment.PaymentDate == "" {
+		payment.PaymentDate = now.Format("2006-01-02")
 	}
-	dateStr := time.UnixMilli(payment.PaymentDate).Format("2006-01-02")
-	payment.PaymentDateString = &dateStr
 
 	// Auto-compute total if not provided
 	if payment.TotalAmount == 0 {
@@ -152,7 +150,7 @@ func (uc *CreateLoanPaymentUseCase) validateBusinessRules(ctx context.Context, p
 	// Verify total = principal + interest + fee (allow small rounding tolerance)
 	computed := payment.PrincipalAmount + payment.InterestAmount + payment.FeeAmount
 	diff := payment.TotalAmount - computed
-	if diff < -0.01 || diff > 0.01 {
+	if diff != 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.total_mismatch", "[ERR-DEFAULT] Total amount must equal principal + interest + fees"))
 	}
 	return nil

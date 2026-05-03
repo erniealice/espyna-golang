@@ -3,6 +3,9 @@ package price_plan
 import (
 	"context"
 	"errors"
+	"log"
+	"strings"
+	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
@@ -122,13 +125,18 @@ func applyClientScopedScheduleRule(
 		}
 	}
 
-	// Auto-create schedule name: prefer the parent Plan's own name (operator
-	// already named the bundle) so the rate-card identity inherits intent.
-	// Degrade to "<client.name> - Price Schedule" if the Plan was unnamed.
-	derivedName := parentPlan.GetName()
-	if derivedName == "" {
-		derivedName = fallbackDerivedScheduleName(client)
-	}
+	// Auto-create schedule name: ALWAYS "{client.name} - {suffix}" so the
+	// rate-card list scans by client. Suffix comes from the centymo handler
+	// via context (lyngua-resolved, tier-correct); falls back to "Price
+	// Schedule" when unset (English / general tier default).
+	// 2026-05-03 — Append a wall-clock + IANA-tz suffix so multiple
+	// rate cards minted over the course of a client relationship (e.g.
+	// renewals on new effective dates) can be scanned by recency. The
+	// shape mirrors pyeza-golang/types.AppendTimestamp; espyna does not
+	// import pyeza so the format constants are inlined.
+	suffix := contextutil.ExtractClientScheduleSuffixFromContext(ctx)
+	base := buildClientScheduleBase(client, parentClientID, suffix)
+	derivedName := appendScheduleNameTimestamp(base, time.Now(), tzFromClient(client))
 
 	workspaceID := contextutil.ExtractWorkspaceIDFromContext(ctx)
 
@@ -160,16 +168,59 @@ func applyClientScopedScheduleRule(
 	return nil
 }
 
-// fallbackDerivedScheduleName returns "<client.name> - Price Schedule" when
-// the client has a name, else degrades to the literal "Price Schedule". Used
-// only when the parent Plan also has no name to borrow from.
-func fallbackDerivedScheduleName(client *clientpb.Client) string {
-	if client == nil {
-		return "Price Schedule"
+// buildClientScheduleBase returns "{client.name} - {suffix}", with fallbacks
+// down the client-name chain (entity name → User first+last → bare client
+// id). Mirrors the centymo drawer's preview construction so render-time and
+// save-time names share the same shape.
+func buildClientScheduleBase(client *clientpb.Client, clientID, suffix string) string {
+	name := ""
+	if client != nil {
+		name = strings.TrimSpace(client.GetName())
+		if name == "" {
+			if u := client.GetUser(); u != nil {
+				full := strings.TrimSpace(u.GetFirstName() + " " + u.GetLastName())
+				if full != "" {
+					name = full
+				}
+			}
+		}
 	}
-	name := client.GetName()
 	if name == "" {
-		return "Price Schedule"
+		name = clientID
 	}
-	return name + " - Price Schedule"
+	if name == "" {
+		return suffix
+	}
+	return name + " - " + suffix
+}
+
+// appendScheduleNameTimestamp produces "{base} - 2026-05-03 14:30:00 Asia/Manila".
+// Mirrors pyeza-golang/types.AppendTimestamp; format constants inlined because
+// espyna does not depend on pyeza. Nil tz falls back to UTC.
+func appendScheduleNameTimestamp(base string, now time.Time, tz *time.Location) string {
+	if tz == nil {
+		tz = time.UTC
+	}
+	return base + " - " + now.In(tz).Format("2006-01-02 15:04:05") + " " + tz.String()
+}
+
+// tzFromClient pulls Client.User.Timezone and loads it as *time.Location.
+// Falls back to "Asia/Manila" (the dev anchor used elsewhere in the monorepo),
+// then UTC as a last resort. Bad IANA names log a warning and fall through.
+func tzFromClient(client *clientpb.Client) *time.Location {
+	if client != nil {
+		if u := client.GetUser(); u != nil {
+			if name := strings.TrimSpace(u.GetTimezone()); name != "" {
+				if loc, err := time.LoadLocation(name); err == nil {
+					return loc
+				} else {
+					log.Printf("invalid client timezone %q for client %s: %v; falling back to default", name, client.GetId(), err)
+				}
+			}
+		}
+	}
+	if loc, err := time.LoadLocation("Asia/Manila"); err == nil {
+		return loc
+	}
+	return time.UTC
 }

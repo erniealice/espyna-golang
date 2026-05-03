@@ -72,9 +72,14 @@ func (uc *StartWorkflowFromTemplateUseCase) Execute(ctx context.Context, req *en
 	// Wrap input under "input" key for YAML workflow JSONPath access ($.input.field)
 	wrappedContextJson := fmt.Sprintf(`{"input":%s}`, validatedInputJson)
 
+	// Name suffix shape mirrors pyeza-golang/types.AppendTimestamp
+	// ("{base} - 2026-05-03 14:30:00 UTC"). Espyna does not import pyeza, so
+	// the suffix is constructed inline; UTC is used because the orchestration
+	// engine has no request-scoped timezone plumbing.
+	workflowName := fmt.Sprintf("%s - %s UTC", template.Name, now.UTC().Format("2006-01-02 15:04:05"))
 	workflow := &workflowpb.Workflow{
 		Id:                 workflowID,
-		Name:               fmt.Sprintf("%s - %s", template.Name, now.Format("2006-01-02 15:04:05")),
+		Name:               workflowName,
 		WorkflowTemplateId: &req.WorkflowTemplateId,
 		ContextJson:        &wrappedContextJson,
 		CurrentStageIndex:  &[]int32{0}[0],
@@ -82,7 +87,7 @@ func (uc *StartWorkflowFromTemplateUseCase) Execute(ctx context.Context, req *en
 		Active:             true,
 		WorkspaceId:        template.WorkspaceId,
 		DateCreated:        &[]int64{now.UnixMilli()}[0],
-		DateCreatedString:  &[]string{now.Format(time.RFC3339)}[0],
+		DateCreatedString:  &[]string{now.UTC().Format(time.RFC3339)}[0],
 	}
 
 	createWorkflowRes, err := uc.repositories.Workflow.CreateWorkflow(ctx, &workflowpb.CreateWorkflowRequest{

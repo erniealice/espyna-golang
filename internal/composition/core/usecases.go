@@ -33,6 +33,7 @@ import (
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
 
 	// Domain use cases (for proper initialization)
+	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
@@ -170,6 +171,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		fulfillmentUC = &fulfillment.UseCases{}
 	}
 
+	assetUC, err := uci.initializeAssetUseCases(container)
+	if err != nil {
+		assetUC = &asset.AssetUseCases{}
+	}
+
 	// Initialize integration use cases (email, payment providers, etc.)
 	// These are provider-based use cases, not domain-based
 	integrationUC := uci.initializeIntegrationUseCases(container)
@@ -199,6 +205,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		subscriptionUC,
 		workflowUC,
 		integrationUC,
+		assetUC,
 	)
 	container.useCases = aggregate
 
@@ -781,6 +788,34 @@ func (uci *UseCaseInitializer) initializeFulfillmentUseCases(container *Containe
 	fmt.Printf("✅ Fulfillment domain initialized successfully: %v\n", fulfillmentUseCases != nil)
 
 	return fulfillmentUseCases, nil
+}
+
+// initializeAssetUseCases initializes Asset domain use cases (Asset, AssetCategory).
+func (uci *UseCaseInitializer) initializeAssetUseCases(container *Container) (*asset.AssetUseCases, error) {
+	fmt.Printf("📦 Initializing Asset use cases...\n")
+
+	repos, err := domain.NewAssetRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Asset database provider not available: %v\n", err)
+		return &asset.AssetUseCases{}, nil
+	}
+	fmt.Printf("✅ Got asset repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
+
+	assetUseCases, err := initializers.InitializeAsset(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize asset use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Asset domain initialized successfully: %v\n", assetUseCases != nil)
+
+	return assetUseCases, nil
 }
 
 // getServices is a helper to extract services from container with proper type checking

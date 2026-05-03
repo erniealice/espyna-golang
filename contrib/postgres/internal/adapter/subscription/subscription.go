@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/lib/pq"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -779,6 +780,66 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		Success:      true,
 		Subscription: subscription,
 	}, nil
+}
+
+// CountActiveByClientIds counts active subscriptions grouped by client ID.
+// If req.ClientIds is non-empty the count is restricted to those clients.
+// Workspace isolation is applied automatically from context.
+func (r *PostgresSubscriptionRepository) CountActiveByClientIds(ctx context.Context, req *subscriptionpb.CountActiveByClientIdsRequest) (*subscriptionpb.CountActiveByClientIdsResponse, error) {
+	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
+	if !ok {
+		return nil, fmt.Errorf("database operations does not support raw SQL queries")
+	}
+
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+
+	clientIDs := req.GetClientIds()
+	if len(clientIDs) > 0 {
+		rows, err = db.GetDB().QueryContext(ctx,
+			`SELECT client_id, COUNT(*)::int AS cnt
+			   FROM subscription
+			  WHERE active = TRUE
+			    AND ($1::text = '' OR workspace_id = $1::text)
+			    AND client_id = ANY($2)
+			  GROUP BY client_id`,
+			wsID, pq.Array(clientIDs),
+		)
+	} else {
+		rows, err = db.GetDB().QueryContext(ctx,
+			`SELECT client_id, COUNT(*)::int AS cnt
+			   FROM subscription
+			  WHERE active = TRUE
+			    AND ($1::text = '' OR workspace_id = $1::text)
+			  GROUP BY client_id`,
+			wsID,
+		)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("CountActiveByClientIds query failed: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int32)
+	for rows.Next() {
+		var cid string
+		var n int32
+		if scanErr := rows.Scan(&cid, &n); scanErr != nil {
+			return nil, fmt.Errorf("CountActiveByClientIds scan failed: %w", scanErr)
+		}
+		if cid != "" {
+			counts[cid] = n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("CountActiveByClientIds rows error: %w", err)
+	}
+
+	return &subscriptionpb.CountActiveByClientIdsResponse{Counts: counts}, nil
 }
 
 // NewSubscriptionRepository creates a new PostgreSQL subscription repository (old-style constructor)

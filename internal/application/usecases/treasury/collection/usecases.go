@@ -25,6 +25,7 @@ type UseCases struct {
 	UpdateCollection *UpdateCollectionUseCase
 	DeleteCollection *DeleteCollectionUseCase
 	ListCollections  *ListCollectionsUseCase
+	ListByClient     *ListByClientUseCase
 }
 
 // NewUseCases creates a new collection of collection use cases
@@ -68,11 +69,20 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	listByClientRepos := ListByClientRepositories{
+		Collection: repositories.Collection,
+	}
+	listByClientServices := ListByClientServices{
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
 		CreateCollection: NewCreateCollectionUseCase(createRepos, createServices),
 		ReadCollection:   NewReadCollectionUseCase(readRepos, readServices),
 		UpdateCollection: NewUpdateCollectionUseCase(updateRepos, updateServices),
 		DeleteCollection: NewDeleteCollectionUseCase(deleteRepos, deleteServices),
 		ListCollections:  NewListCollectionsUseCase(listRepos, listServices),
+		ListByClient:     NewListByClientUseCase(listByClientRepos, listByClientServices),
 	}
 }

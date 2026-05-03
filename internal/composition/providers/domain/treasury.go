@@ -10,6 +10,7 @@ import (
 	// Protobuf domain services - Treasury domain
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
+	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
 	pettycashfundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_fund"
@@ -21,8 +22,9 @@ import (
 // TreasuryRepositories contains all treasury domain repositories
 type TreasuryRepositories struct {
 	// Existing treasury repositories
-	Collection   collectionpb.CollectionDomainServiceServer
-	Disbursement disbursementpb.DisbursementDomainServiceServer
+	Collection           collectionpb.CollectionDomainServiceServer
+	Disbursement         disbursementpb.DisbursementDomainServiceServer
+	DisbursementSchedule disbursementschedulepb.DisbursementScheduleDomainServiceServer
 
 	// Loans & Petty Cash repositories
 	Loan                   loanpb.LoanDomainServiceServer
@@ -66,6 +68,9 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 	}
 	if r := tryCreate(entityid.TreasuryDisbursement); r != nil {
 		repos.Disbursement = r.(disbursementpb.DisbursementDomainServiceServer)
+	}
+	if r := tryCreate(entityid.DisbursementSchedule); r != nil {
+		repos.DisbursementSchedule = r.(disbursementschedulepb.DisbursementScheduleDomainServiceServer)
 	}
 
 	// Loans & Petty Cash repositories

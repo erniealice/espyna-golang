@@ -5,6 +5,8 @@ import (
 	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/collection"
 	// Disbursement use cases
 	disbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/disbursement"
+	// DisbursementSchedule use cases
+	disbursementscheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/disbursement_schedule"
 	// PettyCash use cases
 	pettyCashUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/petty_cash"
 	// SecurityDeposit use cases
@@ -20,6 +22,7 @@ import (
 	// Protobuf domain services for treasury repositories
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
+	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
 	pettycashfundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_fund"
@@ -31,8 +34,9 @@ import (
 // TreasuryRepositories contains all treasury domain repositories
 type TreasuryRepositories struct {
 	// Existing treasury repositories
-	Collection   collectionpb.CollectionDomainServiceServer
-	Disbursement disbursementpb.DisbursementDomainServiceServer
+	Collection           collectionpb.CollectionDomainServiceServer
+	Disbursement         disbursementpb.DisbursementDomainServiceServer
+	DisbursementSchedule disbursementschedulepb.DisbursementScheduleDomainServiceServer
 
 	// Loans & Petty Cash repositories
 	Loan                   loanpb.LoanDomainServiceServer
@@ -45,10 +49,11 @@ type TreasuryRepositories struct {
 
 // TreasuryUseCases contains all treasury-related use cases
 type TreasuryUseCases struct {
-	Collection      *collectionUseCases.UseCases
-	Disbursement    *disbursementUseCases.UseCases
-	SecurityDeposit *securityDepositUseCases.UseCases
-	PettyCash       *pettyCashUseCases.UseCases
+	Collection           *collectionUseCases.UseCases
+	Disbursement         *disbursementUseCases.UseCases
+	DisbursementSchedule *disbursementscheduleUseCases.UseCases
+	SecurityDeposit      *securityDepositUseCases.UseCases
+	PettyCash            *pettyCashUseCases.UseCases
 	// Loans — use cases to be created in future iterations
 	// Loan, LoanPayment, PettyCashVoucher, PettyCashReplenishment
 
@@ -88,6 +93,21 @@ func NewUseCases(
 			IDService:            idService,
 		},
 	)
+
+	var disbursementScheduleUC *disbursementscheduleUseCases.UseCases
+	if repos.DisbursementSchedule != nil {
+		disbursementScheduleUC = disbursementscheduleUseCases.NewUseCases(
+			disbursementscheduleUseCases.DisbursementScheduleRepositories{
+				DisbursementSchedule: repos.DisbursementSchedule,
+			},
+			disbursementscheduleUseCases.DisbursementScheduleServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idService,
+			},
+		)
+	}
 
 	securityDepositUC := securityDepositUseCases.NewUseCases(
 		securityDepositUseCases.SecurityDepositRepositories{
@@ -132,11 +152,12 @@ func NewUseCases(
 	}
 
 	return &TreasuryUseCases{
-		Collection:      collectionUC,
-		Disbursement:    disbursementUC,
-		SecurityDeposit: securityDepositUC,
-		PettyCash:       pettyCashUC,
-		LoanDashboard:   loanDash,
-		CashDashboard:   cashDash,
+		Collection:           collectionUC,
+		Disbursement:         disbursementUC,
+		DisbursementSchedule: disbursementScheduleUC,
+		SecurityDeposit:      securityDepositUC,
+		PettyCash:            pettyCashUC,
+		LoanDashboard:        loanDash,
+		CashDashboard:        cashDash,
 	}
 }

@@ -2,6 +2,7 @@ package usecases
 
 import (
 	// Domain use case packages
+	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
@@ -25,6 +26,7 @@ import (
 // to aggregate and organize use cases according to their composition strategy.
 //
 // The Aggregate represents the complete set of entities organized across 8 domains:
+// - Asset:        2 entities (Asset, AssetCategory)
 // - Common:       1 entity (Attribute - cross-domain dependency)
 // - Entity:       16 entities (Admin, Client, Delegate, User, Workspace, etc.)
 // - Event:        2 entities (Event, EventClient)
@@ -57,6 +59,7 @@ type Aggregate struct {
 	Subscription *subscription.SubscriptionUseCases
 	Workflow     *workflow.WorkflowUseCases
 	Integration  *integration.IntegrationUseCases
+	Asset        *asset.AssetUseCases // Phase 1-2: asset typed stack (adapter in Phase 4)
 }
 
 // NewAggregate creates a new use case aggregate with all domains initialized.
@@ -81,6 +84,7 @@ func NewAggregate(
 	subscriptionUC *subscription.SubscriptionUseCases,
 	workflowUC *workflow.WorkflowUseCases,
 	integrationUC *integration.IntegrationUseCases,
+	assetUC *asset.AssetUseCases,
 ) *Aggregate {
 	return &Aggregate{
 		Auth:         authUC,
@@ -99,6 +103,7 @@ func NewAggregate(
 		Subscription: subscriptionUC,
 		Workflow:     workflowUC,
 		Integration:  integrationUC,
+		Asset:        assetUC,
 	}
 }
 
@@ -122,5 +127,6 @@ func NewEmptyAggregate() *Aggregate {
 		Subscription: &subscription.SubscriptionUseCases{},
 		Workflow:     &workflow.WorkflowUseCases{},
 		Integration:  &integration.IntegrationUseCases{},
+		Asset:        &asset.AssetUseCases{},
 	}
 }

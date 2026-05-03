@@ -10,6 +10,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -596,6 +597,125 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPage
 	return &inventorytransactionpb.GetInventoryTransactionItemPageDataResponse{
 		InventoryTransaction: inventoryTransaction,
 		Success:              true,
+	}, nil
+}
+
+// GetInventoryMovementsListPageData retrieves inventory movements with joined product/variant/item
+// data and supports dateFrom, dateTo, location_id, transaction_type, and full-text search filters.
+// CRITICAL: Always filters by workspace_id for multi-tenancy (via inventory_item.workspace_id).
+func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageData(
+	ctx context.Context,
+	req *inventorytransactionpb.GetInventoryMovementsListPageDataRequest,
+) (*inventorytransactionpb.GetInventoryMovementsListPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get inventory movements list page data request is required")
+	}
+
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	dateFrom := req.GetDateFrom()
+	dateTo := req.GetDateTo()
+	locationID := req.GetLocationId()
+	txType := req.GetTransactionType()
+	search := req.GetSearch()
+
+	query := `
+		SELECT it.id,
+		       COALESCE(TO_CHAR(it.transaction_date AT TIME ZONE 'UTC', 'YYYY-MM-DD'), '') AS transaction_date,
+		       it.transaction_type,
+		       it.quantity,
+		       COALESCE(ii.name, '')          AS item_name,
+		       COALESCE(ii.location_id, '')   AS location_id,
+		       COALESCE(ii.sku, '')            AS item_sku,
+		       COALESCE(pv.sku, '')            AS variant_sku,
+		       COALESCE(p.name, '')            AS product_name,
+		       it.serial_number,
+		       it.reference_type,
+		       it.reference_id,
+		       it.performed_by
+		FROM inventory_transaction it
+		LEFT JOIN inventory_item ii ON it.inventory_item_id = ii.id
+		LEFT JOIN product_variant pv ON ii.product_variant_id = pv.id
+		LEFT JOIN product p ON pv.product_id = p.id
+		WHERE it.active = true
+		  AND ($1 = '' OR ii.workspace_id = $1)
+		  AND ($2 = '' OR it.transaction_date >= $2::timestamptz)
+		  AND ($3 = '' OR it.transaction_date <= ($3::date + interval '1 day')::timestamptz)
+		  AND ($4 = '' OR ii.location_id = $4)
+		  AND ($5 = '' OR it.transaction_type = $5)
+		  AND ($6 = '' OR (
+		       p.name ILIKE '%' || $6 || '%'
+		    OR pv.sku ILIKE '%' || $6 || '%'
+		    OR ii.sku ILIKE '%' || $6 || '%'
+		    OR ii.name ILIKE '%' || $6 || '%'
+		  ))
+		ORDER BY it.transaction_date DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, dateFrom, dateTo, locationID, txType, search)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query inventory movements: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*inventorytransactionpb.InventoryMovementRow
+	for rows.Next() {
+		var (
+			id              string
+			transactionDate string
+			transactionType string
+			quantity        float64
+			itemName        string
+			locationIDVal   string
+			itemSKU         string
+			variantSKU      string
+			productName     string
+			serialNumber    sql.NullString
+			referenceType   sql.NullString
+			referenceID     sql.NullString
+			performedBy     sql.NullString
+		)
+		if err := rows.Scan(
+			&id, &transactionDate, &transactionType, &quantity,
+			&itemName, &locationIDVal, &itemSKU, &variantSKU, &productName,
+			&serialNumber, &referenceType, &referenceID, &performedBy,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan inventory movement row: %w", err)
+		}
+
+		row := &inventorytransactionpb.InventoryMovementRow{
+			Id:              id,
+			TransactionDate: transactionDate,
+			TransactionType: transactionType,
+			Quantity:        quantity,
+			ItemName:        itemName,
+			LocationId:      locationIDVal,
+			ItemSku:         itemSKU,
+			VariantSku:      variantSKU,
+			ProductName:     productName,
+		}
+		if serialNumber.Valid {
+			row.SerialNumber = &serialNumber.String
+		}
+		if referenceType.Valid {
+			row.ReferenceType = &referenceType.String
+		}
+		if referenceID.Valid {
+			row.ReferenceId = &referenceID.String
+		}
+		if performedBy.Valid {
+			row.PerformedBy = &performedBy.String
+		}
+		result = append(result, row)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating inventory movements rows: %w", err)
+	}
+
+	return &inventorytransactionpb.GetInventoryMovementsListPageDataResponse{
+		Data:    result,
+		Success: true,
 	}, nil
 }
 

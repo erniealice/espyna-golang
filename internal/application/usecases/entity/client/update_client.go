@@ -79,6 +79,30 @@ func (uc *UpdateClientUseCase) Execute(ctx context.Context, req *clientpb.Update
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.email_required", "Client email is required [DEFAULT]"))
 	}
 
+	// 2026-05-03 — Preserve active flags when the payload does not carry
+	// them. The drawer form no longer exposes an "active" toggle (it's
+	// derived from status), so unmarshalled requests arrive with Active
+	// at proto3 zero. We can't distinguish that from an explicit false,
+	// so we conservatively copy the existing value: lifecycle changes go
+	// through the SetClientStatus closure (raw SQL update), not through
+	// this use case. Skipped if the existing read fails — the repository
+	// will reject malformed requests downstream.
+	if !req.Data.Active {
+		if readResp, readErr := uc.repositories.Client.ReadClient(ctx, &clientpb.ReadClientRequest{
+			Data: &clientpb.Client{Id: req.Data.Id},
+		}); readErr == nil && readResp != nil && len(readResp.GetData()) > 0 {
+			existing := readResp.GetData()[0]
+			req.Data.Active = existing.GetActive()
+			// Same treatment for the embedded representative user — the
+			// representative tab also dropped its active toggle.
+			if req.Data.User != nil && !req.Data.User.Active {
+				if eu := existing.GetUser(); eu != nil {
+					req.Data.User.Active = eu.GetActive()
+				}
+			}
+		}
+	}
+
 	// Call repository
 	resp, err := uc.repositories.Client.UpdateClient(ctx, req)
 	if err != nil {

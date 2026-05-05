@@ -288,8 +288,9 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		searchQuery = "%" + req.Search.Query + "%"
 	}
 
-	// Extract client_id and active filters
+	// Extract client_id, price_plan_id, and active filters
 	clientIDFilter := ""
+	pricePlanIDFilter := ""
 	activeFilter := true // default: active only
 	hasActiveFilter := false
 	if req.Filters != nil {
@@ -298,6 +299,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			case "client_id":
 				if sf := f.GetStringFilter(); sf != nil {
 					clientIDFilter = sf.GetValue()
+				}
+			case "price_plan_id":
+				if sf := f.GetStringFilter(); sf != nil {
+					pricePlanIDFilter = sf.GetValue()
 				}
 			case "s.active", "active":
 				if bf := f.GetBooleanFilter(); bf != nil {
@@ -355,6 +360,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				AND ($1::text = '' OR
 					s.name ILIKE $1)
 				AND ($6::text = '' OR s.client_id = $6)
+				AND ($9::text = '' OR s.price_plan_id = $9)
 		),
 
 		-- CTE 2: Join with client, user, price_plan, and plan
@@ -471,14 +477,15 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 
 	// Execute query
 	rows, err := db.GetDB().QueryContext(ctx, query,
-		searchQuery,    // $1
-		limit,          // $2
-		offset,         // $3
-		sortField,      // $4
-		sortDirection,  // $5
-		clientIDFilter, // $6
-		activeFilter,   // $7
-		wsID,           // $8
+		searchQuery,       // $1
+		limit,             // $2
+		offset,            // $3
+		sortField,         // $4
+		sortDirection,     // $5
+		clientIDFilter,    // $6
+		activeFilter,      // $7
+		wsID,              // $8
+		pricePlanIDFilter, // $9
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetSubscriptionListPageData query: %w", err)
@@ -840,6 +847,58 @@ func (r *PostgresSubscriptionRepository) CountActiveByClientIds(ctx context.Cont
 	}
 
 	return &subscriptionpb.CountActiveByClientIdsResponse{Counts: counts}, nil
+}
+
+// ListSubscriptionsByPricePlan returns the subscriptions whose price_plan_id
+// matches the request. It is a thin delegator over GetSubscriptionListPageData
+// — the existing CTE-based query already JOINs and hydrates Client + PricePlan
+// + Plan, so no new SQL is introduced here. Callers (the centymo price-plan
+// detail "Engagements" tab) get fully-hydrated rows in a single query.
+func (r *PostgresSubscriptionRepository) ListSubscriptionsByPricePlan(ctx context.Context, req *subscriptionpb.ListSubscriptionsByPricePlanRequest) (*subscriptionpb.ListSubscriptionsByPricePlanResponse, error) {
+	if req == nil || req.PricePlanId == "" {
+		return nil, fmt.Errorf("price_plan_id is required")
+	}
+
+	activeOnly := true
+	if req.ActiveOnly != nil {
+		activeOnly = *req.ActiveOnly
+	}
+
+	filters := []*commonpb.TypedFilter{{
+		Field: "price_plan_id",
+		FilterType: &commonpb.TypedFilter_StringFilter{
+			StringFilter: &commonpb.StringFilter{
+				Value:    req.PricePlanId,
+				Operator: commonpb.StringOperator_STRING_EQUALS,
+			},
+		},
+	}}
+	if activeOnly {
+		filters = append(filters, &commonpb.TypedFilter{
+			Field: "active",
+			FilterType: &commonpb.TypedFilter_BooleanFilter{
+				BooleanFilter: &commonpb.BooleanFilter{Value: true},
+			},
+		})
+	}
+
+	pageReq := &subscriptionpb.GetSubscriptionListPageDataRequest{
+		Filters:    &commonpb.FilterRequest{Filters: filters},
+		Pagination: req.Pagination,
+		Sort:       req.Sort,
+	}
+
+	pageResp, err := r.GetSubscriptionListPageData(ctx, pageReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return &subscriptionpb.ListSubscriptionsByPricePlanResponse{
+		SubscriptionList: pageResp.GetSubscriptionList(),
+		Pagination:       pageResp.GetPagination(),
+		Success:          pageResp.GetSuccess(),
+		Error:            pageResp.Error,
+	}, nil
 }
 
 // NewSubscriptionRepository creates a new PostgreSQL subscription repository (old-style constructor)

@@ -40,14 +40,15 @@ type SubscriptionServices struct {
 
 // UseCases contains all subscription-related use cases
 type UseCases struct {
-	CreateSubscription          *CreateSubscriptionUseCase
-	ReadSubscription            *ReadSubscriptionUseCase
-	UpdateSubscription          *UpdateSubscriptionUseCase
-	DeleteSubscription          *DeleteSubscriptionUseCase
-	ListSubscriptions           *ListSubscriptionsUseCase
-	GetSubscriptionListPageData *GetSubscriptionListPageDataUseCase
-	GetSubscriptionItemPageData *GetSubscriptionItemPageDataUseCase
-	CountActiveByClientIds      *CountActiveByClientIdsUseCase
+	CreateSubscription           *CreateSubscriptionUseCase
+	ReadSubscription             *ReadSubscriptionUseCase
+	UpdateSubscription           *UpdateSubscriptionUseCase
+	DeleteSubscription           *DeleteSubscriptionUseCase
+	ListSubscriptions            *ListSubscriptionsUseCase
+	GetSubscriptionListPageData  *GetSubscriptionListPageDataUseCase
+	GetSubscriptionItemPageData  *GetSubscriptionItemPageDataUseCase
+	CountActiveByClientIds       *CountActiveByClientIdsUseCase
+	ListSubscriptionsByPricePlan *ListSubscriptionsByPricePlanUseCase
 }
 
 // NewUseCases creates a new collection of subscription use cases
@@ -133,14 +134,24 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	listByPricePlanRepos := ListSubscriptionsByPricePlanRepositories{
+		Subscription: repositories.Subscription,
+	}
+	listByPricePlanServices := ListSubscriptionsByPricePlanServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
-		CreateSubscription:          NewCreateSubscriptionUseCase(createRepos, createServices),
-		ReadSubscription:            NewReadSubscriptionUseCase(readRepos, readServices),
-		UpdateSubscription:          NewUpdateSubscriptionUseCase(updateRepos, updateServices),
-		DeleteSubscription:          NewDeleteSubscriptionUseCase(deleteRepos, deleteServices),
-		ListSubscriptions:           NewListSubscriptionsUseCase(listRepos, listServices),
-		GetSubscriptionListPageData: NewGetSubscriptionListPageDataUseCase(listPageDataRepos, listPageDataServices),
-		GetSubscriptionItemPageData: NewGetSubscriptionItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
-		CountActiveByClientIds:      NewCountActiveByClientIdsUseCase(countActiveRepos, countActiveServices),
+		CreateSubscription:           NewCreateSubscriptionUseCase(createRepos, createServices),
+		ReadSubscription:             NewReadSubscriptionUseCase(readRepos, readServices),
+		UpdateSubscription:           NewUpdateSubscriptionUseCase(updateRepos, updateServices),
+		DeleteSubscription:           NewDeleteSubscriptionUseCase(deleteRepos, deleteServices),
+		ListSubscriptions:            NewListSubscriptionsUseCase(listRepos, listServices),
+		GetSubscriptionListPageData:  NewGetSubscriptionListPageDataUseCase(listPageDataRepos, listPageDataServices),
+		GetSubscriptionItemPageData:  NewGetSubscriptionItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
+		CountActiveByClientIds:       NewCountActiveByClientIdsUseCase(countActiveRepos, countActiveServices),
+		ListSubscriptionsByPricePlan: NewListSubscriptionsByPricePlanUseCase(listByPricePlanRepos, listByPricePlanServices),
 	}
 }

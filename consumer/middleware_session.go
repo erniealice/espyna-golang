@@ -134,11 +134,15 @@ func (m *SessionMiddleware) ClearSessionCookie(w http.ResponseWriter) {
 
 // GetUserIDFromContext extracts the user ID from the request context.
 // Returns empty string if not authenticated.
+//
+// Delegates to ExtractUserIDFromContext, which reads the typed key written by
+// WithSessionIdentity (used by both the password-mode SessionMiddleware here
+// and the dev MockSessionMiddleware). Reading only the legacy
+// SessionContextKey("uid") here would miss the password-mode writer, which
+// produced 403 "unauthorized" on POST /action/admin/switch-workspace and
+// silently bounced authenticated change-password requests back to login.
 func GetUserIDFromContext(ctx context.Context) string {
-	if uid, ok := ctx.Value(ContextKeyUserID).(string); ok {
-		return uid
-	}
-	return ""
+	return ExtractUserIDFromContext(ctx)
 }
 
 // GetSessionTokenFromContext extracts the session token from the request context.

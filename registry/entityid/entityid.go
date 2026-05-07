@@ -122,6 +122,8 @@ const (
 	RevenueAttribute = "revenue_attribute"
 	RevenueCategory  = "revenue_category"
 	RevenueLineItem  = "revenue_line_item"
+	RevenueRun       = "revenue_run"
+	RevenueRunAttempt = "revenue_run_attempt"
 )
 
 // Expenditure domain
@@ -336,7 +338,7 @@ var ProductEntities = []string{
 }
 
 // RevenueEntities lists all entity IDs in the Revenue domain.
-var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue}
+var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue, RevenueRun, RevenueRunAttempt}
 
 // ExpenditureEntities lists all entity IDs in the Expenditure domain.
 var ExpenditureEntities = []string{
@@ -425,6 +427,19 @@ const (
 	AssetCategory = "asset_category"
 )
 
+// Procurement domain (Supplier Subscriptions — 2026-05-06)
+//
+// Buying-side mirror of the Subscription domain. Six entities model the
+// procurement pricing graph and the resulting SupplierSubscription.
+const (
+	CostSchedule            = "cost_schedule"
+	SupplierPlan            = "supplier_plan"
+	CostPlan                = "cost_plan"
+	SupplierProductPlan     = "supplier_product_plan"
+	SupplierProductCostPlan = "supplier_product_cost_plan"
+	SupplierSubscription    = "supplier_subscription"
+)
+
 // Fulfillment domain
 const (
 	Fulfillment            = "fulfillment"
@@ -439,6 +454,13 @@ var FulfillmentEntities = []string{Fulfillment, FulfillmentItem, FulfillmentStat
 
 // AssetEntities lists all entity IDs in the Asset domain.
 var AssetEntities = []string{Asset, AssetCategory}
+
+// ProcurementEntities lists all entity IDs in the Procurement domain.
+var ProcurementEntities = []string{
+	CostSchedule, SupplierPlan, CostPlan,
+	SupplierProductPlan, SupplierProductCostPlan,
+	SupplierSubscription,
+}
 
 // ---------------------------------------------------------------------------
 // Consolidated slice
@@ -467,5 +489,6 @@ func buildAll() []string {
 	all = append(all, PayrollEntities...)
 	all = append(all, FulfillmentEntities...)
 	all = append(all, AssetEntities...)
+	all = append(all, ProcurementEntities...)
 	return all
 }

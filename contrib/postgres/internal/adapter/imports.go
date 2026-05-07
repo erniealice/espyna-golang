@@ -14,6 +14,7 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/inventory"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/operation"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/payroll"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/procurement"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/product"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/rbac"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/revenue"

@@ -21,11 +21,13 @@ func InitializeRevenue(
 			RevenueCategory:  repos.RevenueCategory,
 			RevenueAttribute: repos.RevenueAttribute,
 			PaymentTerm:      repos.PaymentTerm,
+			RevenueRun:       repos.RevenueRun,
 			Subscription:     repos.Subscription,
 			PricePlan:        repos.PricePlan,
 			ProductPricePlan: repos.ProductPricePlan,
 			PriceSchedule:    repos.PriceSchedule,
 			Client:           repos.Client,
+			Workspace:        repos.Workspace,
 
 			// Milestone-billing branch (Phase C — milestone-billing plan §3).
 			BillingEvent:     repos.BillingEvent,

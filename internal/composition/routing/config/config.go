@@ -22,6 +22,7 @@ func GetAllDomainConfigurations(useCases *usecases.Aggregate, engineService port
 		domain.ConfigureLedgerDomain(useCases.Ledger),
 		domain.ConfigureOperationDomain(useCases.Operation),
 		domain.ConfigurePayrollDomain(useCases.Payroll),
+		domain.ConfigureProcurementDomain(useCases.Procurement),
 		domain.ConfigureTreasuryDomain(useCases.Treasury),
 		domain.ConfigureProductDomain(useCases.Product),
 		domain.ConfigureRevenueDomain(useCases.Revenue),

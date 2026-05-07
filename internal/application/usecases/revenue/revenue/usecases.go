@@ -5,10 +5,12 @@ import (
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -29,6 +31,12 @@ type RevenueRepositories struct {
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
 	PaymentTerm      paymenttermpb.PaymentTermDomainServiceServer
+	// Workspace repo — used by ListRevenueRunCandidates to resolve the
+	// workspace timezone for billing-cycle math. Optional; falls back to UTC.
+	Workspace workspacepb.WorkspaceDomainServiceServer
+
+	// RevenueRun repo — used by ListRevenueRunCandidates and GenerateRevenueRun.
+	RevenueRun revenuerunpb.RevenueRunDomainServiceServer
 
 	// Milestone-billing branch (Phase C — milestone-billing plan §3).
 	// Optional — only required when MILESTONE PricePlans are billed.
@@ -60,6 +68,8 @@ type UseCases struct {
 	ListRevenues                      *ListRevenuesUseCase
 	GetRevenueListPageData            *GetRevenueListPageDataUseCase
 	RecognizeRevenueFromSubscription  *RecognizeRevenueFromSubscriptionUseCase
+	ListRevenueRunCandidates          *ListRevenueRunCandidatesUseCase
+	GenerateRevenueRun                *GenerateRevenueRunUseCase
 }
 
 // NewUseCases creates a new collection of revenue use cases
@@ -144,6 +154,31 @@ func NewUseCases(
 		MaterializeInstanceJobsForSubscription: services.MaterializeInstanceJobsForSubscription,
 	}
 
+	recognizeUC := NewRecognizeRevenueFromSubscriptionUseCase(recognizeRepos, recognizeServices)
+
+	listCandidatesRepos := ListRevenueRunCandidatesRepositories{
+		Revenue:      repositories.Revenue,
+		Subscription: repositories.Subscription,
+		PricePlan:    repositories.PricePlan,
+		Workspace:    repositories.Workspace,
+	}
+	listCandidatesServices := ListRevenueRunCandidatesServices{
+		AuthorizationService: services.AuthorizationService,
+		TranslationService:   services.TranslationService,
+	}
+
+	generateRunRepos := GenerateRevenueRunRepositories{
+		Revenue:      repositories.Revenue,
+		Subscription: repositories.Subscription,
+		RevenueRun:   repositories.RevenueRun,
+	}
+	generateRunServices := GenerateRevenueRunServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+		IDService:            services.IDService,
+	}
+
 	return &UseCases{
 		CreateRevenue:                    NewCreateRevenueUseCase(createRepos, createServices),
 		ReadRevenue:                      NewReadRevenueUseCase(readRepos, readServices),
@@ -151,6 +186,8 @@ func NewUseCases(
 		DeleteRevenue:                    NewDeleteRevenueUseCase(deleteRepos, deleteServices),
 		ListRevenues:                     NewListRevenuesUseCase(listRepos, listServices),
 		GetRevenueListPageData:           NewGetRevenueListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
-		RecognizeRevenueFromSubscription: NewRecognizeRevenueFromSubscriptionUseCase(recognizeRepos, recognizeServices),
+		RecognizeRevenueFromSubscription: recognizeUC,
+		ListRevenueRunCandidates:         NewListRevenueRunCandidatesUseCase(listCandidatesRepos, listCandidatesServices, recognizeUC),
+		GenerateRevenueRun:               NewGenerateRevenueRunUseCase(generateRunRepos, generateRunServices, recognizeUC),
 	}
 }

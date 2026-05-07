@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -53,6 +54,7 @@ type Aggregate struct {
 	Ledger       *ledger.LedgerUseCases
 	Operation    *operation.OperationUseCases
 	Payroll      *payroll.PayrollUseCases
+	Procurement  *procurement.ProcurementUseCases
 	Treasury     *treasury.TreasuryUseCases
 	Product      *product.ProductUseCases
 	Revenue      *revenue.RevenueUseCases
@@ -78,6 +80,7 @@ func NewAggregate(
 	ledgerUC *ledger.LedgerUseCases,
 	operationUC *operation.OperationUseCases,
 	payrollUC *payroll.PayrollUseCases,
+	procurementUC *procurement.ProcurementUseCases,
 	treasuryUC *treasury.TreasuryUseCases,
 	productUC *product.ProductUseCases,
 	revenueUC *revenue.RevenueUseCases,
@@ -97,6 +100,7 @@ func NewAggregate(
 		Ledger:       ledgerUC,
 		Operation:    operationUC,
 		Payroll:      payrollUC,
+		Procurement:  procurementUC,
 		Treasury:     treasuryUC,
 		Product:      productUC,
 		Revenue:      revenueUC,
@@ -121,6 +125,7 @@ func NewEmptyAggregate() *Aggregate {
 		Ledger:       &ledger.LedgerUseCases{},
 		Operation:    &operation.OperationUseCases{},
 		Payroll:      &payroll.PayrollUseCases{},
+		Procurement:  &procurement.ProcurementUseCases{},
 		Treasury:     &treasury.TreasuryUseCases{},
 		Product:      &product.ProductUseCases{},
 		Revenue:      &revenue.RevenueUseCases{},

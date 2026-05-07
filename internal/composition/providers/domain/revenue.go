@@ -10,6 +10,7 @@ import (
 	// Protobuf domain services - Entity domain (cross-domain dependency)
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 
 	// Protobuf domain services - Revenue domain
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
@@ -17,6 +18,7 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 
 	// Protobuf domain services - Subscription domain (cross-domain dependency
 	// for the recognize-revenue use case)
@@ -47,6 +49,9 @@ type RevenueRepositories struct {
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 
+	// RevenueRun repo — used by ListRevenueRunCandidates and GenerateRevenueRun.
+	RevenueRun revenuerunpb.RevenueRunDomainServiceServer
+
 	// Cross-domain dependencies for the RecognizeRevenueFromSubscription use
 	// case (plan §5 Phase B). All optional — the use case returns an
 	// appropriate validation error when called with a nil repo.
@@ -55,6 +60,9 @@ type RevenueRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
+	// Workspace repo — used by ListRevenueRunCandidates to resolve workspace
+	// timezone for billing-cycle math. Optional; falls back to UTC.
+	Workspace workspacepb.WorkspaceDomainServiceServer
 
 	// Cross-domain dependencies for the milestone-billing engine branch
 	// (Phase C — milestone-billing plan §3) and the
@@ -112,6 +120,11 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)
 	}
 
+	// RevenueRun repo (revenue-run batch feature).
+	if r := tryCreate(entityid.RevenueRun); r != nil {
+		repos.RevenueRun = r.(revenuerunpb.RevenueRunDomainServiceServer)
+	}
+
 	// Cross-domain reads required by RecognizeRevenueFromSubscription.
 	if r := tryCreate(entityid.Subscription); r != nil {
 		repos.Subscription = r.(subscriptionpb.SubscriptionDomainServiceServer)
@@ -127,6 +140,9 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.Client); r != nil {
 		repos.Client = r.(clientpb.ClientDomainServiceServer)
+	}
+	if r := tryCreate(entityid.Workspace); r != nil {
+		repos.Workspace = r.(workspacepb.WorkspaceDomainServiceServer)
 	}
 
 	// Milestone-billing cross-domain reads (Phase C).

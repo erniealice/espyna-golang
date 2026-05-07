@@ -22,6 +22,7 @@ type Registry struct {
 	operation    *OperationRepositories
 	workflow     *WorkflowRepositories
 	common       *CommonRepositories
+	procurement  *ProcurementRepositories
 
 	// Database provider and config needed for lazy initialization
 	dbProvider    contracts.Provider
@@ -96,6 +97,13 @@ func (r *Registry) InitializeAll() error {
 	r.workflow, err = NewWorkflowRepositories(r.dbProvider, r.dbTableConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create workflow repositories: %w", err)
+	}
+
+	// Initialize procurement repositories (graceful degradation — not fatal)
+	r.procurement, err = NewProcurementRepositories(r.dbProvider, r.dbTableConfig)
+	if err != nil {
+		// Non-fatal: procurement tables may not yet exist in older deployments
+		r.procurement = nil
 	}
 
 	return nil
@@ -234,4 +242,19 @@ func (r *Registry) GetCommon() (*CommonRepositories, error) {
 		}
 	}
 	return r.common, nil
+}
+
+// GetProcurement returns procurement repositories (lazy init if needed)
+func (r *Registry) GetProcurement() (*ProcurementRepositories, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.procurement == nil {
+		var err error
+		r.procurement, err = NewProcurementRepositories(r.dbProvider, r.dbTableConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r.procurement, nil
 }

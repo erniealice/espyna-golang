@@ -397,6 +397,14 @@ const (
 	EntityAssetMaintenance     = security.EntityAssetMaintenance
 	EntityAssetComponent       = security.EntityAssetComponent
 
+	// Procurement Domain
+	EntityCostSchedule            = security.EntityCostSchedule
+	EntitySupplierPlan            = security.EntitySupplierPlan
+	EntityCostPlan                = security.EntityCostPlan
+	EntitySupplierProductPlan     = security.EntitySupplierProductPlan
+	EntitySupplierProductCostPlan = security.EntitySupplierProductCostPlan
+	EntitySupplierSubscription    = security.EntitySupplierSubscription
+
 	// Operation Domain
 	EntityJobTemplate       = security.EntityJobTemplate
 	EntityJobTemplatePhase  = security.EntityJobTemplatePhase

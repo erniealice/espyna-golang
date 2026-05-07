@@ -14,6 +14,7 @@ import (
 	// Protobuf domain services - Entity domain (cross-domain dependency)
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 
 	// Protobuf domain services for revenue repositories
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
@@ -21,6 +22,7 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 
 	// Cross-domain dependencies for the recognize-revenue use case
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -50,6 +52,9 @@ type RevenueRepositories struct {
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 
+	// RevenueRun repo — used by ListRevenueRunCandidates and GenerateRevenueRun.
+	RevenueRun revenuerunpb.RevenueRunDomainServiceServer
+
 	// Cross-domain dependencies for revenue recognition from a subscription.
 	// All optional from a wiring standpoint — but all required for the
 	// RecognizeRevenueFromSubscription use case to actually fire.
@@ -58,6 +63,10 @@ type RevenueRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
+
+	// Workspace repo — used by ListRevenueRunCandidates to resolve the
+	// workspace timezone for billing-cycle math. Optional; falls back to UTC.
+	Workspace workspacepb.WorkspaceDomainServiceServer
 
 	// Milestone-billing branch (Phase C — milestone-billing plan §3).
 	// Optional — only required when MILESTONE plans are billed.
@@ -93,6 +102,8 @@ func NewUseCases(
 			PriceSchedule:    repos.PriceSchedule,
 			Client:           repos.Client,
 			PaymentTerm:      repos.PaymentTerm,
+			Workspace:        repos.Workspace,
+			RevenueRun:       repos.RevenueRun,
 
 			// Milestone-billing branch reads (Phase C).
 			BillingEvent:     repos.BillingEvent,

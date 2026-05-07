@@ -243,6 +243,14 @@ const (
 	EntityJobSettlement     = "job_settlement"
 	EntityInventoryMovement = "inventory_movement"
 
+	// Procurement Domain (6 entities — Supplier Subscriptions 2026-05-06)
+	EntityCostSchedule            = "cost_schedule"
+	EntitySupplierPlan            = "supplier_plan"
+	EntityCostPlan                = "cost_plan"
+	EntitySupplierProductPlan     = "supplier_product_plan"
+	EntitySupplierProductCostPlan = "supplier_product_cost_plan"
+	EntitySupplierSubscription    = "supplier_subscription"
+
 	// Operation Domain — Layer 7: Outcome (8 entities)
 	EntityOutcomeCriteria      = "outcome_criteria"
 	EntityCriteriaThreshold    = "criteria_threshold"

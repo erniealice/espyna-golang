@@ -46,6 +46,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
@@ -166,6 +167,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		payrollUC = &payroll.PayrollUseCases{}
 	}
 
+	procurementUC, err := uci.initializeProcurementUseCases(container)
+	if err != nil {
+		procurementUC = &procurement.ProcurementUseCases{}
+	}
+
 	fulfillmentUC, err := uci.initializeFulfillmentUseCases(container)
 	if err != nil {
 		fulfillmentUC = &fulfillment.UseCases{}
@@ -199,6 +205,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		ledgerUC,
 		operationUC,
 		payrollUC,
+		procurementUC,
 		treasuryUC,
 		productUC,
 		revenueUC,
@@ -816,6 +823,34 @@ func (uci *UseCaseInitializer) initializeAssetUseCases(container *Container) (*a
 	fmt.Printf("✅ Asset domain initialized successfully: %v\n", assetUseCases != nil)
 
 	return assetUseCases, nil
+}
+
+// initializeProcurementUseCases initializes Procurement domain use cases (6 entities).
+// Graceful degradation: returns empty struct on failure so the app starts without procurement.
+func (uci *UseCaseInitializer) initializeProcurementUseCases(container *Container) (*procurement.ProcurementUseCases, error) {
+	fmt.Printf("Initializing Procurement use cases...\n")
+
+	repos, err := domain.NewProcurementRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("WARNING: Procurement database provider not available: %v\n", err)
+		return &procurement.ProcurementUseCases{}, nil
+	}
+	fmt.Printf("Got procurement repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to get services: %v\n", err)
+		return nil, err
+	}
+
+	procurementUseCases, err := initializers.InitializeProcurement(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to initialize procurement use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("Procurement domain initialized successfully: %v\n", procurementUseCases != nil)
+
+	return procurementUseCases, nil
 }
 
 // getServices is a helper to extract services from container with proper type checking

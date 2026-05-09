@@ -5,6 +5,8 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
 	assetUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset"
 	assetCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset_category"
+	assetRevaluationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset_revaluation"
+	depreciationRunUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/depreciation_run"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
@@ -43,5 +45,35 @@ func InitializeAsset(
 		},
 	)
 
-	return asset.NewAssetUseCases(assetSub, assetCategorySub), nil
+	// Build the DepreciationRun sub-bundle
+	depRunRepos := depreciationRunUseCases.DepreciationRunRepositories{
+		Asset:                repos.Asset,
+		AssetCategory:        repos.AssetCategory,
+		AssetTransaction:     repos.AssetTransaction,
+		DepreciationSchedule: repos.DepreciationSchedule,
+		DepreciationRun:      repos.DepreciationRun,
+	}
+	depRunSvc := depreciationRunUseCases.DepreciationRunServices{
+		AuthorizationService: authSvc,
+		TransactionService:   txSvc,
+		TranslationService:   i18nSvc,
+		IDService:            idSvc,
+	}
+	depRunSub := depreciationRunUseCases.NewUseCases(depRunRepos, depRunSvc)
+
+	// Build the AssetRevaluation sub-bundle
+	revRepos := assetRevaluationUseCases.AssetRevaluationRepositories{
+		Asset:            repos.Asset,
+		AssetTransaction: repos.AssetTransaction,
+		AssetRevaluation: repos.AssetRevaluation,
+	}
+	revSvc := assetRevaluationUseCases.AssetRevaluationServices{
+		AuthorizationService: authSvc,
+		TransactionService:   txSvc,
+		TranslationService:   i18nSvc,
+		IDService:            idSvc,
+	}
+	revSub := assetRevaluationUseCases.NewUseCases(revRepos, revSvc)
+
+	return asset.NewAssetUseCases(assetSub, assetCategorySub, depRunSub, revSub), nil
 }

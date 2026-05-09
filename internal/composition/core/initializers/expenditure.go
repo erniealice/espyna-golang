@@ -35,6 +35,7 @@ func InitializeExpenditure(
 			AccruedExpense:                    repos.AccruedExpense,
 			AccruedExpenseSettlement:          repos.AccruedExpenseSettlement,
 			PaymentTerm:                       repos.PaymentTerm,
+			SupplierSubscription:              repos.SupplierSubscription,
 		},
 		authSvc,
 		txSvc,

@@ -13,6 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	asset_category_usecase "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset_category"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -318,4 +319,103 @@ func (r *PostgresAssetCategoryRepository) GetAssetCategoryItemPageData(
 func NewAssetCategoryRepository(db *sql.DB, tableName string) assetcategorypb.AssetCategoryDomainServiceServer {
 	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresAssetCategoryRepository(dbOps, tableName)
+}
+
+// ListAssetCategoriesWithPolicyRollup implements the PolicyRollupRepository extension.
+//
+// Executes a single bulk query that JOINs asset_category to asset and groups by
+// category, computing:
+//   - assets_in_policy: COUNT of IN_SERVICE assets in the category
+//   - assets_deviating: COUNT of IN_SERVICE assets whose depreciation config
+//     deviates from the category's effective defaults (useful_life_months,
+//     depreciation_method, or salvage_value_percent).
+//
+// workspace_id isolation is applied via the context (WorkspaceAwareOperations
+// injects it into the filter). The query uses a LEFT JOIN so categories with
+// zero matching assets are included.
+func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
+	ctx context.Context,
+) ([]asset_category_usecase.AssetCategoryWithRollup, error) {
+	// Retrieve the raw DB to run the bulk aggregate query.
+	dbGetter, ok := r.dbOps.(interface{ GetDB() *sql.DB })
+	if !ok {
+		return nil, fmt.Errorf("asset_category adapter: dbOps does not expose GetDB() — rollup query unavailable")
+	}
+	db := dbGetter.GetDB()
+	if db == nil {
+		return nil, fmt.Errorf("asset_category adapter: GetDB() returned nil")
+	}
+
+	// workspace_id filter from context.
+	wsID, _ := ctx.Value("workspace_id").(string)
+	if wsID == "" {
+		// Try the espyna context key as well.
+		if v := ctx.Value("WorkspaceID"); v != nil {
+			wsID, _ = v.(string)
+		}
+	}
+
+	// Derive effective depreciation_method/useful_life_months/salvage_value_percent
+	// per category: use the effective fields when set, else fall back to defaults.
+	const query = `
+		SELECT
+			ac.id                       AS category_id,
+			COUNT(a.id) FILTER (
+				WHERE a.status = 'ASSET_STATUS_IN_SERVICE'
+			)                           AS assets_in_policy,
+			COUNT(a.id) FILTER (
+				WHERE a.status = 'ASSET_STATUS_IN_SERVICE'
+				AND (
+					a.depreciation_method IS DISTINCT FROM COALESCE(ac.depreciation_method, ac.default_depreciation_method)
+					OR a.useful_life_months IS DISTINCT FROM COALESCE(ac.useful_life_months, ac.default_useful_life_months)
+					OR a.salvage_value IS DISTINCT FROM COALESCE(ac.salvage_pct, ac.default_salvage_value_percent)
+				)
+			)                           AS assets_deviating
+		FROM asset_category ac
+		LEFT JOIN asset a ON a.asset_category_id = ac.id AND a.active = true
+		WHERE ac.active = true
+		  AND ($1 = '' OR ac.workspace_id = $1)
+		GROUP BY ac.id
+	`
+
+	rows, err := db.QueryContext(ctx, query, wsID)
+	if err != nil {
+		return nil, fmt.Errorf("ListAssetCategoriesWithPolicyRollup: query failed: %w", err)
+	}
+	defer rows.Close()
+
+	// Build a map of category_id → counts.
+	type rollupCounts struct {
+		inPolicy   int
+		deviating  int
+	}
+	countsMap := make(map[string]rollupCounts)
+	for rows.Next() {
+		var catID string
+		var inPolicy, deviating int
+		if err := rows.Scan(&catID, &inPolicy, &deviating); err != nil {
+			return nil, fmt.Errorf("ListAssetCategoriesWithPolicyRollup: scan failed: %w", err)
+		}
+		countsMap[catID] = rollupCounts{inPolicy: inPolicy, deviating: deviating}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListAssetCategoriesWithPolicyRollup: rows error: %w", err)
+	}
+
+	// Load the full category rows via the existing ListAssetCategories method.
+	listResp, err := r.ListAssetCategories(ctx, &assetcategorypb.ListAssetCategoriesRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("ListAssetCategoriesWithPolicyRollup: list categories failed: %w", err)
+	}
+
+	result := make([]asset_category_usecase.AssetCategoryWithRollup, 0, len(listResp.GetData()))
+	for _, cat := range listResp.GetData() {
+		c := countsMap[cat.GetId()]
+		result = append(result, asset_category_usecase.AssetCategoryWithRollup{
+			Category:        cat,
+			AssetsInPolicy:  c.inPolicy,
+			AssetsDeviating: c.deviating,
+		})
+	}
+	return result, nil
 }

@@ -37,6 +37,7 @@ func TestEnumeratePeriods_EmptyWhenNoStartDate(t *testing.T) {
 		newTestSub("", ""),
 		newTestPlanCycle("month", 1),
 		time.Now(),
+		time.UTC,
 	)
 	if len(windows) != 0 {
 		t.Errorf("expected empty windows for sub with no start date, got %d", len(windows))
@@ -48,6 +49,7 @@ func TestEnumeratePeriods_EmptyWhenNoCycle(t *testing.T) {
 		newTestSub("2026-01-01", ""),
 		newTestPlanCycle("", 0), // no cycle
 		mustParseDate("2026-03-31"),
+		time.UTC,
 	)
 	if len(windows) != 0 {
 		t.Errorf("expected empty windows when plan has no cycle, got %d", len(windows))
@@ -61,6 +63,7 @@ func TestEnumeratePeriods_OpenEndedMonthly3Periods(t *testing.T) {
 		newTestSub("2026-01-01", ""),
 		newTestPlanCycle("month", 1),
 		mustParseDate("2026-03-31"),
+		time.UTC,
 	)
 	if len(windows) != 3 {
 		t.Fatalf("expected 3 periods, got %d: %+v", len(windows), windows)
@@ -75,6 +78,7 @@ func TestEnumeratePeriods_AsOfDateBeforeStart(t *testing.T) {
 		newTestSub("2026-06-01", ""),
 		newTestPlanCycle("month", 1),
 		mustParseDate("2026-05-15"),
+		time.UTC,
 	)
 	if len(windows) != 0 {
 		t.Errorf("expected empty windows when AsOfDate is before sub start, got %d", len(windows))
@@ -88,6 +92,7 @@ func TestEnumeratePeriods_WeeklyCycle(t *testing.T) {
 		newTestSub("2026-01-01", ""),
 		newTestPlanCycle("week", 1),
 		mustParseDate("2026-01-21"),
+		time.UTC,
 	)
 	if len(windows) != 3 {
 		t.Errorf("expected 3 weekly periods, got %d: %+v", len(windows), windows)
@@ -100,6 +105,7 @@ func TestEnumeratePeriods_DayCycle(t *testing.T) {
 		newTestSub("2026-01-01", ""),
 		newTestPlanCycle("day", 7),
 		mustParseDate("2026-01-21"),
+		time.UTC,
 	)
 	if len(windows) != 3 {
 		t.Errorf("expected 3 daily(7) periods, got %d: %+v", len(windows), windows)
@@ -113,6 +119,7 @@ func TestEnumeratePeriods_YearlyCycle(t *testing.T) {
 		newTestSub("2024-01-01", ""),
 		newTestPlanCycle("year", 1),
 		mustParseDate("2026-06-15"),
+		time.UTC,
 	)
 	if len(windows) != 3 {
 		t.Errorf("expected 3 yearly periods (2 full + 1 partial), got %d: %+v", len(windows), windows)
@@ -125,6 +132,7 @@ func TestEnumeratePeriods_DeprecatedDurationFallback(t *testing.T) {
 		newTestSub("2026-01-01", ""),
 		newTestPlanDuration("month", 1),
 		mustParseDate("2026-03-31"),
+		time.UTC,
 	)
 	if len(windows) != 3 {
 		t.Errorf("expected 3 periods via deprecated duration fallback, got %d", len(windows))
@@ -137,6 +145,7 @@ func TestEnumeratePeriods_EndDatedSubCapsLastPeriod(t *testing.T) {
 		newTestSub("2026-01-01", "2026-02-15"),
 		newTestPlanCycle("month", 1),
 		mustParseDate("2026-03-31"),
+		time.UTC,
 	)
 	if len(windows) != 2 {
 		t.Fatalf("expected 2 periods, got %d: %+v", len(windows), windows)
@@ -144,6 +153,38 @@ func TestEnumeratePeriods_EndDatedSubCapsLastPeriod(t *testing.T) {
 	// Second period capped at 2026-02-15
 	if windows[1].End != "2026-02-15" {
 		t.Errorf("expected end-dated period to cap at 2026-02-15, got %s", windows[1].End)
+	}
+}
+
+// Regression: subscription start typed as 2026-01-01 in Asia/Manila is stored
+// as 2025-12-31T16:00:00Z. With loc=Manila, the first period must start
+// 2026-01-01. With loc=UTC (the silent fallback path), the same instant
+// projects to 2025-12-31 — that's the off-by-one bug Surface C/A hit when
+// scope.WorkspaceID was not set.
+func TestEnumeratePeriods_ManilaTimezoneStart(t *testing.T) {
+	manila, err := time.LoadLocation("Asia/Manila")
+	if err != nil {
+		t.Fatalf("LoadLocation Asia/Manila: %v", err)
+	}
+	// 2026-01-01 00:00 Manila = 2025-12-31 16:00 UTC
+	manilaMidnight := time.Date(2026, 1, 1, 0, 0, 0, 0, manila).UTC()
+	sub := &subscriptionpb.Subscription{
+		Id:            "sub-manila",
+		DateTimeStart: timestamppb.New(manilaMidnight),
+	}
+	plan := newTestPlanCycle("month", 1)
+	asOf := time.Date(2026, 3, 31, 0, 0, 0, 0, manila)
+
+	windowsManila := enumeratePeriods(sub, plan, asOf, manila)
+	if len(windowsManila) != 3 {
+		t.Fatalf("Manila: expected 3 periods, got %d: %+v", len(windowsManila), windowsManila)
+	}
+	assertPeriod(t, windowsManila[0], "2026-01-01", "2026-01-31")
+
+	// Demonstrate the bug: same input with loc=UTC enumerates from 2025-12-31.
+	windowsUTC := enumeratePeriods(sub, plan, asOf, time.UTC)
+	if len(windowsUTC) == 0 || windowsUTC[0].Start != "2025-12-31" {
+		t.Errorf("UTC fallback path: expected first period start 2025-12-31 (the bug), got %+v", windowsUTC)
 	}
 }
 

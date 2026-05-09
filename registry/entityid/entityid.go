@@ -423,8 +423,12 @@ var PayrollEntities = []string{
 
 // Asset domain
 const (
-	Asset         = "asset"
-	AssetCategory = "asset_category"
+	Asset                = "asset"
+	AssetCategory        = "asset_category"
+	AssetTransaction     = "asset_transaction"
+	DepreciationSchedule = "depreciation_schedule"
+	DepreciationRun      = "depreciation_run"
+	AssetRevaluation     = "asset_revaluation"
 )
 
 // Procurement domain (Supplier Subscriptions — 2026-05-06)
@@ -453,7 +457,7 @@ const (
 var FulfillmentEntities = []string{Fulfillment, FulfillmentItem, FulfillmentStatusEvent, FulfillmentReturn, FulfillmentReturnItem}
 
 // AssetEntities lists all entity IDs in the Asset domain.
-var AssetEntities = []string{Asset, AssetCategory}
+var AssetEntities = []string{Asset, AssetCategory, AssetTransaction, DepreciationSchedule, DepreciationRun, AssetRevaluation}
 
 // ProcurementEntities lists all entity IDs in the Procurement domain.
 var ProcurementEntities = []string{

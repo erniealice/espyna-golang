@@ -46,6 +46,8 @@ import (
 	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
 	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
+	// Cross-domain: procurement domain for SupplierSubscription workspace validation
+	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
@@ -70,6 +72,8 @@ type ExpenditureRepositories struct {
 	AccruedExpenseSettlement          accruedexpensepb.AccruedExpenseSettlementDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
+	// Cross-domain dependency: supplier subscription workspace validation on RecognizeFromExpenditure
+	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
 }
 
 // ExpenditureUseCases contains all expenditure-related use cases
@@ -267,7 +271,11 @@ func NewUseCases(
 
 	expenseRecognitionUC := expenseRecognitionUseCases.NewUseCases(
 		expenseRecognitionUseCases.ExpenseRecognitionRepositories{
-			ExpenseRecognition: repos.ExpenseRecognition,
+			ExpenseRecognition:     repos.ExpenseRecognition,
+			ExpenseRecognitionLine: repos.ExpenseRecognitionLine,
+			Expenditure:            repos.Expenditure,
+			ExpenditureLineItem:    repos.ExpenditureLineItem,
+			SupplierSubscription:   repos.SupplierSubscription,
 		},
 		expenseRecognitionUseCases.ExpenseRecognitionServices{
 			AuthorizationService: authSvc,

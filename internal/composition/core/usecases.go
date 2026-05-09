@@ -510,6 +510,16 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 	}
 	fmt.Printf("✅ Got expenditure repositories\n")
 
+	// Cross-domain: procurement repos for SupplierSubscription workspace validation
+	// on RecognizeFromExpenditure (buying/selling parity 2026-05-09). Non-fatal.
+	procurementRepos, procErr := domain.NewProcurementRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if procErr != nil {
+		fmt.Printf("⚠️  Expenditure: procurement repos unavailable for supplier subscription validation: %v\n", procErr)
+		procurementRepos = nil
+	} else {
+		repos.SupplierSubscription = procurementRepos.SupplierSubscription
+	}
+
 	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
 	if err != nil {
 		fmt.Printf("❌ Failed to get services: %v\n", err)

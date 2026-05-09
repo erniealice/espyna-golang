@@ -10,6 +10,9 @@ import (
 	// Protobuf domain services - Entity domain (cross-domain dependency)
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 
+	// Protobuf domain services - Procurement domain (cross-domain: supplier subscription validation)
+	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
+
 	// Protobuf domain services - Expenditure domain
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
@@ -51,6 +54,9 @@ type ExpenditureRepositories struct {
 	AccruedExpenseSettlement          accruedexpensepb.AccruedExpenseSettlementDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
+	// Cross-domain dependency: supplier subscription workspace validation on RecognizeFromExpenditure
+	// Populated by the composition layer (usecases.go) from ProcurementRepositories.
+	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
 }
 
 // NewExpenditureRepositories creates and returns a new set of ExpenditureRepositories.

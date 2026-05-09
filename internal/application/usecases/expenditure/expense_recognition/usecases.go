@@ -2,12 +2,22 @@ package expenserecognition
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
+	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
+	expenserecognitionlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_line"
+	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
 )
 
 // ExpenseRecognitionRepositories groups all repository dependencies.
 type ExpenseRecognitionRepositories struct {
-	ExpenseRecognition expenserecognitionpb.ExpenseRecognitionDomainServiceServer
+	ExpenseRecognition     expenserecognitionpb.ExpenseRecognitionDomainServiceServer
+	ExpenseRecognitionLine expenserecognitionlinepb.ExpenseRecognitionLineDomainServiceServer
+	Expenditure            expenditurepb.ExpenditureDomainServiceServer
+	ExpenditureLineItem    expenditurelineitempb.ExpenditureLineItemDomainServiceServer
+	// Optional: when set, supplier subscription workspace ownership is validated on
+	// RecognizeFromExpenditure calls that carry a supplier_subscription_id.
+	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
 }
 
 // ExpenseRecognitionServices groups all service dependencies.
@@ -75,7 +85,13 @@ func NewUseCases(
 			},
 		),
 		RecognizeFromExpenditure: NewRecognizeFromExpenditureUseCase(
-			RecognizeFromExpenditureRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
+			RecognizeFromExpenditureRepositories{
+				ExpenseRecognition:     repositories.ExpenseRecognition,
+				ExpenseRecognitionLine: repositories.ExpenseRecognitionLine,
+				Expenditure:            repositories.Expenditure,
+				ExpenditureLineItem:    repositories.ExpenditureLineItem,
+				SupplierSubscription:   repositories.SupplierSubscription,
+			},
 			RecognizeFromExpenditureServices{
 				AuthorizationService: services.AuthorizationService,
 				TransactionService:   services.TransactionService,

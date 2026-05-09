@@ -116,6 +116,14 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 		return nil, err
 	}
 
+	// Fall back to context-bound workspace ID when the caller didn't set one.
+	// Without this, the cross-tenant guard in processSingleSelection silently
+	// short-circuits and the new revenue_run row is persisted with an empty
+	// workspace_id.
+	if strings.TrimSpace(scope.WorkspaceID) == "" {
+		scope.WorkspaceID = contextutil.ExtractWorkspaceIDFromContext(ctx)
+	}
+
 	// Step 2: FilterToken path — stub-rejected with explicit "not implemented"
 	// error. Signed-token impl deferred per v1 progress.md decision log.
 	if selections.FilterToken != "" {

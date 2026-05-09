@@ -111,6 +111,15 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 		return nil, "", err
 	}
 
+	// Fall back to context-bound workspace ID when the caller didn't set one.
+	// Why: view-layer scopes built in centymo/entydad drawers don't always
+	// populate WorkspaceID (it's not on the request path). Without this, the
+	// timezone resolution below silently falls back to UTC and period
+	// enumeration projects Manila-typed start dates onto the wrong calendar day.
+	if strings.TrimSpace(scope.WorkspaceID) == "" {
+		scope.WorkspaceID = contextutil.ExtractWorkspaceIDFromContext(ctx)
+	}
+
 	// 2. Resolve workspace timezone (source of truth for "what calendar day").
 	// Falls back to UTC when workspace lookup is unavailable or empty — keeps
 	// pre-timezone-aware behavior intact for callers that haven't been migrated.

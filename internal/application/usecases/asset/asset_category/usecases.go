@@ -20,13 +20,14 @@ type AssetCategoryServices struct {
 
 // UseCases contains all asset category-related use cases
 type UseCases struct {
-	CreateAssetCategory          *CreateAssetCategoryUseCase
-	ReadAssetCategory            *ReadAssetCategoryUseCase
-	UpdateAssetCategory          *UpdateAssetCategoryUseCase
-	DeleteAssetCategory          *DeleteAssetCategoryUseCase
-	ListAssetCategories          *ListAssetCategoriesUseCase
-	GetAssetCategoryListPageData *GetAssetCategoryListPageDataUseCase
-	GetAssetCategoryItemPageData *GetAssetCategoryItemPageDataUseCase
+	CreateAssetCategory                    *CreateAssetCategoryUseCase
+	ReadAssetCategory                      *ReadAssetCategoryUseCase
+	UpdateAssetCategory                    *UpdateAssetCategoryUseCase
+	DeleteAssetCategory                    *DeleteAssetCategoryUseCase
+	ListAssetCategories                    *ListAssetCategoriesUseCase
+	GetAssetCategoryListPageData           *GetAssetCategoryListPageDataUseCase
+	GetAssetCategoryItemPageData           *GetAssetCategoryItemPageDataUseCase
+	ListAssetCategoriesWithPolicyRollup    *ListAssetCategoriesWithPolicyRollupUseCase
 }
 
 // NewUseCases creates a new collection of asset category use cases
@@ -85,14 +86,24 @@ func NewUseCases(
 		TranslationService:   services.TranslationService,
 	}
 
+	rollupRepos := ListAssetCategoriesWithPolicyRollupRepositories{
+		AssetCategory: repositories.AssetCategory,
+	}
+	rollupServices := ListAssetCategoriesWithPolicyRollupServices{
+		AuthorizationService: services.AuthorizationService,
+		TransactionService:   services.TransactionService,
+		TranslationService:   services.TranslationService,
+	}
+
 	return &UseCases{
-		CreateAssetCategory:          NewCreateAssetCategoryUseCase(createRepos, createServices),
-		ReadAssetCategory:            NewReadAssetCategoryUseCase(readRepos, readServices),
-		UpdateAssetCategory:          NewUpdateAssetCategoryUseCase(updateRepos, updateServices),
-		DeleteAssetCategory:          NewDeleteAssetCategoryUseCase(deleteRepos, deleteServices),
-		ListAssetCategories:          NewListAssetCategoriesUseCase(listRepos, listServices),
-		GetAssetCategoryListPageData: NewGetAssetCategoryListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
-		GetAssetCategoryItemPageData: NewGetAssetCategoryItemPageDataUseCase(getItemPageDataRepos, getItemPageDataServices),
+		CreateAssetCategory:                    NewCreateAssetCategoryUseCase(createRepos, createServices),
+		ReadAssetCategory:                      NewReadAssetCategoryUseCase(readRepos, readServices),
+		UpdateAssetCategory:                    NewUpdateAssetCategoryUseCase(updateRepos, updateServices),
+		DeleteAssetCategory:                    NewDeleteAssetCategoryUseCase(deleteRepos, deleteServices),
+		ListAssetCategories:                    NewListAssetCategoriesUseCase(listRepos, listServices),
+		GetAssetCategoryListPageData:           NewGetAssetCategoryListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
+		GetAssetCategoryItemPageData:           NewGetAssetCategoryItemPageDataUseCase(getItemPageDataRepos, getItemPageDataServices),
+		ListAssetCategoriesWithPolicyRollup:    NewListAssetCategoriesWithPolicyRollupUseCase(rollupRepos, rollupServices),
 	}
 }
 

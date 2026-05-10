@@ -206,6 +206,22 @@ func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (m
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
+// GetAssetInUseIDs blocks deletion of assets that have any asset_transaction
+// row. Any posted transaction (ACQUISITION, DEPRECIATION, REVALUATION, etc.)
+// makes the asset's financial history immutable — soft-delete must be refused.
+// Workspace-scoped: only rows whose workspace_id matches the context workspace
+// are counted (NULL workspace_id rows are excluded, consistent with Phase 1
+// tenancy rules — they would not match any non-NULL workspace predicate).
+func (c *Checker) GetAssetInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `
+		SELECT DISTINCT asset_id AS ref_id
+		FROM asset_transaction
+		WHERE asset_id = ANY($1)
+		  AND ($2::text IS NULL OR workspace_id = $2)`
+	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
 func (c *Checker) GetPaymentTermInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	query := `
@@ -283,6 +299,79 @@ func (c *Checker) GetSupplierInUseIDs(ctx context.Context, ids []string) (map[st
 			SELECT supplier_id AS ref_id FROM fulfillment WHERE supplier_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
 		) AS refs`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
+}
+
+// GetJobInUseIDs blocks deletion of a job when any of its child rows reference it.
+// Checks: job_activity (job_id), job_phase (job_id).
+// job_settlement has no direct job_id column — it links via job_activity_id (excluded).
+// TODO: add revenue (job_id) when revenue.job_id column is added to the schema.
+func (c *Checker) GetJobInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT job_id AS ref_id FROM job_activity WHERE job_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT job_id AS ref_id FROM job_phase WHERE job_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetJobActivityInUseIDs blocks deletion of a job_activity when its typed sub-row
+// exists (activity_labor / activity_material / activity_expense keyed by activity_id)
+// OR when revenue_line_item.job_activity_id references it.
+func (c *Checker) GetJobActivityInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT activity_id AS ref_id FROM activity_labor WHERE activity_id = ANY($1)
+			UNION ALL
+			SELECT activity_id AS ref_id FROM activity_material WHERE activity_id = ANY($1)
+			UNION ALL
+			SELECT activity_id AS ref_id FROM activity_expense WHERE activity_id = ANY($1)
+			UNION ALL
+			SELECT job_activity_id AS ref_id FROM revenue_line_item WHERE job_activity_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetJobPhaseInUseIDs blocks deletion of a job_phase when any job_task references
+// it via job_phase_id.
+func (c *Checker) GetJobPhaseInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	query := `SELECT DISTINCT job_phase_id AS ref_id FROM job_task WHERE job_phase_id = ANY($1) AND active = true`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetJobTaskInUseIDs blocks deletion of a job_task when any job_activity references
+// it via job_task_id.
+func (c *Checker) GetJobTaskInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	query := `SELECT DISTINCT job_task_id AS ref_id FROM job_activity WHERE job_task_id = ANY($1) AND active = true`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetJobTemplateInUseIDs blocks deletion of a job_template when any job references
+// it via job_template_id, or when any job_template_phase exists (FK has no CASCADE
+// — verified by proto annotation absence; operator must delete phases first).
+func (c *Checker) GetJobTemplateInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT job_template_id AS ref_id FROM job WHERE job_template_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT job_template_id AS ref_id FROM job_template_phase WHERE job_template_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
 // queryInUseIDsWithWorkspace is like queryInUseIDs but passes a workspace_id as $2.

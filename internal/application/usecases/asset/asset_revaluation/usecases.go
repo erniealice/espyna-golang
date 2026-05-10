@@ -4,8 +4,8 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
-	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
+	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 )
 
 // AssetRevaluationRepositories groups all repository dependencies.
@@ -25,7 +25,8 @@ type AssetRevaluationServices struct {
 
 // UseCases contains all asset-revaluation-related use cases.
 type UseCases struct {
-	RevalueAsset *RevalueAssetUseCase
+	RevalueAsset       *RevalueAssetUseCase
+	PreviewRevaluation *PreviewRevaluationUseCase
 }
 
 // NewUseCases creates a new collection of asset-revaluation use cases.
@@ -46,6 +47,7 @@ func NewUseCases(
 	}
 
 	return &UseCases{
-		RevalueAsset: NewRevalueAssetUseCase(revalueRepos, revalueServices),
+		RevalueAsset:       NewRevalueAssetUseCase(revalueRepos, revalueServices),
+		PreviewRevaluation: NewPreviewRevaluationUseCase(revalueRepos, revalueServices),
 	}
 }

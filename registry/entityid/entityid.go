@@ -124,6 +124,7 @@ const (
 	RevenueLineItem  = "revenue_line_item"
 	RevenueRun       = "revenue_run"
 	RevenueRunAttempt = "revenue_run_attempt"
+	RevenueTaxLine   = "revenue_tax_line"
 )
 
 // Expenditure domain
@@ -171,6 +172,7 @@ const (
 const (
 	TreasuryCollection   = "treasury_collection"
 	TreasuryDisbursement = "treasury_disbursement"
+	WithholdingCertificate = "withholding_certificate"
 )
 
 // Ledger / Document domain
@@ -338,7 +340,7 @@ var ProductEntities = []string{
 }
 
 // RevenueEntities lists all entity IDs in the Revenue domain.
-var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue, RevenueRun, RevenueRunAttempt}
+var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue, RevenueRun, RevenueRunAttempt, RevenueTaxLine}
 
 // ExpenditureEntities lists all entity IDs in the Expenditure domain.
 var ExpenditureEntities = []string{
@@ -375,6 +377,7 @@ var TreasuryEntities = []string{
 	CollectionSchedule, DisbursementSchedule,
 	Loan, LoanPayment, SecurityDeposit,
 	PettyCashFund, PettyCashVoucher, PettyCashReplenishment,
+	WithholdingCertificate,
 }
 
 // LedgerDocumentEntities lists all entity IDs in the Ledger / Document domain.
@@ -466,6 +469,33 @@ var ProcurementEntities = []string{
 	SupplierSubscription,
 }
 
+// Tax domain (Tax Integration v1 — 2026-05-09)
+//
+// Six tax-domain entities: four lookup-only (TaxAuthority, TaxRegistrationKind,
+// TaxTreatment, TaxClass), one read-only-with-find_applicable (TaxRate), and one
+// full-CRUD-via-supersession (TaxRegistration).
+const (
+	TaxAuthority        = "tax_authority"
+	TaxRegistrationKind = "tax_registration_kind"
+	TaxTreatment        = "tax_treatment"
+	TaxClass            = "tax_class"
+	TaxRate             = "tax_rate"
+	TaxRegistration     = "tax_registration"
+)
+
+// TaxEntities lists all entity IDs in the Tax domain.
+var TaxEntities = []string{
+	TaxAuthority, TaxRegistrationKind, TaxTreatment, TaxClass, TaxRate, TaxRegistration,
+}
+
+// Finance domain (NEW — Forex Rate; Tax Integration v1 — 2026-05-09)
+const (
+	ForexRate = "forex_rate"
+)
+
+// FinanceEntities lists all entity IDs in the Finance domain.
+var FinanceEntities = []string{ForexRate}
+
 // ---------------------------------------------------------------------------
 // Consolidated slice
 // ---------------------------------------------------------------------------
@@ -494,5 +524,7 @@ func buildAll() []string {
 	all = append(all, FulfillmentEntities...)
 	all = append(all, AssetEntities...)
 	all = append(all, ProcurementEntities...)
+	all = append(all, TaxEntities...)
+	all = append(all, FinanceEntities...)
 	return all
 }

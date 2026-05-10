@@ -15,6 +15,12 @@ type RevalueAssetRequest = assetrevuc.RevalueAssetRequest
 // RevalueAssetResult is the public output type for RevalueAsset.
 type RevalueAssetResult = assetrevuc.RevalueAssetResult
 
+// PreviewRevaluationRequest is the public input type for PreviewRevaluation.
+type PreviewRevaluationRequest = assetrevuc.PreviewRevaluationRequest
+
+// PreviewRevaluationResult is the public output type for PreviewRevaluation.
+type PreviewRevaluationResult = assetrevuc.PreviewRevaluationResult
+
 // RevalueAsset executes the IAS 16 revaluation for a single asset.
 // Inserts an AssetRevaluation record + AssetTransaction back-ref + updates Asset.
 func RevalueAsset(
@@ -26,6 +32,24 @@ func RevalueAsset(
 		return nil, nil
 	}
 	uc := useCases.Asset.AssetRevaluation.RevalueAsset
+	if uc == nil {
+		return nil, nil
+	}
+	return uc.Execute(ctx, req)
+}
+
+// PreviewRevaluation computes the predicted IAS 16.39-40 PnL/OCI split for a
+// pending revaluation against the asset's current book value and revaluation
+// history. Read-only; no DB writes.
+func PreviewRevaluation(
+	useCases *UseCases,
+	ctx context.Context,
+	req PreviewRevaluationRequest,
+) (*PreviewRevaluationResult, error) {
+	if useCases == nil || useCases.Asset == nil || useCases.Asset.AssetRevaluation == nil {
+		return nil, nil
+	}
+	uc := useCases.Asset.AssetRevaluation.PreviewRevaluation
 	if uc == nil {
 		return nil, nil
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/finance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
@@ -18,6 +19,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 )
@@ -49,12 +51,14 @@ type Aggregate struct {
 	Entity       *entity.EntityUseCases
 	Event        *event.EventUseCases
 	Expenditure  *expenditure.ExpenditureUseCases
+	Finance      *finance.FinanceUseCases
 	Fulfillment  *fulfillment.UseCases
 	Inventory    *inventory.InventoryUseCases
 	Ledger       *ledger.LedgerUseCases
 	Operation    *operation.OperationUseCases
 	Payroll      *payroll.PayrollUseCases
 	Procurement  *procurement.ProcurementUseCases
+	Tax          *tax.TaxUseCases
 	Treasury     *treasury.TreasuryUseCases
 	Product      *product.ProductUseCases
 	Revenue      *revenue.RevenueUseCases
@@ -75,12 +79,14 @@ func NewAggregate(
 	entityUC *entity.EntityUseCases,
 	eventUC *event.EventUseCases,
 	expenditureUC *expenditure.ExpenditureUseCases,
+	financeUC *finance.FinanceUseCases,
 	fulfillmentUC *fulfillment.UseCases,
 	inventoryUC *inventory.InventoryUseCases,
 	ledgerUC *ledger.LedgerUseCases,
 	operationUC *operation.OperationUseCases,
 	payrollUC *payroll.PayrollUseCases,
 	procurementUC *procurement.ProcurementUseCases,
+	taxUC *tax.TaxUseCases,
 	treasuryUC *treasury.TreasuryUseCases,
 	productUC *product.ProductUseCases,
 	revenueUC *revenue.RevenueUseCases,
@@ -95,12 +101,14 @@ func NewAggregate(
 		Entity:       entityUC,
 		Event:        eventUC,
 		Expenditure:  expenditureUC,
+		Finance:      financeUC,
 		Fulfillment:  fulfillmentUC,
 		Inventory:    inventoryUC,
 		Ledger:       ledgerUC,
 		Operation:    operationUC,
 		Payroll:      payrollUC,
 		Procurement:  procurementUC,
+		Tax:          taxUC,
 		Treasury:     treasuryUC,
 		Product:      productUC,
 		Revenue:      revenueUC,
@@ -120,12 +128,14 @@ func NewEmptyAggregate() *Aggregate {
 		Entity:       &entity.EntityUseCases{},
 		Event:        &event.EventUseCases{},
 		Expenditure:  &expenditure.ExpenditureUseCases{},
+		Finance:      &finance.FinanceUseCases{},
 		Fulfillment:  &fulfillment.UseCases{},
 		Inventory:    &inventory.InventoryUseCases{},
 		Ledger:       &ledger.LedgerUseCases{},
 		Operation:    &operation.OperationUseCases{},
 		Payroll:      &payroll.PayrollUseCases{},
 		Procurement:  &procurement.ProcurementUseCases{},
+		Tax:          &tax.TaxUseCases{},
 		Treasury:     &treasury.TreasuryUseCases{},
 		Product:      &product.ProductUseCases{},
 		Revenue:      &revenue.RevenueUseCases{},

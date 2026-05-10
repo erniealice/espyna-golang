@@ -19,6 +19,7 @@ import (
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
+	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 
 	// Protobuf domain services - Subscription domain (cross-domain dependency
 	// for the recognize-revenue use case)
@@ -46,6 +47,7 @@ type RevenueRepositories struct {
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
 	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
+	RevenueTaxLine   revenuetaxlinepb.RevenueTaxLineDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 
@@ -115,6 +117,9 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.DeferredRevenue); r != nil {
 		repos.DeferredRevenue = r.(deferredrevenuepb.DeferredRevenueDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RevenueTaxLine); r != nil {
+		repos.RevenueTaxLine = r.(revenuetaxlinepb.RevenueTaxLineDomainServiceServer)
 	}
 	if r := tryCreate(entityid.PaymentTerm); r != nil {
 		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)

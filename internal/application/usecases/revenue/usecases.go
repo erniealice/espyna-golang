@@ -7,9 +7,11 @@ import (
 	revenueAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_attribute"
 	revenueCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_category"
 	revenueLineItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_line_item"
+	revenueTaxLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/revenue/revenue_tax_line"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
 
 	// Protobuf domain services - Entity domain (cross-domain dependency)
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -23,6 +25,7 @@ import (
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
+	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 
 	// Cross-domain dependencies for the recognize-revenue use case
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -49,6 +52,7 @@ type RevenueRepositories struct {
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
 	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
+	RevenueTaxLine   revenuetaxlinepb.RevenueTaxLineDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 
@@ -82,16 +86,25 @@ type RevenueUseCases struct {
 	RevenueCategory  *revenueCategoryUseCases.UseCases
 	RevenueAttribute *revenueAttributeUseCases.UseCases
 	DeferredRevenue  *deferredRevenueUseCases.UseCases
+	RevenueTaxLine   *revenueTaxLineUseCases.UseCases
 }
 
-// NewUseCases creates all revenue use cases with proper constructor injection
+// NewUseCases creates all revenue use cases with proper constructor injection.
+// computeTaxes is optional; pass nil to disable tax-compute integration points.
 func NewUseCases(
 	repos RevenueRepositories,
 	authSvc ports.AuthorizationService,
 	txSvc ports.TransactionService,
 	i18nSvc ports.TranslationService,
 	idService ports.IDService,
+	computeTaxes ...*computepkg.ComputeTaxesForRevenueUseCase,
 ) *RevenueUseCases {
+	// Accept optional computeTaxes as variadic for backward-compatibility.
+	var computeUC *computepkg.ComputeTaxesForRevenueUseCase
+	if len(computeTaxes) > 0 {
+		computeUC = computeTaxes[0]
+	}
+
 	revenueUC := revenueUseCases.NewUseCases(
 		revenueUseCases.RevenueRepositories{
 			Revenue:          repos.Revenue,
@@ -115,6 +128,7 @@ func NewUseCases(
 			TransactionService:   txSvc,
 			TranslationService:   i18nSvc,
 			IDService:            idService,
+			ComputeTaxes:         computeUC,
 		},
 	)
 
@@ -166,11 +180,22 @@ func NewUseCases(
 		},
 	)
 
+	revenueTaxLineUC := revenueTaxLineUseCases.NewUseCases(
+		revenueTaxLineUseCases.RevenueTaxLineRepositories{
+			RevenueTaxLine: repos.RevenueTaxLine,
+		},
+		revenueTaxLineUseCases.RevenueTaxLineServices{
+			AuthorizationService: authSvc,
+			TranslationService:   i18nSvc,
+		},
+	)
+
 	return &RevenueUseCases{
 		Revenue:          revenueUC,
 		RevenueLineItem:  revenueLineItemUC,
 		RevenueCategory:  revenueCategoryUC,
 		RevenueAttribute: revenueAttributeUC,
 		DeferredRevenue:  deferredRevenueUC,
+		RevenueTaxLine:   revenueTaxLineUC,
 	}
 }

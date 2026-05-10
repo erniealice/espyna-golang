@@ -6,7 +6,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
-// InitializeRevenue creates all revenue use cases from provider repositories
+// InitializeRevenue creates all revenue use cases from provider repositories.
+// Tax-compute wiring is done separately via the composition layer after both
+// revenue and tax initializers have run (see usecases.go for the wiring step).
 func InitializeRevenue(
 	repos *domain.RevenueRepositories,
 	authSvc ports.AuthorizationService,
@@ -20,6 +22,8 @@ func InitializeRevenue(
 			RevenueLineItem:  repos.RevenueLineItem,
 			RevenueCategory:  repos.RevenueCategory,
 			RevenueAttribute: repos.RevenueAttribute,
+			DeferredRevenue:  repos.DeferredRevenue,
+			RevenueTaxLine:   repos.RevenueTaxLine,
 			PaymentTerm:      repos.PaymentTerm,
 			RevenueRun:       repos.RevenueRun,
 			Subscription:     repos.Subscription,

@@ -28,6 +28,9 @@ func InitializeTreasury(
 			PettyCashFund:          repos.PettyCashFund,
 			PettyCashVoucher:       repos.PettyCashVoucher,
 			PettyCashReplenishment: repos.PettyCashReplenishment,
+
+			// Tax extension
+			WithholdingCertificate: repos.WithholdingCertificate,
 		},
 		authSvc,
 		txSvc,

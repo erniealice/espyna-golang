@@ -87,6 +87,13 @@ type RecognizeRevenueFromSubscriptionServices struct {
 	//
 	// nil-safe: when unset, the piggyback is skipped entirely (no warning).
 	MaterializeInstanceJobsForSubscription MaterializeInstanceJobsForSubscriptionInvoker
+
+	// ComputeTaxes wires the post-recognize tax-compute hook
+	// (tax-integration plan §4 Phase C). Optional — when nil the tax-compute
+	// step is skipped entirely (no warning). Failure is non-fatal; any error
+	// is appended as a structured "tax_compute_failed: <err>" warning so that
+	// the recognized Revenue is never rolled back on account of tax bookkeeping.
+	ComputeTaxes ComputeTaxesForRevenueInvoker
 }
 
 // MaterializeInstanceJobsForSubscriptionInvoker is the narrow contract for
@@ -99,6 +106,20 @@ type RecognizeRevenueFromSubscriptionServices struct {
 // piggyback failure is documented inline at the call site.
 type MaterializeInstanceJobsForSubscriptionInvoker interface {
 	Execute(ctx context.Context, subscriptionID, cyclePeriodStart string) error
+}
+
+// ComputeTaxesForRevenueInvoker is the narrow contract for the post-recognize
+// tax-compute hook. Using a minimal interface allows the composition layer to
+// wire the concrete tax use case without creating a cross-package import cycle
+// and without requiring the recognize file to import the entire tax package.
+//
+// Failure semantics: non-fatal. Errors append a structured warning of the form
+// "tax_compute_failed: <err>". The recognized Revenue is NOT rolled back.
+// Rationale: revenue recognition is the financial source of truth; tax-line
+// creation is bookkeeping that can be retried via the RecomputeTaxes admin
+// action if the initial compute fails.
+type ComputeTaxesForRevenueInvoker interface {
+	ExecuteForRevenue(ctx context.Context, revenueID, workspaceID string) error
 }
 
 // RecognizeRevenueFromSubscriptionUseCase materializes a Revenue + N
@@ -135,6 +156,21 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) SetMaterializeInstanceJobsFor
 		return
 	}
 	uc.services.MaterializeInstanceJobsForSubscription = invoker
+}
+
+// SetComputeTaxes installs the post-recognize tax-compute invoker after
+// construction. Used by the composition layer (tax-integration plan §4 Phase C)
+// to break the initialization ordering cycle: revenue is initialized before tax,
+// so the tax use case is injected via a setter once both are ready.
+//
+// Safe to call with nil — disables the tax-compute hook (no warning, no lines).
+func (uc *RecognizeRevenueFromSubscriptionUseCase) SetComputeTaxes(
+	invoker ComputeTaxesForRevenueInvoker,
+) {
+	if uc == nil {
+		return
+	}
+	uc.services.ComputeTaxes = invoker
 }
 
 // Execute orchestrates the revenue recognition flow. The shape of the request
@@ -468,6 +504,24 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 
 	if err := uc.persistLineItems(ctx, createdRevenue.GetId(), lines); err != nil {
 		return nil, err
+	}
+
+	// 2026-05-10 tax-integration plan §4 Phase C — post-recognize tax compute.
+	//
+	// AFTER successful Revenue + RevenueLineItem persistence, fire the tax
+	// compute step. This is INTENTIONALLY non-fatal: any error is appended as
+	// a structured "tax_compute_failed: <err>" warning and execution continues.
+	// Revenue recognition is the source of financial truth; RevenueTaxLine rows
+	// are bookkeeping that can be retried via the RecomputeTaxes admin action.
+	//
+	// workspace_id: sourced from sub.GetWorkspaceId(). The Revenue proto has no
+	// workspace_id field; the subscription always carries the tenant identifier.
+	if uc.services.ComputeTaxes != nil {
+		wsID := sub.GetWorkspaceId()
+		if computeErr := uc.services.ComputeTaxes.ExecuteForRevenue(ctx, createdRevenue.GetId(), wsID); computeErr != nil {
+			warnings = append(warnings,
+				fmt.Sprintf("tax_compute_failed: %s", computeErr.Error()))
+		}
 	}
 
 	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — recognize-piggyback.
@@ -860,10 +914,33 @@ func buildLineItems(
 			Quantity:           quantity,
 			UnitPrice:          unitPrice,
 			TotalPrice:         totalPrice,
+			// LineAmount mirrors TotalPrice — this is the field ComputeTaxesForRevenue
+			// reads for tax base calculation (plan §4 Phase C2 fix).
+			LineAmount:         totalPrice,
 			LineItemType:       "item",
 			ProductPricePlanId: stringPtrLocal(pppID),
 		}
 		_ = currency // currency lives on the Revenue header — RevenueLineItem proto has no currency field
+
+		// Populate tax snapshots from the ProductPricePlan → Product join chain.
+		// Resolution order: PPP override → Product (plan §4 Phase C3).
+		// IDs (TaxTreatmentId, WithholdingClassId) are FK references; the snapshot
+		// stores the code string (e.g. "STANDARD", "PROFESSIONAL_CORPORATE").
+		// When the PPP adapter returns a joined Product, extract the IDs so that
+		// ComputeTaxesForRevenue's product-fallback path has the right product_id
+		// to resolve the code. The product_id is already set above via ProductPricePlanId.
+		//
+		// NOTE: Resolving the CODE (not ID) requires a TaxTreatment/TaxClass repo read
+		// which is not wired into this use case. The compute fallback path handles that:
+		//   compute reads product.GetTaxTreatmentId() → readTaxTreatment → code
+		// This is correct when TaxTreatmentSnapshot is empty (compute falls through to product).
+		// When the PPP's product join carries the codes directly (future enrichment), set them here.
+		if prod := ppp.GetProductPlan().GetProduct(); prod != nil {
+			// ProductId is already carried via ProductPricePlanId → compute resolves it.
+			// If a future PPP enrichment adds TaxTreatment.code inline, set it here.
+			_ = prod
+		}
+
 		lines = append(lines, line)
 		treatments = append(treatments, treatment)
 	}
@@ -885,6 +962,7 @@ func buildBundleLine(
 		Quantity:     1,
 		UnitPrice:    amount,
 		TotalPrice:   amount,
+		LineAmount:   amount, // Phase 4 C2: mirrors TotalPrice for tax base calculation.
 		LineItemType: "item",
 	}
 	return []*revenuelineitempb.RevenueLineItem{line}, []string{treatmentOneTime}
@@ -972,6 +1050,29 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) buildHeader(
 		if d.GetRevenueCategoryId() != "" {
 			rc := d.GetRevenueCategoryId()
 			header.RevenueCategoryId = &rc
+		}
+
+		// Phase 4 H4 — tax + FX snapshot pass-through from the recognize drawer.
+		// The drawer reads workspace settings and stamps these on req.Data before
+		// submission. Passing them through here ensures RevenueTaxLine compute can
+		// read the correct inclusive/enabled flags from the persisted Revenue.
+		if d.TaxInclusivePricingSnapshot != nil {
+			header.TaxInclusivePricingSnapshot = d.TaxInclusivePricingSnapshot
+		}
+		if d.TaxComputationEnabledSnapshot != nil {
+			header.TaxComputationEnabledSnapshot = d.TaxComputationEnabledSnapshot
+		}
+		if d.GetBillingCurrency() != "" {
+			bc := d.GetBillingCurrency()
+			header.BillingCurrency = &bc
+		}
+		if d.GetForexRateMicroUnits() != 0 {
+			fx := d.GetForexRateMicroUnits()
+			header.ForexRateMicroUnits = &fx
+		}
+		if d.GetForexRateSource() != "" {
+			frs := d.GetForexRateSource()
+			header.ForexRateSource = &frs
 		}
 	}
 	_ = pricePlan // kept for future use (e.g. embedding plan name into the header name)
@@ -1294,6 +1395,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 			Quantity:           quantity,
 			UnitPrice:          unitPrice,
 			TotalPrice:         totalPrice,
+			LineAmount:         totalPrice, // Phase 4 C2: mirrors TotalPrice for tax base calculation.
 			LineItemType:       "item",
 			ProductPricePlanId: &pppID,
 		})
@@ -1314,6 +1416,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 				Quantity:     1,
 				UnitPrice:    target,
 				TotalPrice:   target,
+				LineAmount:   target, // Phase 4 C2: mirrors TotalPrice for tax base calculation.
 				LineItemType: "item",
 			},
 		}
@@ -1358,6 +1461,16 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 	}
 	if err := uc.persistLineItems(ctx, createdRevenue.GetId(), lines); err != nil {
 		return nil, err
+	}
+
+	// Phase 4 C6 — post-recognize tax compute (non-fatal).
+	var milestoneWarnings []string
+	if uc.services.ComputeTaxes != nil {
+		wsID := sub.GetWorkspaceId()
+		if computeErr := uc.services.ComputeTaxes.ExecuteForRevenue(ctx, createdRevenue.GetId(), wsID); computeErr != nil {
+			milestoneWarnings = append(milestoneWarnings,
+				fmt.Sprintf("tax_compute_failed: %s", computeErr.Error()))
+		}
 	}
 
 	// Mutate the original event to BILLED at the actual amount.
@@ -1425,6 +1538,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 		Success:      true,
 		Data:         []*revenuepb.Revenue{createdRevenue},
 		PreviewLines: previewLines,
+		Warnings:     milestoneWarnings,
 	}, nil
 }
 
@@ -1539,6 +1653,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPool(
 			Quantity:     1,
 			UnitPrice:    target,
 			TotalPrice:   target,
+			LineAmount:   target, // Phase 4 C2: mirrors TotalPrice for tax base calculation.
 			LineItemType: "item",
 		},
 	}
@@ -1569,10 +1684,21 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPool(
 		return nil, err
 	}
 
+	// Phase 4 C6 — post-recognize tax compute (non-fatal).
+	var poolWarnings []string
+	if uc.services.ComputeTaxes != nil {
+		wsID := sub.GetWorkspaceId()
+		if computeErr := uc.services.ComputeTaxes.ExecuteForRevenue(ctx, createdRevenue.GetId(), wsID); computeErr != nil {
+			poolWarnings = append(poolWarnings,
+				fmt.Sprintf("tax_compute_failed: %s", computeErr.Error()))
+		}
+	}
+
 	return &revenuepb.CreateRevenueWithLineItemsResponse{
 		Success:      true,
 		Data:         []*revenuepb.Revenue{createdRevenue},
 		PreviewLines: previewLines,
+		Warnings:     poolWarnings,
 	}, nil
 }
 
@@ -1699,6 +1825,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 			Quantity:     1,
 			UnitPrice:    target,
 			TotalPrice:   target,
+			LineAmount:   target, // Phase 4 C2: mirrors TotalPrice for tax base calculation.
 			LineItemType: "item",
 		},
 	}
@@ -1732,6 +1859,16 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 		return nil, err
 	}
 
+	// Phase 4 C6 — post-recognize tax compute (non-fatal).
+	var perCallWarnings []string
+	if uc.services.ComputeTaxes != nil {
+		wsID := sub.GetWorkspaceId()
+		if computeErr := uc.services.ComputeTaxes.ExecuteForRevenue(ctx, createdRevenue.GetId(), wsID); computeErr != nil {
+			perCallWarnings = append(perCallWarnings,
+				fmt.Sprintf("tax_compute_failed: %s", computeErr.Error()))
+		}
+	}
+
 	// Mark the BillingEvent BILLED.
 	mutated := proto.Clone(ev).(*billingeventpb.BillingEvent)
 	mutated.Status = billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_BILLED
@@ -1750,6 +1887,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 		Success:      true,
 		Data:         []*revenuepb.Revenue{createdRevenue},
 		PreviewLines: previewLines,
+		Warnings:     perCallWarnings,
 	}, nil
 }
 

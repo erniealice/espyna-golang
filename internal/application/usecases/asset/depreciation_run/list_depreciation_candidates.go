@@ -65,9 +65,17 @@ func (uc *ListDepreciationCandidatesUseCase) Execute(
 		return nil, errors.New("list_depreciation_candidates: request is required")
 	}
 
-	workspaceID := strings.TrimSpace(req.GetWorkspaceId())
+	// Phase 1.6 — 2026-05-10 — codex C1.5 (tenancy bypass close):
+	// Reject cross-tenant attempts before resolving the workspace.
+	ctxWorkspaceID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	reqWorkspaceID := strings.TrimSpace(req.GetWorkspaceId())
+	if ctxWorkspaceID != "" && reqWorkspaceID != "" && ctxWorkspaceID != reqWorkspaceID {
+		// TODO: translate via TranslationService (Phase 7.3/8.2 owns lyngua wiring).
+		return nil, fmt.Errorf("list_depreciation_candidates: workspace context and request do not match")
+	}
+	workspaceID := reqWorkspaceID
 	if workspaceID == "" {
-		workspaceID = contextutil.ExtractWorkspaceIDFromContext(ctx)
+		workspaceID = ctxWorkspaceID
 	}
 
 	asOfDate := strings.TrimSpace(req.GetAsOfDate())
@@ -118,8 +126,11 @@ func (uc *ListDepreciationCandidatesUseCase) buildCandidate(
 		return candidate
 	}
 
-	// Enumerate pending periods
-	periods := enumerateElapsedPeriods(ctx, uc.repositories.DepreciationSchedule, asset, asOfDate)
+	// Enumerate pending periods. Per codex C3 (2026-05-10) the schedule-based
+	// pre-check no longer pre-filters posted periods; the dry-run candidate
+	// view uses the same enumeration as the writer and tolerates already-posted
+	// periods being shown in the candidate list (UI annotates them).
+	periods := enumerateElapsedPeriods(asset, asOfDate)
 	if len(periods) == 0 {
 		candidate.ProjectedBookValue = asset.GetBookValue()
 		return candidate
@@ -133,7 +144,7 @@ func (uc *ListDepreciationCandidatesUseCase) buildCandidate(
 	simulatedAsset := *asset
 
 	for _, pd := range periods {
-		amount, err := computeAmountForMethod(&simulatedAsset, pd)
+		amount, err := computeAmountForMethod(&simulatedAsset, pd, runningAccumulated)
 		if err != nil {
 			if err == depengine.ErrUnitsRequired {
 				// UoP asset — return UNITS_REQUIRED blocker instead of periods
@@ -235,10 +246,26 @@ func detectBlockers(asset *assetpb.Asset) []*deprunpb.DepreciationCandidateBlock
 }
 
 // resolveAssets resolves the scope to an asset list for the candidates call.
+//
+// Workspace tenancy (Phase 1 — 2026-05-10): explicit workspace_id filter is
+// applied to every list query as defense-in-depth, in addition to the
+// WorkspaceAwareOperations decorator's auto-injection. Empty workspace_id is
+// rejected for any scope (including ASSET) because cross-tenant lookups are
+// never permitted in the asset graph (codex C2).
 func (uc *ListDepreciationCandidatesUseCase) resolveAssets(
 	ctx context.Context,
 	req *deprunpb.ListDepreciationCandidatesRequest,
 ) ([]*assetpb.Asset, error) {
+	workspaceID := strings.TrimSpace(req.GetWorkspaceId())
+	if workspaceID == "" {
+		workspaceID = contextutil.ExtractWorkspaceIDFromContext(ctx)
+	}
+	if workspaceID == "" {
+		// TODO: translate via TranslationService (Fix #4 deferred — codex L1).
+		// Suggested key: asset.assetDetail.depreciationRun.errors.workspaceRequired
+		return nil, errors.New("list_depreciation_candidates: Workspace context required")
+	}
+
 	switch req.GetScopeKind() {
 	case deprunpb.DepreciationRunScopeKind_DEPRECIATION_RUN_SCOPE_KIND_ASSET:
 		scopeID := req.GetScopeId()
@@ -250,6 +277,12 @@ func (uc *ListDepreciationCandidatesUseCase) resolveAssets(
 		})
 		if err != nil || resp == nil || len(resp.GetData()) == 0 {
 			return nil, err
+		}
+		// Defense-in-depth: verify the asset belongs to the requested workspace.
+		// WorkspaceAwareOperations.Read already enforces this, but a stale row
+		// without a workspace_id should still be rejected here.
+		if got := strings.TrimSpace(resp.GetData()[0].GetWorkspaceId()); got != workspaceID {
+			return nil, fmt.Errorf("asset %q does not belong to workspace %q", scopeID, workspaceID)
 		}
 		return resp.GetData(), nil
 
@@ -263,6 +296,7 @@ func (uc *ListDepreciationCandidatesUseCase) resolveAssets(
 			Filters: &commonpb.FilterRequest{
 				Filters: []*commonpb.TypedFilter{
 					stringFilter("asset_category_id", scopeID),
+					stringFilter("workspace_id", workspaceID),
 				},
 			},
 		})
@@ -273,7 +307,13 @@ func (uc *ListDepreciationCandidatesUseCase) resolveAssets(
 
 	case deprunpb.DepreciationRunScopeKind_DEPRECIATION_RUN_SCOPE_KIND_WORKSPACE,
 		deprunpb.DepreciationRunScopeKind_DEPRECIATION_RUN_SCOPE_KIND_UNSPECIFIED:
-		resp, err := uc.repositories.Asset.ListAssets(ctx, &assetpb.ListAssetsRequest{})
+		resp, err := uc.repositories.Asset.ListAssets(ctx, &assetpb.ListAssetsRequest{
+			Filters: &commonpb.FilterRequest{
+				Filters: []*commonpb.TypedFilter{
+					stringFilter("workspace_id", workspaceID),
+				},
+			},
+		})
 		if err != nil || resp == nil {
 			return nil, err
 		}

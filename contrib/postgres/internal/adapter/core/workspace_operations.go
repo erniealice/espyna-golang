@@ -92,6 +92,15 @@ func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string,
 // Read delegates to the inner Read, then verifies that the returned record
 // belongs to the context workspace. Returns a 404 if the workspace_id does
 // not match, preventing cross-workspace data leakage via direct-ID lookup.
+//
+// NULL-row rejection (Phase 1.5 — 2026-05-10 — codex C1):
+// When the context carries a workspace and the table has a workspace_id column,
+// a row whose workspace_id is NULL or empty is also rejected as 404. Without
+// this check, legacy NULL rows left by the Phase 1 migration are visible across
+// all workspaces via direct-ID reads, since any non-NULL != wsID comparison
+// returns false (the previous condition only fired on non-nil mismatches).
+// Update and Delete already call Read for ownership verification, so they
+// inherit this fix automatically.
 func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, id string) (map[string]any, error) {
 	result, err := w.inner.Read(ctx, tableName, id)
 	if err != nil {
@@ -103,8 +112,27 @@ func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, i
 		return result, nil
 	}
 
-	if recordWsID, ok := result["workspace_id"]; ok && recordWsID != nil {
-		if recordWsIDStr, ok := recordWsID.(string); ok && recordWsIDStr != wsID {
+	// Only apply workspace enforcement when the table has the column.
+	// Tables without workspace_id are not tenant-scoped and pass through.
+	if !w.tableHasWorkspaceColumn(ctx, tableName) {
+		return result, nil
+	}
+
+	recordWsID, hasCol := result["workspace_id"]
+	if !hasCol {
+		// Column not present in result set — defensive pass-through; should not
+		// happen for tables that tableHasWorkspaceColumn confirmed.
+		return result, nil
+	}
+
+	// Reject both NULL workspace_id rows AND rows that belong to a different workspace.
+	// A NULL workspace_id means the row pre-dates the tenancy migration and has not
+	// been backfilled; treating it as "accessible by anyone" would be a tenancy leak.
+	if recordWsID == nil {
+		return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
+	}
+	if recordWsIDStr, ok := recordWsID.(string); ok {
+		if recordWsIDStr == "" || recordWsIDStr != wsID {
 			return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
 		}
 	}

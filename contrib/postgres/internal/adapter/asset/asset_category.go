@@ -333,6 +333,17 @@ func NewAssetCategoryRepository(db *sql.DB, tableName string) assetcategorypb.As
 // workspace_id isolation is applied via the context (WorkspaceAwareOperations
 // injects it into the filter). The query uses a LEFT JOIN so categories with
 // zero matching assets are included.
+//
+// TODO(Phase 7.1 test): Add integration tests verifying the salvage deviation
+// logic once a real-DB test harness is established for this adapter.
+// Required cases:
+//   - Asset matches all category defaults → AssetsDeviating = 0.
+//   - Asset has different depreciation_method → AssetsDeviating = 1.
+//   - Asset has different useful_life_months → AssetsDeviating = 1.
+//   - Asset salvage_value = acquisition_cost × default_salvage_value_percent / 100 → not deviating.
+//   - Asset salvage_value differs from expected centavos → AssetsDeviating = 1.
+// No new test framework has been introduced here per plan §Step 7.1.3 "defer if
+// no integration test framework exists for this adapter."
 func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 	ctx context.Context,
 ) ([]asset_category_usecase.AssetCategoryWithRollup, error) {
@@ -357,6 +368,26 @@ func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 
 	// Derive effective depreciation_method/useful_life_months/salvage_value_percent
 	// per category: use the effective fields when set, else fall back to defaults.
+	//
+	// Salvage deviation note (Phase 7.1 fix):
+	//   a.salvage_value is stored as int64 centavos (e.g. 500_000 for ₱5,000).
+	//   ac.default_salvage_value_percent / ac.salvage_pct are percent values
+	//   (e.g. 10.0 for 10%). Comparing them directly would make every asset
+	//   appear to deviate. The correct check converts the category percent to
+	//   expected centavos via:
+	//     a.acquisition_cost * COALESCE(ac.salvage_pct, ac.default_salvage_value_percent) / 100
+	//   Cast to BIGINT for integer floor-centavo comparison. Floor rounding is
+	//   acceptable (same rounding used when the salvage_value was originally set).
+	//
+	// Workspace predicate note (Phase 7.1 / Step 7.1.2):
+	//   ($1 = '' OR ac.workspace_id = $1) was always syntactically correct but
+	//   could not filter because asset_category had no workspace_id column before
+	//   Phase 1 added it. Phase 1 (2026-05-10) added the column + backfill, so
+	//   this predicate now works. It is kept explicit (in addition to the
+	//   WorkspaceAwareOperations auto-injection that governs the outer
+	//   ListAssetCategories call) as defense-in-depth: the raw SQL query here
+	//   bypasses WorkspaceAwareOperations, so the explicit predicate is the
+	//   only workspace gate for the aggregate counts.
 	const query = `
 		SELECT
 			ac.id                       AS category_id,
@@ -368,7 +399,7 @@ func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 				AND (
 					a.depreciation_method IS DISTINCT FROM COALESCE(ac.depreciation_method, ac.default_depreciation_method)
 					OR a.useful_life_months IS DISTINCT FROM COALESCE(ac.useful_life_months, ac.default_useful_life_months)
-					OR a.salvage_value IS DISTINCT FROM COALESCE(ac.salvage_pct, ac.default_salvage_value_percent)
+					OR a.salvage_value IS DISTINCT FROM (a.acquisition_cost * COALESCE(ac.salvage_pct, ac.default_salvage_value_percent) / 100)::BIGINT
 				)
 			)                           AS assets_deviating
 		FROM asset_category ac

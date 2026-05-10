@@ -2,6 +2,7 @@ package revenue
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
@@ -57,6 +58,10 @@ type RevenueServices struct {
 	// See RecognizeRevenueFromSubscriptionServices.MaterializeInstanceJobsForSubscription
 	// for the full failure-semantics contract.
 	MaterializeInstanceJobsForSubscription MaterializeInstanceJobsForSubscriptionInvoker
+
+	// ComputeTaxes wires the ComputeTaxesForRevenue use case into the revenue
+	// domain. Optional; when nil, tax-compute integration points are skipped.
+	ComputeTaxes *computepkg.ComputeTaxesForRevenueUseCase
 }
 
 // UseCases contains all revenue-related use cases
@@ -70,6 +75,7 @@ type UseCases struct {
 	RecognizeRevenueFromSubscription  *RecognizeRevenueFromSubscriptionUseCase
 	ListRevenueRunCandidates          *ListRevenueRunCandidatesUseCase
 	GenerateRevenueRun                *GenerateRevenueRunUseCase
+	RecomputeTaxes                    *RecomputeTaxesUseCase
 }
 
 // NewUseCases creates a new collection of revenue use cases
@@ -152,6 +158,7 @@ func NewUseCases(
 		TranslationService:                     services.TranslationService,
 		IDService:                              services.IDService,
 		MaterializeInstanceJobsForSubscription: services.MaterializeInstanceJobsForSubscription,
+		ComputeTaxes:                           services.ComputeTaxes,
 	}
 
 	recognizeUC := NewRecognizeRevenueFromSubscriptionUseCase(recognizeRepos, recognizeServices)
@@ -179,6 +186,15 @@ func NewUseCases(
 		IDService:            services.IDService,
 	}
 
+	recomputeTaxesUC := NewRecomputeTaxesUseCase(
+		RecomputeTaxesRepositories{Revenue: repositories.Revenue},
+		RecomputeTaxesServices{
+			AuthorizationService: services.AuthorizationService,
+			TranslationService:   services.TranslationService,
+		},
+		services.ComputeTaxes,
+	)
+
 	return &UseCases{
 		CreateRevenue:                    NewCreateRevenueUseCase(createRepos, createServices),
 		ReadRevenue:                      NewReadRevenueUseCase(readRepos, readServices),
@@ -189,5 +205,6 @@ func NewUseCases(
 		RecognizeRevenueFromSubscription: recognizeUC,
 		ListRevenueRunCandidates:         NewListRevenueRunCandidatesUseCase(listCandidatesRepos, listCandidatesServices, recognizeUC),
 		GenerateRevenueRun:               NewGenerateRevenueRunUseCase(generateRunRepos, generateRunServices, recognizeUC),
+		RecomputeTaxes:                   recomputeTaxesUC,
 	}
 }

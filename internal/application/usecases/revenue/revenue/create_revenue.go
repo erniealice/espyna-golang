@@ -28,6 +28,12 @@ type CreateRevenueServices struct {
 	TransactionService   ports.TransactionService
 	TranslationService   ports.TranslationService
 	IDService            ports.IDService
+
+	// ComputeTaxes wires the post-create tax-compute hook
+	// (tax-integration plan §4 Phase D). Optional — when nil the tax-compute
+	// step is skipped entirely (no error). Failure is non-fatal; the created
+	// Revenue is always returned even if tax-line creation fails.
+	ComputeTaxes ComputeTaxesForRevenueInvoker
 }
 
 // CreateRevenueUseCase handles the business logic for creating revenues
@@ -47,6 +53,19 @@ func NewCreateRevenueUseCase(
 	}
 }
 
+// SetComputeTaxes installs the post-create tax-compute invoker after
+// construction. Used by the composition layer (tax-integration plan §4 Phase D)
+// to break the initialization ordering cycle without threading the tax use case
+// through the entire revenue.NewUseCases signature.
+//
+// Safe to call with nil — disables the tax-compute hook (no warning, no lines).
+func (uc *CreateRevenueUseCase) SetComputeTaxes(invoker ComputeTaxesForRevenueInvoker) {
+	if uc == nil {
+		return
+	}
+	uc.services.ComputeTaxes = invoker
+}
+
 // Execute performs the create revenue operation
 func (uc *CreateRevenueUseCase) Execute(ctx context.Context, req *revenuepb.CreateRevenueRequest) (*revenuepb.CreateRevenueResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
@@ -54,8 +73,9 @@ func (uc *CreateRevenueUseCase) Execute(ctx context.Context, req *revenuepb.Crea
 		return nil, err
 	}
 
+	var result *revenuepb.CreateRevenueResponse
+
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		var result *revenuepb.CreateRevenueResponse
 		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
@@ -67,10 +87,27 @@ func (uc *CreateRevenueUseCase) Execute(ctx context.Context, req *revenuepb.Crea
 		if err != nil {
 			return nil, err
 		}
-		return result, nil
+	} else {
+		res, err := uc.executeCore(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		result = res
 	}
 
-	return uc.executeCore(ctx, req)
+	// Phase 4 H1 fix: Do NOT fire ComputeTaxes here.
+	// CreateRevenueUseCase handles the plain "create header only" path — line items
+	// do not exist yet at this point. Firing compute with zero lines would produce
+	// empty RevenueTaxLine rows and incorrect denorm values.
+	//
+	// Compute is triggered by:
+	//   1. RecognizeRevenueFromSubscription — fires after all lines are persisted.
+	//   2. RecomputeTaxes admin action — used after manually adding lines to a revenue.
+	//
+	// The ComputeTaxes field and SetComputeTaxes setter are retained for potential
+	// future use (e.g. if a CreateRevenueWithLineItems variant is wired here).
+
+	return result, nil
 }
 
 func (uc *CreateRevenueUseCase) executeCore(ctx context.Context, req *revenuepb.CreateRevenueRequest) (*revenuepb.CreateRevenueResponse, error) {

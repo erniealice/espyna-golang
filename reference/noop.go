@@ -69,6 +69,10 @@ func (n *noOp) GetAssetCategoryInUseIDs(_ context.Context, _ []string) (map[stri
 	return map[string]bool{}, nil
 }
 
+func (n *noOp) GetAssetInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+
 func (n *noOp) GetPaymentTermInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
 	return map[string]bool{}, nil
 }
@@ -90,5 +94,25 @@ func (n *noOp) GetSubscriptionInUseIDs(_ context.Context, _ []string) (map[strin
 }
 
 func (n *noOp) GetSupplierInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+
+func (n *noOp) GetJobInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+
+func (n *noOp) GetJobActivityInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+
+func (n *noOp) GetJobPhaseInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+
+func (n *noOp) GetJobTaskInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+
+func (n *noOp) GetJobTemplateInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
 	return map[string]bool{}, nil
 }

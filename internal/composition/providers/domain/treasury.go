@@ -17,6 +17,7 @@ import (
 	pettycashreplenishmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_replenishment"
 	pettycashvoucherpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_voucher"
 	securitydepositpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/security_deposit"
+	withholdingcertificatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/withholding_certificate"
 )
 
 // TreasuryRepositories contains all treasury domain repositories
@@ -33,6 +34,9 @@ type TreasuryRepositories struct {
 	PettyCashFund          pettycashfundpb.PettyCashFundDomainServiceServer
 	PettyCashVoucher       pettycashvoucherpb.PettyCashVoucherDomainServiceServer
 	PettyCashReplenishment pettycashreplenishmentpb.PettyCashReplenishmentDomainServiceServer
+
+	// Tax extension
+	WithholdingCertificate withholdingcertificatepb.WithholdingCertificateDomainServiceServer
 }
 
 // NewTreasuryRepositories creates and returns a new set of TreasuryRepositories.
@@ -91,6 +95,9 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 	}
 	if r := tryCreate(entityid.PettyCashReplenishment); r != nil {
 		repos.PettyCashReplenishment = r.(pettycashreplenishmentpb.PettyCashReplenishmentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.WithholdingCertificate); r != nil {
+		repos.WithholdingCertificate = r.(withholdingcertificatepb.WithholdingCertificateDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

@@ -39,6 +39,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/finance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
@@ -51,6 +52,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 
@@ -182,6 +184,40 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		assetUC = &asset.AssetUseCases{}
 	}
 
+	taxUC, err := uci.initializeTaxUseCases(container)
+	if err != nil {
+		taxUC = &tax.TaxUseCases{}
+	}
+
+	// 2026-05-10 tax-integration Phase 4 — wire ComputeTaxesForRevenue into the
+	// revenue domain. Both revenueUC and taxUC must be initialized first.
+	// Non-fatal: if either is nil/empty, the respective hook remains a no-op.
+	if taxUC != nil && taxUC.ComputeTaxes != nil && revenueUC != nil && revenueUC.Revenue != nil {
+		computeUC := taxUC.ComputeTaxes.ComputeTaxesForRevenue
+		if computeUC != nil {
+			// Wire into RecomputeTaxes admin use case (Phase E).
+			if revenueUC.Revenue.RecomputeTaxes != nil {
+				revenueUC.Revenue.RecomputeTaxes.SetComputeTaxes(computeUC)
+				fmt.Printf("Tax compute wired into revenue domain (ComputeTaxesForRevenue → RecomputeTaxes)\n")
+			}
+			// Wire into RecognizeRevenueFromSubscription post-persist hook (Phase C).
+			if revenueUC.Revenue.RecognizeRevenueFromSubscription != nil {
+				revenueUC.Revenue.RecognizeRevenueFromSubscription.SetComputeTaxes(computeUC)
+				fmt.Printf("Tax compute wired into revenue domain (ComputeTaxesForRevenue → RecognizeRevenueFromSubscription)\n")
+			}
+			// Wire into CreateRevenue post-persist hook (Phase D).
+			if revenueUC.Revenue.CreateRevenue != nil {
+				revenueUC.Revenue.CreateRevenue.SetComputeTaxes(computeUC)
+				fmt.Printf("Tax compute wired into revenue domain (ComputeTaxesForRevenue → CreateRevenue)\n")
+			}
+		}
+	}
+
+	financeUC, err := uci.initializeFinanceUseCases(container)
+	if err != nil {
+		financeUC = &finance.FinanceUseCases{}
+	}
+
 	// Initialize integration use cases (email, payment providers, etc.)
 	// These are provider-based use cases, not domain-based
 	integrationUC := uci.initializeIntegrationUseCases(container)
@@ -200,12 +236,14 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		entityUC,
 		eventUC,
 		expenditureUC,
+		financeUC,
 		fulfillmentUC,
 		inventoryUC,
 		ledgerUC,
 		operationUC,
 		payrollUC,
 		procurementUC,
+		taxUC,
 		treasuryUC,
 		productUC,
 		revenueUC,
@@ -833,6 +871,62 @@ func (uci *UseCaseInitializer) initializeAssetUseCases(container *Container) (*a
 	fmt.Printf("✅ Asset domain initialized successfully: %v\n", assetUseCases != nil)
 
 	return assetUseCases, nil
+}
+
+// initializeTaxUseCases initializes Tax domain use cases (6 entities).
+// Graceful degradation: returns empty struct on failure so the app starts without tax.
+func (uci *UseCaseInitializer) initializeTaxUseCases(container *Container) (*tax.TaxUseCases, error) {
+	fmt.Printf("Initializing Tax use cases...\n")
+
+	repos, err := domain.NewTaxRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("WARNING: Tax database provider not available: %v\n", err)
+		return &tax.TaxUseCases{}, nil
+	}
+	fmt.Printf("Got tax repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to get services: %v\n", err)
+		return nil, err
+	}
+
+	taxUseCases, err := initializers.InitializeTax(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to initialize tax use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("Tax domain initialized successfully: %v\n", taxUseCases != nil)
+
+	return taxUseCases, nil
+}
+
+// initializeFinanceUseCases initializes Finance domain use cases (1 entity: ForexRate).
+// Graceful degradation: returns empty struct on failure so the app starts without finance.
+func (uci *UseCaseInitializer) initializeFinanceUseCases(container *Container) (*finance.FinanceUseCases, error) {
+	fmt.Printf("Initializing Finance use cases...\n")
+
+	repos, err := domain.NewFinanceRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("WARNING: Finance database provider not available: %v\n", err)
+		return &finance.FinanceUseCases{}, nil
+	}
+	fmt.Printf("Got finance repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to get services: %v\n", err)
+		return nil, err
+	}
+
+	financeUseCases, err := initializers.InitializeFinance(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to initialize finance use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("Finance domain initialized successfully: %v\n", financeUseCases != nil)
+
+	return financeUseCases, nil
 }
 
 // initializeProcurementUseCases initializes Procurement domain use cases (6 entities).

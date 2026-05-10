@@ -11,6 +11,8 @@ import (
 	pettyCashUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/petty_cash"
 	// SecurityDeposit use cases
 	securityDepositUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/security_deposit"
+	// WithholdingCertificate use cases
+	withholdingCertificateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/withholding_certificate"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -29,6 +31,7 @@ import (
 	pettycashreplenishmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_replenishment"
 	pettycashvoucherpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_voucher"
 	securitydepositpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/security_deposit"
+	withholdingcertificatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/withholding_certificate"
 )
 
 // TreasuryRepositories contains all treasury domain repositories
@@ -45,15 +48,19 @@ type TreasuryRepositories struct {
 	PettyCashFund          pettycashfundpb.PettyCashFundDomainServiceServer
 	PettyCashVoucher       pettycashvoucherpb.PettyCashVoucherDomainServiceServer
 	PettyCashReplenishment pettycashreplenishmentpb.PettyCashReplenishmentDomainServiceServer
+
+	// Tax extension
+	WithholdingCertificate withholdingcertificatepb.WithholdingCertificateDomainServiceServer
 }
 
 // TreasuryUseCases contains all treasury-related use cases
 type TreasuryUseCases struct {
-	Collection           *collectionUseCases.UseCases
-	Disbursement         *disbursementUseCases.UseCases
-	DisbursementSchedule *disbursementscheduleUseCases.UseCases
-	SecurityDeposit      *securityDepositUseCases.UseCases
-	PettyCash            *pettyCashUseCases.UseCases
+	Collection             *collectionUseCases.UseCases
+	Disbursement           *disbursementUseCases.UseCases
+	DisbursementSchedule   *disbursementscheduleUseCases.UseCases
+	SecurityDeposit        *securityDepositUseCases.UseCases
+	PettyCash              *pettyCashUseCases.UseCases
+	WithholdingCertificate *withholdingCertificateUseCases.UseCases
 	// Loans — use cases to be created in future iterations
 	// Loan, LoanPayment, PettyCashVoucher, PettyCashReplenishment
 
@@ -151,13 +158,26 @@ func NewUseCases(
 		}
 	}
 
+	withholdingCertificateUC := withholdingCertificateUseCases.NewUseCases(
+		withholdingCertificateUseCases.WithholdingCertificateRepositories{
+			WithholdingCertificate: repos.WithholdingCertificate,
+		},
+		withholdingCertificateUseCases.WithholdingCertificateServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
 	return &TreasuryUseCases{
-		Collection:           collectionUC,
-		Disbursement:         disbursementUC,
-		DisbursementSchedule: disbursementScheduleUC,
-		SecurityDeposit:      securityDepositUC,
-		PettyCash:            pettyCashUC,
-		LoanDashboard:        loanDash,
-		CashDashboard:        cashDash,
+		Collection:             collectionUC,
+		Disbursement:           disbursementUC,
+		DisbursementSchedule:   disbursementScheduleUC,
+		SecurityDeposit:        securityDepositUC,
+		PettyCash:              pettyCashUC,
+		WithholdingCertificate: withholdingCertificateUC,
+		LoanDashboard:          loanDash,
+		CashDashboard:          cashDash,
 	}
 }

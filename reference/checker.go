@@ -79,6 +79,13 @@ type Checker interface {
 	GetActiveSubscriptionCountForPricePlan(ctx context.Context, id string) (int, error)
 
 	GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetAssetInUseIDs blocks deletion of assets that have any asset_transaction
+	// row (ACQUISITION, DEPRECIATION, REVALUATION, etc.). Any posted transaction
+	// makes the asset's financial history immutable and prevents soft-delete.
+	// Workspace-scoped via asset_transaction.workspace_id.
+	GetAssetInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
 	GetPaymentTermInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
 	GetLineInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
 	GetLocationAreaInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
@@ -94,4 +101,33 @@ type Checker interface {
 
 	// GetSupplierInUseIDs checks if suppliers are referenced by expenditures or fulfillments.
 	GetSupplierInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetJobInUseIDs blocks deletion of a job when any of its child rows
+	// references it: job_activity, job_phase, job_settlement (via job_activity),
+	// or revenue (via revenue.job_id). Workspace-scoped via job_activity.workspace_id.
+	// Note: job_settlement has no direct job_id column; it links via job_activity_id.
+	// Note: revenue has no job_id column as of this writing — omitted (TODO when added).
+	GetJobInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetJobActivityInUseIDs blocks deletion of a job_activity when its
+	// typed sub-row exists (activity_labor / activity_material / activity_expense
+	// keyed by activity_id) OR when it has been posted (posting_status='POSTED')
+	// OR when revenue_line_item.job_activity_id references it.
+	GetJobActivityInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetJobPhaseInUseIDs blocks deletion of a job_phase when any job_task
+	// references it via job_phase_id. job_activity.job_task_id chains
+	// transitively but the direct job_task FK is sufficient — deleting
+	// the tasks first is the operator-required precondition.
+	GetJobPhaseInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetJobTaskInUseIDs blocks deletion of a job_task when any job_activity
+	// references it via job_task_id.
+	GetJobTaskInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetJobTemplateInUseIDs blocks deletion of a job_template when any job
+	// references it via job_template_id. job_template_phase and job_template_task
+	// rows do NOT CASCADE on delete (verified: proto FK annotations carry no
+	// cascade option), so job_template_phase rows also block deletion.
+	GetJobTemplateInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
 }

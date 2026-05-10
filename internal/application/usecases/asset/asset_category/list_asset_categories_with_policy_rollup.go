@@ -65,7 +65,10 @@ func NewListAssetCategoriesWithPolicyRollupUseCase(
 // bulk query is executed (preferred). Otherwise falls back to listing categories
 // only (counts = 0), so callers never receive an error simply because the
 // rollup SQL extension isn't available.
-func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(ctx context.Context) ([]AssetCategoryWithRollup, error) {
+func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(
+	ctx context.Context,
+	_ *assetcategorypb.ListAssetCategoriesWithPolicyRollupRequest,
+) (*assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse, error) {
 	// Authorization check — same permission as list.
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityAssetCategory, ports.ActionList); err != nil {
@@ -79,13 +82,13 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(ctx context.Contex
 
 	// Preferred path: adapter implements the rollup extension.
 	if rollupRepo, ok := uc.repositories.AssetCategory.(PolicyRollupRepository); ok {
-		result, err := rollupRepo.ListAssetCategoriesWithPolicyRollup(ctx)
+		rows, err := rollupRepo.ListAssetCategoriesWithPolicyRollup(ctx)
 		if err != nil {
 			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
 				"asset_category.errors.rollup_query_failed", "[ERR-DEFAULT] Failed to load depreciation policy rollup")
 			return nil, fmt.Errorf("%s: %w", msg, err)
 		}
-		return result, nil
+		return goRollupToProto(rows), nil
 	}
 
 	// Fallback path: adapter doesn't support rollup — list categories with zero counts.
@@ -97,9 +100,25 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(ctx context.Contex
 			"asset_category.errors.list_failed", "[ERR-DEFAULT] Failed to list asset categories")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
-	result := make([]AssetCategoryWithRollup, 0, len(listResp.GetData()))
+	rows := make([]AssetCategoryWithRollup, 0, len(listResp.GetData()))
 	for _, cat := range listResp.GetData() {
-		result = append(result, AssetCategoryWithRollup{Category: cat})
+		rows = append(rows, AssetCategoryWithRollup{Category: cat})
 	}
-	return result, nil
+	return goRollupToProto(rows), nil
+}
+
+// goRollupToProto converts the internal Go-struct slice to the proto response.
+func goRollupToProto(rows []AssetCategoryWithRollup) *assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse {
+	items := make([]*assetcategorypb.AssetCategoryWithPolicyRollup, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, &assetcategorypb.AssetCategoryWithPolicyRollup{
+			Category:       r.Category,
+			AssetsInPolicy: int32(r.AssetsInPolicy),
+			AssetsDeviating: int32(r.AssetsDeviating),
+		})
+	}
+	return &assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse{
+		Data:    items,
+		Success: true,
+	}
 }

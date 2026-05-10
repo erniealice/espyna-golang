@@ -8,6 +8,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 
 	depschpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation"
+	deprunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation_run"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -43,12 +44,17 @@ func NewListDepreciationRunEntriesUseCase(
 // Execute returns all DepreciationSchedule rows for a given depreciation_run_id.
 func (uc *ListDepreciationRunEntriesUseCase) Execute(
 	ctx context.Context,
-	runID string,
-	pagination *commonpb.PaginationRequest,
+	req *deprunpb.ListDepreciationRunEntriesRequest,
 ) (*depschpb.ListDepreciationSchedulesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityAssetDepreciationRun, ports.ActionRead); err != nil {
 		return nil, err
+	}
+	runID := ""
+	var pagination *commonpb.PaginationRequest
+	if req != nil {
+		runID = req.GetRunId()
+		pagination = req.GetPagination()
 	}
 	if runID == "" {
 		return nil, errors.New("list_depreciation_run_entries: run_id is required")

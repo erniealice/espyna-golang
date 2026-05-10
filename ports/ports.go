@@ -18,6 +18,7 @@ import (
 // Database types
 type (
 	DatabaseProvider         = internal.DatabaseProvider
+	PoolSizer                = internal.PoolSizer
 	RepositoryProvider       = internal.RepositoryProvider
 	RepositoryConfig         = internal.RepositoryConfig
 	ConcreteRepositoryConfig = internal.ConcreteRepositoryConfig

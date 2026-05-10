@@ -26,14 +26,15 @@ import (
 	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
 )
 
-// PreviewRevaluationRequest is the input to PreviewRevaluation.
+// PreviewRevaluationRequest is the internal input to PreviewRevaluation.
+// Kept for internal helpers. The public boundary uses *revaluation_pb.PreviewRevaluationUseCaseRequest.
 type PreviewRevaluationRequest struct {
 	AssetID      string
 	NewFairValue int64 // centavos
 }
 
-// PreviewRevaluationResult is the predicted IAS 16.39-40 split for the supplied
-// new_fair_value, given the current AssetRevaluation history.
+// PreviewRevaluationResult is the internal predicted IAS 16.39-40 split.
+// Kept for internal helpers. The public boundary returns *revaluation_pb.PreviewRevaluationUseCaseResponse.
 type PreviewRevaluationResult struct {
 	PreviousCarryingAmount int64
 	NewFairValue           int64
@@ -69,11 +70,18 @@ func NewPreviewRevaluationUseCase(
 // Read-only; no transaction needed.
 func (uc *PreviewRevaluationUseCase) Execute(
 	ctx context.Context,
-	req PreviewRevaluationRequest,
-) (*PreviewRevaluationResult, error) {
+	pbReq *revaluation_pb.PreviewRevaluationUseCaseRequest,
+) (*revaluation_pb.PreviewRevaluationUseCaseResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityAssetRevaluation, ports.ActionRead); err != nil {
 		return nil, err
+	}
+
+	// Translate proto → internal Go struct at the boundary.
+	req := PreviewRevaluationRequest{}
+	if pbReq != nil {
+		req.AssetID = pbReq.GetAssetId()
+		req.NewFairValue = pbReq.GetNewFairValue()
 	}
 
 	if req.AssetID == "" {
@@ -111,7 +119,8 @@ func (uc *PreviewRevaluationUseCase) Execute(
 	revaluationAmount := req.NewFairValue - currentBookValue
 	if revaluationAmount == 0 {
 		// Caller can render this as a "no change" preview.
-		return &PreviewRevaluationResult{
+		return &revaluation_pb.PreviewRevaluationUseCaseResponse{
+			Success:                true,
 			PreviousCarryingAmount: currentBookValue,
 			NewFairValue:           req.NewFairValue,
 			RevaluationAmount:      0,
@@ -133,16 +142,17 @@ func (uc *PreviewRevaluationUseCase) Execute(
 
 	pnl, oci, newSurplus := ComputePnLOCISplit(absAmount, isIncrease, priorSurplus, priorPnLLoss)
 
-	return &PreviewRevaluationResult{
+	return &revaluation_pb.PreviewRevaluationUseCaseResponse{
+		Success:                true,
 		PreviousCarryingAmount: currentBookValue,
 		NewFairValue:           req.NewFairValue,
 		RevaluationAmount:      revaluationAmount,
 		IsIncrease:             isIncrease,
-		RecognizedInPnL:        pnl,
-		RecognizedInOCI:        oci,
+		RecognizedInPnl:        pnl,
+		RecognizedInOci:        oci,
 		NewSurplusBalance:      newSurplus,
 		PriorSurplusBalance:    priorSurplus,
-		PriorPnLLossBalance:    priorPnLLoss,
+		PriorPnlLossBalance:    priorPnLLoss,
 	}, nil
 }
 

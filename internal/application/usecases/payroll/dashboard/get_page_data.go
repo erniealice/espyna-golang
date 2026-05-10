@@ -4,6 +4,10 @@
 // Wiring deferred: the orchestrator must construct
 // *GetPayrollDashboardPageDataUseCase from the postgres payroll adapters and
 // add it to PayrollUseCases.
+//
+// Phase 0i: Execute takes/returns proto types (GetPayrollDashboardRequest /
+// GetPayrollDashboardResponse). The old Go-struct Request/Response/PayrollStats/
+// TimeBucket are deleted — proto-generated types replace them.
 package dashboard
 
 import (
@@ -11,10 +15,12 @@ import (
 	"time"
 
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
-	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
+	payrollrunpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
+	dashboardpb        "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/dashboard"
 )
 
-// TimeBucket mirrors payroll.TimeBucket.
+// TimeBucket mirrors payroll.TimeBucket — kept as a Go-only type because it
+// is the output of PayrollRunDashboardQueries.SumGrossByMonth.
 type TimeBucket struct {
 	Period time.Time
 	Value  int64
@@ -37,30 +43,6 @@ type PayrollRemittanceDashboardQueries interface {
 	UpcomingDeadlines(ctx context.Context, workspaceID string, limit int32) ([]*payrollremittancepb.PayrollRemittance, error)
 }
 
-// PayrollStats are the four dashboard stats for payroll.
-type PayrollStats struct {
-	CurrentRunStatus    string // "draft" | "calculated" | "approved" | "posted" | "" (no run)
-	EmployeesInCurrent  int32
-	TotalGrossMTD       int64 // centavos
-	RemittancesDue30Cnt int64
-}
-
-// GetPayrollDashboardPageDataRequest is the request shape.
-type GetPayrollDashboardPageDataRequest struct {
-	WorkspaceID string
-	Now         time.Time
-}
-
-// GetPayrollDashboardPageDataResponse is the view-layer projection.
-type GetPayrollDashboardPageDataResponse struct {
-	Stats              PayrollStats
-	LatestRun          *payrollrunpb.PayrollRun
-	RecentRuns         []*payrollrunpb.PayrollRun
-	UpcomingDeadlines  []*payrollremittancepb.PayrollRemittance
-	GrossTrendLabels   []string
-	GrossTrendValues   []float64
-}
-
 // GetPayrollDashboardPageDataUseCase orchestrates the payroll dashboard.
 type GetPayrollDashboardPageDataUseCase struct {
 	runs        PayrollRunDashboardQueries
@@ -78,40 +60,47 @@ func NewGetPayrollDashboardPageDataUseCase(
 	}
 }
 
-// Execute assembles the dashboard response. Failures degrade gracefully.
+// Execute assembles the dashboard proto response. Failures degrade gracefully.
 func (uc *GetPayrollDashboardPageDataUseCase) Execute(
 	ctx context.Context,
-	req *GetPayrollDashboardPageDataRequest,
-) (*GetPayrollDashboardPageDataResponse, error) {
-	if req == nil {
-		req = &GetPayrollDashboardPageDataRequest{}
+	req *dashboardpb.GetPayrollDashboardRequest,
+) (*dashboardpb.GetPayrollDashboardResponse, error) {
+	now := time.Now()
+	if req != nil && req.GetNowMillis() != 0 {
+		now = time.UnixMilli(req.GetNowMillis())
 	}
-	if req.Now.IsZero() {
-		req.Now = time.Now()
+
+	workspaceID := ""
+	if req != nil {
+		workspaceID = req.GetWorkspaceId()
 	}
-	resp := &GetPayrollDashboardPageDataResponse{}
+
+	resp := &dashboardpb.GetPayrollDashboardResponse{
+		Success: true,
+		Stats:   &dashboardpb.PayrollStats{},
+	}
 
 	if uc.runs != nil {
-		if latest, err := uc.runs.LatestRun(ctx, req.WorkspaceID); err == nil && latest != nil {
+		if latest, err := uc.runs.LatestRun(ctx, workspaceID); err == nil && latest != nil {
 			resp.LatestRun = latest
 			resp.Stats.CurrentRunStatus = latest.GetStatus().String()
 			resp.Stats.EmployeesInCurrent = latest.GetEmployeeCount()
 		}
-		if recent, err := uc.runs.RecentRuns(ctx, req.WorkspaceID, 5); err == nil {
+		if recent, err := uc.runs.RecentRuns(ctx, workspaceID, 5); err == nil {
 			resp.RecentRuns = recent
 		}
 
 		// MTD gross.
-		mtdStart := time.Date(req.Now.Year(), req.Now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		if gross, err := uc.runs.SumTotalGrossInPeriod(ctx, req.WorkspaceID, mtdStart, req.Now); err == nil {
-			resp.Stats.TotalGrossMTD = gross
+		mtdStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		if gross, err := uc.runs.SumTotalGrossInPeriod(ctx, workspaceID, mtdStart, now); err == nil {
+			resp.Stats.TotalGrossMtd = gross
 		}
 
 		// 12-month trend ending current month.
-		from := req.Now.AddDate(0, -11, 0)
+		from := now.AddDate(0, -11, 0)
 		from = time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC)
-		to := time.Date(req.Now.Year(), req.Now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		if buckets, err := uc.runs.SumGrossByMonth(ctx, req.WorkspaceID, from, to); err == nil {
+		to := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		if buckets, err := uc.runs.SumGrossByMonth(ctx, workspaceID, from, to); err == nil {
 			resp.GrossTrendLabels = make([]string, 0, len(buckets))
 			resp.GrossTrendValues = make([]float64, 0, len(buckets))
 			for _, b := range buckets {
@@ -122,10 +111,10 @@ func (uc *GetPayrollDashboardPageDataUseCase) Execute(
 	}
 
 	if uc.remittances != nil {
-		if n, err := uc.remittances.CountDueWithin(ctx, req.WorkspaceID, 30); err == nil {
+		if n, err := uc.remittances.CountDueWithin(ctx, workspaceID, 30); err == nil {
 			resp.Stats.RemittancesDue30Cnt = n
 		}
-		if upcoming, err := uc.remittances.UpcomingDeadlines(ctx, req.WorkspaceID, 5); err == nil {
+		if upcoming, err := uc.remittances.UpcomingDeadlines(ctx, workspaceID, 5); err == nil {
 			resp.UpcomingDeadlines = upcoming
 		}
 	}

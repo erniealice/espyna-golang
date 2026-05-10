@@ -52,6 +52,8 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
+
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
@@ -1127,9 +1129,12 @@ func (a *materializeInstanceJobsAdapter) Execute(ctx context.Context, subscripti
 	if a == nil || a.uc == nil {
 		return nil
 	}
-	_, err := a.uc.Execute(ctx, subscriptionUseCase.MaterializeInstanceJobsForSubscriptionRequest{
-		SubscriptionId:   subscriptionID,
-		CyclePeriodStart: cyclePeriodStart,
-	})
+	pbReq := &subscriptionpb.MaterializeInstanceJobsForSubscriptionRequest{
+		SubscriptionId: subscriptionID,
+	}
+	if cyclePeriodStart != "" {
+		pbReq.CyclePeriodStart = &cyclePeriodStart
+	}
+	_, err := a.uc.Execute(ctx, pbReq)
 	return err
 }

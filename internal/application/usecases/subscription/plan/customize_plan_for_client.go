@@ -88,9 +88,13 @@ func NewCustomizePlanForClientUseCase(
 }
 
 // Execute orchestrates the customize-for-client flow.
+//
+// Takes/returns proto types per Phase 0 of the block-decouple plan; internal
+// helpers (validateInput, executeCore) keep their Go-struct signatures and
+// the proto request is translated at the boundary.
 func (uc *CustomizePlanForClientUseCase) Execute(
-	ctx context.Context, req *CustomizePlanForClientRequest,
-) (*CustomizePlanForClientResponse, error) {
+	ctx context.Context, req *planpb.CustomizePlanForClientRequest,
+) (*planpb.CustomizePlanForClientResponse, error) {
 	// Authorization — revenue:create OR (plan:create + price_plan:create).
 	// We require both plan:create AND price_plan:create; revenue:create is
 	// not consulted here because the use case never writes Revenue rows.
@@ -103,31 +107,62 @@ func (uc *CustomizePlanForClientUseCase) Execute(
 		return nil, err
 	}
 
-	if err := uc.validateInput(ctx, req); err != nil {
+	// Translate proto request to the internal Go-struct used by executeCore.
+	internalReq := &CustomizePlanForClientRequest{
+		SourcePlanID:      req.GetSourcePlanId(),
+		SourcePricePlanID: req.GetSourcePricePlanId(),
+		ClientID:          req.GetClientId(),
+		SubscriptionID:    req.GetSubscriptionId(),
+		NewScheduleName:   req.GetNewScheduleName(),
+	}
+
+	if err := uc.validateInput(ctx, internalReq); err != nil {
 		return nil, err
 	}
 
 	// Run the entire clone in a single transaction. Any failure rolls back
 	// every insert (including a freshly-created PriceSchedule), preventing
 	// orphan rows.
+	var coreResult *CustomizePlanForClientResponse
 	if uc.services.TransactionService != nil &&
 		uc.services.TransactionService.SupportsTransactions() {
-		var result *CustomizePlanForClientResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
-			res, execErr := uc.executeCore(txCtx, req)
+		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+			res, execErr := uc.executeCore(txCtx, internalReq)
 			if execErr != nil {
 				return execErr
 			}
-			result = res
+			coreResult = res
 			return nil
-		})
-		if err != nil {
+		}); err != nil {
 			return nil, err
 		}
-		return result, nil
+	} else {
+		var execErr error
+		coreResult, execErr = uc.executeCore(ctx, internalReq)
+		if execErr != nil {
+			return nil, execErr
+		}
 	}
 
-	return uc.executeCore(ctx, req)
+	return wrapCustomizePlanResponse(coreResult), nil
+}
+
+// wrapCustomizePlanResponse converts the internal Go-struct response to its
+// proto representation. The Plan is exposed as a proto pointer; PricePlan
+// and PriceSchedule surface via their IDs only (cross-package proto imports
+// would circle back through plan.proto).
+func wrapCustomizePlanResponse(r *CustomizePlanForClientResponse) *planpb.CustomizePlanForClientResponse {
+	if r == nil {
+		return &planpb.CustomizePlanForClientResponse{Success: true}
+	}
+	return &planpb.CustomizePlanForClientResponse{
+		Success:            true,
+		NewPlanId:          r.Plan.GetId(),
+		NewPricePlanId:     r.PricePlan.GetId(),
+		NewPriceScheduleId: r.PriceSchedule.GetId(),
+		Reused:             r.Reused,
+		Plan:               r.Plan,
+	}
 }
 
 // validateInput checks for required IDs in the request. Localized

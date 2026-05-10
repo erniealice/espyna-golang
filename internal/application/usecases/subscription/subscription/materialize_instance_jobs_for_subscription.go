@@ -95,17 +95,9 @@ type MaterializeInstanceJobsForSubscriptionServices struct {
 	IDService            ports.IDService
 }
 
-// MaterializeInstanceJobsForSubscriptionRequest is the input contract.
-//
-// CyclePeriodStart is optional. When empty, the use case picks the next
-// un-spawned cycle starting from sub.date_time_start. When non-empty, the
-// use case spawns exactly that one cycle (or returns it as-is if already
-// present — idempotent).
-//
-// Backfill, when true, walks the cycle window from sub.date_time_start up
-// to today and spawns every cycle that doesn't yet exist (capped at
-// MaxBackfillCycles per request).
-type MaterializeInstanceJobsForSubscriptionRequest struct {
+// materializeInstanceJobsInternalRequest is the internal input contract.
+// Public boundary uses *subscriptionpb.MaterializeInstanceJobsForSubscriptionRequest.
+type materializeInstanceJobsInternalRequest struct {
 	SubscriptionId   string
 	CyclePeriodStart string
 	Backfill         bool
@@ -116,23 +108,23 @@ type MaterializeInstanceJobsForSubscriptionRequest struct {
 	UsageRequestDate string
 }
 
-// SpawnedInstanceCycle is one cycle's spawn result.
-type SpawnedInstanceCycle struct {
+// spawnedInstanceCycle is one cycle's spawn result (internal).
+type spawnedInstanceCycle struct {
 	CycleIndex       int32
 	CyclePeriodStart string
 	CyclePeriodEnd   string
 	Jobs             []*jobpb.Job // 1 entry for visits_per_cycle=1, N for multi-visit
 }
 
-// MaterializeInstanceJobsForSubscriptionResponse echoes back the spawned
-// cycles + onboarding (once-at-engagement-start) children + skip reason.
-type MaterializeInstanceJobsForSubscriptionResponse struct {
-	EngagementJob       *jobpb.Job
+// materializeInstanceJobsInternalResponse is the internal response.
+// Public boundary returns *subscriptionpb.MaterializeInstanceJobsForSubscriptionResponse.
+type materializeInstanceJobsInternalResponse struct {
+	EngagementJob             *jobpb.Job
 	EngagementWasNewlyCreated bool
-	SpawnedCycles       []SpawnedInstanceCycle
-	OnceAtStartJobs     []*jobpb.Job
-	SkippedReason       string
-	BackfillCappedAt    int32 // 0 when not capped; otherwise the cap that fired
+	SpawnedCycles             []spawnedInstanceCycle
+	OnceAtStartJobs           []*jobpb.Job
+	SkippedReason             string
+	BackfillCappedAt          int32 // 0 when not capped; otherwise the cap that fired
 }
 
 // MaterializeInstanceJobsForSubscriptionUseCase is the cyclic Job spawn engine.
@@ -205,11 +197,53 @@ func IsCyclic(pp *priceplanpb.PricePlan) bool {
 	return eligibleForInstanceSpawn(pp)
 }
 
-// Execute drives the full cycle-spawn flow per plan §3. The whole §3.2 → §3.5
-// chain runs in a single transaction.
+// Execute is the proto-boundary entry point. It translates the proto request to
+// the internal request, delegates to executeInternal, and converts the result
+// to a proto response (counts only — callers that need full Job records call
+// executeInternal directly, e.g., tests and the composition-layer adapter).
 func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
-	ctx context.Context, req MaterializeInstanceJobsForSubscriptionRequest,
-) (*MaterializeInstanceJobsForSubscriptionResponse, error) {
+	ctx context.Context, pbReq *subscriptionpb.MaterializeInstanceJobsForSubscriptionRequest,
+) (*subscriptionpb.MaterializeInstanceJobsForSubscriptionResponse, error) {
+	req := materializeInstanceJobsInternalRequest{}
+	if pbReq != nil {
+		req.SubscriptionId = pbReq.GetSubscriptionId()
+		req.CyclePeriodStart = pbReq.GetCyclePeriodStart()
+		req.Backfill = pbReq.GetBackfill()
+		req.UsageRequestDate = pbReq.GetUsageRequestDate()
+	}
+	internal, err := uc.executeInternal(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if internal == nil {
+		return &subscriptionpb.MaterializeInstanceJobsForSubscriptionResponse{Success: true}, nil
+	}
+	// Count spawned jobs across all cycles.
+	var jobCount int32
+	for _, c := range internal.SpawnedCycles {
+		jobCount += int32(len(c.Jobs))
+	}
+	resp := &subscriptionpb.MaterializeInstanceJobsForSubscriptionResponse{
+		Success:                   true,
+		SpawnedCycleCount:         int32(len(internal.SpawnedCycles)),
+		SpawnedJobCount:           jobCount,
+		OnceAtStartJobCount:       int32(len(internal.OnceAtStartJobs)),
+		EngagementWasNewlyCreated: internal.EngagementWasNewlyCreated,
+		BackfillCappedAt:          internal.BackfillCappedAt,
+	}
+	if internal.SkippedReason != "" {
+		v := internal.SkippedReason
+		resp.SkippedReason = &v
+	}
+	return resp, nil
+}
+
+// executeInternal drives the full cycle-spawn flow per plan §3. The whole §3.2 → §3.5
+// chain runs in a single transaction. Returns the rich internal response for callers
+// (composition adapter, tests) that need cycle-level detail.
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
+	ctx context.Context, req materializeInstanceJobsInternalRequest,
+) (*materializeInstanceJobsInternalResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		ports.EntitySubscription, ports.ActionUpdate); err != nil {
 		return nil, err
@@ -255,14 +289,14 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 
 	// Plan §3.1 — eligibility gate.
 	if !eligibleForInstanceSpawn(pricePlan) {
-		return &MaterializeInstanceJobsForSubscriptionResponse{
+		return &materializeInstanceJobsInternalResponse{
 			SkippedReason: InstanceSkipReasonNonCyclicPlan,
 		}, nil
 	}
 	if pricePlan.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_MILESTONE {
 		// Defensive — should never reach here because PricePlan-edit blocks
 		// MILESTONE × cyclic. See plan §6 / §C.2.
-		return &MaterializeInstanceJobsForSubscriptionResponse{
+		return &materializeInstanceJobsInternalResponse{
 			SkippedReason: InstanceSkipReasonMilestoneUnsupported,
 		}, nil
 	}
@@ -271,11 +305,11 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 		// AD_HOC has its own skip reason since the validator check differs
 		// (pool_no_template + pay_per_call_no_template — see ad-hoc plan §6).
 		if IsAdHoc(pricePlan) {
-			return &MaterializeInstanceJobsForSubscriptionResponse{
+			return &materializeInstanceJobsInternalResponse{
 				SkippedReason: InstanceSkipReasonAdHocNoTemplate,
 			}, nil
 		}
-		return &MaterializeInstanceJobsForSubscriptionResponse{
+		return &materializeInstanceJobsInternalResponse{
 			SkippedReason: InstanceSkipReasonNoTemplate,
 		}, nil
 	}
@@ -301,7 +335,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 	// "no_pending_cycles" to the caller. The recognize-piggyback site treats
 	// this as a no-op.
 	if !req.Backfill && len(cycleStarts) == 0 {
-		return &MaterializeInstanceJobsForSubscriptionResponse{
+		return &materializeInstanceJobsInternalResponse{
 			SkippedReason: InstanceSkipReasonNoPendingCycles,
 		}, nil
 	}
@@ -311,7 +345,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 		visitsPerCycle = 1
 	}
 
-	resp := &MaterializeInstanceJobsForSubscriptionResponse{
+	resp := &materializeInstanceJobsInternalResponse{
 		BackfillCappedAt: cappedAt,
 	}
 
@@ -356,7 +390,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 			// Sub-cycle windows for multi-visit plans.
 			subWindows := splitCycleWindow(billingCycleStart, billingCycleEnd, visitsPerCycle)
 
-			cycleEntry := SpawnedInstanceCycle{
+			cycleEntry := spawnedInstanceCycle{
 				CyclePeriodStart: billingCycleStart,
 				CyclePeriodEnd:   billingCycleEnd,
 			}
@@ -999,7 +1033,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) computeCyclesToSpawn(
 	ctx context.Context,
 	sub *subscriptionpb.Subscription,
 	pricePlan *priceplanpb.PricePlan,
-	req MaterializeInstanceJobsForSubscriptionRequest,
+	req materializeInstanceJobsInternalRequest,
 	now time.Time,
 ) ([]string, int32, error) {
 	if !req.Backfill {
@@ -1274,12 +1308,12 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 	sub *subscriptionpb.Subscription,
 	pricePlan *priceplanpb.PricePlan,
 	plan *planpb.Plan,
-	req MaterializeInstanceJobsForSubscriptionRequest,
-) (*MaterializeInstanceJobsForSubscriptionResponse, error) {
+	req materializeInstanceJobsInternalRequest,
+) (*materializeInstanceJobsInternalResponse, error) {
 	basis := pricePlan.GetAmountBasis()
 	if basis != priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE &&
 		basis != priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE {
-		return &MaterializeInstanceJobsForSubscriptionResponse{
+		return &materializeInstanceJobsInternalResponse{
 			SkippedReason: InstanceSkipReasonAdHocInvalidBasis,
 		}, nil
 	}
@@ -1300,7 +1334,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 		return nil, fmt.Errorf("parse usage_request_date %q: %w", requestDate, err)
 	}
 
-	resp := &MaterializeInstanceJobsForSubscriptionResponse{}
+	resp := &materializeInstanceJobsInternalResponse{}
 
 	writeFn := func(txCtx context.Context) error {
 		// Reset on retry.
@@ -1358,7 +1392,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 		if existing, err := uc.findExistingCycleJob(txCtx, sub.GetId(), visitKey); err != nil {
 			return err
 		} else if existing != nil {
-			resp.SpawnedCycles = append(resp.SpawnedCycles, SpawnedInstanceCycle{
+			resp.SpawnedCycles = append(resp.SpawnedCycles, spawnedInstanceCycle{
 				CycleIndex:       existing.GetCycleIndex(),
 				CyclePeriodStart: existing.GetCyclePeriodStart(),
 				Jobs:             []*jobpb.Job{existing},
@@ -1382,7 +1416,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 			}
 		}
 
-		resp.SpawnedCycles = append(resp.SpawnedCycles, SpawnedInstanceCycle{
+		resp.SpawnedCycles = append(resp.SpawnedCycles, spawnedInstanceCycle{
 			CycleIndex:       ordinal,
 			CyclePeriodStart: visitKey,
 			Jobs:             []*jobpb.Job{usageJob},

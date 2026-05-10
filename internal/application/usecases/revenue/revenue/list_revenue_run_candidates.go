@@ -14,6 +14,7 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
+	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
@@ -28,26 +29,6 @@ type RevenueRunScope struct {
 	AsOfDate       string // YYYY-MM-DD; defaults to today when empty
 	Cursor         string
 	Limit          int32
-}
-
-// RevenueRunCandidate represents one billed period for one subscription that
-// has not yet been invoiced (or that has a blocker preventing invoicing).
-type RevenueRunCandidate struct {
-	SubscriptionID    string
-	SubscriptionName  string
-	ClientID          string
-	ClientName        string
-	PlanName          string
-	BillingCycleLabel string
-	Currency          string
-	PeriodStart       string // YYYY-MM-DD
-	PeriodEnd         string // YYYY-MM-DD
-	PeriodLabel       string
-	PeriodMarker      string
-	Amount            int64
-	LineItemCount     int
-	Eligible          bool
-	BlockerReason     string
 }
 
 // periodWindow holds the computed start/end for one billing period.
@@ -96,20 +77,35 @@ func NewListRevenueRunCandidatesUseCase(
 }
 
 // Execute returns the list of un-invoiced period candidates for the scope.
-// When scope.Limit == 0 the full result set is returned (no cursor used).
+// When req.Limit == 0 the full result set is returned (no cursor used).
+//
+// Adaptations previously performed by the consumer wrapper now live inside
+// Execute: nil-slice normalization (Data is always a non-nil slice) and the
+// context-bound workspace-id fallback.
 func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	ctx context.Context,
-	scope RevenueRunScope,
-) ([]RevenueRunCandidate, string, error) {
+	req *revenuerunpb.ListRevenueRunCandidatesRequest,
+) (*revenuerunpb.ListRevenueRunCandidatesResponse, error) {
 	// 1. Auth checks
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityRevenue, ports.ActionCreate); err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entitySubscription, ports.ActionRead); err != nil {
-		return nil, "", err
+		return nil, err
 	}
+
+	// Translate the proto request to the internal Go-struct scope used by
+	// helper methods. Cursor/Limit are read directly off req below.
+	protoScope := req.GetScope()
+	scope := RevenueRunScope{
+		WorkspaceID:    protoScope.GetWorkspaceId(),
+		ClientID:       protoScope.GetClientId(),
+		SubscriptionID: protoScope.GetSubscriptionId(),
+		AsOfDate:       protoScope.GetAsOfDate(),
+	}
+	limit := req.GetLimit()
 
 	// Fall back to context-bound workspace ID when the caller didn't set one.
 	// Why: view-layer scopes built in centymo/entydad drawers don't always
@@ -132,7 +128,7 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	}
 	asOfTime, err := time.ParseInLocation("2006-01-02", asOfDate, loc)
 	if err != nil {
-		return nil, "", errors.New(contextutil.GetTranslatedMessageWithContext(
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.TranslationService,
 			"revenue.validation.invalid_as_of_date",
 			"as_of_date must be YYYY-MM-DD [DEFAULT]",
@@ -142,14 +138,15 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	// 4. List active subscriptions filtered by scope
 	subs, err := uc.listSubscriptions(ctx, scope)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	// 4. Build existing period marker set for all relevant subscriptions
 	existingMarkers := uc.buildExistingMarkerSet(ctx, subs)
 
-	// 5. Enumerate periods per subscription
-	var candidates []RevenueRunCandidate
+	// 5. Enumerate periods per subscription. Initialised non-nil so the
+	// response's Data field is never nil — consumers do not need to defend.
+	candidates := []*revenuerunpb.RevenueRunCandidate{}
 	for _, sub := range subs {
 		// Resolve price plan for this subscription
 		plan, planErr := uc.readPricePlan(ctx, sub.GetPricePlanId())
@@ -179,26 +176,33 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	}
 
 	// 6. Cursor pagination (used by Surface B)
-	if scope.Limit > 0 && len(candidates) > int(scope.Limit) {
-		nextCursor := fmt.Sprintf("%d", scope.Limit)
-		return candidates[:scope.Limit], nextCursor, nil
+	if limit > 0 && len(candidates) > int(limit) {
+		nextCursor := fmt.Sprintf("%d", limit)
+		return &revenuerunpb.ListRevenueRunCandidatesResponse{
+			Data:       candidates[:limit],
+			Success:    true,
+			NextCursor: &nextCursor,
+		}, nil
 	}
 
-	return candidates, "", nil
+	return &revenuerunpb.ListRevenueRunCandidatesResponse{
+		Data:    candidates,
+		Success: true,
+	}, nil
 }
 
-// buildCandidate performs a dry-run and assembles a RevenueRunCandidate.
+// buildCandidate performs a dry-run and assembles a proto RevenueRunCandidate.
 func (uc *ListRevenueRunCandidatesUseCase) buildCandidate(
 	ctx context.Context,
 	sub *subscriptionpb.Subscription,
 	plan *priceplanpb.PricePlan,
 	w periodWindow,
 	marker string,
-) RevenueRunCandidate {
-	candidate := RevenueRunCandidate{
-		SubscriptionID:    sub.GetId(),
+) *revenuerunpb.RevenueRunCandidate {
+	candidate := &revenuerunpb.RevenueRunCandidate{
+		SubscriptionId:    sub.GetId(),
 		SubscriptionName:  sub.GetName(),
-		ClientID:          sub.GetClientId(),
+		ClientId:          sub.GetClientId(),
 		PlanName:          plan.GetName(),
 		BillingCycleLabel: billingCycleLabel(plan),
 		Currency:          plan.GetBillingCurrency(),
@@ -235,7 +239,7 @@ func (uc *ListRevenueRunCandidatesUseCase) buildCandidate(
 		totalAmount += l.GetTotalPrice()
 	}
 	candidate.Amount = totalAmount
-	candidate.LineItemCount = len(resp.GetPreviewLines())
+	candidate.LineItemCount = int32(len(resp.GetPreviewLines()))
 	candidate.Eligible = true
 	return candidate
 }

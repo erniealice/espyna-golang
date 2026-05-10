@@ -3,6 +3,8 @@ package subscription
 import (
 	"context"
 	"fmt"
+
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // MaterializeJobsForSubscriptionInstantiator adapts
@@ -36,7 +38,7 @@ func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlan(
 	if subscriptionID == "" {
 		return fmt.Errorf("instantiate_jobs: subscription_id required")
 	}
-	_, err := a.UseCase.Execute(ctx, MaterializeJobsForSubscriptionRequest{
+	_, err := a.UseCase.Execute(ctx, &subscriptionpb.MaterializeJobsForSubscriptionRequest{
 		SubscriptionId: subscriptionID,
 		SpawnJobs:      spawnJobs,
 	})

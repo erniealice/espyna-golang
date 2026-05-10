@@ -29,6 +29,23 @@ type DatabaseProvider interface {
 	IsEnabled() bool
 }
 
+// PoolSizer is an optional capability for DatabaseProviders that maintain a
+// bounded connection pool. Concurrency-sensitive callers (batch generators,
+// fanout workers) type-assert their provider to this interface to clamp their
+// parallelism against the available pool budget rather than picking an
+// arbitrary fanout that could starve the pool.
+//
+// Providers without a meaningful pool concept (e.g., HTTP/gRPC clients like
+// Firestore) simply do not implement it; callers should fall back to a
+// conservative default when the assertion fails.
+type PoolSizer interface {
+	// MaxConns returns the configured maximum number of simultaneously open
+	// connections in this provider's pool. Implementations should return the
+	// effective value applied to the driver (e.g., *sql.DB.SetMaxOpenConns),
+	// not the raw env value.
+	MaxConns() int
+}
+
 // RepositoryProvider defines the simplified contract for data source providers
 // This interface enables direct repository creation from database providers.
 type RepositoryProvider interface {

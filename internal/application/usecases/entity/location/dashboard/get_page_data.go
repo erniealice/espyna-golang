@@ -9,20 +9,24 @@
 // surfaced here as the LocationDashboardRepository / LocationAreaDashboardRepository
 // interfaces. The container assembles these by type-asserting the postgres
 // repositories into these interfaces.
+//
+// Phase 0i: Execute takes/returns proto types (GetLocationDashboardRequest /
+// GetLocationDashboardResponse). The old Go-struct Request/Response/LocationStats
+// are deleted — the proto-generated types replace them.
 package dashboard
 
 import (
 	"context"
 	"errors"
-	"time"
 
-	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
+	locationpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
+	dashboardpb  "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location/dashboard"
 )
 
 // LocationAreaCount is one row of the "top areas by location count" widget.
-//
-// Mirrors the postgres adapter's LocationAreaCount struct so view-layer
-// projection does not depend on the contrib/postgres package.
+// Kept as a Go-only type because it is an output of LocationAreaDashboardRepository
+// (the postgres adapter returns this shape). The proto message LocationAreaCount
+// in dashboardpb is assembled from it during response translation.
 type LocationAreaCount struct {
 	LocationAreaID   string
 	LocationAreaName string
@@ -45,31 +49,6 @@ type LocationAreaDashboardRepository interface {
 	CountByLocation(ctx context.Context, workspaceID string, limit int32) ([]LocationAreaCount, error)
 }
 
-// GetLocationDashboardPageDataRequest is the workspace-scoped input for the
-// location dashboard use case.
-type GetLocationDashboardPageDataRequest struct {
-	WorkspaceID string
-	Now         time.Time
-}
-
-// LocationStats are the four stat cards shown at the top of the location
-// dashboard: Total / Active / Regions / Areas Count.
-type LocationStats struct {
-	TotalLocations  int64
-	ActiveLocations int64
-	RegionsCount    int64
-	AreasCount      int64
-}
-
-// GetLocationDashboardPageDataResponse is the projected aggregate set the
-// view layer renders into the pyeza DashboardData.
-type GetLocationDashboardPageDataResponse struct {
-	Stats             LocationStats
-	LocationsByRegion map[string]int64
-	TopAreas          []LocationAreaCount
-	RecentLocations   []*locationpb.Location
-}
-
 // GetLocationDashboardPageDataUseCase composes the location and location_area
 // aggregate methods into a single page-data response.
 type GetLocationDashboardPageDataUseCase struct {
@@ -89,7 +68,7 @@ func NewGetLocationDashboardPageDataUseCase(
 	}
 }
 
-// Execute fans out the four aggregate queries and assembles the response.
+// Execute fans out the four aggregate queries and assembles the proto response.
 //
 // Steps mirror the standard 5-step shape:
 //  1. permission — authorization is enforced at the route level (RBAC
@@ -103,18 +82,22 @@ func NewGetLocationDashboardPageDataUseCase(
 //  5. response assembly.
 func (uc *GetLocationDashboardPageDataUseCase) Execute(
 	ctx context.Context,
-	req *GetLocationDashboardPageDataRequest,
-) (*GetLocationDashboardPageDataResponse, error) {
+	req *dashboardpb.GetLocationDashboardRequest,
+) (*dashboardpb.GetLocationDashboardResponse, error) {
 	// 2. Input validation
 	if req == nil {
 		return nil, errors.New("location dashboard: request is required")
 	}
 
-	resp := &GetLocationDashboardPageDataResponse{}
+	workspaceID := req.GetWorkspaceId()
+	resp := &dashboardpb.GetLocationDashboardResponse{
+		Success: true,
+		Stats:   &dashboardpb.LocationStats{},
+	}
 
 	// 4a. Status counts → drive Total / Active stat cards.
 	if uc.location != nil {
-		statuses, err := uc.location.CountByStatus(ctx, req.WorkspaceID)
+		statuses, err := uc.location.CountByStatus(ctx, workspaceID)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +107,7 @@ func (uc *GetLocationDashboardPageDataUseCase) Execute(
 
 	// 4b. Region (area) breakdown → drives the bar chart and Regions stat.
 	if uc.location != nil {
-		byRegion, err := uc.location.CountByRegion(ctx, req.WorkspaceID)
+		byRegion, err := uc.location.CountByRegion(ctx, workspaceID)
 		if err != nil {
 			return nil, err
 		}
@@ -134,17 +117,23 @@ func (uc *GetLocationDashboardPageDataUseCase) Execute(
 
 	// 4c. Top areas → drives the table widget and Areas Count stat.
 	if uc.area != nil {
-		top, err := uc.area.CountByLocation(ctx, req.WorkspaceID, 5)
+		top, err := uc.area.CountByLocation(ctx, workspaceID, 5)
 		if err != nil {
 			return nil, err
 		}
-		resp.TopAreas = top
 		resp.Stats.AreasCount = int64(len(top))
+		for _, a := range top {
+			resp.TopAreas = append(resp.TopAreas, &dashboardpb.LocationAreaCount{
+				LocationAreaId:   a.LocationAreaID,
+				LocationAreaName: a.LocationAreaName,
+				LocationCount:    a.LocationCount,
+			})
+		}
 	}
 
 	// 4d. Recent additions → drives the activity-list widget.
 	if uc.location != nil {
-		recent, err := uc.location.RecentlyAdded(ctx, req.WorkspaceID, 5)
+		recent, err := uc.location.RecentlyAdded(ctx, workspaceID, 5)
 		if err != nil {
 			return nil, err
 		}

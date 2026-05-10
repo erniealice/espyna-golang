@@ -320,7 +320,7 @@ func TestMaterializeJobs_Case1_RootOnlyNoRelations(t *testing.T) {
 			"p1": {makeTask("t1", "p1", "Survey", 1), makeTask("t2", "p1", "Sketch", 2)},
 		},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestMaterializeJobs_Case2_OneChildRelation(t *testing.T) {
 			makeRelation(rootID, childID, 1),
 		},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -369,12 +369,12 @@ func TestMaterializeJobs_Case2_OneChildRelation(t *testing.T) {
 
 func TestMaterializeJobs_Case3_PlanJobTemplateIdNull(t *testing.T) {
 	f := newFixture(t, fixtureOpts{planJobTemplateID: ""})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.SkippedReason != SkipReasonNoTemplateFound {
-		t.Errorf("want %q, got %q", SkipReasonNoTemplateFound, resp.SkippedReason)
+	if resp.GetSkippedReason() != SkipReasonNoTemplateFound {
+		t.Errorf("want %q, got %q", SkipReasonNoTemplateFound, resp.GetSkippedReason())
 	}
 	if len(resp.SpawnedJobs) != 0 {
 		t.Errorf("want 0 jobs, got %d", len(resp.SpawnedJobs))
@@ -396,7 +396,7 @@ func TestMaterializeJobs_Case4_TwoChildrenOrderedBySequence(t *testing.T) {
 			makeRelation(rootID, c1, 1),
 		},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -419,7 +419,7 @@ func TestMaterializeJobs_Case5_MilestoneTriggersBillingEvents(t *testing.T) {
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "M", true)},
 		withMBE:           true,
 	})
-	_, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	_, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -436,7 +436,7 @@ func TestMaterializeJobs_Case6_RecurringNoBillingEvents(t *testing.T) {
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "R", true)},
 		withMBE:           true,
 	})
-	_, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	_, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -447,12 +447,12 @@ func TestMaterializeJobs_Case6_RecurringNoBillingEvents(t *testing.T) {
 
 func TestMaterializeJobs_Case7_SpawnJobsFalseOptOut(t *testing.T) {
 	f := newFixture(t, fixtureOpts{planJobTemplateID: "tpl-x"})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: false})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: false})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if resp.SkippedReason != SkipReasonOperatorOptOut {
-		t.Errorf("want %q, got %q", SkipReasonOperatorOptOut, resp.SkippedReason)
+	if resp.GetSkippedReason() != SkipReasonOperatorOptOut {
+		t.Errorf("want %q, got %q", SkipReasonOperatorOptOut, resp.GetSkippedReason())
 	}
 }
 
@@ -465,7 +465,7 @@ func TestMaterializeJobs_Case8_TemplateRevisionRecorded(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: tpl},
 	})
-	resp, _ := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	resp, _ := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if len(resp.SpawnedJobs) != 1 {
 		t.Fatalf("want 1 job")
 	}
@@ -485,7 +485,7 @@ func TestMaterializeJobs_Case9_ChildJobFailRollbackPath(t *testing.T) {
 		relations:       []*jobtemplaterelationpb.JobTemplateRelation{makeRelation(rootID, childID, 1)},
 		failOnNthCreate: 2, // root succeeds (idx 0 → len becomes 1), child fails (idx 1 → len already 1, hits failOnIdx 2)
 	})
-	_, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	_, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err == nil {
 		t.Fatalf("expected error from child Job spawn failure")
 	}
@@ -501,7 +501,7 @@ func TestMaterializeJobs_Case10_InactiveChildTemplate(t *testing.T) {
 		},
 		relations: []*jobtemplaterelationpb.JobTemplateRelation{makeRelation(rootID, childID, 1)},
 	})
-	_, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	_, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err == nil {
 		t.Fatalf("expected error from inactive child template")
 	}
@@ -514,7 +514,7 @@ func TestMaterializeJobs_Case11_TemplateZeroPhases(t *testing.T) {
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Empty", true)},
 		// no phases, no tasks
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected: %v", err)
 	}
@@ -536,7 +536,7 @@ func TestMaterializeJobs_Case12_PhaseZeroTasks(t *testing.T) {
 		},
 		// no tasks
 	})
-	_, _ = f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	_, _ = f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if got := len(f.phs.created); got != 1 {
 		t.Errorf("want 1 phase, got %d", got)
 	}
@@ -557,7 +557,7 @@ func TestMaterializeJobs_Case13_PredecessorPhaseRemap(t *testing.T) {
 			},
 		},
 	})
-	_, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	_, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if err != nil {
 		t.Fatalf("unexpected: %v", err)
 	}
@@ -584,7 +584,7 @@ func TestMaterializeJobs_OriginFieldsSet(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Root", true)},
 	})
-	resp, _ := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	resp, _ := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
 	if len(resp.SpawnedJobs) != 1 {
 		t.Fatalf("want 1 job")
 	}

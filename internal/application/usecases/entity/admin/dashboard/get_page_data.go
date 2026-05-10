@@ -15,6 +15,10 @@
 // added directly to the postgres adapters with no proto/esqyma changes,
 // and surfaced here as Go interfaces the container assembles via type
 // assertion.
+//
+// Phase 0i: Execute takes/returns proto types (GetAdminDashboardRequest /
+// GetAdminDashboardResponse). The old Go-struct Request/Response/AdminStats/
+// RolePermissionCount are deleted — proto-generated types replace them.
 package dashboard
 
 import (
@@ -23,6 +27,7 @@ import (
 	"time"
 
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
+	dashboardpb         "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin/dashboard"
 )
 
 // PermissionDashboardRepository is satisfied by PostgresPermissionRepository.
@@ -31,7 +36,8 @@ type PermissionDashboardRepository interface {
 }
 
 // RolePermissionCount is one row of the "roles by permission count"
-// table widget. Mirrors the postgres adapter's row type.
+// table widget. Kept as a Go-only type because it is an output of
+// RoleDashboardRepository (the postgres adapter returns this shape).
 type RolePermissionCount struct {
 	RoleID          string
 	RoleName        string
@@ -57,31 +63,6 @@ type WorkspaceUserRoleDashboardRepository interface {
 	CountSinceDays(ctx context.Context, workspaceID string, days int32) (int64, error)
 }
 
-// GetAdminDashboardPageDataRequest is the input for the admin dashboard
-// use case.
-type GetAdminDashboardPageDataRequest struct {
-	WorkspaceID string
-	Now         time.Time
-}
-
-// AdminStats are the four stat cards: Workspace Users / Roles / Permissions
-// / Recent Role Changes (7d).
-type AdminStats struct {
-	WorkspaceUsers     int64
-	Roles              int64
-	Permissions        int64
-	RecentRoleChanges7d int64
-}
-
-// GetAdminDashboardPageDataResponse is the projected aggregate set the view
-// layer renders into the pyeza DashboardData.
-type GetAdminDashboardPageDataResponse struct {
-	Stats              AdminStats
-	UsersPerRole       map[string]int64
-	TopRolesByPerms    []RolePermissionCount
-	RecentAssignments  []*workspaceuserrolepb.WorkspaceUserRole
-}
-
 // GetAdminDashboardPageDataUseCase composes the four entity aggregates.
 type GetAdminDashboardPageDataUseCase struct {
 	permission        PermissionDashboardRepository
@@ -105,26 +86,38 @@ func NewGetAdminDashboardPageDataUseCase(
 	}
 }
 
-// Execute fans out the aggregate queries and assembles the response.
+// Execute fans out the aggregate queries and assembles the proto response.
 func (uc *GetAdminDashboardPageDataUseCase) Execute(
 	ctx context.Context,
-	req *GetAdminDashboardPageDataRequest,
-) (*GetAdminDashboardPageDataResponse, error) {
+	req *dashboardpb.GetAdminDashboardRequest,
+) (*dashboardpb.GetAdminDashboardResponse, error) {
 	if req == nil {
 		return nil, errors.New("admin dashboard: request is required")
 	}
 
-	resp := &GetAdminDashboardPageDataResponse{}
+	workspaceID := req.GetWorkspaceId()
+	// now is used for time-relative stats (e.g. 7-day activity counts).
+	// The proto carries now_millis; zero means use server time.
+	now := time.Now()
+	if req.GetNowMillis() != 0 {
+		now = time.UnixMilli(req.GetNowMillis())
+	}
+	_ = now // currently used only for CountSinceDays which takes a days int32
+
+	resp := &dashboardpb.GetAdminDashboardResponse{
+		Success: true,
+		Stats:   &dashboardpb.AdminStats{},
+	}
 
 	// 4a. Workspace user count.
 	if uc.workspaceUser != nil {
-		n, err := uc.workspaceUser.CountByWorkspace(ctx, req.WorkspaceID)
+		n, err := uc.workspaceUser.CountByWorkspace(ctx, workspaceID)
 		if err != nil {
 			return nil, err
 		}
 		resp.Stats.WorkspaceUsers = n
 
-		byRole, err := uc.workspaceUser.UsersPerRole(ctx, req.WorkspaceID)
+		byRole, err := uc.workspaceUser.UsersPerRole(ctx, workspaceID)
 		if err != nil {
 			return nil, err
 		}
@@ -133,17 +126,23 @@ func (uc *GetAdminDashboardPageDataUseCase) Execute(
 
 	// 4b. Role count + top-by-permission-count.
 	if uc.role != nil {
-		n, err := uc.role.Count(ctx, req.WorkspaceID)
+		n, err := uc.role.Count(ctx, workspaceID)
 		if err != nil {
 			return nil, err
 		}
 		resp.Stats.Roles = n
 
-		top, err := uc.role.TopByPermissionCount(ctx, req.WorkspaceID, 5)
+		top, err := uc.role.TopByPermissionCount(ctx, workspaceID, 5)
 		if err != nil {
 			return nil, err
 		}
-		resp.TopRolesByPerms = top
+		for _, r := range top {
+			resp.TopRolesByPerms = append(resp.TopRolesByPerms, &dashboardpb.RolePermissionCount{
+				RoleId:          r.RoleID,
+				RoleName:        r.RoleName,
+				PermissionCount: r.PermissionCount,
+			})
+		}
 	}
 
 	// 4c. Permission count — system-level.
@@ -157,17 +156,17 @@ func (uc *GetAdminDashboardPageDataUseCase) Execute(
 
 	// 4d. Recent assignments + 7d count.
 	if uc.workspaceUserRole != nil {
-		recent, err := uc.workspaceUserRole.RecentAssignments(ctx, req.WorkspaceID, 5)
+		recent, err := uc.workspaceUserRole.RecentAssignments(ctx, workspaceID, 5)
 		if err != nil {
 			return nil, err
 		}
 		resp.RecentAssignments = recent
 
-		n, err := uc.workspaceUserRole.CountSinceDays(ctx, req.WorkspaceID, 7)
+		n, err := uc.workspaceUserRole.CountSinceDays(ctx, workspaceID, 7)
 		if err != nil {
 			return nil, err
 		}
-		resp.Stats.RecentRoleChanges7d = n
+		resp.Stats.RecentRoleChanges7D = n
 	}
 
 	return resp, nil

@@ -277,7 +277,7 @@ func TestMaterializeInstanceJobs_Case1_OneCycleSingleVisit(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Cleaning Visit", true)},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -323,7 +323,7 @@ func TestMaterializeInstanceJobs_Case2_MultiVisitCycle(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Cleaning Visit", true)},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -379,7 +379,7 @@ func TestMaterializeInstanceJobs_Case3_IdempotencySamePeriod(t *testing.T) {
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Cleaning Visit", true)},
 		preExistingJobs:   preExisting,
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   subID,
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -413,7 +413,7 @@ func TestMaterializeInstanceJobs_Case4_OnceAtStartFiresOnFirstCall(t *testing.T)
 			makeOnceAtStartRelation(rootID, onbID, 1),
 		},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -448,7 +448,7 @@ func TestMaterializeInstanceJobs_Case5_SubTemplateRelationIgnored(t *testing.T) 
 			makeRelation(rootID, subTplID, 1), // SUB_TEMPLATE — default relation_type
 		},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -484,7 +484,7 @@ func TestMaterializeInstanceJobs_Case6_MixedRelationTypes(t *testing.T) {
 			makeRelation(rootID, subTplID, 2), // SUB_TEMPLATE — ignored here
 		},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -505,7 +505,7 @@ func TestMaterializeInstanceJobs_Case7_NonCyclicSkip(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Setup", true)},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -546,7 +546,7 @@ func TestMaterializeInstanceJobs_Case8_CyclePeriodBoundaries(t *testing.T) {
 				planJobTemplateID: rootID,
 				templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "X", true)},
 			})
-			resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+			resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 				SubscriptionId:   "sub-1",
 				CyclePeriodStart: tc.start,
 			})
@@ -575,7 +575,7 @@ func TestMaterializeInstanceJobs_Case9_BackfillHistoricalCycles(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Cleaning Visit", true)},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId: "sub-1",
 		Backfill:       true,
 	})
@@ -619,7 +619,7 @@ func TestMaterializeInstanceJobs_Case10_CycleIndexMonotone(t *testing.T) {
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "X", true)},
 		preExistingJobs:   preExisting,
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   subID,
 		CyclePeriodStart: "2026-06-01",
 	})
@@ -642,7 +642,7 @@ func TestMaterializeInstanceJobs_Case11_ParentJobIdSet(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "X", true)},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -670,7 +670,7 @@ func TestMaterializeInstanceJobs_Case12_SubscriptionMustExist(t *testing.T) {
 		billingKind:       priceplanpb.BillingKind_BILLING_KIND_RECURRING,
 		billingCycleValue: 1, billingCycleUnit: "month",
 	})
-	_, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	_, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-does-not-exist",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -722,7 +722,7 @@ func TestMaterializeInstanceJobs_Case13_SubscriptionMustBeActive(t *testing.T) {
 			IDService:            ports.NewNoOpIDService(),
 		},
 	)
-	_, err := uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	_, err := uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -745,7 +745,7 @@ func TestMaterializeInstanceJobs_Case14_PeriodFormatISO8601(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "X", true)},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		CyclePeriodStart: "2026-05-01",
 	})
@@ -783,7 +783,7 @@ func TestMaterializeInstanceJobs_Case15_BackfillCap(t *testing.T) {
 		planJobTemplateID: rootID,
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "X", true)},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId: "sub-1",
 		Backfill:       true,
 	})
@@ -815,7 +815,7 @@ func TestMaterializeJobs_C1_CyclicSpawnsEngagementShellOnly(t *testing.T) {
 	// Override the PricePlan repo to set BillingCycleValue (newFixture builds
 	// a PricePlan without cycle metadata; cyclic detection needs cycle_value
 	// or RECURRING kind).
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{
 		SubscriptionId: "sub-1",
 		SpawnJobs:      true,
 	})
@@ -858,7 +858,7 @@ func TestMaterializeJobs_C2_NonCyclicUnaffected(t *testing.T) {
 		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Tower Audit", true)},
 		phasesByTpl:       map[string][]*jobtemplatephasepb.JobTemplatePhase{rootID: tplPhases},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{
 		SubscriptionId: "sub-1",
 		SpawnJobs:      true,
 	})
@@ -893,7 +893,7 @@ func TestMaterializeJobs_C3_CyclicWithOnceAtStart(t *testing.T) {
 			makeOnceAtStartRelation(rootID, onbID, 1),
 		},
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeJobsForSubscriptionRequest{
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{
 		SubscriptionId: "sub-1",
 		SpawnJobs:      true,
 	})
@@ -995,7 +995,7 @@ func TestMaterializeInstanceJobs_AdHoc1_PoolFreshSpawnsOneVisit(t *testing.T) {
 		entitledOccurrences: 5,
 		billingAmount:       25_000_00,
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		UsageRequestDate: "2026-09-12",
 	})
@@ -1034,7 +1034,7 @@ func TestMaterializeInstanceJobs_AdHoc2_PerCallSpawnsBillingEvent(t *testing.T) 
 		amountBasis:   priceplanpb.AmountBasis_AMOUNT_BASIS_PER_OCCURRENCE,
 		billingAmount: 2_500_00,
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		UsageRequestDate: "2026-09-12",
 	})
@@ -1081,7 +1081,7 @@ func TestMaterializeInstanceJobs_AdHoc3_PoolEntitlementExhausted(t *testing.T) {
 		entitledOccurrences: 5,
 		preExistingJobs:     pre,
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		UsageRequestDate: "2026-09-12",
 	})
@@ -1111,7 +1111,7 @@ func TestMaterializeInstanceJobs_AdHoc4_PoolUsesOverrideOverTemplate(t *testing.
 		entitledOccurrencesOverride: 10, // per-subscription extension
 		preExistingJobs:             pre,
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		UsageRequestDate: "2026-09-12",
 	})
@@ -1138,7 +1138,7 @@ func TestMaterializeInstanceJobs_AdHoc5_NoTemplateSkips(t *testing.T) {
 		entitledOccurrences: 5,
 		// planJobTemplateID intentionally empty — fixture leaves Plan.job_template_id nil.
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		UsageRequestDate: "2026-09-12",
 	})
@@ -1165,7 +1165,7 @@ func TestMaterializeInstanceJobs_AdHoc6_OrdinalIncrementsSameDay(t *testing.T) {
 	})
 	ctx := context.Background()
 	for i := 1; i <= 3; i++ {
-		resp, err := f.uc.Execute(ctx, MaterializeInstanceJobsForSubscriptionRequest{
+		resp, err := f.uc.executeInternal(ctx, materializeInstanceJobsInternalRequest{
 			SubscriptionId:   "sub-1",
 			UsageRequestDate: "2026-09-12",
 		})
@@ -1206,7 +1206,7 @@ func TestMaterializeInstanceJobs_AdHoc7_PerCallNoBillingEventRepoErrors(t *testi
 		billingAmount:        2_500_00,
 		omitBillingEventRepo: true,
 	})
-	_, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	_, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId:   "sub-1",
 		UsageRequestDate: "2026-09-12",
 	})
@@ -1228,7 +1228,7 @@ func TestMaterializeInstanceJobs_AdHoc8_InvalidBasisSkips(t *testing.T) {
 		billingKind: priceplanpb.BillingKind_BILLING_KIND_AD_HOC,
 		amountBasis: priceplanpb.AmountBasis_AMOUNT_BASIS_PER_CYCLE, // illegal
 	})
-	resp, err := f.uc.Execute(context.Background(), MaterializeInstanceJobsForSubscriptionRequest{
+	resp, err := f.uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{
 		SubscriptionId: "sub-1",
 	})
 	if err != nil {

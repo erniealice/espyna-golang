@@ -87,14 +87,6 @@ func NewGenerateDepreciationRunUseCase(
 	}
 }
 
-// DepreciationRunResult is returned from Execute.
-type DepreciationRunResult struct {
-	Run          *deprunpb.DepreciationRun
-	CreatedCount int32
-	SkippedCount int32
-	ErroredCount int32
-}
-
 // runningBalance tracks the in-memory state that mutates across an asset's
 // period loop. opening_book_value / accumulated_depreciation / closing_book_value
 // MUST come from this struct, never from the original asset proto (codex C1).
@@ -107,7 +99,7 @@ type runningBalance struct {
 func (uc *GenerateDepreciationRunUseCase) Execute(
 	ctx context.Context,
 	req *deprunpb.GenerateDepreciationRunRequest,
-) (*DepreciationRunResult, error) {
+) (*deprunpb.GenerateDepreciationRunResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityAssetDepreciationRun, ports.ActionCreate); err != nil {
 		return nil, err
@@ -266,11 +258,12 @@ func (uc *GenerateDepreciationRunUseCase) Execute(
 		Data: run,
 	})
 
-	return &DepreciationRunResult{
+	return &deprunpb.GenerateDepreciationRunResponse{
 		Run:          run,
 		CreatedCount: createdCount,
 		SkippedCount: skippedCount,
 		ErroredCount: erroredCount,
+		Success:      true,
 	}, nil
 }
 

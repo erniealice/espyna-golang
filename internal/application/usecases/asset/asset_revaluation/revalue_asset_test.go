@@ -317,8 +317,8 @@ func TestRevalueAsset_RejectsCostModelAsset(t *testing.T) {
 
 	uc := newRevalueUseCaseWithRepos(assetRepo, txRepo, revRepo)
 
-	res, err := uc.Execute(ctxForWorkspace("ws-1"), revaluationuc.RevalueAssetRequest{
-		AssetID:      "asset-cost-1",
+	res, err := uc.Execute(ctxForWorkspace("ws-1"), &revaluation_pb.RevalueAssetUseCaseRequest{
+		AssetId:      "asset-cost-1",
 		NewFairValue: 150_000,
 	})
 	if err == nil {
@@ -374,15 +374,15 @@ func TestRevalueAsset_UpThenDown(t *testing.T) {
 	ctx := ctxForWorkspace("ws-1")
 
 	// Step 1: up to 300_000.
-	if _, err := uc.Execute(ctx, revaluationuc.RevalueAssetRequest{
-		AssetID: "asset-up-down", NewFairValue: 300_000,
+	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+		AssetId: "asset-up-down", NewFairValue: 300_000,
 	}); err != nil {
 		t.Fatalf("step1 (up) error: %v", err)
 	}
 
 	// Step 2: down to 50_000 (book value now 300_000, so down by 250_000).
-	if _, err := uc.Execute(ctx, revaluationuc.RevalueAssetRequest{
-		AssetID: "asset-up-down", NewFairValue: 50_000,
+	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+		AssetId: "asset-up-down", NewFairValue: 50_000,
 	}); err != nil {
 		t.Fatalf("step2 (down) error: %v", err)
 	}
@@ -430,13 +430,13 @@ func TestRevalueAsset_DownThenUp(t *testing.T) {
 	uc := newRevalueUseCaseWithRepos(assetRepo, txRepo, revRepo)
 	ctx := ctxForWorkspace("ws-1")
 
-	if _, err := uc.Execute(ctx, revaluationuc.RevalueAssetRequest{
-		AssetID: "asset-down-up", NewFairValue: 100_000,
+	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+		AssetId: "asset-down-up", NewFairValue: 100_000,
 	}); err != nil {
 		t.Fatalf("step1 (down) error: %v", err)
 	}
-	if _, err := uc.Execute(ctx, revaluationuc.RevalueAssetRequest{
-		AssetID: "asset-down-up", NewFairValue: 350_000,
+	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+		AssetId: "asset-down-up", NewFairValue: 350_000,
 	}); err != nil {
 		t.Fatalf("step2 (up) error: %v", err)
 	}
@@ -482,8 +482,8 @@ func TestRevalueAsset_UpDownUp(t *testing.T) {
 	ctx := ctxForWorkspace("ws-1")
 
 	for i, fv := range []int64{300_000, 250_000, 400_000} {
-		if _, err := uc.Execute(ctx, revaluationuc.RevalueAssetRequest{
-			AssetID: "asset-udu", NewFairValue: fv,
+		if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+			AssetId: "asset-udu", NewFairValue: fv,
 		}); err != nil {
 			t.Fatalf("step%d error: %v", i+1, err)
 		}
@@ -535,8 +535,8 @@ func TestRevalueAsset_UpDownPastSurplus_Up(t *testing.T) {
 	ctx := ctxForWorkspace("ws-1")
 
 	for i, fv := range []int64{200_000, 50_000, 200_000} {
-		if _, err := uc.Execute(ctx, revaluationuc.RevalueAssetRequest{
-			AssetID: "asset-udu-past", NewFairValue: fv,
+		if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+			AssetId: "asset-udu-past", NewFairValue: fv,
 		}); err != nil {
 			t.Fatalf("step%d error: %v", i+1, err)
 		}
@@ -603,8 +603,8 @@ func TestRevalueAsset_RejectsEmptyWorkspaceInContext(t *testing.T) {
 	uc := newRevalueUseCaseWithRepos(assetRepo, txRepo, revRepo)
 
 	// Deliberately omit workspace from context (no WithWorkspaceID call).
-	res, err := uc.Execute(context.Background(), revaluationuc.RevalueAssetRequest{
-		AssetID:      "asset-ws-test",
+	res, err := uc.Execute(context.Background(), &revaluation_pb.RevalueAssetUseCaseRequest{
+		AssetId:      "asset-ws-test",
 		NewFairValue: 150_000,
 	})
 	if err == nil {

@@ -4,6 +4,10 @@
 // Wiring deferred: the orchestrator must construct
 // *GetLoanDashboardPageDataUseCase from the postgres treasury adapters
 // and add it to TreasuryUseCases (see usecases/treasury/usecases.go).
+//
+// Phase 0i: Execute takes/returns proto types (GetLoanDashboardRequest /
+// GetLoanDashboardResponse). The old Go-struct Request/Response/LoanStats/
+// LoanSlice/TimeBucket are deleted — proto-generated types replace them.
 package dashboard
 
 import (
@@ -11,10 +15,13 @@ import (
 	"time"
 
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
+	dashboardpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/dashboard"
 )
 
 // LoanSlice mirrors treasury.LoanSlice in shape — duplicated here to avoid
 // importing the postgres adapter from the application layer (clean-arch).
+// Kept as a Go-only type because it is the output of
+// LoanDashboardQueries.TopByOutstanding.
 type LoanSlice struct {
 	ID               string
 	LoanNumber       string
@@ -25,6 +32,8 @@ type LoanSlice struct {
 }
 
 // TimeBucket mirrors treasury.TimeBucket.
+// Kept as a Go-only type because it is the output of
+// LoanDashboardQueries.OutstandingPrincipalByMonth.
 type TimeBucket struct {
 	Period time.Time
 	Value  int64
@@ -47,31 +56,6 @@ type LoanPaymentDashboardQueries interface {
 	RecentByLoan(ctx context.Context, workspaceID string, limit int32) ([]*loanpaymentpb.LoanPayment, error)
 }
 
-// LoanStats holds the four stat-card values for the dashboard. Centavos.
-type LoanStats struct {
-	TotalOutstanding int64
-	InterestYTD      int64
-	PaymentsDue30    int64 // sum (in centavos) of remaining balance for loans maturing in 30d
-	DefaultedCount   int64
-	ActiveCount      int64
-	CompletedCount   int64
-}
-
-// GetLoanDashboardPageDataRequest is the request shape.
-type GetLoanDashboardPageDataRequest struct {
-	WorkspaceID string
-	Now         time.Time
-}
-
-// GetLoanDashboardPageDataResponse is the projection the view layer reads.
-type GetLoanDashboardPageDataResponse struct {
-	Stats          LoanStats
-	TrendLabels    []string
-	TrendValues    []float64
-	TopLoans       []LoanSlice
-	RecentPayments []*loanpaymentpb.LoanPayment
-}
-
 // GetLoanDashboardPageDataUseCase orchestrates the loan dashboard projection.
 type GetLoanDashboardPageDataUseCase struct {
 	loans    LoanDashboardQueries
@@ -89,40 +73,56 @@ func NewGetLoanDashboardPageDataUseCase(
 	}
 }
 
-// Execute assembles the loan dashboard response. Failures degrade gracefully.
+// Execute assembles the loan dashboard proto response. Failures degrade gracefully.
 func (uc *GetLoanDashboardPageDataUseCase) Execute(
 	ctx context.Context,
-	req *GetLoanDashboardPageDataRequest,
-) (*GetLoanDashboardPageDataResponse, error) {
-	if req == nil {
-		req = &GetLoanDashboardPageDataRequest{}
+	req *dashboardpb.GetLoanDashboardRequest,
+) (*dashboardpb.GetLoanDashboardResponse, error) {
+	now := time.Now()
+	if req != nil && req.GetNowMillis() != 0 {
+		now = time.UnixMilli(req.GetNowMillis())
 	}
-	if req.Now.IsZero() {
-		req.Now = time.Now()
+
+	workspaceID := ""
+	if req != nil {
+		workspaceID = req.GetWorkspaceId()
 	}
-	resp := &GetLoanDashboardPageDataResponse{}
+
+	resp := &dashboardpb.GetLoanDashboardResponse{
+		Success: true,
+		Stats:   &dashboardpb.LoanStats{},
+	}
 
 	if uc.loans != nil {
-		if outstanding, err := uc.loans.SumOutstanding(ctx, req.WorkspaceID); err == nil {
+		if outstanding, err := uc.loans.SumOutstanding(ctx, workspaceID); err == nil {
 			resp.Stats.TotalOutstanding = outstanding
 		}
-		if interestYTD, err := uc.loans.SumInterestAccruedYTD(ctx, req.WorkspaceID, req.Now.Year()); err == nil {
-			resp.Stats.InterestYTD = interestYTD
+		if interestYTD, err := uc.loans.SumInterestAccruedYTD(ctx, workspaceID, now.Year()); err == nil {
+			resp.Stats.InterestYtd = interestYTD
 		}
-		if byStatus, err := uc.loans.CountByStatus(ctx, req.WorkspaceID); err == nil {
+		if byStatus, err := uc.loans.CountByStatus(ctx, workspaceID); err == nil {
 			resp.Stats.DefaultedCount = byStatus["DEFAULTED"]
 			resp.Stats.ActiveCount = byStatus["ACTIVE"]
 			resp.Stats.CompletedCount = byStatus["COMPLETED"]
 		}
-		if top, err := uc.loans.TopByOutstanding(ctx, req.WorkspaceID, 5); err == nil {
-			resp.TopLoans = top
+		if top, err := uc.loans.TopByOutstanding(ctx, workspaceID, 5); err == nil {
+			for _, l := range top {
+				resp.TopLoans = append(resp.TopLoans, &dashboardpb.LoanSlice{
+					Id:               l.ID,
+					LoanNumber:       l.LoanNumber,
+					LenderName:       l.LenderName,
+					RemainingBalance: l.RemainingBalance,
+					PrincipalAmount:  l.PrincipalAmount,
+					Status:           l.Status,
+				})
+			}
 		}
 
 		// 6-month outstanding-principal trend ending now.
-		from := req.Now.AddDate(0, -5, 0)
+		from := now.AddDate(0, -5, 0)
 		from = time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC)
-		to := time.Date(req.Now.Year(), req.Now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		if buckets, err := uc.loans.OutstandingPrincipalByMonth(ctx, req.WorkspaceID, from, to); err == nil {
+		to := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		if buckets, err := uc.loans.OutstandingPrincipalByMonth(ctx, workspaceID, from, to); err == nil {
 			resp.TrendLabels = make([]string, 0, len(buckets))
 			resp.TrendValues = make([]float64, 0, len(buckets))
 			for _, b := range buckets {
@@ -133,10 +133,10 @@ func (uc *GetLoanDashboardPageDataUseCase) Execute(
 	}
 
 	if uc.payments != nil {
-		if due, err := uc.payments.SumDueWithin(ctx, req.WorkspaceID, 30); err == nil {
+		if due, err := uc.payments.SumDueWithin(ctx, workspaceID, 30); err == nil {
 			resp.Stats.PaymentsDue30 = due
 		}
-		if recents, err := uc.payments.RecentByLoan(ctx, req.WorkspaceID, 5); err == nil {
+		if recents, err := uc.payments.RecentByLoan(ctx, workspaceID, 5); err == nil {
 			resp.RecentPayments = recents
 		}
 	}

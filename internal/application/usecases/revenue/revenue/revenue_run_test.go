@@ -23,6 +23,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
+	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -200,11 +201,14 @@ func TestGenerateRevenueRun_FilterTokenStubReturnsNotImplemented(t *testing.T) {
 			IDService:            ports.NewNoOpIDService(),
 		},
 	}
+	ws := "ws-1"
+	tok := "some-token"
 	_, err := uc.Execute(
 		context.Background(),
-		RevenueRunScope{WorkspaceID: "ws-1"},
-		RevenueRunSelections{FilterToken: "some-token"},
-		"user-1",
+		&revenuerunpb.GenerateRevenueRunRequest{
+			Scope:      &revenuerunpb.RevenueRunScope{WorkspaceId: &ws},
+			Selections: &revenuerunpb.RevenueRunSelections{FilterToken: &tok},
+		},
 	)
 	if err == nil {
 		t.Fatal("expected error for FilterToken, got nil")
@@ -222,11 +226,13 @@ func TestGenerateRevenueRun_EmptySelectionsReturnsError(t *testing.T) {
 			IDService:            ports.NewNoOpIDService(),
 		},
 	}
+	ws := "ws-1"
 	_, err := uc.Execute(
 		context.Background(),
-		RevenueRunScope{WorkspaceID: "ws-1"},
-		RevenueRunSelections{},
-		"user-1",
+		&revenuerunpb.GenerateRevenueRunRequest{
+			Scope:      &revenuerunpb.RevenueRunScope{WorkspaceId: &ws},
+			Selections: &revenuerunpb.RevenueRunSelections{},
+		},
 	)
 	if err == nil {
 		t.Fatal("expected error for empty selections, got nil")

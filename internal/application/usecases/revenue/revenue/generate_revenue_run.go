@@ -30,12 +30,6 @@ type RevenueRunSelections struct {
 	FilterToken  string // signed server snapshot; see v1 progress.md D9
 }
 
-// RevenueRunResult is the output of GenerateRevenueRun.
-type RevenueRunResult struct {
-	Run      *revenuerunpb.RevenueRun
-	Attempts []*revenuerunpb.RevenueRunAttempt
-}
-
 // GenerateRevenueRunRepositories groups all repository dependencies.
 type GenerateRevenueRunRepositories struct {
 	Revenue      revenuepb.RevenueDomainServiceServer
@@ -104,17 +98,48 @@ func NewGenerateRevenueRunUseCase(
 }
 
 // Execute runs the batch revenue generation process.
+//
+// Adaptations previously performed by the consumer wrapper now live inside
+// Execute: workspace-id fallback to context AND pulling the initiating
+// workspace-user id from context (was a wrapper-side parameter).
 func (uc *GenerateRevenueRunUseCase) Execute(
 	ctx context.Context,
-	scope RevenueRunScope,
-	selections RevenueRunSelections,
-	initiator string,
-) (*RevenueRunResult, error) {
+	req *revenuerunpb.GenerateRevenueRunRequest,
+) (*revenuerunpb.GenerateRevenueRunResponse, error) {
 	// Auth check
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityRevenue, ports.ActionCreate); err != nil {
 		return nil, err
 	}
+
+	// Translate the proto request to the internal Go-struct scope/selections
+	// used by helper methods (processSingleSelection, etc. were not refactored).
+	protoScope := req.GetScope()
+	scope := RevenueRunScope{
+		WorkspaceID:    protoScope.GetWorkspaceId(),
+		ClientID:       protoScope.GetClientId(),
+		SubscriptionID: protoScope.GetSubscriptionId(),
+		AsOfDate:       protoScope.GetAsOfDate(),
+	}
+	protoSels := req.GetSelections()
+	selections := RevenueRunSelections{
+		FilterToken: protoSels.GetFilterToken(),
+	}
+	if explicit := protoSels.GetExplicitList(); len(explicit) > 0 {
+		selections.ExplicitList = make([]SelectedRevenueRunCandidate, 0, len(explicit))
+		for _, e := range explicit {
+			selections.ExplicitList = append(selections.ExplicitList, SelectedRevenueRunCandidate{
+				SubscriptionID: e.GetSubscriptionId(),
+				PeriodStart:    e.GetPeriodStart(),
+				PeriodEnd:      e.GetPeriodEnd(),
+				PeriodMarker:   e.GetPeriodMarker(),
+			})
+		}
+	}
+
+	// Pull initiator from context — moved INSIDE the use case (was a wrapper-side
+	// adaptation). View packages no longer need to fetch it before calling.
+	initiator := contextutil.ExtractWorkspaceUserIDFromContext(ctx)
 
 	// Fall back to context-bound workspace ID when the caller didn't set one.
 	// Without this, the cross-tenant guard in processSingleSelection silently
@@ -259,7 +284,8 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 		Data: run,
 	})
 
-	return &RevenueRunResult{
+	return &revenuerunpb.GenerateRevenueRunResponse{
+		Success:  true,
 		Run:      run,
 		Attempts: insertedAttempts,
 	}, nil

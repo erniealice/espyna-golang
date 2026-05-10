@@ -4,6 +4,10 @@
 // Wiring deferred: the orchestrator must construct
 // *GetEquityDashboardPageDataUseCase from the postgres ledger equity_account
 // + equity_transaction adapters and add it to LedgerUseCases.
+//
+// Phase 0i: Execute takes/returns proto types (GetEquityDashboardRequest /
+// GetEquityDashboardResponse). The old Go-struct Request/Response/EquityStats/
+// EquityAccountSlice are deleted — proto-generated types replace them.
 package equity_dashboard
 
 import (
@@ -11,9 +15,12 @@ import (
 	"time"
 
 	equitytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/equity_transaction"
+	dashboardpb         "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/equity_dashboard"
 )
 
-// EquityAccountSlice mirrors ledger.EquityAccountSlice in shape.
+// EquityAccountSlice mirrors the equity_account row shape for the dashboard
+// queries. Kept as a Go-only type because it is the output of
+// EquityAccountDashboardQueries.TopContributors.
 type EquityAccountSlice struct {
 	ID          string
 	Name        string
@@ -37,28 +44,6 @@ type EquityTransactionDashboardQueries interface {
 	RecentTransactions(ctx context.Context, workspaceID string, limit int32) ([]*equitytransactionpb.EquityTransaction, error)
 }
 
-// EquityStats are the four stat values for the dashboard. Centavos.
-type EquityStats struct {
-	TotalContributed int64
-	ActiveOwners     int64
-	DistributionsYTD int64
-	NetMovementYTD   int64
-}
-
-// GetEquityDashboardPageDataRequest is the request shape.
-type GetEquityDashboardPageDataRequest struct {
-	WorkspaceID string
-	Now         time.Time
-}
-
-// GetEquityDashboardPageDataResponse is the view-layer projection.
-type GetEquityDashboardPageDataResponse struct {
-	Stats           EquityStats
-	ByTypeYTD       map[string]int64 // contribution / withdrawal / distribution / transfer
-	TopContributors []EquityAccountSlice
-	Recent          []*equitytransactionpb.EquityTransaction
-}
-
 // GetEquityDashboardPageDataUseCase orchestrates the equity dashboard.
 type GetEquityDashboardPageDataUseCase struct {
 	accounts     EquityAccountDashboardQueries
@@ -76,41 +61,55 @@ func NewGetEquityDashboardPageDataUseCase(
 	}
 }
 
-// Execute assembles the equity dashboard response. Failures degrade gracefully.
+// Execute assembles the equity dashboard proto response. Failures degrade gracefully.
 func (uc *GetEquityDashboardPageDataUseCase) Execute(
 	ctx context.Context,
-	req *GetEquityDashboardPageDataRequest,
-) (*GetEquityDashboardPageDataResponse, error) {
-	if req == nil {
-		req = &GetEquityDashboardPageDataRequest{}
+	req *dashboardpb.GetEquityDashboardRequest,
+) (*dashboardpb.GetEquityDashboardResponse, error) {
+	now := time.Now()
+	if req != nil && req.GetNowMillis() != 0 {
+		now = time.UnixMilli(req.GetNowMillis())
 	}
-	if req.Now.IsZero() {
-		req.Now = time.Now()
+
+	workspaceID := ""
+	if req != nil {
+		workspaceID = req.GetWorkspaceId()
 	}
-	resp := &GetEquityDashboardPageDataResponse{
-		ByTypeYTD: map[string]int64{},
+
+	resp := &dashboardpb.GetEquityDashboardResponse{
+		Success:   true,
+		Stats:     &dashboardpb.EquityStats{},
+		ByTypeYtd: map[string]int64{},
 	}
 
 	if uc.accounts != nil {
-		if total, err := uc.accounts.SumContributedTotal(ctx, req.WorkspaceID); err == nil {
+		if total, err := uc.accounts.SumContributedTotal(ctx, workspaceID); err == nil {
 			resp.Stats.TotalContributed = total
 		}
-		if owners, err := uc.accounts.CountActive(ctx, req.WorkspaceID); err == nil {
+		if owners, err := uc.accounts.CountActive(ctx, workspaceID); err == nil {
 			resp.Stats.ActiveOwners = owners
 		}
-		if top, err := uc.accounts.TopContributors(ctx, req.WorkspaceID, 5); err == nil {
-			resp.TopContributors = top
+		if top, err := uc.accounts.TopContributors(ctx, workspaceID, 5); err == nil {
+			for _, c := range top {
+				resp.TopContributors = append(resp.TopContributors, &dashboardpb.EquityAccountSlice{
+					Id:          c.ID,
+					Name:        c.Name,
+					OwnerName:   c.OwnerName,
+					AccountType: c.AccountType,
+					Balance:     c.Balance,
+				})
+			}
 		}
 	}
 
 	if uc.transactions != nil {
-		if byType, err := uc.transactions.SumByTypeYTD(ctx, req.WorkspaceID, req.Now.Year()); err == nil && byType != nil {
-			resp.ByTypeYTD = byType
-			resp.Stats.DistributionsYTD = byType["distribution"]
+		if byType, err := uc.transactions.SumByTypeYTD(ctx, workspaceID, now.Year()); err == nil && byType != nil {
+			resp.ByTypeYtd = byType
+			resp.Stats.DistributionsYtd = byType["distribution"]
 			// Net movement = contributions − withdrawals − distributions.
-			resp.Stats.NetMovementYTD = byType["contribution"] - byType["withdrawal"] - byType["distribution"]
+			resp.Stats.NetMovementYtd = byType["contribution"] - byType["withdrawal"] - byType["distribution"]
 		}
-		if recents, err := uc.transactions.RecentTransactions(ctx, req.WorkspaceID, 5); err == nil {
+		if recents, err := uc.transactions.RecentTransactions(ctx, workspaceID, 5); err == nil {
 			resp.Recent = recents
 		}
 	}

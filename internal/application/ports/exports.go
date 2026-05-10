@@ -22,6 +22,7 @@ import (
 // Database types
 type (
 	DatabaseProvider         = infrastructure.DatabaseProvider
+	PoolSizer                = infrastructure.PoolSizer
 	RepositoryProvider       = infrastructure.RepositoryProvider
 	RepositoryConfig         = infrastructure.RepositoryConfig
 	ConcreteRepositoryConfig = infrastructure.ConcreteRepositoryConfig

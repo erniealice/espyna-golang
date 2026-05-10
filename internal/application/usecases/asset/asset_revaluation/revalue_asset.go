@@ -40,7 +40,9 @@ type RevalueAssetServices struct {
 	IDService            ports.IDService
 }
 
-// RevalueAssetRequest is the input to the use case.
+// RevalueAssetRequest is the internal input to the use case.
+// Kept for internal helpers that still use Go-struct fields.
+// The public boundary uses *revaluation_pb.RevalueAssetUseCaseRequest.
 type RevalueAssetRequest struct {
 	AssetID         string
 	NewFairValue    int64 // centavos
@@ -49,7 +51,8 @@ type RevalueAssetRequest struct {
 	Notes           string
 }
 
-// RevalueAssetResult is the output.
+// RevalueAssetResult is the internal output.
+// Kept for internal helpers; the public boundary returns *revaluation_pb.RevalueAssetUseCaseResponse.
 type RevalueAssetResult struct {
 	Revaluation *revaluation_pb.AssetRevaluation
 	Transaction *assettxpb.AssetTransaction
@@ -101,11 +104,27 @@ func NewRevalueAssetUseCase(
 // concurrent revaluations on the same asset cannot misallocate the split.
 func (uc *RevalueAssetUseCase) Execute(
 	ctx context.Context,
-	req RevalueAssetRequest,
-) (*RevalueAssetResult, error) {
+	pbReq *revaluation_pb.RevalueAssetUseCaseRequest,
+) (*revaluation_pb.RevalueAssetUseCaseResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityAssetRevaluation, ports.ActionCreate); err != nil {
 		return nil, err
+	}
+
+	// Translate proto → internal Go struct at the boundary.
+	req := RevalueAssetRequest{}
+	if pbReq != nil {
+		req.AssetID = pbReq.GetAssetId()
+		req.NewFairValue = pbReq.GetNewFairValue()
+		if pbReq.AppraiserName != nil {
+			req.AppraiserName = pbReq.GetAppraiserName()
+		}
+		if pbReq.ValuationMethod != nil {
+			req.ValuationMethod = pbReq.GetValuationMethod()
+		}
+		if pbReq.Notes != nil {
+			req.Notes = pbReq.GetNotes()
+		}
 	}
 
 	if req.AssetID == "" {
@@ -126,7 +145,7 @@ func (uc *RevalueAssetUseCase) Execute(
 		return nil, errors.New("revalue_asset: Workspace context required")
 	}
 
-	var result *RevalueAssetResult
+	var result *RevalueAssetResult // internal — translated to proto on return
 
 	// All steps run inside a single tx so the history read is consistent with
 	// the write. Note: the row lock on the asset is implicit via PostgreSQL
@@ -296,7 +315,16 @@ func (uc *RevalueAssetUseCase) Execute(
 		}
 	}
 
-	return result, nil
+	// Translate internal result to proto response.
+	resp := &revaluation_pb.RevalueAssetUseCaseResponse{Success: true}
+	if result != nil {
+		resp.Revaluation = result.Revaluation
+		if result.Transaction != nil {
+			txID := result.Transaction.GetId()
+			resp.AssetTransactionId = &txID
+		}
+	}
+	return resp, nil
 }
 
 // deriveSurplusStateFromHistory walks the immutable AssetRevaluation history

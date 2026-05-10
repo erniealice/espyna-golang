@@ -69,18 +69,16 @@ type MaterializeJobsForSubscriptionServices struct {
 	MaterializeBillingEventsForJob MaterializeBillingEventsForJobInvoker
 }
 
-// MaterializeJobsForSubscriptionRequest is the input contract.
-type MaterializeJobsForSubscriptionRequest struct {
+// materializeJobsForSubscriptionInternalRequest is the internal input contract.
+// Used inside the use case body; the public boundary uses *subscriptionpb.MaterializeJobsForSubscriptionRequest.
+type materializeJobsForSubscriptionInternalRequest struct {
 	SubscriptionId string
-	// SpawnJobs is the operator-facing override (plan §3.1). When false the
-	// use case returns immediately with skipped_reason="operator_opt_out".
-	// When true, the algorithm falls through to template resolution.
-	SpawnJobs bool
+	SpawnJobs      bool
 }
 
-// MaterializeJobsForSubscriptionResponse echoes back the spawned root +
-// child Jobs and a skip reason when no spawn was attempted.
-type MaterializeJobsForSubscriptionResponse struct {
+// materializeJobsForSubscriptionInternalResponse is the internal response.
+// Used inside the use case body; the public boundary returns *subscriptionpb.MaterializeJobsForSubscriptionResponse.
+type materializeJobsForSubscriptionInternalResponse struct {
 	SpawnedJobs   []*jobpb.Job
 	SkippedReason string
 	Warning       string
@@ -115,8 +113,14 @@ func NewMaterializeJobsForSubscriptionUseCase(
 // Execute drives the full spawn flow per plan §3. The whole §3.3 → §3.7
 // chain runs in a single transaction.
 func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
-	ctx context.Context, req MaterializeJobsForSubscriptionRequest,
-) (*MaterializeJobsForSubscriptionResponse, error) {
+	ctx context.Context, pbReq *subscriptionpb.MaterializeJobsForSubscriptionRequest,
+) (*subscriptionpb.MaterializeJobsForSubscriptionResponse, error) {
+	// Translate proto → internal at the boundary.
+	req := materializeJobsForSubscriptionInternalRequest{}
+	if pbReq != nil {
+		req.SubscriptionId = pbReq.GetSubscriptionId()
+		req.SpawnJobs = pbReq.GetSpawnJobs()
+	}
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		ports.EntitySubscription, ports.ActionUpdate); err != nil {
 		return nil, err
@@ -147,7 +151,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 
 	// Plan §3.1 — operator override short-circuit before any DB read.
 	if !req.SpawnJobs {
-		return &MaterializeJobsForSubscriptionResponse{SkippedReason: SkipReasonOperatorOptOut}, nil
+		skipReason := SkipReasonOperatorOptOut
+		return &subscriptionpb.MaterializeJobsForSubscriptionResponse{Success: true, SkippedReason: &skipReason}, nil
 	}
 
 	sub, err := uc.readSubscription(ctx, req.SubscriptionId)
@@ -165,7 +170,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 
 	rootTemplateID := plan.GetJobTemplateId()
 	if rootTemplateID == "" {
-		return &MaterializeJobsForSubscriptionResponse{SkippedReason: SkipReasonNoTemplateFound}, nil
+		skipReason := SkipReasonNoTemplateFound
+		return &subscriptionpb.MaterializeJobsForSubscriptionResponse{Success: true, SkippedReason: &skipReason}, nil
 	}
 
 	relations, err := uc.listChildRelations(ctx, rootTemplateID)
@@ -185,7 +191,11 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 	// The non-cyclic path below remains UNCHANGED — phase4-subscription
 	// regression specs (08-15) and the new C2 composition test are the canary.
 	if IsCyclic(pricePlan) {
-		return uc.executeCyclicEngagementShell(ctx, sub, pricePlan, plan, relations)
+		internal, err := uc.executeCyclicEngagementShell(ctx, sub, pricePlan, plan, relations)
+		if err != nil {
+			return nil, err
+		}
+		return materializeJobsToProto(internal), nil
 	}
 
 	type spawnEntry struct {
@@ -281,9 +291,26 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 		}
 	}
 
-	return &MaterializeJobsForSubscriptionResponse{
+	return &subscriptionpb.MaterializeJobsForSubscriptionResponse{
+		Success:     true,
 		SpawnedJobs: spawnedJobs,
 	}, nil
+}
+
+// materializeJobsToProto converts the internal response to proto.
+func materializeJobsToProto(r *materializeJobsForSubscriptionInternalResponse) *subscriptionpb.MaterializeJobsForSubscriptionResponse {
+	if r == nil {
+		return &subscriptionpb.MaterializeJobsForSubscriptionResponse{Success: true}
+	}
+	resp := &subscriptionpb.MaterializeJobsForSubscriptionResponse{
+		Success:     true,
+		SpawnedJobs: r.SpawnedJobs,
+	}
+	if r.SkippedReason != "" {
+		v := r.SkippedReason
+		resp.SkippedReason = &v
+	}
+	return resp
 }
 
 // ---- helpers ----
@@ -499,7 +526,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicEngagementShell(
 	pricePlan *priceplanpb.PricePlan,
 	plan *planpb.Plan,
 	relations []*jobtemplaterelationpb.JobTemplateRelation,
-) (*MaterializeJobsForSubscriptionResponse, error) {
+) (*materializeJobsForSubscriptionInternalResponse, error) {
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcs := now.Format(time.RFC3339)
@@ -569,7 +596,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicEngagementShell(
 	}
 
 	_ = plan // currently unused in cyclic shell creation; kept for symmetry
-	return &MaterializeJobsForSubscriptionResponse{SpawnedJobs: spawnedJobs}, nil
+	return &materializeJobsForSubscriptionInternalResponse{SpawnedJobs: spawnedJobs}, nil
 }
 
 // spawnEngagementShell creates the cyclic engagement-shell Job: no

@@ -286,8 +286,17 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 		return fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 	}
 
+	// Keep idle connections at ~1/5 of the open cap (floor-divided, min 1) so
+	// bursty workloads don't hold every connection warm at all times while
+	// still keeping enough hot for typical concurrent reads. The previous
+	// idle == open setting kept the entire pool warm even at idle — fine for
+	// steady traffic, wasteful otherwise.
+	maxIdle := pgConfig.MaxConns / 5
+	if maxIdle < 1 {
+		maxIdle = 1
+	}
 	db.SetMaxOpenConns(pgConfig.MaxConns)
-	db.SetMaxIdleConns(pgConfig.MaxConns)
+	db.SetMaxIdleConns(maxIdle)
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(2 * time.Minute)
 
@@ -300,8 +309,23 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 	a.enabled = config.Enabled
 	a.connected = true
 
-	log.Printf("✅ PostgreSQL adapter connected to %s:%s/%s", pgConfig.Host, pgConfig.Port, pgConfig.Name)
+	log.Printf("✅ PostgreSQL adapter connected to %s:%s/%s (pool max=%d idle=%d)",
+		pgConfig.Host, pgConfig.Port, pgConfig.Name, pgConfig.MaxConns, maxIdle)
 	return nil
+}
+
+// MaxConns returns the effective max-open-connections cap configured on the
+// underlying *sql.DB pool. Implements the optional ports.PoolSizer capability
+// so concurrency-sensitive callers can clamp their fanout to the pool budget.
+//
+// Returns 0 when Initialize has not been called or the adapter is in a zero
+// state; callers should treat 0 as "unknown" and fall back to a conservative
+// default rather than dividing by it.
+func (a *PostgresAdapter) MaxConns() int {
+	if a == nil || a.config == nil {
+		return 0
+	}
+	return a.config.MaxConns
 }
 
 // GetConnection returns the PostgreSQL database connection.
@@ -369,4 +393,5 @@ func (a *PostgresAdapter) HealthCheck(ctx context.Context) error {
 
 // Compile-time interface checks
 var _ ports.DatabaseProvider = (*PostgresAdapter)(nil)
+var _ ports.PoolSizer = (*PostgresAdapter)(nil)
 var _ ports.RepositoryProvider = (*PostgresAdapter)(nil)

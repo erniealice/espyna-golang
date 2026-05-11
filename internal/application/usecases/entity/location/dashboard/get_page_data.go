@@ -19,8 +19,8 @@ import (
 	"context"
 	"errors"
 
-	locationpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
-	dashboardpb  "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location/dashboard"
+	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
+	dashboardpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location/dashboard"
 )
 
 // LocationAreaCount is one row of the "top areas by location count" widget.

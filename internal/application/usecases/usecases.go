@@ -29,22 +29,22 @@ import (
 // to aggregate and organize use cases according to their composition strategy.
 //
 // The Aggregate represents the complete set of entities organized across 8 domains:
-// - Asset:        2 entities (Asset, AssetCategory)
-// - Common:       1 entity (Attribute - cross-domain dependency)
-// - Entity:       16 entities (Admin, Client, Delegate, User, Workspace, etc.)
-// - Event:        2 entities (Event, EventClient)
-// - Expenditure:  4 entities (Expenditure, ExpenditureLineItem, ExpenditureCategory, ExpenditureAttribute)
-// - Treasury:     0 entities (legacy Payment/PaymentAttribute/PaymentMethod/PaymentProfile removed -- superseded by Collection and Disbursement)
-// - Product:      8 entities (Product, Collection, Resource, PriceProduct, etc.)
-// - Revenue:      4 entities (Revenue, RevenueLineItem, RevenueCategory, RevenueAttribute)
-// - Subscription: 6 entities (Plan, Subscription, Invoice, Balance, etc.)
-// - Workflow:     3 entities (Workflow, StageTemplate, ActivityTemplate)
-// - Payroll:      2 entities (PayrollRun, PayrollRemittance)
-// - Fulfillment:  1 entity (Fulfillment — placeholder, use cases pending)
-// - Auth:         identity-lifecycle use cases (authenticate_session,
-//                 issue_session, invalidate_session). Exempt from the
-//                 authcheck coverage test — see usecases/auth/usecases.go
-//                 package doc for the invariant.
+//   - Asset:        2 entities (Asset, AssetCategory)
+//   - Common:       1 entity (Attribute - cross-domain dependency)
+//   - Entity:       16 entities (Admin, Client, Delegate, User, Workspace, etc.)
+//   - Event:        2 entities (Event, EventClient)
+//   - Expenditure:  4 entities (Expenditure, ExpenditureLineItem, ExpenditureCategory, ExpenditureAttribute)
+//   - Treasury:     0 entities (legacy Payment/PaymentAttribute/PaymentMethod/PaymentProfile removed -- superseded by Collection and Disbursement)
+//   - Product:      8 entities (Product, Collection, Resource, PriceProduct, etc.)
+//   - Revenue:      4 entities (Revenue, RevenueLineItem, RevenueCategory, RevenueAttribute)
+//   - Subscription: 6 entities (Plan, Subscription, Invoice, Balance, etc.)
+//   - Workflow:     3 entities (Workflow, StageTemplate, ActivityTemplate)
+//   - Payroll:      2 entities (PayrollRun, PayrollRemittance)
+//   - Fulfillment:  1 entity (Fulfillment — placeholder, use cases pending)
+//   - Auth:         identity-lifecycle use cases (authenticate_session,
+//     issue_session, invalidate_session). Exempt from the
+//     authcheck coverage test — see usecases/auth/usecases.go
+//     package doc for the invariant.
 type Aggregate struct {
 	Auth         *auth.UseCases
 	Common       *common.CommonUseCases

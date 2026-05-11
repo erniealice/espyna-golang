@@ -17,8 +17,8 @@ import (
 
 // UpdateProductPlanRepositories groups all repository dependencies
 type UpdateProductPlanRepositories struct {
-	ProductPlan    productplanpb.ProductPlanDomainServiceServer      // Primary entity repository
-	Product        productpb.ProductDomainServiceServer              // Entity reference dependency
+	ProductPlan    productplanpb.ProductPlanDomainServiceServer       // Primary entity repository
+	Product        productpb.ProductDomainServiceServer               // Entity reference dependency
 	ProductVariant productvariantpb.ProductVariantDomainServiceServer // Used for variant_id FK validation (Model D)
 }
 

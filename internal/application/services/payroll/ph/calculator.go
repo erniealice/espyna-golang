@@ -56,9 +56,9 @@ const (
 	// table; for MVP semi-monthly we hardcode the well-known
 	// percentage split because RateBand cannot express "X% of clamped
 	// salary" without a formula evaluator. Tracked as a follow-up.
-	philHealthFloorCentavos        int64 = 10_000_00
-	philHealthCeilingCentavos      int64 = 100_000_00
-	philHealthEmployeeBasisPoints  int64 = 250 // 2.5%
+	philHealthFloorCentavos       int64 = 10_000_00
+	philHealthCeilingCentavos     int64 = 100_000_00
+	philHealthEmployeeBasisPoints int64 = 250 // 2.5%
 
 	// Pag-IBIG cap in centavos (Pag-IBIG Circular 460; ₱10,000 max
 	// fund salary). Same MVP caveat as PhilHealth above.
@@ -203,12 +203,12 @@ func computeSSS(ctx context.Context, p *payrollcore.PayslipContext, monthlyBasic
 	}
 	amount := band.GetFixedAmountCentavos()
 	meta := map[string]any{
-		"msc_centavos":           band.GetUpperBoundCentavos(),
-		"ee_share_centavos":      amount,
-		"band_lower_centavos":    band.GetLowerBoundCentavos(),
-		"band_upper_centavos":    band.GetUpperBoundCentavos(),
-		"rate_table_id":          table.GetId(),
-		"rate_table_version":     table.GetVersionLabel(),
+		"msc_centavos":        band.GetUpperBoundCentavos(),
+		"ee_share_centavos":   amount,
+		"band_lower_centavos": band.GetLowerBoundCentavos(),
+		"band_upper_centavos": band.GetUpperBoundCentavos(),
+		"rate_table_id":       table.GetId(),
+		"rate_table_version":  table.GetVersionLabel(),
 	}
 	return payrollcore.LineResolution{
 		Description:     "SSS Employee Contribution",
@@ -236,11 +236,11 @@ func computePhilHealth(monthlyBasic int64) payrollcore.LineResolution {
 	// Employee share = base × 2.5% (basis_points 250 / 10000).
 	amount := base * philHealthEmployeeBasisPoints / 10000
 	meta := map[string]any{
-		"premium_base_centavos":      base,
-		"employee_basis_points":      philHealthEmployeeBasisPoints,
-		"employee_share_centavos":    amount,
-		"floor_centavos":             philHealthFloorCentavos,
-		"ceiling_centavos":           philHealthCeilingCentavos,
+		"premium_base_centavos":   base,
+		"employee_basis_points":   philHealthEmployeeBasisPoints,
+		"employee_share_centavos": amount,
+		"floor_centavos":          philHealthFloorCentavos,
+		"ceiling_centavos":        philHealthCeilingCentavos,
 	}
 	return payrollcore.LineResolution{
 		Description:     "PhilHealth Employee Contribution",
@@ -268,10 +268,10 @@ func computePagIBIG(monthlyBasic int64) payrollcore.LineResolution {
 	}
 	amount := fundSalary * bp / 10000
 	meta := map[string]any{
-		"fund_salary_centavos":       fundSalary,
-		"employee_basis_points":      bp,
-		"employee_share_centavos":    amount,
-		"cap_centavos":               pagIBIGCapCentavos,
+		"fund_salary_centavos":    fundSalary,
+		"employee_basis_points":   bp,
+		"employee_share_centavos": amount,
+		"cap_centavos":            pagIBIGCapCentavos,
 	}
 	return payrollcore.LineResolution{
 		Description:     "Pag-IBIG Employee Contribution",
@@ -370,9 +370,9 @@ func emitAllowanceLines(out *[]payrollcore.LineResolution, lines []*suppliercont
 			AppliedBasis:    monthly,
 			ProrationFactor: factor,
 			CalcMetadata: mustJSON(map[string]any{
-				"contract_line_id":  ln.GetId(),
-				"monthly_centavos":  monthly,
-				"taxable":           taxable,
+				"contract_line_id": ln.GetId(),
+				"monthly_centavos": monthly,
+				"taxable":          taxable,
 			}),
 		})
 	}

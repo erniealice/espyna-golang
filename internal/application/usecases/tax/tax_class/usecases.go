@@ -20,8 +20,8 @@ type TaxClassServices struct {
 
 // UseCases contains all tax_class use cases.
 type UseCases struct {
-	ReadTaxClass    *ReadTaxClassUseCase
-	ListTaxClasses  *ListTaxClassesUseCase
+	ReadTaxClass       *ReadTaxClassUseCase
+	ListTaxClasses     *ListTaxClassesUseCase
 	FindByCodeTaxClass *FindByCodeTaxClassUseCase
 }
 

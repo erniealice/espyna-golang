@@ -276,14 +276,14 @@ func (uc *BillJobActivitiesUseCase) BillJobActivities(
 			// 7d. Create JobSettlement.
 			settlementID := generateID()
 			settlement := &jobsettlementpb.JobSettlement{
-				Id:              settlementID,
-				JobActivityId:   bd.activity.GetId(),
-				TargetType:      jobsettlementpb.SettlementTargetType_SETTLEMENT_TARGET_TYPE_INVOICE_LINE,
-				TargetId:        lineItemID,
-				AllocatedAmount: bd.billAmount,
-				Status:          jobsettlementpb.SettlementStatus_SETTLEMENT_STATUS_SETTLED,
-				Active:          true,
-				DateCreated:     &dc,
+				Id:                settlementID,
+				JobActivityId:     bd.activity.GetId(),
+				TargetType:        jobsettlementpb.SettlementTargetType_SETTLEMENT_TARGET_TYPE_INVOICE_LINE,
+				TargetId:          lineItemID,
+				AllocatedAmount:   bd.billAmount,
+				Status:            jobsettlementpb.SettlementStatus_SETTLEMENT_STATUS_SETTLED,
+				Active:            true,
+				DateCreated:       &dc,
 				DateCreatedString: &dcs,
 			}
 			if _, err := uc.repositories.JobSettlement.CreateJobSettlement(txCtx, &jobsettlementpb.CreateJobSettlementRequest{

@@ -119,7 +119,7 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	// 2. Resolve workspace timezone (source of truth for "what calendar day").
 	// Falls back to UTC when workspace lookup is unavailable or empty — keeps
 	// pre-timezone-aware behavior intact for callers that haven't been migrated.
-	loc := uc.resolveWorkspaceLocation(ctx, scope.WorkspaceID)
+	loc := resolveWorkspaceLocation(ctx, uc.repositories.Workspace, scope.WorkspaceID)
 
 	// 3. Resolve AsOfDate — default to today (in the workspace's tz)
 	asOfDate := strings.TrimSpace(scope.AsOfDate)
@@ -470,11 +470,15 @@ func truncateToDate(t time.Time, loc *time.Location) time.Time {
 // the workspace is missing, the timezone field is empty, or the IANA name
 // fails to load. The fallback preserves pre-timezone-aware behavior — callers
 // that haven't been migrated continue to see UTC-truncated dates.
-func (uc *ListRevenueRunCandidatesUseCase) resolveWorkspaceLocation(ctx context.Context, workspaceID string) *time.Location {
-	if uc.repositories.Workspace == nil || strings.TrimSpace(workspaceID) == "" {
+//
+// Package-level free function so siblings in this package (e.g.
+// GenerateRevenueRunUseCase) can share the same TZ resolution without
+// duplicating the logic.
+func resolveWorkspaceLocation(ctx context.Context, repo workspacepb.WorkspaceDomainServiceServer, workspaceID string) *time.Location {
+	if repo == nil || strings.TrimSpace(workspaceID) == "" {
 		return time.UTC
 	}
-	resp, err := uc.repositories.Workspace.ReadWorkspace(ctx, &workspacepb.ReadWorkspaceRequest{
+	resp, err := repo.ReadWorkspace(ctx, &workspacepb.ReadWorkspaceRequest{
 		Data: &workspacepb.Workspace{Id: workspaceID},
 	})
 	if err != nil || resp == nil || !resp.GetSuccess() || len(resp.GetData()) == 0 {

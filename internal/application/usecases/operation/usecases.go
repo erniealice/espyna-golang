@@ -5,6 +5,7 @@ import (
 	criteriaOptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_option"
 	criteriaThresholdUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/criteria_threshold"
 	jobUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job"
+	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_activity"
 	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_outcome_summary"
 	jobPhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_phase"
 	jobTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_task"
@@ -16,7 +17,6 @@ import (
 	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome"
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/task_outcome_check"
 	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/template_task_criteria"
-	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_activity"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"

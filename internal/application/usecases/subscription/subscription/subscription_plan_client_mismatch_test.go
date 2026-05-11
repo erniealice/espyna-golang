@@ -69,18 +69,18 @@ func (m *mockPricePlanRepoSub) ReadPricePlan(_ context.Context, _ *priceplanpb.R
 
 type stubIDForSub struct{}
 
-func (stubIDForSub) GenerateID() string                        { return "sub-new" }
-func (stubIDForSub) GenerateIDWithPrefix(p string) string      { return p + "-new" }
-func (stubIDForSub) IsEnabled() bool                           { return true }
-func (stubIDForSub) GetProviderInfo() string                   { return "stub" }
+func (stubIDForSub) GenerateID() string                   { return "sub-new" }
+func (stubIDForSub) GenerateIDWithPrefix(p string) string { return p + "-new" }
+func (stubIDForSub) IsEnabled() bool                      { return true }
+func (stubIDForSub) GetProviderInfo() string              { return "stub" }
 
 type noTxnSub struct{}
 
 func (noTxnSub) ExecuteInTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return fn(ctx)
 }
-func (noTxnSub) SupportsTransactions() bool                { return false }
-func (noTxnSub) IsTransactionActive(context.Context) bool  { return false }
+func (noTxnSub) SupportsTransactions() bool               { return false }
+func (noTxnSub) IsTransactionActive(context.Context) bool { return false }
 
 func makePricePlan(id, clientID, currency string) *priceplanpb.PricePlan {
 	pp := &priceplanpb.PricePlan{Id: id, BillingCurrency: currency, Active: true}

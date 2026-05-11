@@ -11,8 +11,8 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	// Reporting use cases
-	grossprofit "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/reporting/gross_profit"
 	cashbookreporting "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/reporting/cash_book"
+	grossprofit "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/reporting/gross_profit"
 	simplepayablesaging "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/reporting/simple_payables_aging"
 
 	// Chart of Accounts use cases
@@ -59,11 +59,11 @@ type LedgerRepositories struct {
 
 // LedgerUseCases contains all ledger-related use cases.
 type LedgerUseCases struct {
-	DocumentTemplate              *documentTemplateUseCases.UseCases
-	Attachment                    *attachmentUseCases.UseCases
-	GetGrossProfitReport          *grossprofit.GetGrossProfitReportUseCase
-	GetCashBookReport             *cashbookreporting.GetCashBookReportUseCase
-	GetSimplePayablesAgingReport  *simplepayablesaging.GetSimplePayablesAgingReportUseCase
+	DocumentTemplate             *documentTemplateUseCases.UseCases
+	Attachment                   *attachmentUseCases.UseCases
+	GetGrossProfitReport         *grossprofit.GetGrossProfitReportUseCase
+	GetCashBookReport            *cashbookreporting.GetCashBookReportUseCase
+	GetSimplePayablesAgingReport *simplepayablesaging.GetSimplePayablesAgingReportUseCase
 
 	// Chart of Accounts use cases (Phase 2 priority)
 	Account      *accountUseCases.UseCases

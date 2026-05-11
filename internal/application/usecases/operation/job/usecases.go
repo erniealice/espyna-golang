@@ -13,8 +13,8 @@ import (
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
-	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
@@ -49,17 +49,17 @@ type JobServices struct {
 
 // UseCases contains all job-related use cases
 type UseCases struct {
-	CreateJob                       *CreateJobUseCase
-	ReadJob                         *ReadJobUseCase
-	UpdateJob                       *UpdateJobUseCase
-	DeleteJob                       *DeleteJobUseCase
-	ListJobs                        *ListJobsUseCase
-	GetJobListPageData              *GetJobListPageDataUseCase
-	GetJobItemPageData              *GetJobItemPageDataUseCase
-	GetJobsByClient                 *GetJobsByClientUseCase
-	GetJobsByOrigin                 *GetJobsByOriginUseCase
-	UpdateJobStatus                 *UpdateJobStatusUseCase
-	MaterializeBillingEventsForJob  *MaterializeBillingEventsForJobUseCase
+	CreateJob                      *CreateJobUseCase
+	ReadJob                        *ReadJobUseCase
+	UpdateJob                      *UpdateJobUseCase
+	DeleteJob                      *DeleteJobUseCase
+	ListJobs                       *ListJobsUseCase
+	GetJobListPageData             *GetJobListPageDataUseCase
+	GetJobItemPageData             *GetJobItemPageDataUseCase
+	GetJobsByClient                *GetJobsByClientUseCase
+	GetJobsByOrigin                *GetJobsByOriginUseCase
+	UpdateJobStatus                *UpdateJobStatusUseCase
+	MaterializeBillingEventsForJob *MaterializeBillingEventsForJobUseCase
 }
 
 // NewUseCases creates a new collection of job use cases

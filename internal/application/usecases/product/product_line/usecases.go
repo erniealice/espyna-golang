@@ -10,7 +10,7 @@ import (
 // ProductLineRepositories groups all repository dependencies for product line use cases
 type ProductLineRepositories struct {
 	ProductLine productlinepb.ProductLineDomainServiceServer // Primary entity repository
-	Product           productpb.ProductDomainServiceServer
+	Product     productpb.ProductDomainServiceServer
 	Line        linepb.LineDomainServiceServer
 }
 
@@ -41,7 +41,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateProductLineRepositories{
 		ProductLine: repositories.ProductLine,
-		Product:           repositories.Product,
+		Product:     repositories.Product,
 		Line:        repositories.Line,
 	}
 	createServices := CreateProductLineServices{
@@ -62,7 +62,7 @@ func NewUseCases(
 
 	updateRepos := UpdateProductLineRepositories{
 		ProductLine: repositories.ProductLine,
-		Product:           repositories.Product,
+		Product:     repositories.Product,
 		Line:        repositories.Line,
 	}
 	updateServices := UpdateProductLineServices{

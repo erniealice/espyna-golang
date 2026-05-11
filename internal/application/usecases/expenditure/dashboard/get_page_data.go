@@ -42,13 +42,13 @@ type ExpenditureDashboardQueries interface {
 
 // Stats holds tile values for either purchase or expense surface (centavos).
 type Stats struct {
-	OpenCount       int64 // Open POs / Pending Approval (count, not centavos)
-	AwaitingCount   int64 // Awaiting Receipt / Approved (count)
-	TotalMTD        int64 // Spent MTD / Approved MTD (centavos)
-	ReimbursableMTD int64 // For expense surface only (centavos)
-	TopSupplierName string
+	OpenCount        int64 // Open POs / Pending Approval (count, not centavos)
+	AwaitingCount    int64 // Awaiting Receipt / Approved (count)
+	TotalMTD         int64 // Spent MTD / Approved MTD (centavos)
+	ReimbursableMTD  int64 // For expense surface only (centavos)
+	TopSupplierName  string
 	TopSupplierTotal int64 // centavos
-	CategoryCount   int64 // distinct categories used (expense surface)
+	CategoryCount    int64 // distinct categories used (expense surface)
 }
 
 // GetExpenditureDashboardPageDataRequest is the request shape.

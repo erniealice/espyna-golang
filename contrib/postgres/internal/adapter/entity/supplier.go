@@ -225,7 +225,8 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 	)
 
 	return &supplierpb.ReadSupplierResponse{
-		Data: []*supplierpb.Supplier{supplier},
+		Data:    []*supplierpb.Supplier{supplier},
+		Success: true,
 	}, nil
 }
 

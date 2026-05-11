@@ -20,14 +20,14 @@ type PriceScheduleServices struct {
 
 // UseCases contains all price_schedule-related use cases
 type UseCases struct {
-	CreatePriceSchedule             *CreatePriceScheduleUseCase
-	ReadPriceSchedule               *ReadPriceScheduleUseCase
-	UpdatePriceSchedule             *UpdatePriceScheduleUseCase
-	DeletePriceSchedule             *DeletePriceScheduleUseCase
-	ListPriceSchedules              *ListPriceSchedulesUseCase
-	GetPriceScheduleListPageData    *GetPriceScheduleListPageDataUseCase
-	GetPriceScheduleItemPageData    *GetPriceScheduleItemPageDataUseCase
-	FindApplicablePriceSchedule     *FindApplicablePriceScheduleUseCase
+	CreatePriceSchedule          *CreatePriceScheduleUseCase
+	ReadPriceSchedule            *ReadPriceScheduleUseCase
+	UpdatePriceSchedule          *UpdatePriceScheduleUseCase
+	DeletePriceSchedule          *DeletePriceScheduleUseCase
+	ListPriceSchedules           *ListPriceSchedulesUseCase
+	GetPriceScheduleListPageData *GetPriceScheduleListPageDataUseCase
+	GetPriceScheduleItemPageData *GetPriceScheduleItemPageDataUseCase
+	FindApplicablePriceSchedule  *FindApplicablePriceScheduleUseCase
 }
 
 // NewUseCases creates a new collection of price_schedule use cases

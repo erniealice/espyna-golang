@@ -479,8 +479,8 @@ func ComputePnLOCISplit(
 			if absAmount < reversal {
 				reversal = absAmount
 			}
-			recognizedInPnL = reversal               // positive = gain (reversal)
-			recognizedInOCI = absAmount - reversal   // remainder to OCI
+			recognizedInPnL = reversal             // positive = gain (reversal)
+			recognizedInOCI = absAmount - reversal // remainder to OCI
 		} else {
 			recognizedInPnL = 0
 			recognizedInOCI = absAmount
@@ -492,8 +492,8 @@ func ComputePnLOCISplit(
 			if absAmount < surplusUsed {
 				surplusUsed = absAmount
 			}
-			recognizedInOCI = -surplusUsed                 // negative = surplus debit
-			recognizedInPnL = -(absAmount - surplusUsed)   // negative = loss
+			recognizedInOCI = -surplusUsed               // negative = surplus debit
+			recognizedInPnL = -(absAmount - surplusUsed) // negative = loss
 		} else {
 			recognizedInOCI = 0
 			recognizedInPnL = -absAmount // negative = loss

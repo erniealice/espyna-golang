@@ -311,7 +311,7 @@ func TestMidPeriodFraction_StartOnBoundary(t *testing.T) {
 }
 
 func TestMidPeriodFraction_StartMidMonth(t *testing.T) {
-	period := testPeriod(2025, 1, 1) // Jan 1 to Jan 31
+	period := testPeriod(2025, 1, 1)                          // Jan 1 to Jan 31
 	startDate := time.Date(2025, 1, 16, 0, 0, 0, 0, time.UTC) // mid-Jan
 	frac := depreciation.MidPeriodFraction(startDate, period)
 	// 16 active days out of 30 total (Jan 16 to Jan 31 = 16 days remaining; total=30)

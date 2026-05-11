@@ -142,7 +142,7 @@ func (uc *GetProductLineItemPageDataUseCase) executeCore(
 
 	return &productlinepb.GetProductLineItemPageDataResponse{
 		ProductLine: productLine,
-		Success:           true,
+		Success:     true,
 	}, nil
 }
 

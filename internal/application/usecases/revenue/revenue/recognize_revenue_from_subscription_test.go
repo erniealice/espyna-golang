@@ -10,8 +10,8 @@ import (
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
-	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -32,8 +32,8 @@ type recognizeMocks struct {
 	client            *clientpb.Client
 	priceSchedule     *priceschedulepb.PriceSchedule
 
-	priorRevenues   []*revenuepb.Revenue
-	priorLineItems  map[string][]*revenuelineitempb.RevenueLineItem // keyed by revenue_id
+	priorRevenues  []*revenuepb.Revenue
+	priorLineItems map[string][]*revenuelineitempb.RevenueLineItem // keyed by revenue_id
 
 	createdRevenue   *revenuepb.Revenue
 	createdLineItems []*revenuelineitempb.RevenueLineItem
@@ -113,10 +113,10 @@ func (m *mockClientRepo) ReadClient(_ context.Context, _ *clientpb.ReadClientReq
 
 type mockRevenueRepo struct {
 	revenuepb.UnimplementedRevenueDomainServiceServer
-	priorRevenues   []*revenuepb.Revenue
-	created         *revenuepb.Revenue
-	createErr       error
-	failOnCreate    bool
+	priorRevenues []*revenuepb.Revenue
+	created       *revenuepb.Revenue
+	createErr     error
+	failOnCreate  bool
 }
 
 func (m *mockRevenueRepo) ListRevenues(_ context.Context, _ *revenuepb.ListRevenuesRequest) (*revenuepb.ListRevenuesResponse, error) {
@@ -1046,14 +1046,14 @@ func milestonePricePlan(id string) *priceplanpb.PricePlan {
 func readyEvent(id, subID, jtpID string, amount int64) *billingeventpb.BillingEvent {
 	jtp := jtpID
 	return &billingeventpb.BillingEvent{
-		Id:                  id,
-		Active:              true,
-		SubscriptionId:      subID,
-		BillableAmount:      amount,
-		BillingCurrency:     "PHP",
-		Status:              billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY,
-		Trigger:             billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_PHASE_COMPLETED,
-		JobTemplatePhaseId:  &jtp,
+		Id:                 id,
+		Active:             true,
+		SubscriptionId:     subID,
+		BillableAmount:     amount,
+		BillingCurrency:    "PHP",
+		Status:             billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY,
+		Trigger:            billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_PHASE_COMPLETED,
+		JobTemplatePhaseId: &jtp,
 	}
 }
 

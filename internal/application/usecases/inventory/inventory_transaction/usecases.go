@@ -20,12 +20,12 @@ type InventoryTransactionServices struct {
 
 // UseCases contains all inventory transaction-related use cases
 type UseCases struct {
-	CreateInventoryTransaction           *CreateInventoryTransactionUseCase
-	ReadInventoryTransaction             *ReadInventoryTransactionUseCase
-	UpdateInventoryTransaction           *UpdateInventoryTransactionUseCase
-	DeleteInventoryTransaction           *DeleteInventoryTransactionUseCase
-	ListInventoryTransactions            *ListInventoryTransactionsUseCase
-	GetInventoryMovementsListPageData    *GetInventoryMovementsListPageDataUseCase
+	CreateInventoryTransaction        *CreateInventoryTransactionUseCase
+	ReadInventoryTransaction          *ReadInventoryTransactionUseCase
+	UpdateInventoryTransaction        *UpdateInventoryTransactionUseCase
+	DeleteInventoryTransaction        *DeleteInventoryTransactionUseCase
+	ListInventoryTransactions         *ListInventoryTransactionsUseCase
+	GetInventoryMovementsListPageData *GetInventoryMovementsListPageDataUseCase
 }
 
 // NewUseCases creates a new collection of inventory transaction use cases

@@ -10,8 +10,9 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 
-	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
+	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -35,6 +36,10 @@ type GenerateRevenueRunRepositories struct {
 	Revenue      revenuepb.RevenueDomainServiceServer
 	Subscription subscriptionpb.SubscriptionDomainServiceServer
 	RevenueRun   revenuerunpb.RevenueRunDomainServiceServer
+	// Workspace repo — used to resolve workspace.timezone for the
+	// "default as_of_date = today in workspace TZ" fallback. Optional;
+	// when nil, the fallback uses UTC (pre-timezone-aware behavior).
+	Workspace workspacepb.WorkspaceDomainServiceServer
 }
 
 // GenerateRevenueRunServices groups all business service dependencies.
@@ -168,10 +173,13 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 		))
 	}
 
-	// Resolve AsOfDate for the run row
+	// Resolve AsOfDate for the run row. Default to today IN WORKSPACE TZ
+	// (mirrors list_revenue_run_candidates.go). UTC fallback only when the
+	// workspace repo isn't wired — see resolveWorkspaceLocation.
 	asOfDate := strings.TrimSpace(scope.AsOfDate)
 	if asOfDate == "" {
-		asOfDate = time.Now().UTC().Format("2006-01-02")
+		loc := resolveWorkspaceLocation(ctx, uc.repositories.Workspace, scope.WorkspaceID)
+		asOfDate = time.Now().In(loc).Format("2006-01-02")
 	}
 
 	// Determine scope kind
@@ -231,18 +239,18 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 		}
 		attemptTime := time.Now().UTC().UnixMilli()
 		attempt := &revenuerunpb.RevenueRunAttempt{
-			Id:           attemptID,
-			RunId:        run.GetId(),
+			Id:             attemptID,
+			RunId:          run.GetId(),
 			SubscriptionId: acc.subID,
-			PeriodStart:  acc.start,
-			PeriodEnd:    acc.end,
-			PeriodMarker: acc.marker,
-			Outcome:      acc.outcome,
-			RevenueId:    acc.revenueID,
-			ErrorCode:    acc.errCode,
-			ErrorMessage: acc.errMsg,
-			AttemptedAt:  &attemptTime,
-			Active:       true,
+			PeriodStart:    acc.start,
+			PeriodEnd:      acc.end,
+			PeriodMarker:   acc.marker,
+			Outcome:        acc.outcome,
+			RevenueId:      acc.revenueID,
+			ErrorCode:      acc.errCode,
+			ErrorMessage:   acc.errMsg,
+			AttemptedAt:    &attemptTime,
+			Active:         true,
 		}
 		createdAttemptResp, insertErr := uc.repositories.RevenueRun.CreateRevenueRunAttempt(ctx, &revenuerunpb.CreateRevenueRunAttemptRequest{
 			Data: attempt,
@@ -340,8 +348,13 @@ func (uc *GenerateRevenueRunUseCase) processSingleSelection(
 		return makeErr("recognizer_unavailable", "revenue recognition use case is not configured")
 	}
 
-	// Build recognize request (non-dry-run)
+	// Build recognize request (non-dry-run). Default the invoice date to the
+	// selection's PeriodEnd — accounting convention is "invoice dated at
+	// period end". Without this, Revenue.revenue_date remains NULL and the
+	// Invoices tab Date column renders blank.
 	req := buildRecognizeRequest(sel.SubscriptionID, sel.PeriodStart, sel.PeriodEnd, false)
+	periodEnd := sel.PeriodEnd
+	req.RevenueDate = &periodEnd
 
 	resp, recognizeErr := uc.recognizeUseCase.Execute(ctx, req)
 

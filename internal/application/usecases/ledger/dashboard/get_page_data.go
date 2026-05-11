@@ -21,8 +21,8 @@ import (
 	"context"
 	"time"
 
+	dashboardpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/dashboard"
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
-	dashboardpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/dashboard"
 )
 
 // AccountDashboardQueries is the slice of the postgres account adapter the

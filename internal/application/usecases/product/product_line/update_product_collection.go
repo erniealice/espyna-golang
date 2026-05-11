@@ -19,7 +19,7 @@ import (
 // UpdateProductLineRepositories groups all repository dependencies
 type UpdateProductLineRepositories struct {
 	ProductLine productlinepb.ProductLineDomainServiceServer // Primary entity repository
-	Product           productpb.ProductDomainServiceServer
+	Product     productpb.ProductDomainServiceServer
 	Line        linepb.LineDomainServiceServer
 }
 

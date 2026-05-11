@@ -167,7 +167,8 @@ func (r *PostgresPaymentTermRepository) ReadPaymentTerm(ctx context.Context, req
 	)
 
 	return &paymenttermpb.ReadPaymentTermResponse{
-		Data: []*paymenttermpb.PaymentTerm{paymentTerm},
+		Data:    []*paymenttermpb.PaymentTerm{paymentTerm},
+		Success: true,
 	}, nil
 }
 

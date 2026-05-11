@@ -21,10 +21,10 @@ type RevenueTaxLineServices struct {
 
 // UseCases contains all revenue_tax_line use cases.
 type UseCases struct {
-	ReadRevenueTaxLine         *ReadRevenueTaxLineUseCase
-	ListRevenueTaxLines        *ListRevenueTaxLinesUseCase
-	CreateRevenueTaxLine       *CreateRevenueTaxLineUseCase
-	ListByRevenueRevenueTaxLine *ListByRevenueRevenueTaxLineUseCase
+	ReadRevenueTaxLine            *ReadRevenueTaxLineUseCase
+	ListRevenueTaxLines           *ListRevenueTaxLinesUseCase
+	CreateRevenueTaxLine          *CreateRevenueTaxLineUseCase
+	ListByRevenueRevenueTaxLine   *ListByRevenueRevenueTaxLineUseCase
 	DeleteByRevenueRevenueTaxLine *DeleteByRevenueRevenueTaxLineUseCase
 }
 

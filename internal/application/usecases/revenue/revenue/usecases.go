@@ -66,16 +66,16 @@ type RevenueServices struct {
 
 // UseCases contains all revenue-related use cases
 type UseCases struct {
-	CreateRevenue                     *CreateRevenueUseCase
-	ReadRevenue                       *ReadRevenueUseCase
-	UpdateRevenue                     *UpdateRevenueUseCase
-	DeleteRevenue                     *DeleteRevenueUseCase
-	ListRevenues                      *ListRevenuesUseCase
-	GetRevenueListPageData            *GetRevenueListPageDataUseCase
-	RecognizeRevenueFromSubscription  *RecognizeRevenueFromSubscriptionUseCase
-	ListRevenueRunCandidates          *ListRevenueRunCandidatesUseCase
-	GenerateRevenueRun                *GenerateRevenueRunUseCase
-	RecomputeTaxes                    *RecomputeTaxesUseCase
+	CreateRevenue                    *CreateRevenueUseCase
+	ReadRevenue                      *ReadRevenueUseCase
+	UpdateRevenue                    *UpdateRevenueUseCase
+	DeleteRevenue                    *DeleteRevenueUseCase
+	ListRevenues                     *ListRevenuesUseCase
+	GetRevenueListPageData           *GetRevenueListPageDataUseCase
+	RecognizeRevenueFromSubscription *RecognizeRevenueFromSubscriptionUseCase
+	ListRevenueRunCandidates         *ListRevenueRunCandidatesUseCase
+	GenerateRevenueRun               *GenerateRevenueRunUseCase
+	RecomputeTaxes                   *RecomputeTaxesUseCase
 }
 
 // NewUseCases creates a new collection of revenue use cases
@@ -178,6 +178,7 @@ func NewUseCases(
 		Revenue:      repositories.Revenue,
 		Subscription: repositories.Subscription,
 		RevenueRun:   repositories.RevenueRun,
+		Workspace:    repositories.Workspace,
 	}
 	generateRunServices := GenerateRevenueRunServices{
 		AuthorizationService: services.AuthorizationService,

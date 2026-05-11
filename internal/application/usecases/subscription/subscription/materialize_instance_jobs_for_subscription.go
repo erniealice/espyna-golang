@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
@@ -864,16 +864,16 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnOnceAtEngagementSt
 		parentID := engagementJob.GetId()
 
 		job := &jobpb.Job{
-			Id:                 jobID,
-			Name:               tpl.GetName(),
-			JobTemplateId:      &tplID,
-			OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
-			OriginId:           &originID,
-			ClientId:           &clientID,
-			Status:             enumspb.JobStatus_JOB_STATUS_PLANNED,
-			BillingRuleType:    enumspb.BillingRuleType_BILLING_RULE_TYPE_NON_BILLABLE,
-			Active:             true,
-			ParentJobId:        &parentID,
+			Id:              jobID,
+			Name:            tpl.GetName(),
+			JobTemplateId:   &tplID,
+			OriginType:      enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+			OriginId:        &originID,
+			ClientId:        &clientID,
+			Status:          enumspb.JobStatus_JOB_STATUS_PLANNED,
+			BillingRuleType: enumspb.BillingRuleType_BILLING_RULE_TYPE_NON_BILLABLE,
+			Active:          true,
+			ParentJobId:     &parentID,
 			// cycle_* fields intentionally NULL — onboarding fires once, not per cycle
 			DateCreated:        &dc,
 			DateCreatedString:  &dcs,
@@ -1536,16 +1536,16 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnUsageJob(
 	// stays wired.
 
 	job := &jobpb.Job{
-		Id:                 jobID,
-		Name:               usageJobName(sub, ordinal),
-		JobTemplateId:      &templateID,
-		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
-		OriginId:           &originID,
-		ClientId:           &clientID,
-		Status:             enumspb.JobStatus_JOB_STATUS_PLANNED,
-		BillingRuleType:    billingRule,
-		Active:             true,
-		ParentJobId:        &parentID,
+		Id:              jobID,
+		Name:            usageJobName(sub, ordinal),
+		JobTemplateId:   &templateID,
+		OriginType:      enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+		OriginId:        &originID,
+		ClientId:        &clientID,
+		Status:          enumspb.JobStatus_JOB_STATUS_PLANNED,
+		BillingRuleType: billingRule,
+		Active:          true,
+		ParentJobId:     &parentID,
 		// AD_HOC reuses cycle_index as the per-engagement ordinal and
 		// cycle_period_start as the composite uniqueness key
 		// (`YYYY-MM-DD#NNNN`). The view layer parses back to date+ordinal

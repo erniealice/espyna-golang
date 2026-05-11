@@ -32,9 +32,9 @@ type CollectionDashboardQueries interface {
 
 // CashStats holds the four stat-card values for the dashboard. Centavos.
 type CashStats struct {
-	Pending          int64
-	Overdue          int64
-	CollectedToday   int64
+	Pending           int64
+	Overdue           int64
+	CollectedToday    int64
 	CollectedThisWeek int64
 }
 

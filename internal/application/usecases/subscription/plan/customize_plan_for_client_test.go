@@ -211,9 +211,12 @@ func (s *stubIDService) GenerateID() string {
 	s.count++
 	return s.prefix + "-" + itoa(s.count)
 }
-func (s *stubIDService) GenerateIDWithPrefix(p string) string { s.count++; return p + "-" + itoa(s.count) }
-func (s *stubIDService) IsEnabled() bool                      { return true }
-func (s *stubIDService) GetProviderInfo() string              { return "stub" }
+func (s *stubIDService) GenerateIDWithPrefix(p string) string {
+	s.count++
+	return p + "-" + itoa(s.count)
+}
+func (s *stubIDService) IsEnabled() bool         { return true }
+func (s *stubIDService) GetProviderInfo() string { return "stub" }
 
 func itoa(i int) string {
 	if i == 0 {
@@ -240,7 +243,7 @@ type noTxn struct{}
 func (noTxn) ExecuteInTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return fn(ctx)
 }
-func (noTxn) SupportsTransactions() bool          { return false }
+func (noTxn) SupportsTransactions() bool               { return false }
 func (noTxn) IsTransactionActive(context.Context) bool { return false }
 
 // hasTxn — TransactionService that DOES support transactions; used to verify
@@ -250,7 +253,7 @@ type hasTxn struct{}
 func (hasTxn) ExecuteInTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return fn(ctx)
 }
-func (hasTxn) SupportsTransactions() bool          { return true }
+func (hasTxn) SupportsTransactions() bool               { return true }
 func (hasTxn) IsTransactionActive(context.Context) bool { return false }
 
 // ----- fixture builder ----------------------------------------------------
@@ -303,7 +306,7 @@ func newFixture(t *testing.T) *customizeFixture {
 //   - Plan plan-master (client_id = NULL)
 //     └── 2 ProductPlans: pp-1, pp-2
 //     └── PricePlan ppp-master priced for it
-//          └── 2 ProductPricePlans, one per ProductPlan
+//     └── 2 ProductPricePlans, one per ProductPlan
 //   - PriceSchedule ps-master at location loc-manila.
 func (f *customizeFixture) seedMasterPlan() {
 	planID := "plan-master"

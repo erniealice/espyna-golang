@@ -317,11 +317,11 @@ func (uc *GetSubscriptionListPageDataUseCase) validateSearch(
 // isValidSubscriptionField checks if a field name is valid for subscription filtering/sorting/searching
 func (uc *GetSubscriptionListPageDataUseCase) isValidSubscriptionField(field string) bool {
 	validFields := map[string]bool{
-		"id":                   true,
-		"name":                 true,
-		"price_plan_id":        true,
-		"client_id":            true,
-		"active":               true,
+		"id":            true,
+		"name":          true,
+		"price_plan_id": true,
+		"client_id":     true,
+		"active":        true,
 		// SQL-alias-prefixed form used by the list view's active/inactive
 		// filter — the adapter accepts both `s.active` and `active`, so the
 		// allowlist must accept both too.

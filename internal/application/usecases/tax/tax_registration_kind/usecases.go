@@ -20,8 +20,8 @@ type TaxRegistrationKindServices struct {
 
 // UseCases contains all tax_registration_kind use cases.
 type UseCases struct {
-	ReadTaxRegistrationKind          *ReadTaxRegistrationKindUseCase
-	ListTaxRegistrationKinds         *ListTaxRegistrationKindsUseCase
+	ReadTaxRegistrationKind            *ReadTaxRegistrationKindUseCase
+	ListTaxRegistrationKinds           *ListTaxRegistrationKindsUseCase
 	FindByPartyTypeTaxRegistrationKind *FindByPartyTypeTaxRegistrationKindUseCase
 }
 

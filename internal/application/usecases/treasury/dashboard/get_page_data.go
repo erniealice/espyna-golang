@@ -14,8 +14,8 @@ import (
 	"context"
 	"time"
 
+	dashboardpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/dashboard"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
-	dashboardpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/dashboard"
 )
 
 // LoanSlice mirrors treasury.LoanSlice in shape — duplicated here to avoid

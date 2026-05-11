@@ -19,13 +19,13 @@ import (
 // repointing a Subscription) into a target client's namespace. The legacy
 // CRUD use cases continue to use only the Plan field.
 type PlanRepositories struct {
-	Plan             planpb.PlanDomainServiceServer                       // Primary entity repository
-	PricePlan        priceplanpb.PricePlanDomainServiceServer             // Cascade target for client_id sync (§3.2) + customize clone
-	ProductPlan      productplanpb.ProductPlanDomainServiceServer         // Customize clone
+	Plan             planpb.PlanDomainServiceServer                         // Primary entity repository
+	PricePlan        priceplanpb.PricePlanDomainServiceServer               // Cascade target for client_id sync (§3.2) + customize clone
+	ProductPlan      productplanpb.ProductPlanDomainServiceServer           // Customize clone
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer // Customize clone
-	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer     // Customize resolve-or-create
-	Subscription     subscriptionpb.SubscriptionDomainServiceServer       // Customize optional repoint
-	Client           clientpb.ClientDomainServiceServer                   // Customize: client existence + display name
+	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer       // Customize resolve-or-create
+	Subscription     subscriptionpb.SubscriptionDomainServiceServer         // Customize optional repoint
+	Client           clientpb.ClientDomainServiceServer                     // Customize: client existence + display name
 }
 
 // PlanServices groups all business service dependencies for plan use cases

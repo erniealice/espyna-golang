@@ -50,10 +50,10 @@ type GenerateDepreciationRunServices struct {
 //     run inside one TransactionService.ExecuteInTransaction call.
 //     - On success: increment running balance and continue.
 //     - On unique-violation (DB partial-unique on asset_id, period_marker WHERE
-//       transaction_type='DEPRECIATION'): outcome=SKIPPED, running balance does
-//       NOT advance, schedule row is best-effort recorded outside the failed tx.
+//     transaction_type='DEPRECIATION'): outcome=SKIPPED, running balance does
+//     NOT advance, schedule row is best-effort recorded outside the failed tx.
 //     - On any other error: rollback, outcome=ERRORED, running balance does NOT
-//       advance, schedule row is best-effort recorded outside the failed tx.
+//     advance, schedule row is best-effort recorded outside the failed tx.
 //     The DB unique index is the SOLE idempotency decision point.
 //     Pre-checking depreciation_schedule.is_posted is NOT done (codex C3).
 //  4. After all periods for an asset: ONE UPDATE asset call with the final

@@ -336,4 +336,3 @@ func resolveBillableAmount(
 	}
 	return sum
 }
-

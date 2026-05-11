@@ -2,8 +2,8 @@ package initializers
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 )
 
 // InitializeIntegration creates all integration use cases from provider dependencies.

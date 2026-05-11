@@ -92,25 +92,25 @@ func (r *stubInstanceJobRepo) ListJobs(_ context.Context, req *jobpb.ListJobsReq
 // ---- Fixture builder ----
 
 type instFixture struct {
-	uc       *MaterializeInstanceJobsForSubscriptionUseCase
-	jobs     *stubInstanceJobRepo
-	phases   *stubJobPhaseRepo
-	tasks    *stubJobTaskRepo
-	events   *stubBillingEventRepo
-	subRepo  *stubSubscriptionRepo
+	uc      *MaterializeInstanceJobsForSubscriptionUseCase
+	jobs    *stubInstanceJobRepo
+	phases  *stubJobPhaseRepo
+	tasks   *stubJobTaskRepo
+	events  *stubBillingEventRepo
+	subRepo *stubSubscriptionRepo
 }
 
 type instFixtureOpts struct {
-	subActive            bool
-	subDateTimeStart     time.Time
-	subName              string
-	billingKind          priceplanpb.BillingKind
-	amountBasis          priceplanpb.AmountBasis
-	billingAmount        int64
-	billingCycleValue    int32
-	billingCycleUnit     string
-	visitsPerCycle       int32
-	planJobTemplateID    string
+	subActive         bool
+	subDateTimeStart  time.Time
+	subName           string
+	billingKind       priceplanpb.BillingKind
+	amountBasis       priceplanpb.AmountBasis
+	billingAmount     int64
+	billingCycleValue int32
+	billingCycleUnit  string
+	visitsPerCycle    int32
+	planJobTemplateID string
 	// AD_HOC × TOTAL_PACKAGE knobs (codex MAJ-1).
 	entitledOccurrences         int32
 	entitledOccurrencesOverride int32
@@ -523,11 +523,11 @@ func TestMaterializeInstanceJobs_Case7_NonCyclicSkip(t *testing.T) {
 // Case 8: Cycle period boundaries — month, week, quarter all compute correctly.
 func TestMaterializeInstanceJobs_Case8_CyclePeriodBoundaries(t *testing.T) {
 	cases := []struct {
-		name      string
-		unit      string
-		value     int32
-		start     string
-		wantEnd   string
+		name    string
+		unit    string
+		value   int32
+		start   string
+		wantEnd string
 	}{
 		{name: "monthly", unit: "month", value: 1, start: "2026-05-01", wantEnd: "2026-05-31"},
 		{name: "weekly", unit: "week", value: 1, start: "2026-05-01", wantEnd: "2026-05-07"},
@@ -1261,16 +1261,16 @@ func mkUsageJob(jobID, subID, parentID string, ordinal int32, requestDate string
 	rd := requestDate
 	composite := requestDate + "#" + zeroPad4(ordinal)
 	return &jobpb.Job{
-		Id:                 jobID,
-		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
-		OriginId:           &originID,
-		ClientId:           &clientID,
-		ParentJobId:        &parent,
-		CycleIndex:         &idx,
-		CyclePeriodStart:   &composite,
-		UsageRequestDate:   &rd,
-		UsageOrdinal:       &idx,
-		Active:             true,
+		Id:               jobID,
+		OriginType:       enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+		OriginId:         &originID,
+		ClientId:         &clientID,
+		ParentJobId:      &parent,
+		CycleIndex:       &idx,
+		CyclePeriodStart: &composite,
+		UsageRequestDate: &rd,
+		UsageOrdinal:     &idx,
+		Active:           true,
 	}
 }
 

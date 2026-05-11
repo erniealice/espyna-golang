@@ -9,14 +9,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
-	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
 type CreateSupplierSubscriptionRepositories struct {
 	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
-	CostPlan             costplanpb.CostPlanDomainServiceServer  // Cross-domain: currency hard-block
+	CostPlan             costplanpb.CostPlanDomainServiceServer   // Cross-domain: currency hard-block
 	Workspace            workspacepb.WorkspaceDomainServiceServer // Cross-domain: currency hard-block
 }
 

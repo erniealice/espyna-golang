@@ -198,45 +198,45 @@ type mockTaxTreatment struct {
 // ---- Test helpers ----
 
 const (
-	wsID       = "ws-001"
-	clientID   = "cli-001"
-	revenueID  = "rev-001"
-	lineID1    = "rli-001"
-	lineID2    = "rli-002"
-	vatRegID   = "tr-ws-vat"
-	twaRegID   = "tr-cli-twa"
-	kindID     = "kind-vat"
-	kindWHTID  = "kind-twa"
-	authID     = "auth-bir"
-	rateVATID  = "rate-vat-12"
-	rateWHTID  = "rate-wht-corp"
+	wsID      = "ws-001"
+	clientID  = "cli-001"
+	revenueID = "rev-001"
+	lineID1   = "rli-001"
+	lineID2   = "rli-002"
+	vatRegID  = "tr-ws-vat"
+	twaRegID  = "tr-cli-twa"
+	kindID    = "kind-vat"
+	kindWHTID = "kind-twa"
+	authID    = "auth-bir"
+	rateVATID = "rate-vat-12"
+	rateWHTID = "rate-wht-corp"
 )
 
 // buildSurchargeRegistration builds a workspace SURCHARGE registration.
 func buildSurchargeRegistration(kindID, authID string) *taxregistrationpb.TaxRegistration {
 	return &taxregistrationpb.TaxRegistration{
-		Id:                  vatRegID,
+		Id:                    vatRegID,
 		TaxRegistrationKindId: kindID,
-		TaxAuthorityId:      authID,
-		ComputePathSnapshot: taxregistrationpb.TaxRegistrationComputePathSnapshot_TAX_REGISTRATION_COMPUTE_PATH_SNAPSHOT_SURCHARGE,
-		PartyRoleSnapshot:   taxregistrationpb.TaxRegistrationPartyRoleSnapshot_TAX_REGISTRATION_PARTY_ROLE_SNAPSHOT_SELLER,
-		Status:              taxregistrationpb.TaxRegistrationStatus_TAX_REGISTRATION_STATUS_ACTIVE,
-		EffectiveFrom:       "2018-01-01",
-		Active:              true,
+		TaxAuthorityId:        authID,
+		ComputePathSnapshot:   taxregistrationpb.TaxRegistrationComputePathSnapshot_TAX_REGISTRATION_COMPUTE_PATH_SNAPSHOT_SURCHARGE,
+		PartyRoleSnapshot:     taxregistrationpb.TaxRegistrationPartyRoleSnapshot_TAX_REGISTRATION_PARTY_ROLE_SNAPSHOT_SELLER,
+		Status:                taxregistrationpb.TaxRegistrationStatus_TAX_REGISTRATION_STATUS_ACTIVE,
+		EffectiveFrom:         "2018-01-01",
+		Active:                true,
 	}
 }
 
 // buildWithholdingRegistration builds a client WITHHOLDING registration.
 func buildWithholdingRegistration(kindID, authID string) *taxregistrationpb.TaxRegistration {
 	return &taxregistrationpb.TaxRegistration{
-		Id:                  twaRegID,
+		Id:                    twaRegID,
 		TaxRegistrationKindId: kindID,
-		TaxAuthorityId:      authID,
-		ComputePathSnapshot: taxregistrationpb.TaxRegistrationComputePathSnapshot_TAX_REGISTRATION_COMPUTE_PATH_SNAPSHOT_WITHHOLDING,
-		PartyRoleSnapshot:   taxregistrationpb.TaxRegistrationPartyRoleSnapshot_TAX_REGISTRATION_PARTY_ROLE_SNAPSHOT_BUYER,
-		Status:              taxregistrationpb.TaxRegistrationStatus_TAX_REGISTRATION_STATUS_ACTIVE,
-		EffectiveFrom:       "2024-03-15",
-		Active:              true,
+		TaxAuthorityId:        authID,
+		ComputePathSnapshot:   taxregistrationpb.TaxRegistrationComputePathSnapshot_TAX_REGISTRATION_COMPUTE_PATH_SNAPSHOT_WITHHOLDING,
+		PartyRoleSnapshot:     taxregistrationpb.TaxRegistrationPartyRoleSnapshot_TAX_REGISTRATION_PARTY_ROLE_SNAPSHOT_BUYER,
+		Status:                taxregistrationpb.TaxRegistrationStatus_TAX_REGISTRATION_STATUS_ACTIVE,
+		EffectiveFrom:         "2024-03-15",
+		Active:                true,
 	}
 }
 
@@ -283,10 +283,10 @@ func buildWHTRate(id, kind string, basisPoints int32) *taxratepb.TaxRate {
 func buildWHTClass(code string, rateKind string) *taxclasspb.TaxClass {
 	buyerRole := taxclasspb.TaxClassCounterpartyRole_TAX_CLASS_COUNTERPARTY_ROLE_BUYER
 	return &taxclasspb.TaxClass{
-		Id:                      "tc-" + code,
-		Code:                    code,
-		Direction:               taxclasspb.TaxClassDirection_TAX_CLASS_DIRECTION_WITHHOLDING,
-		DefaultRateKind:         &rateKind,
+		Id:                       "tc-" + code,
+		Code:                     code,
+		Direction:                taxclasspb.TaxClassDirection_TAX_CLASS_DIRECTION_WITHHOLDING,
+		DefaultRateKind:          &rateKind,
 		RequiresCounterpartyRole: &buyerRole,
 	}
 }
@@ -371,7 +371,7 @@ func buildStandardRepos(
 	}
 
 	kinds := map[string]*taxregistrationkindpb.TaxRegistrationKind{
-		kindID:   buildVATKind(kindID, "VAT_STANDARD", "PH-NATIONAL"),
+		kindID:    buildVATKind(kindID, "VAT_STANDARD", "PH-NATIONAL"),
 		kindWHTID: buildVATKind(kindWHTID, "", "PH-NATIONAL"),
 	}
 
@@ -384,17 +384,17 @@ func buildStandardRepos(
 	}
 
 	repos := ComputeTaxesRepositories{
-		Revenue: revRepo,
-		RevenueLineItem: &mockRevenueLineItem{lines: lineItems},
-		RevenueTaxLine:  taxLineRepo,
-		Workspace:       &mockWorkspace{ws: workspace},
-		TaxRegistration: &mockTaxRegistration{wsReg: wsReg, clientReg: clientReg},
+		Revenue:             revRepo,
+		RevenueLineItem:     &mockRevenueLineItem{lines: lineItems},
+		RevenueTaxLine:      taxLineRepo,
+		Workspace:           &mockWorkspace{ws: workspace},
+		TaxRegistration:     &mockTaxRegistration{wsReg: wsReg, clientReg: clientReg},
 		TaxRegistrationKind: &mockTaxRegistrationKind{kinds: kinds},
 		TaxAuthority: &mockTaxAuthority{authorities: map[string]*taxauthoritypb.TaxAuthority{
 			authID: buildAuthority(authID, "BIR"),
 		}},
-		TaxRate:  &mockTaxRate{rates: rates},
-		TaxClass: &mockTaxClass{classes: taxClasses, byID: taxClassesByID},
+		TaxRate:                &mockTaxRate{rates: rates},
+		TaxClass:               &mockTaxClass{classes: taxClasses, byID: taxClassesByID},
 		WithholdingCertificate: &mockWithholdingCertificate{certs: certs},
 	}
 	return repos, taxLineRepo, revRepo
@@ -648,13 +648,13 @@ func TestComputeTaxes_Mixed_WHT_TwoRows(t *testing.T) {
 	revRepo := &mockRevenue{rev: rev}
 
 	rates := map[string]*taxratepb.TaxRate{
-		rateKey("VAT_STANDARD", "STANDARD", "SURCHARGE"):                vatRate,
-		rateKey("VAT_STANDARD", "ZERO_RATED", "SURCHARGE"):              buildVATRate("rate-vat-0", "VAT_STANDARD", "ZERO_RATED", 0),
-		rateKey("WHT_PROFESSIONAL_CORPORATE", "", "WITHHOLDING"):        whtCorpRate,
-		rateKey("WHT_RENTAL", "", "WITHHOLDING"):                        whtRentalRate,
+		rateKey("VAT_STANDARD", "STANDARD", "SURCHARGE"):         vatRate,
+		rateKey("VAT_STANDARD", "ZERO_RATED", "SURCHARGE"):       buildVATRate("rate-vat-0", "VAT_STANDARD", "ZERO_RATED", 0),
+		rateKey("WHT_PROFESSIONAL_CORPORATE", "", "WITHHOLDING"): whtCorpRate,
+		rateKey("WHT_RENTAL", "", "WITHHOLDING"):                 whtRentalRate,
 	}
 	kinds := map[string]*taxregistrationkindpb.TaxRegistrationKind{
-		kindID:   buildVATKind(kindID, "VAT_STANDARD", "PH-NATIONAL"),
+		kindID:    buildVATKind(kindID, "VAT_STANDARD", "PH-NATIONAL"),
 		kindWHTID: buildVATKind(kindWHTID, "", "PH-NATIONAL"),
 	}
 	corpClass := buildWHTClass("PROFESSIONAL_CORPORATE", "WHT_PROFESSIONAL_CORPORATE")
@@ -668,11 +668,11 @@ func TestComputeTaxes_Mixed_WHT_TwoRows(t *testing.T) {
 	}
 
 	repos := ComputeTaxesRepositories{
-		Revenue:         revRepo,
-		RevenueLineItem: &mockRevenueLineItem{lines: []*revenuelineitempb.RevenueLineItem{line1, line2}},
-		RevenueTaxLine:  taxLineRepo,
-		Workspace:       &mockWorkspace{ws: ws},
-		TaxRegistration: &mockTaxRegistration{wsReg: wsReg, clientReg: clientReg},
+		Revenue:             revRepo,
+		RevenueLineItem:     &mockRevenueLineItem{lines: []*revenuelineitempb.RevenueLineItem{line1, line2}},
+		RevenueTaxLine:      taxLineRepo,
+		Workspace:           &mockWorkspace{ws: ws},
+		TaxRegistration:     &mockTaxRegistration{wsReg: wsReg, clientReg: clientReg},
 		TaxRegistrationKind: &mockTaxRegistrationKind{kinds: kinds},
 		TaxAuthority: &mockTaxAuthority{authorities: map[string]*taxauthoritypb.TaxAuthority{
 			authID: buildAuthority(authID, "BIR"),
@@ -959,7 +959,7 @@ func TestComputeTaxes_TaxComputationDisabled_NoOp(t *testing.T) {
 	vatRate := buildVATRate(rateVATID, "VAT_STANDARD", "STANDARD", 1200)
 	line := buildLineItem(lineID1, revenueID, "STANDARD", "", 500000)
 	rev := buildRevenue(500000, "PHP", "", false, false, "", "", 0) // taxEnabled=false
-	ws := buildWorkspace("PHP", "PH-NATIONAL", false, false)       // taxEnabled=false
+	ws := buildWorkspace("PHP", "PH-NATIONAL", false, false)        // taxEnabled=false
 
 	repos, taxLineRepo, revRepo := buildStandardRepos(wsReg, nil, vatRate, nil, nil, []*revenuelineitempb.RevenueLineItem{line}, rev, ws)
 	svc := buildStandardServices()
@@ -1123,7 +1123,7 @@ func TestComputeTaxes_FullPH_SurchargeAndWithholding(t *testing.T) {
 func TestComputeTaxes_Inclusive_WHT_NetBase(t *testing.T) {
 	wsReg := buildSurchargeRegistration(kindID, authID)
 	clientReg := buildWithholdingRegistration(kindWHTID, authID)
-	vatRate := buildVATRate(rateVATID, "VAT_STANDARD", "STANDARD", 1200)  // 12% SURCHARGE
+	vatRate := buildVATRate(rateVATID, "VAT_STANDARD", "STANDARD", 1200)   // 12% SURCHARGE
 	whtRate := buildWHTRate(rateWHTID, "WHT_PROFESSIONAL_CORPORATE", 1000) // 10% WHT
 
 	// Line amount = 560000 centavos (₱5,600 gross-inclusive of 12% VAT).

@@ -159,18 +159,18 @@ func (uc *RecognizeFromExpenditureUseCase) Execute(ctx context.Context, req *exp
 				lineID := uc.services.IDService.GenerateID()
 				eliID := eli.GetId()
 				lineData := &expenserecognitionlinepb.ExpenseRecognitionLine{
-					Id:                   lineID,
-					DateCreated:          &[]int64{now.UnixMilli()}[0],
-					DateCreatedString:    &[]string{now.Format(time.RFC3339)}[0],
-					DateModified:         &[]int64{now.UnixMilli()}[0],
-					DateModifiedString:   &[]string{now.Format(time.RFC3339)}[0],
-					Active:               true,
-					ExpenseRecognitionId: data.GetId(),
+					Id:                    lineID,
+					DateCreated:           &[]int64{now.UnixMilli()}[0],
+					DateCreatedString:     &[]string{now.Format(time.RFC3339)}[0],
+					DateModified:          &[]int64{now.UnixMilli()}[0],
+					DateModifiedString:    &[]string{now.Format(time.RFC3339)}[0],
+					Active:                true,
+					ExpenseRecognitionId:  data.GetId(),
 					ExpenditureLineItemId: &eliID,
-					Description:          eli.GetDescription(),
-					Quantity:             eli.GetQuantity(),
-					UnitAmount:           eli.GetUnitPrice(),
-					Amount:               eli.GetTotalPrice(),
+					Description:           eli.GetDescription(),
+					Quantity:              eli.GetQuantity(),
+					UnitAmount:            eli.GetUnitPrice(),
+					Amount:                eli.GetTotalPrice(),
 				}
 				if pid := eli.GetProductId(); pid != "" {
 					lineData.ProductId = &pid

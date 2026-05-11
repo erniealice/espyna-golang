@@ -29,12 +29,12 @@ type TaxRegistrationServices struct {
 // Route names "update" and "delete" still map to these new use cases for CRUD
 // permission compatibility (tax_registration:update|delete permissions still work).
 type UseCases struct {
-	CreateTaxRegistration    *CreateTaxRegistrationUseCase
-	ReadTaxRegistration      *ReadTaxRegistrationUseCase
-	SupersedeTaxRegistration *SupersedeTaxRegistrationUseCase
-	RevokeTaxRegistration    *RevokeTaxRegistrationUseCase
+	CreateTaxRegistration     *CreateTaxRegistrationUseCase
+	ReadTaxRegistration       *ReadTaxRegistrationUseCase
+	SupersedeTaxRegistration  *SupersedeTaxRegistrationUseCase
+	RevokeTaxRegistration     *RevokeTaxRegistrationUseCase
 	FindActiveTaxRegistration *FindActiveTaxRegistrationUseCase
-	ListTaxRegistrations     *ListTaxRegistrationsUseCase
+	ListTaxRegistrations      *ListTaxRegistrationsUseCase
 }
 
 // NewUseCases creates a new collection of tax_registration use cases.

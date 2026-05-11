@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -30,10 +32,10 @@ const (
 
 	// Treatment tokens used for the preview badge — kept lowercase so the
 	// drawer's lyngua key map is straightforward.
-	treatmentRecurring   = "recurring"
-	treatmentFirstCycle  = "first_cycle"
-	treatmentUsageBased  = "usage_based"
-	treatmentOneTime     = "one_time"
+	treatmentRecurring  = "recurring"
+	treatmentFirstCycle = "first_cycle"
+	treatmentUsageBased = "usage_based"
+	treatmentOneTime    = "one_time"
 )
 
 // RecognizeRevenueFromSubscriptionRepositories aggregates every cross-domain
@@ -227,6 +229,13 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) Execute(
 	return uc.executeCore(ctx, req)
 }
 
+// debugTimingEnabled returns true when REVENUE_DEBUG_TIMING=1 in the process
+// environment. Used to gate verbose per-phase timing logs in executeCore so the
+// instrumentation can be flipped on live without re-instrumenting the file.
+func debugTimingEnabled() bool {
+	return os.Getenv("REVENUE_DEBUG_TIMING") == "1"
+}
+
 // executeCore is the transaction-agnostic body. It runs all reads, builds the
 // preview, and (unless dry_run) writes the Revenue + lines.
 func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
@@ -235,11 +244,27 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 ) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
 	subscriptionID := req.GetSubscriptionId()
 
+	// Phase timing — gated behind REVENUE_DEBUG_TIMING=1 so prod logs stay clean.
+	// Set the env var before triggering a Run Invoices to capture per-phase costs.
+	debug := debugTimingEnabled()
+	t0 := time.Now()
+	tPhase := t0
+	logPhase := func(name string) {
+		if debug {
+			log.Printf("recognize: phase=%s took=%v", name, time.Since(tPhase))
+			tPhase = time.Now()
+		}
+	}
+	if debug {
+		defer func() { log.Printf("recognize: total=%v sub=%s", time.Since(t0), subscriptionID) }()
+	}
+
 	// 1. Resolve subscription
 	sub, err := uc.readSubscription(ctx, subscriptionID)
 	if err != nil {
 		return nil, err
 	}
+	logPhase("resolve_subscription")
 	if !sub.GetActive() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.TranslationService,
@@ -261,6 +286,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	if err != nil {
 		return nil, err
 	}
+	logPhase("resolve_price_plan")
 
 	// 2a. Normalize incoherent kind × basis cells per plan §3.6 / followups §1.
 	// Mutates the in-memory pointer only — does NOT write back to the DB.
@@ -321,6 +347,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	// 3. Hydrate context (client, payment term, price schedule)
 	client := uc.readClient(ctx, sub.GetClientId())
 	priceSchedule := uc.readPriceSchedule(ctx, pricePlan.GetPriceScheduleId())
+	logPhase("resolve_client_priceschedule")
 
 	// 4. Currency assertion (hard block per plan §11.4)
 	planCurrency := pricePlan.GetBillingCurrency()
@@ -363,9 +390,11 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 
 	// 5. List ProductPricePlans for this PricePlan
 	ppps := uc.listProductPricePlans(ctx, pricePlanID)
+	logPhase("list_product_price_plans")
 
 	// 6. Idempotency + first-cycle detection require existing revenue rows
 	priorRevenues := uc.listRevenuesForSubscription(ctx, subscriptionID)
+	logPhase("list_prior_revenues")
 	periodStart := strings.TrimSpace(req.GetPeriodStart())
 	periodEnd := strings.TrimSpace(req.GetPeriodEnd())
 
@@ -378,7 +407,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 				ConflictingRevenueId: stringPtrLocal(conflictID),
 			}
 			errPb := &commonpb.Error{
-				Code:    "period_already_invoiced",
+				Code: "period_already_invoiced",
 				Message: contextutil.GetTranslatedMessageWithContext(
 					ctx, uc.services.TranslationService,
 					"revenue.errors.period_already_invoiced",
@@ -393,12 +422,14 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	// 7. Build first-cycle PPP-id set (any PPP that already has a non-cancelled
 	// line on a prior revenue is "not first cycle" anymore).
 	priorLinesByPPP := uc.collectPriorLinePPPIDs(ctx, priorRevenues)
+	logPhase("collect_prior_line_ppps")
 
 	// 8. Build line items per plan §3.3
 	var warnings []string
 	overridesByPPP := indexOverrides(req.GetOverrides())
 	lines, treatments, lineWarnings := buildLineItems(pricePlan, ppps, overridesByPPP, priorLinesByPPP)
 	warnings = append(warnings, lineWarnings...)
+	logPhase("build_line_items")
 
 	// 9. Empty-PPP fallback for TOTAL_PACKAGE plans (edge case 9 in plan)
 	if len(lines) == 0 && pricePlan.GetAmountBasis() == priceplanpb.AmountBasis_AMOUNT_BASIS_TOTAL_PACKAGE {
@@ -473,6 +504,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	// Standard path: insert header + lines atomically.
 	header := uc.buildHeader(req, sub, pricePlan, priceSchedule, client, planCurrency,
 		periodStart, periodEnd, revenueDate, totalAmount, warnings)
+	logPhase("build_header")
 
 	createdRevenue, err := uc.persistRevenue(ctx, header)
 	if err != nil {
@@ -501,10 +533,12 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		}
 		return nil, err
 	}
+	logPhase("persist_revenue")
 
 	if err := uc.persistLineItems(ctx, createdRevenue.GetId(), lines); err != nil {
 		return nil, err
 	}
+	logPhase("persist_line_items")
 
 	// 2026-05-10 tax-integration plan §4 Phase C — post-recognize tax compute.
 	//
@@ -522,6 +556,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 			warnings = append(warnings,
 				fmt.Sprintf("tax_compute_failed: %s", computeErr.Error()))
 		}
+		logPhase("compute_taxes")
 	}
 
 	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — recognize-piggyback.
@@ -703,15 +738,59 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) readPriceSchedule(
 }
 
 // listProductPricePlans returns the PPPs filtered to the given price plan.
-// Filtering happens in Go because the proto's ListProductPricePlansRequest
-// does not yet take a price_plan_id (matches the existing autoPopulateLineItems
-// pattern in centymo).
+//
+// 2026-05-11 perf fix: previously this call passed an empty request, pulling
+// every PPP row in the workspace and filtering in Go. With even a moderate-
+// sized workspace (dozens of plans × several products each) that's hundreds
+// of rows materialized + protojson-unmarshalled per recognize call — the
+// dominant cost in Run Invoices for single-period runs. The postgres adapter
+// honors `req.Filters` (commonpb.FilterRequest, see ListProductPricePlans in
+// contrib/postgres/internal/adapter/subscription/product_price_plan.go), so
+// pushing the price_plan_id predicate to SQL collapses the read to the
+// handful of rows we actually need. Falls back to the original full-list +
+// Go-side filter only when filtering returns an error — keeps the path
+// resilient to adapter providers that may not honor filters (mock_db, etc.).
 func (uc *RecognizeRevenueFromSubscriptionUseCase) listProductPricePlans(
 	ctx context.Context, pricePlanID string,
 ) []*productpriceplanpb.ProductPricePlan {
 	if uc.repositories.ProductPricePlan == nil {
 		return nil
 	}
+	filtered, err := uc.repositories.ProductPricePlan.ListProductPricePlans(
+		ctx, &productpriceplanpb.ListProductPricePlansRequest{
+			Filters: &commonpb.FilterRequest{
+				Filters: []*commonpb.TypedFilter{
+					{
+						Field: "price_plan_id",
+						FilterType: &commonpb.TypedFilter_StringFilter{
+							StringFilter: &commonpb.StringFilter{
+								Value:    pricePlanID,
+								Operator: commonpb.StringOperator_STRING_EQUALS,
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+	if err == nil && filtered != nil {
+		// Defensive: some adapters may silently ignore unknown filter fields and
+		// return every row. Re-filter in Go to guarantee correctness regardless
+		// of provider behavior. Cheap when the SQL filter worked (list already
+		// small) and necessary when it didn't.
+		data := filtered.GetData()
+		out := make([]*productpriceplanpb.ProductPricePlan, 0, len(data))
+		for _, ppp := range data {
+			if ppp.GetPricePlanId() == pricePlanID {
+				out = append(out, ppp)
+			}
+		}
+		return out
+	}
+
+	// Fallback: full-list + Go-side filter for providers that don't accept the
+	// price_plan_id predicate. Matches the pre-fix behavior so functionality is
+	// preserved even if the filter shape is unsupported.
 	resp, err := uc.repositories.ProductPricePlan.ListProductPricePlans(
 		ctx, &productpriceplanpb.ListProductPricePlansRequest{},
 	)
@@ -910,10 +989,10 @@ func buildLineItems(
 		totalPrice := int64(float64(unitPrice) * quantity)
 		pppID := ppp.GetId()
 		line := &revenuelineitempb.RevenueLineItem{
-			Description:        description,
-			Quantity:           quantity,
-			UnitPrice:          unitPrice,
-			TotalPrice:         totalPrice,
+			Description: description,
+			Quantity:    quantity,
+			UnitPrice:   unitPrice,
+			TotalPrice:  totalPrice,
 			// LineAmount mirrors TotalPrice — this is the field ComputeTaxesForRevenue
 			// reads for tax base calculation (plan §4 Phase C2 fix).
 			LineAmount:         totalPrice,
@@ -1494,12 +1573,12 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 	if req.GetLeaveRemainderOpen() && target < originalEventAmount {
 		remainder := originalEventAmount - target
 		child := &billingeventpb.BillingEvent{
-			Active:         true,
-			SubscriptionId: ev.GetSubscriptionId(),
-			BillableAmount: remainder,
+			Active:          true,
+			SubscriptionId:  ev.GetSubscriptionId(),
+			BillableAmount:  remainder,
 			BillingCurrency: ev.GetBillingCurrency(),
-			Status:  billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_DEFERRED,
-			Trigger: billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_MANUAL_LATE,
+			Status:          billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_DEFERRED,
+			Trigger:         billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_MANUAL_LATE,
 		}
 		if v := ev.GetJobId(); v != "" {
 			child.JobId = &v

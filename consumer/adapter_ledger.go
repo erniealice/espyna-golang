@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
-	agingpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
-	payagingpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
-	clientstmtpb  "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
-	expreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
-	reportpb      "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
-	revreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
-	collsumpb     "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
-	disbreportpb  "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
-	suppstmtpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/supplier_statement"
+	clientstmtpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
+	expreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
+	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	payagingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
+	agingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
+	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
+	collsumpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
+	disbreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
+	suppstmtpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/supplier_statement"
 )
 
 // LedgerReportingService provides access to ledger reporting queries.

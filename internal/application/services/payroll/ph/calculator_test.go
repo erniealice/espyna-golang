@@ -73,10 +73,10 @@ func sssBands() []*ratebandpb.RateBand {
 // (RR 11-2018 Annex E) in centavos. This is shared across tests.
 func birSemiMonthlyBands() []*ratebandpb.RateBand {
 	type row struct {
-		lower         int64
-		upper         *int64
-		fixedCent     int64 // additive constant (centavos)
-		basisPoints   int32 // 0 means no marginal rate (bracket 1)
+		lower       int64
+		upper       *int64
+		fixedCent   int64 // additive constant (centavos)
+		basisPoints int32 // 0 means no marginal rate (bracket 1)
 	}
 	rows := []row{
 		// Bracket 1: ≤10,417 → 0

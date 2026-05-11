@@ -61,9 +61,9 @@ func (r *stubMBEJobPhaseRepo) ListByJob(_ context.Context, req *jobphasepb.ListJ
 
 type stubMBEBillingEventRepo struct {
 	billingeventpb.UnimplementedBillingEventDomainServiceServer
-	created       []*billingeventpb.BillingEvent
+	created        []*billingeventpb.BillingEvent
 	bySubscription map[string][]*billingeventpb.BillingEvent
-	failOnCreate  bool
+	failOnCreate   bool
 }
 
 func (r *stubMBEBillingEventRepo) CreateBillingEvent(_ context.Context, req *billingeventpb.CreateBillingEventRequest) (*billingeventpb.CreateBillingEventResponse, error) {

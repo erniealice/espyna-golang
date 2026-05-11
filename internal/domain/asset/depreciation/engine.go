@@ -23,12 +23,12 @@ var ErrUnitsRequired = errors.New("units_of_production: units_produced must be >
 // AssetParams holds the fixed per-asset parameters needed by the engine.
 // All monetary fields are int64 centavos.
 type AssetParams struct {
-	AcquisitionCost        int64   // centavos
-	SalvageValue           int64   // centavos — floor: depreciation stops here
-	UsefulLifeMonths       int32   // total useful life in calendar months
-	DepreciationStartDate  string  // YYYY-MM-DD — first depreciable period boundary
-	DepreciationRate       float64 // fractional (e.g. 0.20 = 20%) — used by declining-balance methods
-	AccumulatedDepreciation int64  // centavos — accumulated so far (before this period)
+	AcquisitionCost         int64   // centavos
+	SalvageValue            int64   // centavos — floor: depreciation stops here
+	UsefulLifeMonths        int32   // total useful life in calendar months
+	DepreciationStartDate   string  // YYYY-MM-DD — first depreciable period boundary
+	DepreciationRate        float64 // fractional (e.g. 0.20 = 20%) — used by declining-balance methods
+	AccumulatedDepreciation int64   // centavos — accumulated so far (before this period)
 }
 
 // PeriodParams describes the time window for one depreciation period.

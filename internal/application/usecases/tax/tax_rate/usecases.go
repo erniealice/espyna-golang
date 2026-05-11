@@ -20,8 +20,8 @@ type TaxRateServices struct {
 
 // UseCases contains all tax_rate use cases.
 type UseCases struct {
-	ReadTaxRate          *ReadTaxRateUseCase
-	ListTaxRates         *ListTaxRatesUseCase
+	ReadTaxRate           *ReadTaxRateUseCase
+	ListTaxRates          *ListTaxRatesUseCase
 	FindApplicableTaxRate *FindApplicableTaxRateUseCase
 }
 

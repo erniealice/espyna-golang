@@ -43,9 +43,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
-	jobUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
+	jobUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
@@ -53,10 +53,10 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 
-	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
+	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 
 	domain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
@@ -700,7 +700,7 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				JobTask:             operationRepos.JobTask,
 				// AD_HOC × PER_OCCURRENCE spawns paired BillingEvents.
 				// See ad-hoc-subscription-billing plan §3.2.
-				BillingEvent:        subscriptionRepos.BillingEvent,
+				BillingEvent: subscriptionRepos.BillingEvent,
 			},
 			subscriptionUseCase.MaterializeInstanceJobsForSubscriptionServices{
 				AuthorizationService: authSvc,
@@ -1088,7 +1088,6 @@ func (uci *UseCaseInitializer) initializeIntegrationUseCases(container *Containe
 
 	return integrationUC
 }
-
 
 // materializeBillingEventsAdapter adapts the MaterializeBillingEventsForJob
 // use case to the narrow MaterializeBillingEventsForJobInvoker interface

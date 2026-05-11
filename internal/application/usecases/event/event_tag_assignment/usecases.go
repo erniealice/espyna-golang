@@ -9,12 +9,12 @@ import (
 
 // UseCases contains all event_tag_assignment-related use cases
 type UseCases struct {
-	CreateEventTagAssignment        *CreateEventTagAssignmentUseCase
-	ReadEventTagAssignment          *ReadEventTagAssignmentUseCase
-	DeleteEventTagAssignment        *DeleteEventTagAssignmentUseCase
-	ListEventTagAssignments         *ListEventTagAssignmentsUseCase
-	ListEventTagAssignmentsByEvent  *ListEventTagAssignmentsByEventUseCase
-	SetEventTagAssignments          *SetEventTagAssignmentsUseCase
+	CreateEventTagAssignment       *CreateEventTagAssignmentUseCase
+	ReadEventTagAssignment         *ReadEventTagAssignmentUseCase
+	DeleteEventTagAssignment       *DeleteEventTagAssignmentUseCase
+	ListEventTagAssignments        *ListEventTagAssignmentsUseCase
+	ListEventTagAssignmentsByEvent *ListEventTagAssignmentsByEventUseCase
+	SetEventTagAssignments         *SetEventTagAssignmentsUseCase
 }
 
 // EventTagAssignmentRepositories groups all repository dependencies for event_tag_assignment use cases

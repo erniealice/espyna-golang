@@ -13,8 +13,8 @@ import (
 
 // AssetCategoryWithRollup enriches an AssetCategory with per-policy aggregate counts.
 type AssetCategoryWithRollup struct {
-	Category       *assetcategorypb.AssetCategory
-	AssetsInPolicy int // assets with status IN_SERVICE in this category
+	Category        *assetcategorypb.AssetCategory
+	AssetsInPolicy  int // assets with status IN_SERVICE in this category
 	AssetsDeviating int // in-service assets whose depreciation config deviates from category defaults
 }
 
@@ -112,8 +112,8 @@ func goRollupToProto(rows []AssetCategoryWithRollup) *assetcategorypb.ListAssetC
 	items := make([]*assetcategorypb.AssetCategoryWithPolicyRollup, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, &assetcategorypb.AssetCategoryWithPolicyRollup{
-			Category:       r.Category,
-			AssetsInPolicy: int32(r.AssetsInPolicy),
+			Category:        r.Category,
+			AssetsInPolicy:  int32(r.AssetsInPolicy),
 			AssetsDeviating: int32(r.AssetsDeviating),
 		})
 	}

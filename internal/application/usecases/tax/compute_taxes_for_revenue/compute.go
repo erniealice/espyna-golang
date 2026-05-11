@@ -81,12 +81,12 @@ type aggKey struct {
 
 // aggRow accumulates values across line items sharing the same tax rate + direction.
 type aggRow struct {
-	taxRate      *taxratepb.TaxRate
-	regCtx       *regContext
-	direction    revenuetaxlinepb.RevenueTaxLineDirection
-	taxableBase  int64
-	taxAmount    int64
-	lineIDs      []string
+	taxRate     *taxratepb.TaxRate
+	regCtx      *regContext
+	direction   revenuetaxlinepb.RevenueTaxLineDirection
+	taxableBase int64
+	taxAmount   int64
+	lineIDs     []string
 }
 
 // ComputeTaxesRequest is the input to ComputeTaxesForRevenue.
@@ -510,7 +510,7 @@ func (uc *ComputeTaxesForRevenueUseCase) withholdingPassForLine(
 		if clientRegCtx == nil || clientRegCtx.reg == nil {
 			return nil
 		}
-		requiredRoleName := taxClass.RequiresCounterpartyRole.String() // e.g. "TAX_CLASS_COUNTERPARTY_ROLE_BUYER"
+		requiredRoleName := taxClass.RequiresCounterpartyRole.String()     // e.g. "TAX_CLASS_COUNTERPARTY_ROLE_BUYER"
 		actualRoleName := clientRegCtx.reg.GetPartyRoleSnapshot().String() // e.g. "TAX_REGISTRATION_PARTY_ROLE_SNAPSHOT_BUYER"
 		// Both end with _BUYER or _SELLER — compare the suffix.
 		requiredSuffix := ""

@@ -114,7 +114,8 @@ func (r *PostgresUserRepository) ReadUser(ctx context.Context, req *userpb.ReadU
 	}
 
 	return &userpb.ReadUserResponse{
-		Data: []*userpb.User{user},
+		Data:    []*userpb.User{user},
+		Success: true,
 	}, nil
 }
 

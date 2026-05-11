@@ -116,9 +116,9 @@ func (uc *GetProductLineListPageDataUseCase) executeCore(
 		emptyPagination := uc.processor.GetPaginationUtils().CreatePaginationResponse(req.Pagination, 0, false)
 		return &productlinepb.GetProductLineListPageDataResponse{
 			ProductLineList: []*productlinepb.ProductLine{},
-			Pagination:            emptyPagination,
-			SearchResults:         []*commonpb.SearchResult{},
-			Success:               true,
+			Pagination:      emptyPagination,
+			SearchResults:   []*commonpb.SearchResult{},
+			Success:         true,
 		}, nil
 	}
 
@@ -165,9 +165,9 @@ func (uc *GetProductLineListPageDataUseCase) executeCore(
 
 	return &productlinepb.GetProductLineListPageDataResponse{
 		ProductLineList: productLines,
-		Pagination:            result.PaginationResponse,
-		SearchResults:         searchResults,
-		Success:               true,
+		Pagination:      result.PaginationResponse,
+		SearchResults:   searchResults,
+		Success:         true,
 	}, nil
 }
 
@@ -380,17 +380,17 @@ func (uc *GetProductLineListPageDataUseCase) isValidProductLineField(field strin
 	validFields := map[string]bool{
 		"id":                   true,
 		"product_id":           true,
-		"line_id":        true,
+		"line_id":              true,
 		"active":               true,
 		"date_created":         true,
 		"date_created_string":  true,
 		"date_modified":        true,
 		"date_modified_string": true,
 		// Nested fields
-		"product.name":    true,
-		"product.id":      true,
-		"line.name": true,
-		"line.id":   true,
+		"product.name": true,
+		"product.id":   true,
+		"line.name":    true,
+		"line.id":      true,
 	}
 
 	return validFields[field]

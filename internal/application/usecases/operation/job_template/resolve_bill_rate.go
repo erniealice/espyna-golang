@@ -21,8 +21,8 @@ type ResolveBillRateRepositories struct {
 
 // ResolveBillRateResult carries the resolved billing rate for a resource.
 type ResolveBillRateResult struct {
-	BillRate    int64  // centavos
-	CostRate    int64  // centavos (from Product.price)
+	BillRate    int64 // centavos
+	CostRate    int64 // centavos (from Product.price)
 	Currency    string
 	ProductID   string
 	ProductName string

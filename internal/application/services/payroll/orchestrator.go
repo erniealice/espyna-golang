@@ -293,20 +293,20 @@ func (o *Orchestrator) CalculatePayrollRun(ctx context.Context, runID string) (*
 				proration := lr.ProrationFactor
 				lineKind := lr.LineKind
 				eli := &expenditurelinepb.ExpenditureLineItem{
-					Id:                  lineID,
-					Active:              true,
-					ExpenditureId:       expID,
-					Description:         lr.Description,
-					Quantity:            lr.Quantity,
-					UnitPrice:           lr.UnitPrice,
-					TotalPrice:          lr.Amount,
-					LineItemType:        "item",
-					RateTableId:         &rateID,
-					PayCycleId:          &cycleID,
-					AppliedBasisAmount:  &appliedBasis,
-					ProrationFactor:     &proration,
-					CalcMetadata:        &meta,
-					LineKind:            &lineKind,
+					Id:                 lineID,
+					Active:             true,
+					ExpenditureId:      expID,
+					Description:        lr.Description,
+					Quantity:           lr.Quantity,
+					UnitPrice:          lr.UnitPrice,
+					TotalPrice:         lr.Amount,
+					LineItemType:       "item",
+					RateTableId:        &rateID,
+					PayCycleId:         &cycleID,
+					AppliedBasisAmount: &appliedBasis,
+					ProrationFactor:    &proration,
+					CalcMetadata:       &meta,
+					LineKind:           &lineKind,
 				}
 				if _, err := o.repos.ExpenditureLineItem.CreateExpenditureLineItem(ctx, &expenditurelinepb.CreateExpenditureLineItemRequest{Data: eli}); err != nil {
 					return nil, fmt.Errorf("create payslip line: %w", err)
@@ -541,4 +541,3 @@ func derefStr(s *string) string {
 	}
 	return *s
 }
-

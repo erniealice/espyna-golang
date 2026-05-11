@@ -39,11 +39,11 @@ type FulfillmentDashboardQueries interface {
 
 // FulfillmentStats holds the four stat-card values for the Fulfillment dashboard.
 type FulfillmentStats struct {
-	Pending          int64
-	InTransit        int64
-	DeliveredToday   int64
-	Exceptions       int64
-	AvgFulfillDays   float64 // optional secondary metric (days)
+	Pending        int64
+	InTransit      int64
+	DeliveredToday int64
+	Exceptions     int64
+	AvgFulfillDays float64 // optional secondary metric (days)
 }
 
 // GetFulfillmentDashboardPageDataRequest is the request shape.
@@ -54,12 +54,12 @@ type GetFulfillmentDashboardPageDataRequest struct {
 
 // GetFulfillmentDashboardPageDataResponse is the projection the view layer reads.
 type GetFulfillmentDashboardPageDataResponse struct {
-	Stats             FulfillmentStats
-	StatusMixLabels   []string  // for the donut widget
-	StatusMixValues   []float64 // counts per status
-	TrendLabels       []string  // 30-day daily-delivered chart
-	TrendValues       []float64
-	RecentExceptions  []*fulfillmentpb.Fulfillment
+	Stats            FulfillmentStats
+	StatusMixLabels  []string  // for the donut widget
+	StatusMixValues  []float64 // counts per status
+	TrendLabels      []string  // 30-day daily-delivered chart
+	TrendValues      []float64
+	RecentExceptions []*fulfillmentpb.Fulfillment
 }
 
 // GetFulfillmentDashboardPageDataUseCase orchestrates the Fulfillment dashboard

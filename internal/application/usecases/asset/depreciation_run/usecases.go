@@ -5,9 +5,9 @@ import (
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
+	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 	depschpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation"
 	deprunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation_run"
-	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 )
 
 // DepreciationRunRepositories groups all repository dependencies for the
@@ -30,11 +30,11 @@ type DepreciationRunServices struct {
 
 // UseCases contains all depreciation-run-related use cases.
 type UseCases struct {
-	GenerateDepreciationRun       *GenerateDepreciationRunUseCase
-	ListDepreciationCandidates    *ListDepreciationCandidatesUseCase
-	ListDepreciationRuns          *ListDepreciationRunsUseCase
-	ReadDepreciationRun           *ReadDepreciationRunUseCase
-	ListDepreciationRunEntries    *ListDepreciationRunEntriesUseCase
+	GenerateDepreciationRun    *GenerateDepreciationRunUseCase
+	ListDepreciationCandidates *ListDepreciationCandidatesUseCase
+	ListDepreciationRuns       *ListDepreciationRunsUseCase
+	ReadDepreciationRun        *ReadDepreciationRunUseCase
+	ListDepreciationRunEntries *ListDepreciationRunEntriesUseCase
 }
 
 // NewUseCases creates a new collection of depreciation-run use cases.

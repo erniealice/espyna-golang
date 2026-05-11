@@ -20,7 +20,7 @@ type TaxAuthorityServices struct {
 
 // UseCases contains all tax_authority use cases.
 type UseCases struct {
-	ReadTaxAuthority  *ReadTaxAuthorityUseCase
+	ReadTaxAuthority   *ReadTaxAuthorityUseCase
 	ListTaxAuthorities *ListTaxAuthoritiesUseCase
 }
 

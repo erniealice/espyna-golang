@@ -2,8 +2,8 @@ package cost_plan
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
+	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 )
 
 // Repositories groups all repository dependencies for cost_plan use cases

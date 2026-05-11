@@ -118,13 +118,13 @@ const (
 
 // Revenue domain
 const (
-	Revenue          = "revenue"
-	RevenueAttribute = "revenue_attribute"
-	RevenueCategory  = "revenue_category"
-	RevenueLineItem  = "revenue_line_item"
-	RevenueRun       = "revenue_run"
+	Revenue           = "revenue"
+	RevenueAttribute  = "revenue_attribute"
+	RevenueCategory   = "revenue_category"
+	RevenueLineItem   = "revenue_line_item"
+	RevenueRun        = "revenue_run"
 	RevenueRunAttempt = "revenue_run_attempt"
-	RevenueTaxLine   = "revenue_tax_line"
+	RevenueTaxLine    = "revenue_tax_line"
 )
 
 // Expenditure domain
@@ -170,8 +170,8 @@ const (
 
 // Treasury domain
 const (
-	TreasuryCollection   = "treasury_collection"
-	TreasuryDisbursement = "treasury_disbursement"
+	TreasuryCollection     = "treasury_collection"
+	TreasuryDisbursement   = "treasury_disbursement"
 	WithholdingCertificate = "withholding_certificate"
 )
 

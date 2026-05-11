@@ -469,12 +469,12 @@ func (uc *CustomizePlanForClientUseCase) cloneProductPlans(
 	for _, src := range listResp.GetProductPlans() {
 		newID := uc.generateID()
 		clone := &productplanpb.ProductPlan{
-			Id:                 newID,
-			Name:               src.GetName(),
-			Description:        copyStringPtr(src.Description),
-			Active:             true,
-			ProductId:          src.GetProductId(),
-			PlanId:             newPlanID,
+			Id:          newID,
+			Name:        src.GetName(),
+			Description: copyStringPtr(src.Description),
+			Active:      true,
+			ProductId:   src.GetProductId(),
+			PlanId:      newPlanID,
 			// ProductPlan.job_template_id (field 14) is reserved as of
 			// 20260429 (auto-spawn-jobs-from-subscription) — the JobTemplate
 			// anchor moved to Plan.job_template_id.

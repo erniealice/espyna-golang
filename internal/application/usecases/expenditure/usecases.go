@@ -5,8 +5,8 @@ import (
 	accruedExpenseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/accrued_expense"
 
 	// Dashboard use case (purchase + expense share one use case)
-	expendituredashboard "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/dashboard"
 	accruedExpenseSettlementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/accrued_expense_settlement"
+	expendituredashboard "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/dashboard"
 	expenditureUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure"
 	expenditureAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_attribute"
 	expenditureCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_category"

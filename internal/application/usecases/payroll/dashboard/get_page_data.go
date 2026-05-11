@@ -14,9 +14,9 @@ import (
 	"context"
 	"time"
 
+	dashboardpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/dashboard"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
-	payrollrunpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
-	dashboardpb        "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/dashboard"
+	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
 )
 
 // TimeBucket mirrors payroll.TimeBucket — kept as a Go-only type because it

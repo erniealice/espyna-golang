@@ -26,8 +26,8 @@ import (
 	"errors"
 	"time"
 
+	dashboardpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin/dashboard"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
-	dashboardpb         "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin/dashboard"
 )
 
 // PermissionDashboardRepository is satisfied by PostgresPermissionRepository.

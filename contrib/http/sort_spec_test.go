@@ -28,9 +28,9 @@ func TestSortSpec_SQLCol_mapping(t *testing.T) {
 	}{
 		{"date_start", "date_time_start"},
 		{"date_end", "date_time_end"},
-		{"name", "name"},         // passthrough
+		{"name", "name"},                 // passthrough
 		{"date_created", "date_created"}, // passthrough
-		{"unknown", "unknown"},   // passthrough for unlisted keys
+		{"unknown", "unknown"},           // passthrough for unlisted keys
 	}
 	for _, tc := range tests {
 		got := testSpec.SQLCol(tc.viewCol)

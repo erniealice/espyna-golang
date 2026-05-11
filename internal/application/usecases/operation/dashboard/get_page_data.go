@@ -20,8 +20,8 @@ import (
 	"context"
 	"time"
 
-	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 )
 
 // JobRisk mirrors operation.JobRisk in shape — duplicated here to avoid
@@ -71,10 +71,10 @@ type JobActivityRecentQueries interface {
 
 // JobStats holds the four stat-card values for the Job dashboard.
 type JobStats struct {
-	ActiveJobs       int64
-	DoneThisMonth    int64
-	OverdueJobs      int64
-	HoursThisWeek    float64 // hours (already divided ÷100 from centi-hours)
+	ActiveJobs    int64
+	DoneThisMonth int64
+	OverdueJobs   int64
+	HoursThisWeek float64 // hours (already divided ÷100 from centi-hours)
 }
 
 // GetJobDashboardPageDataRequest is the request shape.

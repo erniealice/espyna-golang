@@ -2,15 +2,15 @@ package supplier_subscription
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
-	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
 // Repositories groups all repository dependencies for supplier_subscription use cases
 type Repositories struct {
 	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
-	CostPlan             costplanpb.CostPlanDomainServiceServer  // Cross-domain: currency hard-block on create
+	CostPlan             costplanpb.CostPlanDomainServiceServer   // Cross-domain: currency hard-block on create
 	Workspace            workspacepb.WorkspaceDomainServiceServer // Cross-domain: currency hard-block on create
 }
 

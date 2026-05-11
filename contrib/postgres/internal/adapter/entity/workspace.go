@@ -121,7 +121,8 @@ func (r *PostgresWorkspaceRepository) ReadWorkspace(ctx context.Context, req *wo
 	}
 
 	return &workspacepb.ReadWorkspaceResponse{
-		Data: []*workspacepb.Workspace{workspace},
+		Data:    []*workspacepb.Workspace{workspace},
+		Success: true,
 	}, nil
 }
 

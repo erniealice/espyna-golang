@@ -117,6 +117,7 @@ func (r *PostgresRevenueRunRepository) CreateRevenueRun(ctx context.Context, req
 	if err != nil {
 		return nil, fmt.Errorf("failed to create revenue_run: %w", err)
 	}
+	postgresCore.ConvertMillisToDateStr(result, "as_of_date")
 	run, err := unmarshalRevenueRun(result)
 	if err != nil {
 		return nil, err
@@ -136,6 +137,7 @@ func (r *PostgresRevenueRunRepository) ReadRevenueRun(ctx context.Context, req *
 	if err != nil {
 		return nil, fmt.Errorf("failed to read revenue_run: %w", err)
 	}
+	postgresCore.ConvertMillisToDateStr(result, "as_of_date")
 	run, err := unmarshalRevenueRun(result)
 	if err != nil {
 		return nil, err
@@ -167,6 +169,7 @@ func (r *PostgresRevenueRunRepository) UpdateRevenueRun(ctx context.Context, req
 	if err != nil {
 		return nil, fmt.Errorf("failed to update revenue_run: %w", err)
 	}
+	postgresCore.ConvertMillisToDateStr(result, "as_of_date")
 	run, err := unmarshalRevenueRun(result)
 	if err != nil {
 		return nil, err
@@ -210,6 +213,7 @@ func (r *PostgresRevenueRunRepository) ListRevenueRuns(ctx context.Context, req 
 	}
 	runs := make([]*revenuerunpb.RevenueRun, 0, len(listResult.Data))
 	for _, raw := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(raw, "as_of_date")
 		run, err := unmarshalRevenueRun(raw)
 		if err != nil {
 			log.Printf("WARN: unmarshal revenue_run row: %v", err)
@@ -248,6 +252,7 @@ func (r *PostgresRevenueRunRepository) CreateRevenueRunAttempt(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("failed to create revenue_run_attempt: %w", err)
 	}
+	postgresCore.ConvertMillisToDateStr(result, "period_start", "period_end")
 	attempt, err := unmarshalRevenueRunAttempt(result)
 	if err != nil {
 		return nil, err
@@ -299,6 +304,7 @@ func (r *PostgresRevenueRunRepository) ListRevenueRunAttempts(ctx context.Contex
 	}
 	attempts := make([]*revenuerunpb.RevenueRunAttempt, 0, len(listResult.Data))
 	for _, raw := range listResult.Data {
+		postgresCore.ConvertMillisToDateStr(raw, "period_start", "period_end")
 		a, err := unmarshalRevenueRunAttempt(raw)
 		if err != nil {
 			log.Printf("WARN: unmarshal revenue_run_attempt row: %v", err)

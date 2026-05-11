@@ -9,8 +9,8 @@ import (
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
-	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
+	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 	depschpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation"
 	deprunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation_run"
 )

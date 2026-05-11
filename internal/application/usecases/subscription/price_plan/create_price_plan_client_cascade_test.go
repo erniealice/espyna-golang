@@ -49,9 +49,12 @@ func (s *stubIDSvc) GenerateID() string {
 	s.count++
 	return "id-" + itoaSimple(s.count)
 }
-func (s *stubIDSvc) GenerateIDWithPrefix(p string) string { s.count++; return p + "-" + itoaSimple(s.count) }
-func (s *stubIDSvc) IsEnabled() bool                      { return true }
-func (s *stubIDSvc) GetProviderInfo() string              { return "stub" }
+func (s *stubIDSvc) GenerateIDWithPrefix(p string) string {
+	s.count++
+	return p + "-" + itoaSimple(s.count)
+}
+func (s *stubIDSvc) IsEnabled() bool         { return true }
+func (s *stubIDSvc) GetProviderInfo() string { return "stub" }
 
 func itoaSimple(i int) string {
 	if i == 0 {
@@ -70,7 +73,7 @@ type noTxnCreate struct{}
 func (noTxnCreate) ExecuteInTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return fn(ctx)
 }
-func (noTxnCreate) SupportsTransactions() bool          { return false }
+func (noTxnCreate) SupportsTransactions() bool               { return false }
 func (noTxnCreate) IsTransactionActive(context.Context) bool { return false }
 
 // ----- fixture --------------------------------------------------------------

@@ -627,8 +627,10 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		if internalId != nil {
 			c.InternalId = *internalId
 		}
-		c.DateCreated = dateCreated.Unix()
-		c.DateModified = dateModified.Unix()
+		dc := dateCreated.Unix()
+		dm := dateModified.Unix()
+		c.DateCreated = &dc
+		c.DateModified = &dm
 		if name != nil {
 			c.Name = name
 		}

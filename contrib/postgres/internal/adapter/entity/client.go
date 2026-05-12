@@ -7,15 +7,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
+	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -162,6 +166,39 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 	}, nil
 }
 
+// loadClientPaymentTerm fetches the PaymentTerm row associated with a
+// client.payment_term_id and returns a populated PaymentTerm proto. Returns
+// (nil, nil) if paymentTermId is empty or the row is missing — keeps
+// Client.PaymentTerm optional behavior intact.
+//
+// This helper mirrors loadClientUser/loadClientCategories — Client.payment_term
+// is a cross-table denorm that dbOps.Read on the client table cannot resolve
+// on its own. Used by GetClientListPageData so list views render the payment
+// term name without a separate fetch per row in the view layer.
+func (r *PostgresClientRepository) loadClientPaymentTerm(ctx context.Context, paymentTermId string) (*paymenttermpb.PaymentTerm, error) {
+	if paymentTermId == "" {
+		return nil, nil
+	}
+	result, err := r.dbOps.Read(ctx, "payment_term", paymentTermId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read payment_term for client: %w", err)
+	}
+	if result == nil {
+		return nil, nil
+	}
+
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal payment_term result to JSON: %w", err)
+	}
+
+	pt := &paymenttermpb.PaymentTerm{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, pt); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payment_term JSON to protobuf: %w", err)
+	}
+	return pt, nil
+}
+
 // loadClientUser fetches the User row associated with a client.user_id and
 // returns a populated User proto. Returns (nil, nil) if userId is empty or
 // the user row is missing — keeps Client.User optional behavior intact.
@@ -253,6 +290,9 @@ var clientSortableSQLCols = []string{
 	"street_address", "city", "province", "postal_code", "notes",
 	"payment_term_id", "billing_currency", "status", "country", "website",
 	"date_created", "date_modified",
+	// Derived column: computed by LATERAL JOIN in GetClientListPageData raw CTE.
+	// Allows sorting the client list by active subscription count at DB level.
+	"active_subscriptions",
 }
 
 var clientSortSpec = espynahttp.SortSpec{AllowedCols: clientSortableSQLCols}
@@ -342,23 +382,23 @@ func (r *DBClientRepository) Create(ctx context.Context, req *clientpb.CreateCli
 }
 */
 
-// GetClientListPageData retrieves clients via composition over the canonical
-// ListClients (which routes through dbOps.List + protojson DiscardUnknown), and
-// adds the page-data denorms (Client.User per row, Client.Categories per row).
+// GetClientListPageData retrieves clients via a raw CTE query that includes a
+// LATERAL JOIN computing active_subscriptions per client row. This enables
+// server-side ORDER BY active_subscriptions without a separate count query per
+// row and without client-side sorting.
 //
-// Caveat: cross-table sort/search by user fields (u.first_name, u.last_name,
-// u.email_address, u.mobile_number) is intentionally dropped from this path —
-// the canonical List* primitives operate on a single table. Filters and search
-// over client-table columns and search across the c.internal_id column are
-// preserved by passing req.Filters / req.Search through unchanged. Callers
-// needing user-field sort should sort client-side over the populated
-// Client.User.* fields, or move that concern out of pagedata.
+// The query follows the same shape as GetSupplierListPageData (payment_term_name
+// LATERAL JOIN exemplar) — single round-trip, CTE + windowed COUNT(*), user
+// denorm via LEFT JOIN, payment_term name via LEFT JOIN, and the subscription
+// count via LEFT JOIN LATERAL.
 //
-// Page header (pagination metadata) is computed locally from len(rows) — the
-// canonical ListClients does not yet emit a windowed total count. Treat this
-// as an acceptable degradation versus the dropped CTE: total_items reflects
-// the page size, not the global count, until ListClients gains pagination
-// metadata. Documented to track in a follow-up.
+// Cross-table search (u.first_name, u.last_name, u.email_address) is supported
+// via the enriched CTE joining the user table — callers pass Search through
+// req.Search as before; searchFields wired to the user-joined aliases.
+//
+// The active_subscriptions column is not present on the Client proto, so it is
+// used exclusively for DB-level ORDER BY. The view layer (entydad client list)
+// continues to use GetActiveEngagementCounts to populate the cell value.
 func (r *PostgresClientRepository) GetClientListPageData(
 	ctx context.Context,
 	req *clientpb.GetClientListPageDataRequest,
@@ -367,52 +407,337 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		return nil, fmt.Errorf("get client list page data request is required")
 	}
 
-	// Default pagination — preserved from prior behavior so the response
-	// pagination block matches old shape even though total_items is best-effort.
+	// Validate sort columns against the extended allowlist (includes "active_subscriptions").
+	if err := espynahttp.ValidateSortColumns(clientSortSpec, req.GetSort(), "client"); err != nil {
+		return nil, err
+	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	// Default pagination values.
 	limit := int32(50)
+	offset := int32(0)
 	page := int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
-			page = offsetPag.Page
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
+			if offsetPag.Page > 0 {
+				page = offsetPag.Page
+				offset = (page - 1) * limit
+			}
 		}
 	}
 
-	// Delegate row fetch to canonical ListClients — passes filters+search
-	// through. Active = true is enforced by dbOps.List default.
-	listResp, err := r.ListClients(ctx, &clientpb.ListClientsRequest{
-		Search:     req.Search,
-		Filters:    req.Filters,
-		Sort:       req.Sort,
-		Pagination: req.Pagination,
-	})
+	// Default sort: name ASC matches the view layer default.
+	sortField := "name"
+	sortOrder := "ASC"
+	if req.Sort != nil && len(req.Sort.Fields) > 0 {
+		sortField = req.Sort.Fields[0].Field
+		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
+			sortOrder = "DESC"
+		} else {
+			sortOrder = "ASC"
+		}
+	}
+
+	// Build filter/search WHERE clauses ($1 reserved for workspace_id, start at $2).
+	// Search spans client name + internal_id + representative user name/email.
+	searchFields := []string{"c.name", "c.internal_id", "u.first_name", "u.last_name", "u.email_address"}
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+
+	whereSQL := "WHERE c.workspace_id = $1"
+	if len(filterClauses) > 0 {
+		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	limitIdx := nextIdx
+	offsetIdx := nextIdx + 1
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
+
+	// CTE query — single round-trip with:
+	//   • User denorm via LEFT JOIN "user" u
+	//   • PaymentTerm name via LEFT JOIN payment_term pt
+	//   • Active subscription count via LEFT JOIN LATERAL subquery
+	//   • Windowed total count via counted CTE
+	//
+	// active_subscriptions is scoped to the same workspace_id so cross-workspace
+	// counts are not leaked. The column is available to ORDER BY at the enriched
+	// CTE level; it is not mapped to any Client proto field (DiscardUnknown).
+	query := fmt.Sprintf(`
+		WITH enriched AS (
+			SELECT
+				c.id,
+				c.user_id,
+				c.active,
+				c.internal_id,
+				c.date_created,
+				c.date_modified,
+				c.name,
+				c.street_address,
+				c.city,
+				c.province,
+				c.postal_code,
+				c.notes,
+				c.payment_term_id,
+				c.billing_currency,
+				c.status,
+				c.country,
+				c.website,
+				c.email,
+				c.first_name,
+				c.last_name,
+				c.workspace_id,
+				c.tax_id,
+				c.registration_number,
+				c.credit_limit,
+				c.lead_time_days,
+				COALESCE(pt.name, '') AS payment_term_name,
+				-- Active subscription count — drives ORDER BY active_subscriptions.
+				-- Scoped by workspace_id to prevent cross-workspace count leakage.
+				sub.active_subscriptions,
+				-- User fields (1:1 relationship via client.user_id)
+				u.id AS user_id_value,
+				u.first_name AS user_first_name,
+				u.last_name AS user_last_name,
+				u.email_address AS user_email_address,
+				u.mobile_number AS user_phone_number
+			FROM client c
+			LEFT JOIN "user" u ON c.user_id = u.id
+			LEFT JOIN payment_term pt ON c.payment_term_id = pt.id
+			LEFT JOIN LATERAL (
+				SELECT COUNT(*) AS active_subscriptions
+				FROM subscription s
+				WHERE s.client_id = c.id
+				  AND s.active = true
+				  AND s.workspace_id = $1
+			) sub ON true
+			%s
+		),
+		counted AS (
+			SELECT COUNT(*) AS total FROM enriched
+		)
+		SELECT
+			e.*,
+			c2.total
+		FROM enriched e, counted c2
+		ORDER BY %s %s
+		LIMIT $%d OFFSET $%d;
+	`, whereSQL, sortField, sortOrder, limitIdx, offsetIdx)
+
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list clients for page data: %w", err)
+		return nil, fmt.Errorf("failed to query client list page data: %w", err)
 	}
-	clients := listResp.GetData()
+	defer rows.Close()
 
-	// Denorm pass: populate Client.User and Client.Categories per row. Bounded
-	// by page size (≤ limit, default 50). Each row triggers two PK-indexed
-	// reads (user + client_category join) — acceptable for typical pages.
-	for _, c := range clients {
-		if user, err := r.loadClientUser(ctx, c.GetUserId()); err == nil && user != nil {
-			c.User = user
+	var clients []*clientpb.Client
+	var totalCount int64
+
+	for rows.Next() {
+		var (
+			id                 string
+			userId             *string
+			active             bool
+			internalId         *string
+			dateCreated        time.Time
+			dateModified       time.Time
+			name               *string
+			streetAddress      *string
+			city               *string
+			province           *string
+			postalCode         *string
+			notes              *string
+			paymentTermId      *string
+			billingCurrency    *string
+			status             *string
+			country            *string
+			website            *string
+			email              *string
+			firstName          *string
+			lastName           *string
+			workspaceId        *string
+			taxId              *string
+			registrationNumber *string
+			creditLimit        *int64
+			leadTimeDays       *int32
+			paymentTermName    string
+			activeSubCount     int64
+			userIdValue        *string
+			userFirstName      *string
+			userLastName       *string
+			userEmailAddress   *string
+			userPhoneNumber    *string
+			total              int64
+		)
+
+		err := rows.Scan(
+			&id,
+			&userId,
+			&active,
+			&internalId,
+			&dateCreated,
+			&dateModified,
+			&name,
+			&streetAddress,
+			&city,
+			&province,
+			&postalCode,
+			&notes,
+			&paymentTermId,
+			&billingCurrency,
+			&status,
+			&country,
+			&website,
+			&email,
+			&firstName,
+			&lastName,
+			&workspaceId,
+			&taxId,
+			&registrationNumber,
+			&creditLimit,
+			&leadTimeDays,
+			&paymentTermName,
+			&activeSubCount,
+			&userIdValue,
+			&userFirstName,
+			&userLastName,
+			&userEmailAddress,
+			&userPhoneNumber,
+			&total,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan client row: %w", err)
 		}
+
+		totalCount = total
+
+		c := &clientpb.Client{
+			Id:     id,
+			Active: active,
+		}
+		if userId != nil {
+			c.UserId = *userId
+		}
+		if internalId != nil {
+			c.InternalId = *internalId
+		}
+		c.DateCreated = dateCreated.Unix()
+		c.DateModified = dateModified.Unix()
+		if name != nil {
+			c.Name = name
+		}
+		if streetAddress != nil {
+			c.StreetAddress = streetAddress
+		}
+		if city != nil {
+			c.City = city
+		}
+		if province != nil {
+			c.Province = province
+		}
+		if postalCode != nil {
+			c.PostalCode = postalCode
+		}
+		if notes != nil {
+			c.Notes = notes
+		}
+		if paymentTermId != nil {
+			c.PaymentTermId = paymentTermId
+		}
+		if billingCurrency != nil {
+			c.BillingCurrency = billingCurrency
+		}
+		if status != nil {
+			c.Status = status
+		}
+		if country != nil {
+			c.Country = country
+		}
+		if website != nil {
+			c.Website = website
+		}
+		if email != nil {
+			c.Email = email
+		}
+		if firstName != nil {
+			c.FirstName = firstName
+		}
+		if lastName != nil {
+			c.LastName = lastName
+		}
+		if workspaceId != nil {
+			c.WorkspaceId = workspaceId
+		}
+		if taxId != nil {
+			c.TaxId = taxId
+		}
+		if registrationNumber != nil {
+			c.RegistrationNumber = registrationNumber
+		}
+		if creditLimit != nil {
+			c.CreditLimit = creditLimit
+		}
+		if leadTimeDays != nil {
+			c.LeadTimeDays = leadTimeDays
+		}
+
+		// Denorm: PaymentTerm name inline from the JOIN (no extra round-trip).
+		if paymentTermId != nil && paymentTermName != "" {
+			c.PaymentTerm = &paymenttermpb.PaymentTerm{
+				Id:   *paymentTermId,
+				Name: paymentTermName,
+			}
+		}
+
+		// Denorm: User fields from the LEFT JOIN "user" u.
+		if userIdValue != nil {
+			u := &userpb.User{Id: *userIdValue}
+			if userFirstName != nil {
+				u.FirstName = *userFirstName
+			}
+			if userLastName != nil {
+				u.LastName = *userLastName
+			}
+			if userEmailAddress != nil {
+				u.EmailAddress = *userEmailAddress
+			}
+			if userPhoneNumber != nil {
+				u.MobileNumber = *userPhoneNumber
+			}
+			c.User = u
+		}
+
+		// activeSubCount is scanned but intentionally not stored on the Client
+		// proto (no proto field). It serves only as the ORDER BY column at the
+		// DB level. The view layer populates the cell via GetActiveEngagementCounts.
+		_ = activeSubCount
+
+		clients = append(clients, c)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating client rows: %w", err)
+	}
+
+	// Load Categories per row — cannot be inlined via a simple LEFT JOIN without
+	// multiplying rows; kept as a bounded N+1 read (≤ page size, default 50).
+	for _, c := range clients {
 		if cats, err := r.loadClientCategories(ctx, c.GetId()); err == nil && len(cats) > 0 {
 			c.Categories = cats
 		}
 	}
 
-	// Pagination response — total_items is page-bounded since ListClients
-	// does not emit a windowed count. See doc comment above.
-	totalItems := int32(len(clients))
-	totalPages := int32(1)
-	if limit > 0 && totalItems == limit {
-		// Likely more pages exist; we cannot know without a count query.
-		// Mark hasNext true so the UI keeps offering Next.
-		totalPages = page + 1
+	// Pagination metadata — total_items is the windowed count from the CTE.
+	totalItems := int32(totalCount)
+	totalPages := int32(0)
+	if limit > 0 {
+		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
 	}
 	hasNext := page < totalPages
 	hasPrev := page > 1

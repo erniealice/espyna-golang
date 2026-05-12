@@ -73,7 +73,7 @@ func (uc *UpdatePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.
 	}
 
 	// §3.5 — N>1 confirm gate for monetary edits on a client-scoped PricePlan.
-	if err := uc.checkMultiEngagementConfirm(ctx, req.Data); err != nil {
+	if err := uc.checkMultiSubscriptionConfirm(ctx, req.Data); err != nil {
 		return nil, err
 	}
 
@@ -249,7 +249,7 @@ func (uc *UpdatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 	return nil
 }
 
-// checkMultiEngagementConfirm implements plan §3.5 — when a client-scoped
+// checkMultiSubscriptionConfirm implements plan §3.5 — when a client-scoped
 // PricePlan has its monetary fields changed and N > 1 active subscriptions
 // reference it, require an explicit confirmation flag (carried via context).
 //
@@ -260,10 +260,10 @@ func (uc *UpdatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 //   - the caller has already confirmed (contextutil.IsConfirmed(ctx) == true)
 //
 // The error message uses the lyngua key
-// `price_plan.errors.multiEngagementConfirmRequired`. The handler intercepts
+// `price_plan.errors.multiSubscriptionConfirmRequired`. The handler intercepts
 // it and renders the user-facing
 // `price_plan.confirms.editAmountMultipleEngagements` dialog.
-func (uc *UpdatePricePlanUseCase) checkMultiEngagementConfirm(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
+func (uc *UpdatePricePlanUseCase) checkMultiSubscriptionConfirm(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
 	if pricePlan == nil || pricePlan.GetClientId() == "" {
 		return nil
 	}
@@ -305,7 +305,7 @@ func (uc *UpdatePricePlanUseCase) checkMultiEngagementConfirm(ctx context.Contex
 
 	msg := contextutil.GetTranslatedMessageWithContext(
 		ctx, uc.services.TranslationService,
-		"price_plan.errors.multiEngagementConfirmRequired",
+		"price_plan.errors.multiSubscriptionConfirmRequired",
 		"Confirmation required — N > 1 attached subscriptions and monetary fields changing. [DEFAULT]",
 	)
 	return errors.New(msg)

@@ -119,7 +119,7 @@ type spawnedInstanceCycle struct {
 // materializeInstanceJobsInternalResponse is the internal response.
 // Public boundary returns *subscriptionpb.MaterializeInstanceJobsForSubscriptionResponse.
 type materializeInstanceJobsInternalResponse struct {
-	EngagementJob             *jobpb.Job
+	ShellJob                  *jobpb.Job
 	EngagementWasNewlyCreated bool
 	SpawnedCycles             []spawnedInstanceCycle
 	OnceAtStartJobs           []*jobpb.Job
@@ -145,7 +145,7 @@ func NewMaterializeInstanceJobsForSubscriptionUseCase(
 }
 
 // eligibleForInstanceSpawn reports whether the PricePlan's billing_kind
-// participates in the two-tier engagement+instance Job model. Cyclic kinds
+// participates in the two-tier shell+instance Job model. Cyclic kinds
 // drive auto-spawn at cycle boundaries; AD_HOC kinds drive operator-requested
 // usage spawns. See cyclic plan §19.3 + ad-hoc plan §3.1.
 //
@@ -192,7 +192,7 @@ func resolvedEntitlement(sub *subscriptionpb.Subscription, pp *priceplanpb.Price
 // IsCyclic is the public mirror of eligibleForInstanceSpawn for callers that
 // need to branch (recognize-revenue piggyback, materialize-jobs branch, view
 // layer). Its body is identical so the AD_HOC plan only has to update the
-// predicate in one place.
+// predicate in one place. (shell-Job predicate)
 func IsCyclic(pp *priceplanpb.PricePlan) bool {
 	return eligibleForInstanceSpawn(pp)
 }
@@ -355,24 +355,24 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
 		resp.OnceAtStartJobs = resp.OnceAtStartJobs[:0]
 		resp.EngagementWasNewlyCreated = false
 
-		// Plan §3.2 — find or create engagement Job (the "shell").
-		engagementJob, isNew, err := uc.findOrCreateEngagementJob(txCtx, dc, dcs, sub, pricePlan)
+		// Plan §3.2 — find or create shell Job (the "shell").
+		shellJob, isNew, err := uc.findOrCreateShellJob(txCtx, dc, dcs, sub, pricePlan)
 		if err != nil {
 			return err
 		}
-		resp.EngagementJob = engagementJob
+		resp.ShellJob = shellJob
 		resp.EngagementWasNewlyCreated = isNew
 
 		// Plan §3.5 — spawn ONCE_AT_ENGAGEMENT_START children only on the very
 		// first call (no cycle Jobs yet). Idempotent on re-run because the
 		// existence check is based on counting cycle Jobs (cycle_index!=NULL)
 		// — once any cycle exists, this branch is skipped.
-		isFirstEverCall, err := uc.isFirstEverCall(txCtx, sub.GetId(), engagementJob.GetId())
+		isFirstEverCall, err := uc.isFirstEverCall(txCtx, sub.GetId(), shellJob.GetId())
 		if err != nil {
 			return err
 		}
 		if isFirstEverCall {
-			onceJobs, err := uc.spawnOnceAtEngagementStart(txCtx, dc, dcs, sub, pricePlan, plan, engagementJob)
+			onceJobs, err := uc.spawnOnceAtShellStart(txCtx, dc, dcs, sub, pricePlan, plan, shellJob)
 			if err != nil {
 				return err
 			}
@@ -398,7 +398,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
 			for _, win := range subWindows {
 				// Cycle index = highest-existing + 1. Re-compute per visit so
 				// multi-visit plans get monotonically increasing indices.
-				nextIdx, err := uc.nextCycleIndex(txCtx, sub.GetId(), engagementJob.GetId())
+				nextIdx, err := uc.nextCycleIndex(txCtx, sub.GetId(), shellJob.GetId())
 				if err != nil {
 					return err
 				}
@@ -419,7 +419,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
 					continue
 				}
 
-				job, err := uc.spawnCycleJob(txCtx, dc, dcs, sub, pricePlan, plan, engagementJob,
+				job, err := uc.spawnCycleJob(txCtx, dc, dcs, sub, pricePlan, plan, shellJob,
 					nextIdx, win.start, win.end)
 				if err != nil {
 					return err
@@ -543,7 +543,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) readJobTemplate(
 }
 
 // listExistingJobsForOrigin returns every Job whose origin_id == sub.id. Used
-// for engagement-Job lookup, cycle-index counting, and idempotency. We do
+// for shell-Job lookup, cycle-index counting, and idempotency. We do
 // table-scan filtering in Go because the proto's ListJobs filter shape is the
 // generic FilterRequest — applying a string-equals filter on origin_id keeps
 // the call cheap for typical engagements (10-100 cycles).
@@ -574,10 +574,10 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) listExistingJobsForOrig
 	return resp.GetData(), nil
 }
 
-// findOrCreateEngagementJob returns the engagement-shell Job (parent_job_id IS
+// findOrCreateShellJob returns the shell Job (parent_job_id IS
 // NULL, origin = SUBSCRIPTION/sub.id), creating one if it doesn't yet exist
 // (retroactive path for subscriptions created before this plan landed).
-func (uc *MaterializeInstanceJobsForSubscriptionUseCase) findOrCreateEngagementJob(
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) findOrCreateShellJob(
 	ctx context.Context, dc int64, dcs string,
 	sub *subscriptionpb.Subscription, pricePlan *priceplanpb.PricePlan,
 ) (*jobpb.Job, bool, error) {
@@ -593,13 +593,13 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) findOrCreateEngagementJ
 			continue // child Job (cycle or once-at-start)
 		}
 		if j.GetCycleIndex() != 0 {
-			// Defensive — engagement shell never carries a cycle index.
+			// Defensive — shell Job never carries a cycle index.
 			continue
 		}
 		return j, false, nil
 	}
 
-	// Engagement shell missing — create one. Carries no template, no phases.
+	// Shell Job missing — create one. Carries no template, no phases.
 	jobID := ""
 	if uc.services.IDService != nil {
 		jobID = uc.services.IDService.GenerateID()
@@ -610,7 +610,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) findOrCreateEngagementJ
 	clientID := sub.GetClientId()
 	job := &jobpb.Job{
 		Id:                 jobID,
-		Name:               engagementJobName(sub),
+		Name:               shellJobName(sub),
 		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
 		OriginId:           &originID,
 		ClientId:           &clientID,
@@ -626,10 +626,10 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) findOrCreateEngagementJ
 		v := wsID
 		job.WorkspaceId = &v
 	}
-	_ = pricePlan // future: stamp currency on engagement once Job carries one
+	_ = pricePlan // future: stamp currency on shell once Job carries one
 	resp, err := uc.repositories.Job.CreateJob(ctx, &jobpb.CreateJobRequest{Data: job})
 	if err != nil {
-		return nil, false, fmt.Errorf("create_engagement_job: %w", err)
+		return nil, false, fmt.Errorf("create_shell_job: %w", err)
 	}
 	if resp != nil && len(resp.GetData()) > 0 {
 		return resp.GetData()[0], true, nil
@@ -638,19 +638,19 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) findOrCreateEngagementJ
 }
 
 // isFirstEverCall returns true when no cycle Jobs (cycle_index != NULL,
-// parent_job_id == engagement.id) exist yet. ONCE_AT_ENGAGEMENT_START spawns
-// only on this path. Onboarding child Jobs (parent=engagement, cycle_index=NULL)
+// parent_job_id == shell.id) exist yet. ONCE_AT_ENGAGEMENT_START spawns
+// only on this path. Onboarding child Jobs (parent=shell, cycle_index=NULL)
 // don't disqualify the first-call flag — they live alongside cycles, not within
 // them.
 func (uc *MaterializeInstanceJobsForSubscriptionUseCase) isFirstEverCall(
-	ctx context.Context, originID, engagementJobID string,
+	ctx context.Context, originID, shellJobID string,
 ) (bool, error) {
 	rows, err := uc.listExistingJobsForOrigin(ctx, originID)
 	if err != nil {
 		return false, err
 	}
 	for _, j := range rows {
-		if j.GetParentJobId() != engagementJobID {
+		if j.GetParentJobId() != shellJobID {
 			continue
 		}
 		if j.GetCycleIndex() == 0 {
@@ -666,7 +666,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) isFirstEverCall(
 // to highest-existing-cycle_index + 1. Monotone within engagement; gaps are
 // allowed when subscription was paused mid-history.
 func (uc *MaterializeInstanceJobsForSubscriptionUseCase) nextCycleIndex(
-	ctx context.Context, originID, engagementJobID string,
+	ctx context.Context, originID, shellJobID string,
 ) (int32, error) {
 	rows, err := uc.listExistingJobsForOrigin(ctx, originID)
 	if err != nil {
@@ -674,7 +674,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) nextCycleIndex(
 	}
 	var maxIdx int32
 	for _, j := range rows {
-		if j.GetParentJobId() != engagementJobID {
+		if j.GetParentJobId() != shellJobID {
 			continue
 		}
 		idx := j.GetCycleIndex()
@@ -714,7 +714,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnCycleJob(
 	sub *subscriptionpb.Subscription,
 	pricePlan *priceplanpb.PricePlan,
 	plan *planpb.Plan,
-	engagementJob *jobpb.Job,
+	shellJob *jobpb.Job,
 	cycleIdx int32, periodStart, periodEnd string,
 ) (*jobpb.Job, error) {
 	tpl, err := uc.readJobTemplate(ctx, plan.GetJobTemplateId())
@@ -738,7 +738,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnCycleJob(
 	templateID := tpl.GetId()
 	originID := sub.GetId()
 	clientID := sub.GetClientId()
-	parentID := engagementJob.GetId()
+	parentID := shellJob.GetId()
 
 	// Cycle Jobs are operational only — billing fires from PricePlan cadence
 	// via recognize-revenue, NOT from cycle-Job phase completion.
@@ -800,15 +800,15 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnCycleJob(
 	return job, nil
 }
 
-// spawnOnceAtEngagementStart creates child Jobs from JobTemplateRelation rows
+// spawnOnceAtShellStart creates child Jobs from JobTemplateRelation rows
 // whose relation_type=ONCE_AT_ENGAGEMENT_START. Carries cycle_index=NULL so
-// the engagement-level rollup separates onboarding from cycles.
-func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnOnceAtEngagementStart(
+// the shell-level rollup separates onboarding from cycles.
+func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnOnceAtShellStart(
 	ctx context.Context, dc int64, dcs string,
 	sub *subscriptionpb.Subscription,
 	pricePlan *priceplanpb.PricePlan,
 	plan *planpb.Plan,
-	engagementJob *jobpb.Job,
+	shellJob *jobpb.Job,
 ) ([]*jobpb.Job, error) {
 	if uc.repositories.JobTemplateRelation == nil {
 		return nil, nil
@@ -818,7 +818,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnOnceAtEngagementSt
 			ParentTemplateId: plan.GetJobTemplateId(),
 		})
 	if err != nil {
-		return nil, fmt.Errorf("list_relations_for_engagement_start: %w", err)
+		return nil, fmt.Errorf("list_relations_for_shell_start: %w", err)
 	}
 	if resp == nil {
 		return nil, nil
@@ -861,7 +861,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnOnceAtEngagementSt
 		tplID := tpl.GetId()
 		originID := sub.GetId()
 		clientID := sub.GetClientId()
-		parentID := engagementJob.GetId()
+		parentID := shellJob.GetId()
 
 		job := &jobpb.Job{
 			Id:              jobID,
@@ -1255,14 +1255,14 @@ func splitCycleWindow(billingStart, billingEnd string, visitsPerCycle int32) []s
 	return windows
 }
 
-// engagementJobName returns "<sub.name> (engagement)" or "(engagement)" when
+// shellJobName returns "<sub.name> (subscription shell)" or "(subscription shell)" when
 // the subscription has no name.
-func engagementJobName(sub *subscriptionpb.Subscription) string {
+func shellJobName(sub *subscriptionpb.Subscription) string {
 	name := strings.TrimSpace(sub.GetName())
 	if name == "" {
-		return "(engagement)"
+		return "(subscription shell)"
 	}
-	return name + " (engagement)"
+	return name + " (subscription shell)"
 }
 
 // cycleJobName returns "<sub.name> — Cycle <idx>" or "Cycle <idx>" when the
@@ -1343,21 +1343,21 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 		resp.EngagementWasNewlyCreated = false
 		resp.SkippedReason = ""
 
-		engagementJob, isNew, err := uc.findOrCreateEngagementJob(txCtx, dc, dcs, sub, pricePlan)
+		shellJob, isNew, err := uc.findOrCreateShellJob(txCtx, dc, dcs, sub, pricePlan)
 		if err != nil {
 			return err
 		}
-		resp.EngagementJob = engagementJob
+		resp.ShellJob = shellJob
 		resp.EngagementWasNewlyCreated = isNew
 
 		// First-call onboarding (mirrors cyclic path). Onboarding fires once
 		// per engagement regardless of kind.
-		isFirstEverCall, err := uc.isFirstEverCallAdHoc(txCtx, sub.GetId(), engagementJob.GetId())
+		isFirstEverCall, err := uc.isFirstEverCallAdHoc(txCtx, sub.GetId(), shellJob.GetId())
 		if err != nil {
 			return err
 		}
 		if isFirstEverCall {
-			onceJobs, err := uc.spawnOnceAtEngagementStart(txCtx, dc, dcs, sub, pricePlan, plan, engagementJob)
+			onceJobs, err := uc.spawnOnceAtShellStart(txCtx, dc, dcs, sub, pricePlan, plan, shellJob)
 			if err != nil {
 				return err
 			}
@@ -1366,7 +1366,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 
 		// Count existing usage Jobs under this engagement. Equal to
 		// "redeemed_count" per ad-hoc plan §2.4.
-		used, err := uc.countUsageJobs(txCtx, sub.GetId(), engagementJob.GetId())
+		used, err := uc.countUsageJobs(txCtx, sub.GetId(), shellJob.GetId())
 		if err != nil {
 			return err
 		}
@@ -1400,7 +1400,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 			return nil
 		}
 
-		usageJob, err := uc.spawnUsageJob(txCtx, dc, dcs, sub, pricePlan, plan, engagementJob,
+		usageJob, err := uc.spawnUsageJob(txCtx, dc, dcs, sub, pricePlan, plan, shellJob,
 			ordinal, requestDate, visitKey, basis)
 		if err != nil {
 			return err
@@ -1436,12 +1436,12 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeAdHoc(
 	return resp, nil
 }
 
-// countUsageJobs returns the number of usage Jobs (parent_job_id == engagement,
+// countUsageJobs returns the number of usage Jobs (parent_job_id == shellJob,
 // usage_ordinal != NULL) under this subscription. Onboarding children are
 // excluded because they have no usage_ordinal. Equivalent to ad-hoc plan
 // §2.4's `COUNT(*)` query.
 func (uc *MaterializeInstanceJobsForSubscriptionUseCase) countUsageJobs(
-	ctx context.Context, originID, engagementJobID string,
+	ctx context.Context, originID, shellJobID string,
 ) (int32, error) {
 	rows, err := uc.listExistingJobsForOrigin(ctx, originID)
 	if err != nil {
@@ -1449,7 +1449,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) countUsageJobs(
 	}
 	var count int32
 	for _, j := range rows {
-		if j.GetParentJobId() != engagementJobID {
+		if j.GetParentJobId() != shellJobID {
 			continue
 		}
 		if j.GetUsageOrdinal() == 0 {
@@ -1465,14 +1465,14 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) countUsageJobs(
 // coexist (validator blocks AD_HOC × cycle_value > 0), so the two predicates
 // don't interact.
 func (uc *MaterializeInstanceJobsForSubscriptionUseCase) isFirstEverCallAdHoc(
-	ctx context.Context, originID, engagementJobID string,
+	ctx context.Context, originID, shellJobID string,
 ) (bool, error) {
 	rows, err := uc.listExistingJobsForOrigin(ctx, originID)
 	if err != nil {
 		return false, err
 	}
 	for _, j := range rows {
-		if j.GetParentJobId() != engagementJobID {
+		if j.GetParentJobId() != shellJobID {
 			continue
 		}
 		if j.GetUsageOrdinal() == 0 {
@@ -1491,7 +1491,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnUsageJob(
 	sub *subscriptionpb.Subscription,
 	pricePlan *priceplanpb.PricePlan,
 	plan *planpb.Plan,
-	engagementJob *jobpb.Job,
+	shellJob *jobpb.Job,
 	ordinal int32, requestDate, visitKey string,
 	basis priceplanpb.AmountBasis,
 ) (*jobpb.Job, error) {
@@ -1516,7 +1516,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnUsageJob(
 	templateID := tpl.GetId()
 	originID := sub.GetId()
 	clientID := sub.GetClientId()
-	parentID := engagementJob.GetId()
+	parentID := shellJob.GetId()
 
 	// AD_HOC usage Jobs carry NON_BILLABLE because the billing trigger lives
 	// on the paired BillingEvent (for PER_OCCURRENCE) or on the pool invoice

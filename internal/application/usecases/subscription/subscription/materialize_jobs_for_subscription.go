@@ -182,7 +182,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 	// 2026-04-30 cyclic-subscription-jobs plan §4 — cyclic branch.
 	//
 	// For cyclic PricePlans (RECURRING, or CONTRACT with billing_cycle_value > 0),
-	// this use case spawns ONLY the engagement-shell Job (no template, no
+	// this use case spawns ONLY the shell Job (no template, no
 	// phases) plus any ONCE_AT_ENGAGEMENT_START children. The per-cycle
 	// instance Jobs are spawned LATER by
 	// MaterializeInstanceJobsForSubscription — triggered either by the
@@ -191,7 +191,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 	// The non-cyclic path below remains UNCHANGED — phase4-subscription
 	// regression specs (08-15) and the new C2 composition test are the canary.
 	if IsCyclic(pricePlan) {
-		internal, err := uc.executeCyclicEngagementShell(ctx, sub, pricePlan, plan, relations)
+		internal, err := uc.executeCyclicShell(ctx, sub, pricePlan, plan, relations)
 		if err != nil {
 			return nil, err
 		}
@@ -511,8 +511,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 	return job, nil
 }
 
-// executeCyclicEngagementShell handles the cyclic branch (cyclic-subscription-
-// jobs plan §4): spawn the engagement-shell Job (no template, no phases),
+// executeCyclicShell handles the cyclic branch (cyclic-subscription-
+// jobs plan §4): spawn the shell Job (no template, no phases),
 // then spawn any ONCE_AT_ENGAGEMENT_START child Jobs. NO cycle Jobs are
 // spawned here — those come later via MaterializeInstanceJobsForSubscription.
 //
@@ -520,7 +520,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 // rolls back cleanly if any step fails. This preserves the atomic-rollback
 // semantics of the non-cyclic path; the recognize-piggyback path
 // (recognize_revenue_from_subscription.go) uses a non-fatal warning instead.
-func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicEngagementShell(
+func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicShell(
 	ctx context.Context,
 	sub *subscriptionpb.Subscription,
 	pricePlan *priceplanpb.PricePlan,
@@ -535,16 +535,16 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicEngagementShell(
 
 	writeFn := func(txCtx context.Context) error {
 		spawnedJobs = spawnedJobs[:0]
-		// 1. Engagement shell — no template, no phases. Status ACTIVE so the
+		// 1. Shell Job — no template, no phases. Status ACTIVE so the
 		// shell stays open for life of subscription.
-		shell, err := uc.spawnEngagementShell(txCtx, dc, dcs, sub, pricePlan)
+		shell, err := uc.spawnShell(txCtx, dc, dcs, sub, pricePlan)
 		if err != nil {
 			return err
 		}
 		spawnedJobs = append(spawnedJobs, shell)
 
 		// 2. ONCE_AT_ENGAGEMENT_START children — spawn each as a child of the
-		// engagement shell (parent_job_id=shell.id, cycle_index=NULL). These
+		// shell Job (parent_job_id=shell.id, cycle_index=NULL). These
 		// fire ONCE per engagement, not per cycle.
 		for _, rel := range relations {
 			if !rel.GetActive() {
@@ -599,10 +599,10 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicEngagementShell(
 	return &materializeJobsForSubscriptionInternalResponse{SpawnedJobs: spawnedJobs}, nil
 }
 
-// spawnEngagementShell creates the cyclic engagement-shell Job: no
+// spawnShell creates the cyclic shell Job: no
 // job_template_id, no phases, parent_job_id=NULL, status=ACTIVE,
 // billing_rule_type=NON_BILLABLE. cycle_* fields are NULL.
-func (uc *MaterializeJobsForSubscriptionUseCase) spawnEngagementShell(
+func (uc *MaterializeJobsForSubscriptionUseCase) spawnShell(
 	ctx context.Context, dc int64, dcs string,
 	sub *subscriptionpb.Subscription, pricePlan *priceplanpb.PricePlan,
 ) (*jobpb.Job, error) {
@@ -616,7 +616,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnEngagementShell(
 	clientID := sub.GetClientId()
 	name := sub.GetName()
 	if name == "" {
-		name = "(engagement)"
+		name = "(subscription shell)"
 	}
 	job := &jobpb.Job{
 		Id:                 jobID,
@@ -639,7 +639,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnEngagementShell(
 	_ = pricePlan
 	resp, err := uc.repositories.Job.CreateJob(ctx, &jobpb.CreateJobRequest{Data: job})
 	if err != nil {
-		return nil, fmt.Errorf("create_engagement_shell: %w", err)
+		return nil, fmt.Errorf("create_shell_job: %w", err)
 	}
 	if resp != nil && len(resp.GetData()) > 0 {
 		return resp.GetData()[0], nil

@@ -15,6 +15,7 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
+	delegatesupplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_supplier"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -259,7 +260,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 	// Build the CTE query following the translation plan pattern
 	query := `
 		WITH
-		-- CTE 1: Aggregate delegate_client relationships with client and user details
+		-- CTE 1a: Aggregate delegate_client relationships with client and user details
 		delegate_clients_agg AS (
 			SELECT
 				dc.delegate_id,
@@ -299,6 +300,36 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			GROUP BY dc.delegate_id
 		),
 
+		-- CTE 1b: Aggregate delegate_supplier relationships with supplier details
+		delegate_suppliers_agg AS (
+			SELECT
+				ds.delegate_id,
+				array_agg(
+					DISTINCT jsonb_build_object(
+						'id', ds.id,
+						'delegate_id', ds.delegate_id,
+						'supplier_id', ds.supplier_id,
+						'date_created', ds.date_created,
+						'date_modified', ds.date_modified,
+						'active', ds.active,
+						'supplier', CASE
+							WHEN s.id IS NOT NULL THEN jsonb_build_object(
+								'id', s.id,
+								'name', s.name,
+								'date_created', s.date_created,
+								'date_modified', s.date_modified,
+								'active', s.active
+							)
+							ELSE NULL
+						END
+					) ORDER BY ds.id ASC
+				) FILTER (WHERE ds.id IS NOT NULL) as delegate_suppliers
+			FROM delegate_supplier ds
+			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			WHERE ds.active = true
+			GROUP BY ds.delegate_id
+		),
+
 		-- CTE 2: Apply search filter
 		search_filtered AS (
 			SELECT d.*
@@ -311,7 +342,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 					u.email_address ILIKE $1)
 		),
 
-		-- CTE 3: Join with user and delegate_clients and prepare for sorting
+		-- CTE 3: Join with user, delegate_clients, and delegate_suppliers and prepare for sorting
 		enriched AS (
 			SELECT
 				sf.id,
@@ -330,11 +361,13 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 						'active', u.active
 					)
 					ELSE NULL
-				END as user
-				COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients
+				END as user,
+				COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients,
+				COALESCE(dsa.delegate_suppliers, ARRAY[]::jsonb[]) as delegate_suppliers
 			FROM search_filtered sf
 			LEFT JOIN "user" u ON sf.user_id = u.id
 			LEFT JOIN delegate_clients_agg dca ON sf.id = dca.delegate_id
+			LEFT JOIN delegate_suppliers_agg dsa ON sf.id = dsa.delegate_id
 		),
 
 		-- CTE 4: Apply sorting
@@ -361,6 +394,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			s.date_modified,
 			s.user,
 			s.delegate_clients,
+			s.delegate_suppliers,
 			tc.total as _total_count
 		FROM sorted s
 		CROSS JOIN total_count tc
@@ -386,16 +420,17 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 
 	for rows.Next() {
 		var (
-			id                  string
-			userId              string
-			active              bool
-			dateCreated         sql.NullInt64
-			dateCreatedString   sql.NullString
-			dateModified        sql.NullInt64
-			dateModifiedString  sql.NullString
-			userJSON            []byte
-			delegateClientsJSON []byte
-			rowTotalCount       int32
+			id                    string
+			userId                string
+			active                bool
+			dateCreated           sql.NullInt64
+			dateCreatedString     sql.NullString
+			dateModified          sql.NullInt64
+			dateModifiedString    sql.NullString
+			userJSON              []byte
+			delegateClientsJSON   []byte
+			delegateSuppliersJSON []byte
+			rowTotalCount         int32
 		)
 
 		err := rows.Scan(
@@ -406,6 +441,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			&dateModified,
 			&userJSON,
 			&delegateClientsJSON,
+			&delegateSuppliersJSON,
 			&rowTotalCount,
 		)
 		if err != nil {
@@ -450,12 +486,25 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 		if len(delegateClientsJSON) > 0 {
 			var delegateClients []map[string]any
 			if err := json.Unmarshal(delegateClientsJSON, &delegateClients); err == nil {
-				// Convert to protobuf DelegateClient messages
 				for _, dcData := range delegateClients {
 					dcJSON, _ := json.Marshal(dcData)
 					var delegateClient delegateclientpb.DelegateClient
 					if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dcJSON, &delegateClient); err == nil {
 						delegate.DelegateClients = append(delegate.DelegateClients, &delegateClient)
+					}
+				}
+			}
+		}
+
+		// Parse delegate_suppliers JSON array
+		if len(delegateSuppliersJSON) > 0 {
+			var delegateSuppliers []map[string]any
+			if err := json.Unmarshal(delegateSuppliersJSON, &delegateSuppliers); err == nil {
+				for _, dsData := range delegateSuppliers {
+					dsJSON, _ := json.Marshal(dsData)
+					var delegateSupplier delegatesupplierpb.DelegateSupplier
+					if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dsJSON, &delegateSupplier); err == nil {
+						delegate.DelegateSuppliers = append(delegate.DelegateSuppliers, &delegateSupplier)
 					}
 				}
 			}
@@ -504,7 +553,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 	// Build CTE query to fetch delegate with all related data
 	query := `
 		WITH
-		-- CTE 1: Aggregate delegate_client relationships with client and user details
+		-- CTE 1a: Aggregate delegate_client relationships with client and user details
 		delegate_clients_agg AS (
 			SELECT
 				dc.delegate_id,
@@ -542,6 +591,36 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			LEFT JOIN "user" cu ON c.user_id = cu.id
 			WHERE dc.delegate_id = $1 AND dc.active = true AND c.active = true
 			GROUP BY dc.delegate_id
+		),
+
+		-- CTE 1b: Aggregate delegate_supplier relationships with supplier details
+		delegate_suppliers_agg AS (
+			SELECT
+				ds.delegate_id,
+				array_agg(
+					DISTINCT jsonb_build_object(
+						'id', ds.id,
+						'delegate_id', ds.delegate_id,
+						'supplier_id', ds.supplier_id,
+						'date_created', ds.date_created,
+						'date_modified', ds.date_modified,
+						'active', ds.active,
+						'supplier', CASE
+							WHEN s.id IS NOT NULL THEN jsonb_build_object(
+								'id', s.id,
+								'name', s.name,
+								'date_created', s.date_created,
+								'date_modified', s.date_modified,
+								'active', s.active
+							)
+							ELSE NULL
+						END
+					) ORDER BY ds.id ASC
+				) FILTER (WHERE ds.id IS NOT NULL) as delegate_suppliers
+			FROM delegate_supplier ds
+			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			WHERE ds.delegate_id = $1 AND ds.active = true
+			GROUP BY ds.delegate_id
 		)
 
 		-- Final SELECT with all related data
@@ -562,26 +641,29 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 					'active', u.active
 				)
 				ELSE NULL
-			END as user
-			COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients
+			END as user,
+			COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients,
+			COALESCE(dsa.delegate_suppliers, ARRAY[]::jsonb[]) as delegate_suppliers
 		FROM delegate d
 		LEFT JOIN "user" u ON d.user_id = u.id
 		LEFT JOIN delegate_clients_agg dca ON d.id = dca.delegate_id
+		LEFT JOIN delegate_suppliers_agg dsa ON d.id = dsa.delegate_id
 		WHERE d.id = $1 AND d.active = true
 	`
 
 	// Execute query
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	var (
-		id                  string
-		userId              string
-		active              bool
-		dateCreated         sql.NullInt64
-		dateCreatedString   sql.NullString
-		dateModified        sql.NullInt64
-		dateModifiedString  sql.NullString
-		userJSON            []byte
-		delegateClientsJSON []byte
+		id                    string
+		userId                string
+		active                bool
+		dateCreated           sql.NullInt64
+		dateCreatedString     sql.NullString
+		dateModified          sql.NullInt64
+		dateModifiedString    sql.NullString
+		userJSON              []byte
+		delegateClientsJSON   []byte
+		delegateSuppliersJSON []byte
 	)
 
 	err := exec.QueryRowContext(ctx, query, req.DelegateId).Scan(
@@ -592,6 +674,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		&dateModified,
 		&userJSON,
 		&delegateClientsJSON,
+		&delegateSuppliersJSON,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("delegate not found with ID: %s", req.DelegateId)
@@ -636,12 +719,25 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 	if len(delegateClientsJSON) > 0 {
 		var delegateClients []map[string]any
 		if err := json.Unmarshal(delegateClientsJSON, &delegateClients); err == nil {
-			// Convert to protobuf DelegateClient messages
 			for _, dcData := range delegateClients {
 				dcJSON, _ := json.Marshal(dcData)
 				var delegateClient delegateclientpb.DelegateClient
 				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dcJSON, &delegateClient); err == nil {
 					delegate.DelegateClients = append(delegate.DelegateClients, &delegateClient)
+				}
+			}
+		}
+	}
+
+	// Parse delegate_suppliers JSON array
+	if len(delegateSuppliersJSON) > 0 {
+		var delegateSuppliers []map[string]any
+		if err := json.Unmarshal(delegateSuppliersJSON, &delegateSuppliers); err == nil {
+			for _, dsData := range delegateSuppliers {
+				dsJSON, _ := json.Marshal(dsData)
+				var delegateSupplier delegatesupplierpb.DelegateSupplier
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dsJSON, &delegateSupplier); err == nil {
+					delegate.DelegateSuppliers = append(delegate.DelegateSuppliers, &delegateSupplier)
 				}
 			}
 		}

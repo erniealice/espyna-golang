@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
@@ -16,6 +18,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -322,7 +325,8 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 				r.active,
 				r.date_created,
 				r.date_modified,
-				COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions
+				COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions,
+				COALESCE(r.applicable_principal_types, ARRAY[]::integer[]) as applicable_principal_types
 			FROM role r
 			LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
 			WHERE r.workspace_id = $1
@@ -353,16 +357,17 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 
 	for rows.Next() {
 		var (
-			id                  string
-			workspaceId         *string
-			name                string
-			description         string
-			color               string
-			active              bool
-			dateCreated         time.Time
-			dateModified        time.Time
-			rolePermissionsJSON []byte
-			total               int64
+			id                      string
+			workspaceId             *string
+			name                    string
+			description             string
+			color                   string
+			active                  bool
+			dateCreated             time.Time
+			dateModified            time.Time
+			rolePermissionsJSON     []byte
+			applicablePrincipalInts []int64
+			total                   int64
 		)
 
 		err := rows.Scan(
@@ -375,6 +380,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			&dateCreated,
 			&dateModified,
 			&rolePermissionsJSON,
+			pq.Array(&applicablePrincipalInts),
 			&total,
 		)
 		if err != nil {
@@ -427,6 +433,10 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 					}
 				}
 			}
+		}
+
+		for _, v := range applicablePrincipalInts {
+			role.ApplicablePrincipalTypes = append(role.ApplicablePrincipalTypes, principaltypepb.PrincipalType(v))
 		}
 
 		roles = append(roles, role)

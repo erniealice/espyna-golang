@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -105,7 +106,9 @@ func (r *PostgresSessionRepository) ReadSession(ctx context.Context, req *sessio
 				id, user_id, token,
 				workspace_user_id, workspace_id,
 				expires_at, active,
-				date_created, date_modified
+				date_created, date_modified,
+				principal_type, principal_id,
+				acting_as_client_id, acting_as_supplier_id, acting_as_workspace_id
 			FROM ` + r.tableName + `
 			WHERE token = $1 AND active = true
 			  AND ($2::text = '' OR workspace_id = $2::text)
@@ -117,7 +120,9 @@ func (r *PostgresSessionRepository) ReadSession(ctx context.Context, req *sessio
 				id, user_id, token,
 				workspace_user_id, workspace_id,
 				expires_at, active,
-				date_created, date_modified
+				date_created, date_modified,
+				principal_type, principal_id,
+				acting_as_client_id, acting_as_supplier_id, acting_as_workspace_id
 			FROM ` + r.tableName + `
 			WHERE id = $1 AND active = true
 			  AND ($2::text = '' OR workspace_id = $2::text)
@@ -231,15 +236,20 @@ func (r *PostgresSessionRepository) ListSessions(ctx context.Context, req *sessi
 // date_created and date_modified are stored as BIGINT unix-ms in the DB.
 func scanSession(row *sql.Row) (*sessionpb.Session, error) {
 	var (
-		id              string
-		userID          string
-		token           string
-		workspaceUserID *string
-		workspaceID     *string
-		expiresAt       int64
-		active          bool
-		dateCreated     *int64
-		dateModified    *int64
+		id                  string
+		userID              string
+		token               string
+		workspaceUserID     *string
+		workspaceID         *string
+		expiresAt           int64
+		active              bool
+		dateCreated         *int64
+		dateModified        *int64
+		principalType       *int32
+		principalID         *string
+		actingAsClientID    *string
+		actingAsSupplierID  *string
+		actingAsWorkspaceID *string
 	)
 
 	err := row.Scan(
@@ -252,21 +262,36 @@ func scanSession(row *sql.Row) (*sessionpb.Session, error) {
 		&active,
 		&dateCreated,
 		&dateModified,
+		&principalType,
+		&principalID,
+		&actingAsClientID,
+		&actingAsSupplierID,
+		&actingAsWorkspaceID,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &sessionpb.Session{
-		Id:              id,
-		UserId:          userID,
-		Token:           token,
-		WorkspaceUserId: workspaceUserID,
-		WorkspaceId:     workspaceID,
-		ExpiresAt:       expiresAt,
-		Active:          active,
-		DateCreated:     dateCreated,
-		DateModified:    dateModified,
+		Id:                  id,
+		UserId:              userID,
+		Token:               token,
+		WorkspaceUserId:     workspaceUserID,
+		WorkspaceId:         workspaceID,
+		ExpiresAt:           expiresAt,
+		Active:              active,
+		DateCreated:         dateCreated,
+		DateModified:        dateModified,
+		PrincipalId:         principalID,
+		ActingAsClientId:    actingAsClientID,
+		ActingAsSupplierId:  actingAsSupplierID,
+		ActingAsWorkspaceId: actingAsWorkspaceID,
+	}
+
+	// Map the principal_type integer to the proto enum.
+	if principalType != nil {
+		pt := principaltypepb.PrincipalType(*principalType)
+		s.PrincipalType = &pt
 	}
 
 	// Derive the human-readable string fields from the unix-ms timestamps.

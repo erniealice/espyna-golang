@@ -41,6 +41,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/finance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/funding"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
@@ -54,6 +55,7 @@ import (
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 
 	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/tenancy"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
@@ -220,6 +222,16 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		financeUC = &finance.FinanceUseCases{}
 	}
 
+	tenancyUC, err := uci.initializeTenancyUseCases(container)
+	if err != nil {
+		tenancyUC = &tenancy.TenancyUseCases{}
+	}
+
+	fundingUC, err := uci.initializeFundingUseCases(container)
+	if err != nil {
+		fundingUC = &funding.FundingUseCases{}
+	}
+
 	// Initialize integration use cases (email, payment providers, etc.)
 	// These are provider-based use cases, not domain-based
 	integrationUC := uci.initializeIntegrationUseCases(container)
@@ -240,12 +252,14 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		expenditureUC,
 		financeUC,
 		fulfillmentUC,
+		fundingUC,
 		inventoryUC,
 		ledgerUC,
 		operationUC,
 		payrollUC,
 		procurementUC,
 		taxUC,
+		tenancyUC,
 		treasuryUC,
 		productUC,
 		revenueUC,
@@ -1136,4 +1150,60 @@ func (a *materializeInstanceJobsAdapter) Execute(ctx context.Context, subscripti
 	}
 	_, err := a.uc.Execute(ctx, pbReq)
 	return err
+}
+
+// initializeTenancyUseCases initializes Tenancy domain use cases (3 entities: TenantSubscription, TenantPaymentMethod, TenantInvoice).
+// Graceful degradation: returns empty struct on failure so the app starts without tenancy.
+func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (*tenancy.TenancyUseCases, error) {
+	fmt.Printf("Initializing Tenancy use cases...\n")
+
+	repos, err := domain.NewTenancyRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("WARNING: Tenancy database provider not available: %v\n", err)
+		return &tenancy.TenancyUseCases{}, nil
+	}
+	fmt.Printf("Got tenancy repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to get services: %v\n", err)
+		return nil, err
+	}
+
+	tenancyUseCases, err := initializers.InitializeTenancy(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to initialize tenancy use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("Tenancy domain initialized successfully: %v\n", tenancyUseCases != nil)
+
+	return tenancyUseCases, nil
+}
+
+// initializeFundingUseCases initializes Funding domain use cases (3 entities: Fund, FundAllocation, FundTransaction).
+// Graceful degradation: returns empty struct on failure so the app starts without funding.
+func (uci *UseCaseInitializer) initializeFundingUseCases(container *Container) (*funding.FundingUseCases, error) {
+	fmt.Printf("Initializing Funding use cases...\n")
+
+	repos, err := domain.NewFundingRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("WARNING: Funding database provider not available: %v\n", err)
+		return &funding.FundingUseCases{}, nil
+	}
+	fmt.Printf("Got funding repositories\n")
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to get services: %v\n", err)
+		return nil, err
+	}
+
+	fundingUseCases, err := initializers.InitializeFunding(repos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to initialize funding use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("Funding domain initialized successfully: %v\n", fundingUseCases != nil)
+
+	return fundingUseCases, nil
 }

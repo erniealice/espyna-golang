@@ -11,6 +11,7 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/expenditure"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/finance"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/fulfillment"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/funding"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/integration"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/inventory"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/operation"
@@ -21,5 +22,6 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/revenue"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/subscription"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/tax"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/tenancy"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/treasury"
 )

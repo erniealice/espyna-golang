@@ -55,9 +55,11 @@ const (
 	Client                 = "client"
 	ClientAttribute        = "client_attribute"
 	ClientCategory         = "client_category"
+	ClientPortalGrant      = "client_portal_grant"
 	Delegate               = "delegate"
 	DelegateAttribute      = "delegate_attribute"
 	DelegateClient         = "delegate_client"
+	DelegateSupplier       = "delegate_supplier"
 	Group                  = "group"
 	GroupAttribute         = "group_attribute"
 	Location               = "location"
@@ -75,7 +77,9 @@ const (
 	SupplierCategory       = "supplier_category"
 	SupplierDependent      = "supplier_dependent"
 	SupplierLifecycleEvent = "supplier_lifecycle_event"
+	SupplierPortalGrant    = "supplier_portal_grant"
 	User                   = "user"
+	UserPreference         = "user_preference"
 	Workspace              = "workspace"
 	WorkspaceUser          = "workspace_user"
 	WorkspaceUserRole      = "workspace_user_role"
@@ -306,8 +310,8 @@ var CommonEntities = []string{Attribute, AttributeValue, Category}
 
 // EntityEntities lists all entity IDs in the Entity domain.
 var EntityEntities = []string{
-	Admin, Client, ClientAttribute, ClientCategory,
-	Delegate, DelegateAttribute, DelegateClient,
+	Admin, Client, ClientAttribute, ClientCategory, ClientPortalGrant,
+	Delegate, DelegateAttribute, DelegateClient, DelegateSupplier,
 	Group, GroupAttribute,
 	Location, LocationArea, LocationAttribute,
 	Permission,
@@ -316,8 +320,8 @@ var EntityEntities = []string{
 	PaymentTerm,
 	Session,
 	Supplier, SupplierAttribute, SupplierCategory,
-	SupplierDependent, SupplierLifecycleEvent,
-	User,
+	SupplierDependent, SupplierLifecycleEvent, SupplierPortalGrant,
+	User, UserPreference,
 	Workspace, WorkspaceUser, WorkspaceUserRole,
 }
 
@@ -496,6 +500,37 @@ const (
 // FinanceEntities lists all entity IDs in the Finance domain.
 var FinanceEntities = []string{ForexRate}
 
+// Tenancy domain (NEW — Portal E2E Wave 3 — 2026-05-17)
+//
+// Three entities model the Ichizen platform subscription, payment method,
+// and invoice for a workspace tenant. These are billing-side records owned
+// by the Ichizen platform itself (not the workspace's customers/suppliers).
+const (
+	TenantSubscription  = "tenant_subscription"
+	TenantPaymentMethod = "tenant_payment_method"
+	TenantInvoice       = "tenant_invoice"
+)
+
+// TenancyEntities lists all entity IDs in the Tenancy domain.
+var TenancyEntities = []string{TenantSubscription, TenantPaymentMethod, TenantInvoice}
+
+// Funding domain (NEW — Shared Fund Sources FS-A/FS-B — 2026-05-17)
+//
+// Three entities model cross-workspace shared funding sources:
+//   - Fund: global entity (no workspace_id); the physical/financial instrument.
+//   - FundAllocation: workspace-scoped junction binding a Fund to a workspace.
+//   - FundTransaction: append-only event log for all money movements on a Fund.
+//     workspace_id is nullable — fund-global events (OPENING_BALANCE, LIMIT_*)
+//     have no workspace attribution; workspace-originated events carry workspace_id.
+const (
+	Fund            = "fund"
+	FundAllocation  = "fund_allocation"
+	FundTransaction = "fund_transaction"
+)
+
+// FundingEntities lists all entity IDs in the Funding domain.
+var FundingEntities = []string{Fund, FundAllocation, FundTransaction}
+
 // ---------------------------------------------------------------------------
 // Consolidated slice
 // ---------------------------------------------------------------------------
@@ -526,5 +561,7 @@ func buildAll() []string {
 	all = append(all, ProcurementEntities...)
 	all = append(all, TaxEntities...)
 	all = append(all, FinanceEntities...)
+	all = append(all, TenancyEntities...)
+	all = append(all, FundingEntities...)
 	return all
 }

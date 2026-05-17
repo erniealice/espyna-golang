@@ -266,7 +266,7 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "delegate_client", delegateClientSortableSQLCols)
 	}
 
-	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified, role_id, granted_by_user_id, workspace_id FROM delegate_client WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
@@ -279,12 +279,27 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		var id, delegateId, clientId string
 		var active bool
 		var dateCreated, dateModified time.Time
+		var roleId, grantedByUserId, workspaceId *string
 		var total int64
-		if err := rows.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateModified, &total); err != nil {
+		if err := rows.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateModified, &roleId, &grantedByUserId, &workspaceId, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
-		delegateClient := &delegateclientpb.DelegateClient{Id: id, DelegateId: delegateId, ClientId: clientId, Active: active}
+		delegateClient := &delegateclientpb.DelegateClient{
+			Id:         id,
+			DelegateId: delegateId,
+			ClientId:   clientId,
+			Active:     active,
+		}
+		if roleId != nil {
+			delegateClient.RoleId = roleId
+		}
+		if grantedByUserId != nil {
+			delegateClient.GrantedByUserId = grantedByUserId
+		}
+		if workspaceId != nil {
+			delegateClient.WorkspaceId = workspaceId
+		}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
 			delegateClient.DateCreated = &ts

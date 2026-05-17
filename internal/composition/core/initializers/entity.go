@@ -14,9 +14,11 @@ import (
 	clientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client"
 	clientAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_attribute"
 	clientCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_category"
+	clientPortalGrantUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_portal_grant"
 	delegateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate"
 	delegateAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_attribute"
 	delegateClientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_client"
+	delegateSupplierUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_supplier"
 	groupUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/group"
 	groupAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/group_attribute"
 	locationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/location"
@@ -29,7 +31,9 @@ import (
 	supplierUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier"
 	supplierAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_attribute"
 	supplierCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_category"
+	supplierPortalGrantUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_portal_grant"
 	userUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/user"
+	userPreferenceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/user_preference"
 	workspaceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace"
 	workspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user"
 	workspaceUserRoleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user_role"
@@ -88,6 +92,19 @@ func InitializeEntity(
 		)
 	}
 
+	if repos.ClientPortalGrant != nil {
+		s := svc()
+		result.ClientPortalGrant = clientPortalGrantUseCases.NewUseCases(
+			clientPortalGrantUseCases.ClientPortalGrantRepositories{ClientPortalGrant: repos.ClientPortalGrant},
+			clientPortalGrantUseCases.ClientPortalGrantServices{
+				AuthorizationService: s.AuthorizationService,
+				TransactionService:   s.TransactionService,
+				TranslationService:   s.TranslationService,
+				IDService:            s.IDService,
+			},
+		)
+	}
+
 	if repos.Delegate != nil {
 		result.Delegate = delegateUseCases.NewUseCases(
 			delegateUseCases.DelegateRepositories{Delegate: repos.Delegate},
@@ -114,6 +131,19 @@ func InitializeEntity(
 				Client:         repos.Client,
 			},
 			delegateClientUseCases.DelegateClientServices(svc()),
+		)
+	}
+
+	if repos.DelegateSupplier != nil {
+		s := svc()
+		result.DelegateSupplier = delegateSupplierUseCases.NewUseCases(
+			delegateSupplierUseCases.DelegateSupplierRepositories{DelegateSupplier: repos.DelegateSupplier},
+			delegateSupplierUseCases.DelegateSupplierServices{
+				AuthorizationService: s.AuthorizationService,
+				TransactionService:   s.TransactionService,
+				TranslationService:   s.TranslationService,
+				IDService:            s.IDService,
+			},
 		)
 	}
 
@@ -226,10 +256,36 @@ func InitializeEntity(
 		)
 	}
 
+	if repos.SupplierPortalGrant != nil {
+		s := svc()
+		result.SupplierPortalGrant = supplierPortalGrantUseCases.NewUseCases(
+			supplierPortalGrantUseCases.SupplierPortalGrantRepositories{SupplierPortalGrant: repos.SupplierPortalGrant},
+			supplierPortalGrantUseCases.SupplierPortalGrantServices{
+				AuthorizationService: s.AuthorizationService,
+				TransactionService:   s.TransactionService,
+				TranslationService:   s.TranslationService,
+				IDService:            s.IDService,
+			},
+		)
+	}
+
 	if repos.User != nil {
 		result.User = userUseCases.NewUseCases(
 			userUseCases.UserRepositories{User: repos.User},
 			userUseCases.UserServices(svc()),
+		)
+	}
+
+	if repos.UserPreference != nil {
+		s := svc()
+		result.UserPreference = userPreferenceUseCases.NewUseCases(
+			userPreferenceUseCases.UserPreferenceRepositories{UserPreference: repos.UserPreference},
+			userPreferenceUseCases.UserPreferenceServices{
+				AuthorizationService: s.AuthorizationService,
+				TransactionService:   s.TransactionService,
+				TranslationService:   s.TranslationService,
+				IDService:            s.IDService,
+			},
 		)
 	}
 

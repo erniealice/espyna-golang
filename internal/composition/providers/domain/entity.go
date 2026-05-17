@@ -15,9 +15,11 @@ import (
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
+	clientportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_portal_grant"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
+	delegatesupplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_supplier"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
@@ -32,39 +34,45 @@ import (
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 	supplierattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_attribute"
 	suppliercategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_category"
+	supplierportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_portal_grant"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	userpreferencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user_preference"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
 
-// EntityRepositories contains all 20 entity domain repositories plus common repositories
+// EntityRepositories contains all entity domain repositories plus common repositories
 type EntityRepositories struct {
-	Admin             adminpb.AdminDomainServiceServer
-	Client            clientpb.ClientDomainServiceServer
-	ClientAttribute   clientattributepb.ClientAttributeDomainServiceServer
-	ClientCategory    clientcategorypb.ClientCategoryDomainServiceServer
-	Delegate          delegatepb.DelegateDomainServiceServer
-	DelegateAttribute delegateattributepb.DelegateAttributeDomainServiceServer
-	DelegateClient    delegateclientpb.DelegateClientDomainServiceServer
-	Group             grouppb.GroupDomainServiceServer
-	GroupAttribute    groupattributepb.GroupAttributeDomainServiceServer
-	Location          locationpb.LocationDomainServiceServer
-	LocationArea      locationareapb.LocationAreaDomainServiceServer
-	LocationAttribute locationattributepb.LocationAttributeDomainServiceServer
-	Permission        permissionpb.PermissionDomainServiceServer
-	Role              rolepb.RoleDomainServiceServer
-	RolePermission    rolepermissionpb.RolePermissionDomainServiceServer
-	Staff             staffpb.StaffDomainServiceServer
-	StaffAttribute    staffattributepb.StaffAttributeDomainServiceServer
-	Supplier          supplierpb.SupplierDomainServiceServer
-	SupplierAttribute supplierattributepb.SupplierAttributeDomainServiceServer
-	SupplierCategory  suppliercategorypb.SupplierCategoryDomainServiceServer
-	Session           sessionpb.SessionDomainServiceServer
-	User              userpb.UserDomainServiceServer
-	Workspace         workspacepb.WorkspaceDomainServiceServer
-	WorkspaceUser     workspaceuserpb.WorkspaceUserDomainServiceServer
-	WorkspaceUserRole workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer
+	Admin               adminpb.AdminDomainServiceServer
+	Client              clientpb.ClientDomainServiceServer
+	ClientAttribute     clientattributepb.ClientAttributeDomainServiceServer
+	ClientCategory      clientcategorypb.ClientCategoryDomainServiceServer
+	ClientPortalGrant   clientportalgrantpb.ClientPortalGrantDomainServiceServer
+	Delegate            delegatepb.DelegateDomainServiceServer
+	DelegateAttribute   delegateattributepb.DelegateAttributeDomainServiceServer
+	DelegateClient      delegateclientpb.DelegateClientDomainServiceServer
+	DelegateSupplier    delegatesupplierpb.DelegateSupplierDomainServiceServer
+	Group               grouppb.GroupDomainServiceServer
+	GroupAttribute      groupattributepb.GroupAttributeDomainServiceServer
+	Location            locationpb.LocationDomainServiceServer
+	LocationArea        locationareapb.LocationAreaDomainServiceServer
+	LocationAttribute   locationattributepb.LocationAttributeDomainServiceServer
+	Permission          permissionpb.PermissionDomainServiceServer
+	Role                rolepb.RoleDomainServiceServer
+	RolePermission      rolepermissionpb.RolePermissionDomainServiceServer
+	Staff               staffpb.StaffDomainServiceServer
+	StaffAttribute      staffattributepb.StaffAttributeDomainServiceServer
+	Supplier            supplierpb.SupplierDomainServiceServer
+	SupplierAttribute   supplierattributepb.SupplierAttributeDomainServiceServer
+	SupplierCategory    suppliercategorypb.SupplierCategoryDomainServiceServer
+	SupplierPortalGrant supplierportalgrantpb.SupplierPortalGrantDomainServiceServer
+	Session             sessionpb.SessionDomainServiceServer
+	User                userpb.UserDomainServiceServer
+	UserPreference      userpreferencepb.UserPreferenceDomainServiceServer
+	Workspace           workspacepb.WorkspaceDomainServiceServer
+	WorkspaceUser       workspaceuserpb.WorkspaceUserDomainServiceServer
+	WorkspaceUserRole   workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer
 	// Cross-domain dependency from Common domain
 	Attribute attributepb.AttributeDomainServiceServer
 }
@@ -109,6 +117,9 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	if r := tryCreate(entityid.ClientCategory); r != nil {
 		repos.ClientCategory = r.(clientcategorypb.ClientCategoryDomainServiceServer)
 	}
+	if r := tryCreate(entityid.ClientPortalGrant); r != nil {
+		repos.ClientPortalGrant = r.(clientportalgrantpb.ClientPortalGrantDomainServiceServer)
+	}
 	if r := tryCreate(entityid.Delegate); r != nil {
 		repos.Delegate = r.(delegatepb.DelegateDomainServiceServer)
 	}
@@ -117,6 +128,9 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	}
 	if r := tryCreate(entityid.DelegateClient); r != nil {
 		repos.DelegateClient = r.(delegateclientpb.DelegateClientDomainServiceServer)
+	}
+	if r := tryCreate(entityid.DelegateSupplier); r != nil {
+		repos.DelegateSupplier = r.(delegatesupplierpb.DelegateSupplierDomainServiceServer)
 	}
 	if r := tryCreate(entityid.Group); r != nil {
 		repos.Group = r.(grouppb.GroupDomainServiceServer)
@@ -157,11 +171,17 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	if r := tryCreate(entityid.SupplierCategory); r != nil {
 		repos.SupplierCategory = r.(suppliercategorypb.SupplierCategoryDomainServiceServer)
 	}
+	if r := tryCreate(entityid.SupplierPortalGrant); r != nil {
+		repos.SupplierPortalGrant = r.(supplierportalgrantpb.SupplierPortalGrantDomainServiceServer)
+	}
 	if r := tryCreate(entityid.Session); r != nil {
 		repos.Session = r.(sessionpb.SessionDomainServiceServer)
 	}
 	if r := tryCreate(entityid.User); r != nil {
 		repos.User = r.(userpb.UserDomainServiceServer)
+	}
+	if r := tryCreate(entityid.UserPreference); r != nil {
+		repos.UserPreference = r.(userpreferencepb.UserPreferenceDomainServiceServer)
 	}
 	if r := tryCreate(entityid.Workspace); r != nil {
 		repos.Workspace = r.(workspacepb.WorkspaceDomainServiceServer)

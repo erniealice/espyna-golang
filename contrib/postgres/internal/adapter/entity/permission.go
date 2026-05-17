@@ -9,12 +9,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -270,7 +273,8 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 				p.permission_type,
 				p.active,
 				p.date_created,
-				p.date_modified
+				p.date_modified,
+				COALESCE(p.applicable_principal_types, ARRAY[]::integer[]) as applicable_principal_types
 			FROM permission p
 			WHERE ($4::text = '' OR p.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -302,15 +306,16 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 
 	for rows.Next() {
 		var (
-			id             string
-			name           string
-			description    *string
-			permissionCode *string
-			permissionType *string
-			active         bool
-			dateCreated    time.Time
-			dateModified   time.Time
-			total          int64
+			id                      string
+			name                    string
+			description             *string
+			permissionCode          *string
+			permissionType          *string
+			active                  bool
+			dateCreated             time.Time
+			dateModified            time.Time
+			applicablePrincipalInts []int64
+			total                   int64
 		)
 
 		err := rows.Scan(
@@ -322,6 +327,7 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 			&active,
 			&dateCreated,
 			&dateModified,
+			pq.Array(&applicablePrincipalInts),
 			&total,
 		)
 		if err != nil {
@@ -357,6 +363,10 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 			permission.DateModified = &ts
 			dmStr := dateModified.Format(time.RFC3339)
 			permission.DateModifiedString = &dmStr
+		}
+
+		for _, v := range applicablePrincipalInts {
+			permission.ApplicablePrincipalTypes = append(permission.ApplicablePrincipalTypes, principaltypepb.PrincipalType(v))
 		}
 
 		permissions = append(permissions, permission)

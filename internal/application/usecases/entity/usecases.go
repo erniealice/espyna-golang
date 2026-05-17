@@ -6,9 +6,11 @@ import (
 	clientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client"
 	clientAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_attribute"
 	clientCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_category"
+	clientPortalGrantUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/client_portal_grant"
 	delegateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate"
 	delegateAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_attribute"
 	delegateClientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_client"
+	delegateSupplierUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/delegate_supplier"
 	groupUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/group"
 	groupAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/group_attribute"
 	locationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/location"
@@ -21,7 +23,9 @@ import (
 	supplierUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier"
 	supplierAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_attribute"
 	supplierCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_category"
+	supplierPortalGrantUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/supplier_portal_grant"
 	userUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/user"
+	userPreferenceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/user_preference"
 	workspaceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace"
 	workspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user"
 	workspaceUserRoleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/workspace_user_role"
@@ -34,29 +38,33 @@ import (
 
 // EntityUseCases contains all entity-related use cases
 type EntityUseCases struct {
-	Admin             *adminUseCases.UseCases
-	Client            *clientUseCases.UseCases
-	ClientAttribute   *clientAttributeUseCases.UseCases
-	ClientCategory    *clientCategoryUseCases.UseCases
-	Delegate          *delegateUseCases.UseCases
-	DelegateAttribute *delegateAttributeUseCases.UseCases
-	DelegateClient    *delegateClientUseCases.UseCases
-	Group             *groupUseCases.UseCases
-	GroupAttribute    *groupAttributeUseCases.UseCases
-	Location          *locationUseCases.UseCases
-	LocationAttribute *locationAttributeUseCases.UseCases
-	Permission        *permissionUseCases.UseCases
-	Role              *roleUseCases.UseCases
-	RolePermission    *rolePermissionUseCases.UseCases
-	Staff             *staffUseCases.UseCases
-	StaffAttribute    *staffAttributeUseCases.UseCases
-	Supplier          *supplierUseCases.UseCases
-	SupplierAttribute *supplierAttributeUseCases.UseCases
-	SupplierCategory  *supplierCategoryUseCases.UseCases
-	User              *userUseCases.UseCases
-	Workspace         *workspaceUseCases.UseCases
-	WorkspaceUser     *workspaceUserUseCases.UseCases
-	WorkspaceUserRole *workspaceUserRoleUseCases.UseCases
+	Admin               *adminUseCases.UseCases
+	Client              *clientUseCases.UseCases
+	ClientAttribute     *clientAttributeUseCases.UseCases
+	ClientCategory      *clientCategoryUseCases.UseCases
+	ClientPortalGrant   *clientPortalGrantUseCases.UseCases
+	Delegate            *delegateUseCases.UseCases
+	DelegateAttribute   *delegateAttributeUseCases.UseCases
+	DelegateClient      *delegateClientUseCases.UseCases
+	DelegateSupplier    *delegateSupplierUseCases.UseCases
+	Group               *groupUseCases.UseCases
+	GroupAttribute      *groupAttributeUseCases.UseCases
+	Location            *locationUseCases.UseCases
+	LocationAttribute   *locationAttributeUseCases.UseCases
+	Permission          *permissionUseCases.UseCases
+	Role                *roleUseCases.UseCases
+	RolePermission      *rolePermissionUseCases.UseCases
+	Staff               *staffUseCases.UseCases
+	StaffAttribute      *staffAttributeUseCases.UseCases
+	Supplier            *supplierUseCases.UseCases
+	SupplierAttribute   *supplierAttributeUseCases.UseCases
+	SupplierCategory    *supplierCategoryUseCases.UseCases
+	SupplierPortalGrant *supplierPortalGrantUseCases.UseCases
+	User                *userUseCases.UseCases
+	UserPreference      *userPreferenceUseCases.UseCases
+	Workspace           *workspaceUseCases.UseCases
+	WorkspaceUser       *workspaceUserUseCases.UseCases
+	WorkspaceUserRole   *workspaceUserRoleUseCases.UseCases
 
 	// Dashboard use cases (nil when postgres build tag is inactive).
 	LocationDashboard *locationdashboard.GetLocationDashboardPageDataUseCase

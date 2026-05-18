@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
 
@@ -41,14 +41,28 @@ func NewUpdateDisbursementUseCase(
 	}
 }
 
-// Execute performs the update disbursement operation
+// Execute performs the update disbursement operation.
+//
+// 20260518-hexagonal-strict-adherence Phase 1.C-iv-pre — BURN_DOWN guard +
+// transaction-aware behavior. See the matching collection.UpdateCollection
+// implementation for the rationale.
 func (uc *UpdateDisbursementUseCase) Execute(ctx context.Context, req *disbursementpb.UpdateDisbursementRequest) (*disbursementpb.UpdateDisbursementResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityDisbursement, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
+	// Plan B Phase 0 hard rule: ADVANCE_KIND_BURN_DOWN is reserved for v2.
+	if req != nil && req.Data != nil {
+		if err := validateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
+			return nil, err
+		}
+	}
+
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+		if uc.services.TransactionService.IsTransactionActive(ctx) {
+			return uc.executeCore(ctx, req)
+		}
 		var result *disbursementpb.UpdateDisbursementResponse
 		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)

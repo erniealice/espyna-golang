@@ -9,7 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"

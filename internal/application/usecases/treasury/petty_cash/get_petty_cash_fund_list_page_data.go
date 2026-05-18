@@ -7,7 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	pettycashfundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_fund"
 )
 

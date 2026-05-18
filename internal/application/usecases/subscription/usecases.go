@@ -4,6 +4,7 @@ import (
 	// Subscription use cases
 	balanceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/balance"
 	balanceAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/balance_attribute"
+	billingEventUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/billing_event"
 	invoiceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/invoice"
 	invoiceAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/invoice_attribute"
 	planUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/plan"
@@ -57,10 +58,18 @@ type SubscriptionRepositories struct {
 	Attribute             attributepb.AttributeDomainServiceServer
 }
 
-// SubscriptionUseCases contains all subscription-related use cases
+// SubscriptionUseCases contains all subscription-related use cases.
+//
+// 20260518-hexagonal-strict-adherence Phase 3 — F6 + F7 closure:
+//   - BillingEvent (raw DomainServiceServer leak) wrapped in a Layer-7
+//     use case sub-aggregate; nested under .BillingEvent.
+//   - MaterializeJobsForSubscription + MaterializeInstanceJobsForSubscription
+//     (flat fields) nested under .Subscription.MaterializeJobs and
+//     .Subscription.MaterializeInstanceJobs respectively.
 type SubscriptionUseCases struct {
 	Balance               *balanceUseCases.UseCases
 	BalanceAttribute      *balanceAttributeUseCases.UseCases
+	BillingEvent          *billingEventUseCases.UseCases
 	Invoice               *invoiceUseCases.UseCases
 	InvoiceAttribute      *invoiceAttributeUseCases.UseCases
 	Plan                  *planUseCases.UseCases
@@ -71,31 +80,6 @@ type SubscriptionUseCases struct {
 	ProductPricePlan      *productPricePlanUseCases.UseCases
 	Subscription          *subscriptionUseCases.UseCases
 	SubscriptionAttribute *subscriptionAttributeUseCases.UseCases
-
-	// BillingEvent exposes the BillingEvent domain server directly (no use-case
-	// wrapper yet). centymo views invoke ListBySubscription / SetStatus through
-	// this for the milestone-billing Package tab + mark-ready/waive handlers.
-	// nil-safe: when the adapter isn't registered, callers degrade to empty
-	// milestone lists and disable the mark-ready button.
-	BillingEvent billingeventpb.BillingEventDomainServiceServer
-
-	// MaterializeJobsForSubscription exposes the auto-spawn-jobs-from-
-	// subscription use case (plan §3) directly so centymo's retroactive
-	// spawn handler + create-form opt-out can invoke it. nil-safe.
-	// 2026-04-29 auto-spawn-jobs-from-subscription Phase D.
-	MaterializeJobsForSubscription *subscriptionUseCases.MaterializeJobsForSubscriptionUseCase
-
-	// MaterializeInstanceJobsForSubscription exposes the cyclic-instance-
-	// Job spawn use case (cyclic-subscription-jobs plan §3) so:
-	//   1. The recognize-revenue piggyback (plan §5.2) can call it after
-	//      successful revenue recognition.
-	//   2. The Operations tab "Spawn this cycle now" / "Backfill missing
-	//      cycles" handlers can invoke it directly.
-	// nil-safe — when unwired (operation domain unavailable), the cyclic
-	// flow degrades gracefully: engagement Jobs spawn at Subscription.Create
-	// but no cycle Jobs materialize.
-	// 2026-04-30 cyclic-subscription-jobs Phase B.
-	MaterializeInstanceJobsForSubscription *subscriptionUseCases.MaterializeInstanceJobsForSubscriptionUseCase
 }
 
 // NewUseCases creates all subscription use cases with proper constructor injection.
@@ -277,9 +261,22 @@ func NewUseCases(
 		},
 	)
 
+	// Phase 3 F7 closure — wrap the raw BillingEvent DomainServiceServer in
+	// a Layer-7 use case sub-aggregate. Constructor is nil-safe when the
+	// adapter isn't registered.
+	billingEventUC := billingEventUseCases.NewUseCases(
+		billingEventUseCases.BillingEventRepositories{BillingEvent: repos.BillingEvent},
+		billingEventUseCases.BillingEventServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+		},
+	)
+
 	return &SubscriptionUseCases{
 		Balance:               balanceUC,
 		BalanceAttribute:      balanceAttributeUC,
+		BillingEvent:          billingEventUC,
 		Invoice:               invoiceUC,
 		InvoiceAttribute:      invoiceAttributeUC,
 		Plan:                  planUC,
@@ -290,6 +287,5 @@ func NewUseCases(
 		ProductPricePlan:      productPricePlanUC,
 		Subscription:          subscriptionUC,
 		SubscriptionAttribute: subscriptionAttributeUC,
-		BillingEvent:          repos.BillingEvent,
 	}
 }

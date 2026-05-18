@@ -26,6 +26,18 @@ type UseCases struct {
 	DeleteCollection *DeleteCollectionUseCase
 	ListCollections  *ListCollectionsUseCase
 	ListByClient     *ListByClientUseCase
+
+	// 20260518-hexagonal-strict-adherence Phase 1.C — advance use cases (selling
+	// side) folded back into the entity sub-aggregate from the prior
+	// treasury_collection/ parallel home. Constructed by the treasury aggregator
+	// (treasury.NewUseCases) after the CRUD use cases above are wired, because
+	// the advance flows depend on UpdateCollection per Q1-B caller routing.
+	AmortizeAdvance           *AmortizeAdvanceCollectionUseCase
+	SettleUnscheduledAdvance  *SettleUnscheduledAdvanceUseCase
+	RefundUnscheduledAdvance  *RefundUnscheduledAdvanceUseCase
+	CancelAdvance             *CancelAdvanceUseCase
+	RecognizeMilestoneAdvance *RecognizeMilestoneAdvanceCollectionUseCase
+	ListAdvancesForDashboard  *ListAdvanceCollectionsForDashboardUseCase
 }
 
 // NewUseCases creates a new collection of collection use cases

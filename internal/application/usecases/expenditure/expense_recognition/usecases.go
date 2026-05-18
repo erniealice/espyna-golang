@@ -29,16 +29,22 @@ type ExpenseRecognitionServices struct {
 }
 
 // UseCases contains all expense recognition use cases.
+//
+// 20260518-hexagonal-strict-adherence Phase 3 — RecognizeFromSupplierSubscription
+// (formerly a flat field on ExpenditureUseCases) now nests here. The parent
+// expenditure aggregator post-assigns it because the use case needs cross-domain
+// (procurement) repositories.
 type UseCases struct {
-	CreateExpenseRecognition    *CreateExpenseRecognitionUseCase
-	ReadExpenseRecognition      *ReadExpenseRecognitionUseCase
-	UpdateExpenseRecognition    *UpdateExpenseRecognitionUseCase
-	DeleteExpenseRecognition    *DeleteExpenseRecognitionUseCase
-	ListExpenseRecognitions     *ListExpenseRecognitionsUseCase
-	RecognizeFromExpenditure    *RecognizeFromExpenditureUseCase
-	RecognizeFromContract       *RecognizeFromContractUseCase
-	ReverseExpenseRecognition   *ReverseExpenseRecognitionUseCase
-	GetUnrecognizedExpenditures *GetUnrecognizedExpendituresUseCase
+	CreateExpenseRecognition          *CreateExpenseRecognitionUseCase
+	ReadExpenseRecognition            *ReadExpenseRecognitionUseCase
+	UpdateExpenseRecognition          *UpdateExpenseRecognitionUseCase
+	DeleteExpenseRecognition          *DeleteExpenseRecognitionUseCase
+	ListExpenseRecognitions           *ListExpenseRecognitionsUseCase
+	RecognizeFromExpenditure          *RecognizeFromExpenditureUseCase
+	RecognizeFromContract             *RecognizeFromContractUseCase
+	RecognizeFromSupplierSubscription *RecognizeExpenseFromSupplierSubscriptionUseCase
+	ReverseExpenseRecognition         *ReverseExpenseRecognitionUseCase
+	GetUnrecognizedExpenditures       *GetUnrecognizedExpendituresUseCase
 }
 
 // NewUseCases creates a new collection of expense recognition use cases.

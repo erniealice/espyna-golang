@@ -10,7 +10,17 @@ type mockTranslationService struct {
 	translations map[string]string
 }
 
-func (m *mockTranslationService) GetWithDefault(_ context.Context, businessType, key, fallback string) string {
+func (m *mockTranslationService) Get(_ context.Context, businessType, key string, _ ...any) string {
+	if v, ok := m.translations[businessType+"."+key]; ok {
+		return v
+	}
+	if v, ok := m.translations[key]; ok {
+		return v
+	}
+	return key
+}
+
+func (m *mockTranslationService) GetWithDefault(_ context.Context, businessType, key, fallback string, _ ...any) string {
 	if v, ok := m.translations[businessType+"."+key]; ok {
 		return v
 	}

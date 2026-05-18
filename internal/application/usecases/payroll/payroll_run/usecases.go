@@ -19,11 +19,21 @@ type Services struct {
 }
 
 // UseCases contains all payroll run-related use cases.
+//
+// 20260518-hexagonal-strict-adherence Phase 3 — Calculate + GeneratePayCycles
+// (formerly flat fields on PayrollUseCases) now nest here. The parent payroll
+// aggregator post-assigns them after constructing the Orchestrator (which is
+// required by both wrappers). nil-safe.
 type UseCases struct {
 	CreatePayrollRun          *CreatePayrollRunUseCase
 	ReadPayrollRun            *ReadPayrollRunUseCase
 	ListPayrollRuns           *ListPayrollRunsUseCase
 	GetPayrollRunListPageData *GetPayrollRunListPageDataUseCase
+
+	// Orchestrator-backed run flows (Phase 3 F6 closure). Populated by the
+	// parent payroll aggregator after the Orchestrator is constructed.
+	Calculate        *CalculatePayrollRunUseCase
+	GeneratePayCycles *GeneratePayCyclesUseCase
 }
 
 // NewUseCases creates a new collection of payroll run use cases.

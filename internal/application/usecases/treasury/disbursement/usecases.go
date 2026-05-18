@@ -25,6 +25,18 @@ type UseCases struct {
 	UpdateDisbursement *UpdateDisbursementUseCase
 	DeleteDisbursement *DeleteDisbursementUseCase
 	ListDisbursements  *ListDisbursementsUseCase
+
+	// 20260518-hexagonal-strict-adherence Phase 1.C — advance use cases (buying
+	// side) folded back into the entity sub-aggregate from the prior
+	// treasury_disbursement/ parallel home. Constructed by treasury.NewUseCases
+	// after the CRUD use cases above are wired, because the advance flows
+	// depend on UpdateDisbursement per Q1-B caller routing.
+	AmortizeAdvance           *AmortizeAdvanceDisbursementUseCase
+	SettleUnscheduledAdvance  *SettleUnscheduledAdvanceUseCase
+	RefundUnscheduledAdvance  *RefundUnscheduledAdvanceUseCase
+	CancelAdvance             *CancelAdvanceUseCase
+	RecognizeMilestoneAdvance *RecognizeMilestoneAdvanceDisbursementUseCase
+	ListAdvancesForDashboard  *ListAdvanceDisbursementsForDashboardUseCase
 }
 
 // NewUseCases creates a new collection of disbursement use cases

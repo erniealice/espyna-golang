@@ -13,7 +13,6 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	asset_category_usecase "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset_category"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -346,7 +345,7 @@ func NewAssetCategoryRepository(db *sql.DB, tableName string) assetcategorypb.As
 // no integration test framework exists for this adapter."
 func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 	ctx context.Context,
-) ([]asset_category_usecase.AssetCategoryWithRollup, error) {
+) ([]*assetcategorypb.AssetCategoryWithPolicyRollup, error) {
 	// Retrieve the raw DB to run the bulk aggregate query.
 	dbGetter, ok := r.dbOps.(interface{ GetDB() *sql.DB })
 	if !ok {
@@ -439,13 +438,13 @@ func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 		return nil, fmt.Errorf("ListAssetCategoriesWithPolicyRollup: list categories failed: %w", err)
 	}
 
-	result := make([]asset_category_usecase.AssetCategoryWithRollup, 0, len(listResp.GetData()))
+	result := make([]*assetcategorypb.AssetCategoryWithPolicyRollup, 0, len(listResp.GetData()))
 	for _, cat := range listResp.GetData() {
 		c := countsMap[cat.GetId()]
-		result = append(result, asset_category_usecase.AssetCategoryWithRollup{
+		result = append(result, &assetcategorypb.AssetCategoryWithPolicyRollup{
 			Category:        cat,
-			AssetsInPolicy:  c.inPolicy,
-			AssetsDeviating: c.deviating,
+			AssetsInPolicy:  int32(c.inPolicy),
+			AssetsDeviating: int32(c.deviating),
 		})
 	}
 	return result, nil

@@ -16,7 +16,6 @@ import (
 	"testing"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -168,8 +167,11 @@ func TestCreatePricePlan_ClientScoped_EmptySchedule_AutoCreates(t *testing.T) {
 	cruzName := "Cruz Engineering"
 	clientRepo.clients["client-cruz"] = &clientpb.Client{Id: "client-cruz", Name: &cruzName, Active: true}
 
-	// Handler-supplied derived name via context (mimicking centymo handler).
-	ctx := contextutil.WithNewScheduleName(context.Background(), "Cruz Engineering - Rate Cards")
+	// Handler-supplied lyngua-resolved suffix via context (mimicking centymo
+	// handler). The use case builds the schedule name as
+	// "{client.name} - {suffix} - {timestamp} {tz}" — so we assert the
+	// stable prefix rather than the full string.
+	ctx := context.WithValue(context.Background(), "clientScheduleSuffix", "Rate Cards")
 	if _, err := uc.Execute(ctx, basePricePlanRequest("plan-cruz")); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -180,11 +182,14 @@ func TestCreatePricePlan_ClientScoped_EmptySchedule_AutoCreates(t *testing.T) {
 	if got := created.GetClientId(); got != "client-cruz" {
 		t.Errorf("created schedule client_id = %q, want client-cruz", got)
 	}
-	if got := created.GetName(); got != "Cruz Engineering - Rate Cards" {
-		t.Errorf("created schedule name = %q, want %q", got, "Cruz Engineering - Rate Cards")
+	if got := created.GetName(); !strings.HasPrefix(got, "Cruz Engineering - Rate Cards - ") {
+		t.Errorf("created schedule name = %q, want prefix %q", got, "Cruz Engineering - Rate Cards - ")
 	}
-	if got := created.GetLocationId(); got != "loc-manila" {
-		t.Errorf("created schedule location_id = %q, want loc-manila", got)
+	// 1-to-1 invariant: client-scoped PriceSchedule collapses across locations.
+	// The use case intentionally passes "" for the location filter (see
+	// resolve_client_schedule.go) so the new row carries no location stamp.
+	if got := created.GetLocationId(); got != "" {
+		t.Errorf("created schedule location_id = %q, want empty (client-scoped collapses across locations)", got)
 	}
 	if got := ppRepo.captured.GetPriceScheduleId(); got != created.GetId() {
 		t.Errorf("price_plan.price_schedule_id = %q, want resolved schedule %q", got, created.GetId())

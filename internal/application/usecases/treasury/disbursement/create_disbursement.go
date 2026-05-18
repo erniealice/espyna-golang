@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
 
@@ -44,11 +44,21 @@ func NewCreateDisbursementUseCase(
 	}
 }
 
-// Execute performs the create disbursement operation
+// Execute performs the create disbursement operation.
+//
+// 20260518-hexagonal-strict-adherence Phase 1.C-iv — BURN_DOWN guard relocated
+// from the postgres adapter (F4 layer-violation fix).
 func (uc *CreateDisbursementUseCase) Execute(ctx context.Context, req *disbursementpb.CreateDisbursementRequest) (*disbursementpb.CreateDisbursementResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
 		entityDisbursement, ports.ActionCreate); err != nil {
 		return nil, err
+	}
+
+	// Plan B Phase 0 hard rule: ADVANCE_KIND_BURN_DOWN is reserved for v2.
+	if req != nil && req.Data != nil {
+		if err := validateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
+			return nil, err
+		}
 	}
 
 	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {

@@ -303,9 +303,10 @@ func TestMaterializeInstanceJobs_Case1_OneCycleSingleVisit(t *testing.T) {
 	if cycle.CyclePeriodEnd != "2026-05-31" {
 		t.Errorf("period_end want 2026-05-31, got %s", cycle.CyclePeriodEnd)
 	}
-	// Engagement Job auto-created.
-	if resp.EngagementJob == nil {
-		t.Fatalf("engagement job missing")
+	// Shell Job auto-created (formerly EngagementJob; renamed when the
+	// two-tier shell+instance Job model landed).
+	if resp.ShellJob == nil {
+		t.Fatalf("shell job missing")
 	}
 	if !resp.EngagementWasNewlyCreated {
 		t.Errorf("engagement should be newly created")
@@ -649,7 +650,7 @@ func TestMaterializeInstanceJobs_Case11_ParentJobIdSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected: %v", err)
 	}
-	engID := resp.EngagementJob.GetId()
+	engID := resp.ShellJob.GetId()
 	for _, j := range resp.SpawnedCycles[0].Jobs {
 		if j.GetParentJobId() != engID {
 			t.Errorf("cycle Job parent_job_id want %s, got %s", engID, j.GetParentJobId())

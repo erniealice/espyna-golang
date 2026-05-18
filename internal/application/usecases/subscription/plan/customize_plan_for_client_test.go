@@ -351,12 +351,13 @@ func (f *customizeFixture) seedMasterPlan() {
 	}
 }
 
-func baseRequest() *CustomizePlanForClientRequest {
-	return &CustomizePlanForClientRequest{
-		SourcePlanID:      "plan-master",
-		SourcePricePlanID: "ppp-master",
-		ClientID:          "client-cruz",
-		NewScheduleName:   "Cruz Engineering - Rate Cards",
+func baseRequest() *planpb.CustomizePlanForClientRequest {
+	scheduleName := "Cruz Engineering - Rate Cards"
+	return &planpb.CustomizePlanForClientRequest{
+		SourcePlanId:      "plan-master",
+		SourcePricePlanId: "ppp-master",
+		ClientId:          "client-cruz",
+		NewScheduleName:   &scheduleName,
 	}
 }
 
@@ -375,14 +376,20 @@ func TestCustomize_MasterClone_NoExistingClientSchedule_CreatesNewSchedule(t *te
 	if got := len(f.priceSchedule.createCalls); got != 1 {
 		t.Errorf("expected 1 PriceSchedule create call, got %d", got)
 	}
-	if resp.PriceSchedule.GetClientId() != "client-cruz" {
-		t.Errorf("expected new schedule client_id=client-cruz, got %q", resp.PriceSchedule.GetClientId())
+	// TODO: re-assert on PriceSchedule via repo mock — proto response only exposes NewPriceScheduleId after proto migration.
+	if got := len(f.priceSchedule.createCalls); got > 0 {
+		if f.priceSchedule.createCalls[0].GetClientId() != "client-cruz" {
+			t.Errorf("expected new schedule client_id=client-cruz, got %q", f.priceSchedule.createCalls[0].GetClientId())
+		}
 	}
 	if resp.Plan.GetClientId() != "client-cruz" {
 		t.Errorf("expected cloned plan client_id=client-cruz, got %q", resp.Plan.GetClientId())
 	}
-	if resp.PricePlan.GetClientId() != "client-cruz" {
-		t.Errorf("expected cloned price plan client_id=client-cruz, got %q", resp.PricePlan.GetClientId())
+	// TODO: re-assert on PricePlan via repo mock — proto response only exposes NewPricePlanId after proto migration.
+	if got := len(f.pricePlan.createCalls); got > 0 {
+		if f.pricePlan.createCalls[0].GetClientId() != "client-cruz" {
+			t.Errorf("expected cloned price plan client_id=client-cruz, got %q", f.pricePlan.createCalls[0].GetClientId())
+		}
 	}
 	// parent_id on the cloned Plan must point at the master's ID.
 	if resp.Plan.GetParentId() != "plan-master" {
@@ -422,8 +429,8 @@ func TestCustomize_ReusesExistingClientSchedule(t *testing.T) {
 	if got := len(f.priceSchedule.createCalls); got != 0 {
 		t.Errorf("expected zero PriceSchedule creates, got %d", got)
 	}
-	if resp.PriceSchedule.GetId() != "ps-cruz" {
-		t.Errorf("expected reused schedule id=ps-cruz, got %q", resp.PriceSchedule.GetId())
+	if resp.GetNewPriceScheduleId() != "ps-cruz" {
+		t.Errorf("expected reused schedule id=ps-cruz, got %q", resp.GetNewPriceScheduleId())
 	}
 }
 
@@ -443,7 +450,7 @@ func TestCustomize_CrossClientClone_AllowsClientB(t *testing.T) {
 	f.client.c = &clientpb.Client{Id: clientB, Active: true, Name: &clientBName}
 
 	req := baseRequest()
-	req.ClientID = clientB
+	req.ClientId = clientB
 	resp, err := f.uc.Execute(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -464,7 +471,7 @@ func TestCustomize_RepointsSubscription_Atomic(t *testing.T) {
 		Active:      true,
 	}
 	req := baseRequest()
-	req.SubscriptionID = subID
+	req.SubscriptionId = &subID
 
 	resp, err := f.uc.Execute(context.Background(), req)
 	if err != nil {
@@ -474,8 +481,8 @@ func TestCustomize_RepointsSubscription_Atomic(t *testing.T) {
 		t.Fatalf("expected exactly one subscription update, got %d", got)
 	}
 	updated := f.subscription.updateCalls[0]
-	if updated.GetPricePlanId() != resp.PricePlan.GetId() {
-		t.Errorf("subscription not repointed: got %q want %q", updated.GetPricePlanId(), resp.PricePlan.GetId())
+	if updated.GetPricePlanId() != resp.GetNewPricePlanId() {
+		t.Errorf("subscription not repointed: got %q want %q", updated.GetPricePlanId(), resp.GetNewPricePlanId())
 	}
 }
 
@@ -490,7 +497,7 @@ func TestCustomize_RejectsSubscriptionClientMismatch(t *testing.T) {
 		Active:      true,
 	}
 	req := baseRequest()
-	req.SubscriptionID = subID
+	req.SubscriptionId = &subID
 	_, err := f.uc.Execute(context.Background(), req)
 	if err == nil {
 		t.Fatalf("expected subscription_client_mismatch error")
@@ -523,7 +530,7 @@ func TestCustomize_DerivedFromLines_RemapsAllPPPs(t *testing.T) {
 		clonedProductPlanIDs[pp.GetId()] = true
 	}
 	for _, line := range f.productPricePlan.createCalls {
-		if line.GetPricePlanId() != resp.PricePlan.GetId() {
+		if line.GetPricePlanId() != resp.GetNewPricePlanId() {
 			t.Errorf("cloned line %s points at wrong price plan %s", line.GetId(), line.GetPricePlanId())
 		}
 		if !clonedProductPlanIDs[line.GetProductPlanId()] {
@@ -673,11 +680,12 @@ func TestCustomize_ClonesAClone_FlattensToMaster(t *testing.T) {
 	clientBName := "Client B"
 	f.client.c = &clientpb.Client{Id: clientB, Active: true, Name: &clientBName}
 
-	req := &CustomizePlanForClientRequest{
-		SourcePlanID:      cloneID,
-		SourcePricePlanID: pricePlanID,
-		ClientID:          clientB,
-		NewScheduleName:   "Client B - Rate Cards",
+	scheduleName := "Client B - Rate Cards"
+	req := &planpb.CustomizePlanForClientRequest{
+		SourcePlanId:      cloneID,
+		SourcePricePlanId: pricePlanID,
+		ClientId:          clientB,
+		NewScheduleName:   &scheduleName,
 	}
 	resp, err := f.uc.Execute(context.Background(), req)
 	if err != nil {

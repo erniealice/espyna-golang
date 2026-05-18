@@ -16,7 +16,6 @@ import (
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	treasuryusecases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
@@ -94,12 +93,9 @@ func (r *PostgresCollectionRepository) CreateCollection(ctx context.Context, req
 		return nil, fmt.Errorf("collection data is required")
 	}
 
-	// Plan B Phase 0 hard rule — BURN_DOWN is declared in the proto but
-	// disabled until v2. Reject before persistence so the row never lands
-	// in a state we cannot operate on.
-	if err := treasuryusecases.ValidateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
-		return nil, err
-	}
+	// BURN_DOWN guard moved to the use case layer (Phase 1.C-iv of
+	// 20260518-hexagonal-strict-adherence). See
+	// internal/application/usecases/treasury/collection/validate_advance_kind.go.
 
 	jsonData, err := protojson.Marshal(req.Data)
 	if err != nil {
@@ -172,11 +168,9 @@ func (r *PostgresCollectionRepository) UpdateCollection(ctx context.Context, req
 		return nil, fmt.Errorf("collection ID is required")
 	}
 
-	// Plan B Phase 0 hard rule — reject BURN_DOWN on update too; otherwise an
-	// existing row could be flipped into the disabled kind via the edit path.
-	if err := treasuryusecases.ValidateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
-		return nil, err
-	}
+	// BURN_DOWN guard moved to the use case layer (Phase 1.C-iv of
+	// 20260518-hexagonal-strict-adherence). See
+	// internal/application/usecases/treasury/collection/validate_advance_kind.go.
 
 	jsonData, err := protojson.Marshal(req.Data)
 	if err != nil {

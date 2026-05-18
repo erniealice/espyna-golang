@@ -9,7 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
@@ -17,7 +17,7 @@ import (
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 
 	expenserecognition "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expense_recognition"
-	treasurydisbursement "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_disbursement"
+	treasurydisbursement "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/disbursement"
 )
 
 // SelectedExpenseRunCandidate is the internal Go-struct mirror of the proto.

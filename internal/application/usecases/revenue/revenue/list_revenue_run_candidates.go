@@ -9,9 +9,9 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
-	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/amortize_schedule"
-	treasurycollection "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_collection"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/shared/amortize_schedule"
+	treasurycollection "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/collection"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"

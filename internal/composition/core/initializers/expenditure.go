@@ -4,17 +4,21 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
-	treasurydisbursement "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_disbursement"
+	treasurydisbursement "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/disbursement"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
 // treasuryAmortizeAdvanceDisbursement returns the AmortizeAdvanceDisbursement
 // use case from the treasury aggregate, nil-safe on a nil aggregate.
+//
+// 20260518-hexagonal-strict-adherence Phase 1.C — advance use cases now nest
+// under treasury.Disbursement (entity sub-aggregate) instead of as flat fields
+// on TreasuryUseCases.
 func treasuryAmortizeAdvanceDisbursement(t *treasury.TreasuryUseCases) *treasurydisbursement.AmortizeAdvanceDisbursementUseCase {
-	if t == nil {
+	if t == nil || t.Disbursement == nil {
 		return nil
 	}
-	return t.AmortizeAdvanceDisbursement
+	return t.Disbursement.AmortizeAdvance
 }
 
 // InitializeExpenditure creates all expenditure use cases from provider repositories.

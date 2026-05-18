@@ -11,6 +11,7 @@ import (
 	jobTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_task"
 	jobTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template"
 	jobTemplatePhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template_phase"
+	jobTemplateRelationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template_relation"
 	jobTemplateTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job_template_task"
 	outcomeCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/outcome_criteria"
 	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/operation/phase_outcome_summary"
@@ -87,13 +88,18 @@ type OperationRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 }
 
-// OperationUseCases contains all operation-related use cases
+// OperationUseCases contains all operation-related use cases.
+//
+// 20260518-hexagonal-strict-adherence Phase 3 F7 closure — JobTemplateRelation
+// (raw DomainServiceServer leak) is wrapped in a Layer-7 use case sub-aggregate
+// and now lives at .JobTemplateRelation as a *jobtemplaterelation.UseCases.
 type OperationUseCases struct {
 	Job                  *jobUseCases.UseCases
 	JobPhase             *jobPhaseUseCases.UseCases
 	JobTask              *jobTaskUseCases.UseCases
 	JobTemplate          *jobTemplateUseCases.UseCases
 	JobTemplatePhase     *jobTemplatePhaseUseCases.UseCases
+	JobTemplateRelation  *jobTemplateRelationUseCases.UseCases
 	JobTemplateTask      *jobTemplateTaskUseCases.UseCases
 	JobActivity          *jobActivityUseCases.UseCases
 	OutcomeCriteria      *outcomeCriteriaUseCases.UseCases
@@ -104,12 +110,6 @@ type OperationUseCases struct {
 	TaskOutcomeCheck     *taskOutcomeCheckUseCases.UseCases
 	PhaseOutcomeSummary  *phaseOutcomeSummaryUseCases.UseCases
 	JobOutcomeSummary    *jobOutcomeSummaryUseCases.UseCases
-
-	// 2026-04-29 auto-spawn-jobs-from-subscription Phase D — exposed for the
-	// centymo subscription drawer's spawn-jobs detection (no use-case wrapper
-	// yet; consumers call ListByParent directly via the proto-generated
-	// domain service interface). nil-safe.
-	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
 
 	// Dashboard use case (nil when postgres build tag is inactive).
 	Dashboard *jobdashboard.GetJobDashboardPageDataUseCase
@@ -300,12 +300,26 @@ func NewUseCases(
 		}
 	}
 
+	// Phase 3 F7 closure — wrap the raw JobTemplateRelation
+	// DomainServiceServer in a Layer-7 use case sub-aggregate. nil-safe when
+	// the adapter isn't registered.
+	jobTemplateRelationUC := jobTemplateRelationUseCases.NewUseCases(
+		jobTemplateRelationUseCases.JobTemplateRelationRepositories{
+			JobTemplateRelation: repos.JobTemplateRelation,
+		},
+		jobTemplateRelationUseCases.JobTemplateRelationServices{
+			AuthorizationService: authSvc,
+			TranslationService:   i18nSvc,
+		},
+	)
+
 	return &OperationUseCases{
 		Job:                  jobUC,
 		JobPhase:             jobPhaseUC,
 		JobTask:              jobTaskUC,
 		JobTemplate:          jobTemplateUC,
 		JobTemplatePhase:     jobTemplatePhaseUC,
+		JobTemplateRelation:  jobTemplateRelationUC,
 		JobTemplateTask:      jobTemplateTaskUC,
 		JobActivity:          jobActivityUC,
 		OutcomeCriteria:      outcomeCriteriaUC,
@@ -316,8 +330,6 @@ func NewUseCases(
 		TaskOutcomeCheck:     taskOutcomeCheckUC,
 		PhaseOutcomeSummary:  phaseOutcomeSummaryUC,
 		JobOutcomeSummary:    jobOutcomeSummaryUC,
-		// 2026-04-29 auto-spawn-jobs-from-subscription Phase D.
-		JobTemplateRelation: repos.JobTemplateRelation,
-		Dashboard:           jobDash,
+		Dashboard:            jobDash,
 	}
 }

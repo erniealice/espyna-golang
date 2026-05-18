@@ -19,6 +19,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/tenancy"
@@ -70,6 +71,13 @@ type Aggregate struct {
 	Workflow     *workflow.WorkflowUseCases
 	Integration  *integration.IntegrationUseCases
 	Asset        *asset.AssetUseCases // Phase 1-2: asset typed stack (adapter in Phase 4)
+	// Service is the service-driven domain sub-aggregate added by
+	// 20260518-hexagonal-strict-adherence Phase 1.D — hosts use cases
+	// for cross-cutting concerns (audit query, eventually reporting/
+	// auth/security) whose proto contracts live under
+	// `proto/v1/service/`. May be nil when InitializeService is not
+	// wired (test fixtures, empty aggregates).
+	Service *service.ServiceUseCases
 }
 
 // NewAggregate creates a new use case aggregate with all domains initialized.
@@ -100,6 +108,7 @@ func NewAggregate(
 	workflowUC *workflow.WorkflowUseCases,
 	integrationUC *integration.IntegrationUseCases,
 	assetUC *asset.AssetUseCases,
+	serviceUC *service.ServiceUseCases,
 ) *Aggregate {
 	return &Aggregate{
 		Auth:         authUC,
@@ -124,6 +133,7 @@ func NewAggregate(
 		Workflow:     workflowUC,
 		Integration:  integrationUC,
 		Asset:        assetUC,
+		Service:      serviceUC,
 	}
 }
 
@@ -153,5 +163,6 @@ func NewEmptyAggregate() *Aggregate {
 		Workflow:     &workflow.WorkflowUseCases{},
 		Integration:  &integration.IntegrationUseCases{},
 		Asset:        &asset.AssetUseCases{},
+		Service:      &service.ServiceUseCases{},
 	}
 }

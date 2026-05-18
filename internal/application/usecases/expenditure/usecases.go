@@ -25,7 +25,7 @@ import (
 	supplierContractPriceScheduleLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/supplier_contract_price_schedule_line"
 	// Cross-domain (treasury): AmortizeAdvanceDisbursement is composed into the
 	// GenerateExpenseRun engine. Plan B Phase 2.
-	treasurydisbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_disbursement"
+	treasurydisbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/disbursement"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -94,7 +94,12 @@ type ExpenditureRepositories struct {
 	ExpenseRecognitionRun expenserecognitionrunpb.ExpenseRecognitionRunDomainServiceServer
 }
 
-// ExpenditureUseCases contains all expenditure-related use cases
+// ExpenditureUseCases contains all expenditure-related use cases.
+//
+// 20260518-hexagonal-strict-adherence Phase 3 F6 closure — the three flat
+// advance fields have been folded into entity sub-aggregates:
+//   - RecognizeExpenseFromSupplierSubscription → .ExpenseRecognition.RecognizeFromSupplierSubscription
+//   - ListExpenseRunCandidates + GenerateExpenseRun → .ExpenseRecognitionRun.*
 type ExpenditureUseCases struct {
 	Expenditure            *expenditureUseCases.UseCases
 	ExpenditureLineItem    *expenditureLineItemUseCases.UseCases
@@ -112,6 +117,7 @@ type ExpenditureUseCases struct {
 	SupplierContractPriceScheduleLine *supplierContractPriceScheduleLineUseCases.UseCases
 	ExpenseRecognition                *expenseRecognitionUseCases.UseCases
 	ExpenseRecognitionLine            *expenseRecognitionLineUseCases.UseCases
+	ExpenseRecognitionRun             *expenseRecognitionRunUseCases.UseCases
 	AccruedExpense                    *accruedExpenseUseCases.UseCases
 	AccruedExpenseSettlement          *accruedExpenseSettlementUseCases.UseCases
 
@@ -119,14 +125,6 @@ type ExpenditureUseCases struct {
 	// (the request carries the Kind discriminator). Nil when postgres build
 	// tag is inactive.
 	Dashboard *expendituredashboard.GetExpenditureDashboardPageDataUseCase
-
-	// 20260517-expense-run Plan A Phase 2 + Phase 4 — buying-side recognition.
-	// Constructed in NewUseCases when the required cross-domain repos are present.
-	// Nil-safe consumers; surface views degrade to disabled buttons + helpful
-	// tooltips when unwired.
-	RecognizeExpenseFromSupplierSubscription *expenseRecognitionUseCases.RecognizeExpenseFromSupplierSubscriptionUseCase
-	ListExpenseRunCandidates                 *expenseRecognitionRunUseCases.ListExpenseRunCandidatesUseCase
-	GenerateExpenseRun                       *expenseRecognitionRunUseCases.GenerateExpenseRunUseCase
 }
 
 // NewUseCases creates all expenditure use cases with proper constructor injection.
@@ -425,6 +423,32 @@ func NewUseCases(
 		amortizeAdvDis,
 	)
 
+	// Phase 3 F6 closure — nest RecognizeFromSupplierSubscription under the
+	// ExpenseRecognition sub-aggregate.
+	if expenseRecognitionUC != nil {
+		expenseRecognitionUC.RecognizeFromSupplierSubscription = recognizeFromSupplierSub
+	}
+
+	// Phase 3 F6 closure — nest ListExpenseRunCandidates + GenerateExpenseRun
+	// under the new ExpenseRecognitionRun sub-aggregate. The sub-aggregate's
+	// NewUseCases returns an empty shell because both use cases need
+	// cross-domain dependencies that are wired here.
+	expenseRecognitionRunUC := expenseRecognitionRunUseCases.NewUseCases(
+		expenseRecognitionRunUseCases.ExpenseRecognitionRunRepositories{
+			ExpenseRecognitionRun: repos.ExpenseRecognitionRun,
+		},
+		expenseRecognitionRunUseCases.ExpenseRecognitionRunServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+	if expenseRecognitionRunUC != nil {
+		expenseRecognitionRunUC.ListExpenseRunCandidates = listRunCandidates
+		expenseRecognitionRunUC.GenerateExpenseRun = generateExpenseRun
+	}
+
 	return &ExpenditureUseCases{
 		Expenditure:                       expenditureUC,
 		ExpenditureLineItem:               expenditureLineItemUC,
@@ -441,12 +465,9 @@ func NewUseCases(
 		SupplierContractPriceScheduleLine: supplierContractPriceScheduleLineUC,
 		ExpenseRecognition:                expenseRecognitionUC,
 		ExpenseRecognitionLine:            expenseRecognitionLineUC,
+		ExpenseRecognitionRun:             expenseRecognitionRunUC,
 		AccruedExpense:                    accruedExpenseUC,
 		AccruedExpenseSettlement:          accruedExpenseSettlementUC,
 		Dashboard:                         expenditureDash,
-
-		RecognizeExpenseFromSupplierSubscription: recognizeFromSupplierSub,
-		ListExpenseRunCandidates:                 listRunCandidates,
-		GenerateExpenseRun:                       generateExpenseRun,
 	}
 }

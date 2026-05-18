@@ -12,7 +12,7 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
-	treasurycollectionpkg "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_collection"
+	treasurycollectionpkg "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/collection"
 
 	// Protobuf domain services - Entity domain (cross-domain dependency)
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"

@@ -19,6 +19,7 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/composition/providers"
@@ -51,6 +52,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 
@@ -154,11 +156,12 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	//
 	// Failure semantics — non-fatal: see RecognizeRevenueFromSubscriptionServices
 	// .MaterializeInstanceJobsForSubscription doc for the full contract.
-	if subscriptionUC != nil && subscriptionUC.MaterializeInstanceJobsForSubscription != nil &&
+	if subscriptionUC != nil && subscriptionUC.Subscription != nil &&
+		subscriptionUC.Subscription.MaterializeInstanceJobs != nil &&
 		revenueUC != nil && revenueUC.Revenue != nil &&
 		revenueUC.Revenue.RecognizeRevenueFromSubscription != nil {
 		revenueUC.Revenue.RecognizeRevenueFromSubscription.SetMaterializeInstanceJobsForSubscription(
-			&materializeInstanceJobsAdapter{uc: subscriptionUC.MaterializeInstanceJobsForSubscription},
+			&materializeInstanceJobsAdapter{uc: subscriptionUC.Subscription.MaterializeInstanceJobs},
 		)
 		fmt.Printf("✅ Recognize-revenue piggyback wired (cycle-Job spawn on successful recognition)\n")
 	}
@@ -243,6 +246,16 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		authUC = &auth.UseCases{}
 	}
 
+	// 20260518-hexagonal-strict-adherence Phase 1.D — service-driven
+	// use cases (audit query; eventually reporting/auth/security per Q7).
+	// Resolves the raw *sql.DB from the database provider so the audit
+	// service factory can plug in; degrades to a no-op service when the
+	// connection isn't SQL-backed (mock/firestore).
+	serviceUC, err := uci.initializeServiceUseCases(container)
+	if err != nil {
+		serviceUC = &service.ServiceUseCases{}
+	}
+
 	// Create aggregate with successfully initialized domains
 	aggregate := usecases.NewAggregate(
 		authUC,
@@ -267,6 +280,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		workflowUC,
 		integrationUC,
 		assetUC,
+		serviceUC,
 	)
 	container.useCases = aggregate
 
@@ -784,20 +798,23 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 	// 2026-04-29 auto-spawn-jobs-from-subscription Phase D — expose the
 	// concrete use case so centymo's create-form opt-out + retroactive
 	// spawn handler can call it directly.
-	if subscriptionUseCases != nil && opErr == nil {
+	// 20260518-hexagonal-strict-adherence Phase 3 F6 closure — the two
+	// materialize use cases now nest under .Subscription.MaterializeJobs /
+	// .Subscription.MaterializeInstanceJobs (entity sub-aggregate).
+	if subscriptionUseCases != nil && opErr == nil && subscriptionUseCases.Subscription != nil {
 		// `mjfs` is in scope only when operation repos resolved. Capture
 		// from the instantiator wrapper to keep the nil branches clean.
 		if inst, ok := jobTemplateInstantiator.(*subscriptionUseCase.MaterializeJobsForSubscriptionInstantiator); ok && inst != nil {
-			subscriptionUseCases.MaterializeJobsForSubscription = inst.UseCase
+			subscriptionUseCases.Subscription.MaterializeJobs = inst.UseCase
 		}
 		// 2026-04-30 cyclic-subscription-jobs Phase B — expose the cyclic
-		// instance Job spawner alongside MaterializeJobsForSubscription so:
+		// instance Job spawner alongside MaterializeJobs so:
 		//   - recognize-revenue piggyback (espyna's own Phase C wiring) can
 		//     call it after successful revenue recognition.
 		//   - Future Operations tab "Spawn this cycle now" / "Backfill" CTAs
 		//     can invoke it directly via the consumer surface.
 		if instanceJobsUC != nil {
-			subscriptionUseCases.MaterializeInstanceJobsForSubscription = instanceJobsUC
+			subscriptionUseCases.Subscription.MaterializeInstanceJobs = instanceJobsUC
 		}
 	}
 	fmt.Printf("✅ Subscription domain initialized successfully: %v\n", subscriptionUseCases != nil)
@@ -1224,6 +1241,43 @@ func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (
 	fmt.Printf("Tenancy domain initialized successfully: %v\n", tenancyUseCases != nil)
 
 	return tenancyUseCases, nil
+}
+
+// initializeServiceUseCases initializes the service-driven domain
+// sub-aggregate (audit query; eventually reporting/auth/security per
+// Q7). The audit sub-aggregate needs a raw *sql.DB so the audit service
+// factory can plug in; on non-SQL providers (mock/firestore) the
+// AuditService resolves to nil and the use cases degrade gracefully.
+func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container) (*service.ServiceUseCases, error) {
+	fmt.Printf("🧩 Initializing Service-driven use cases (audit)...\n")
+
+	authSvc, _, i18nSvc, _, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return &service.ServiceUseCases{}, err
+	}
+
+	// Resolve the raw *sql.DB from the database provider (only postgres
+	// builds yield a concrete *sql.DB). Non-SQL providers degrade to nil
+	// — the audit use cases still wire up but ListByEntity returns empty.
+	var sqlDB *sql.DB
+	if dbProvider := uci.providerManager.GetDatabaseProvider(); dbProvider != nil {
+		if connHolder, ok := dbProvider.(interface{ GetConnection() any }); ok {
+			if conn := connHolder.GetConnection(); conn != nil {
+				if db, ok := conn.(*sql.DB); ok {
+					sqlDB = db
+				}
+			}
+		}
+	}
+
+	svcUC, err := initializers.InitializeService(sqlDB, authSvc, i18nSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize service-driven use cases: %v\n", err)
+		return &service.ServiceUseCases{}, err
+	}
+	fmt.Printf("✅ Service-driven use cases initialized (audit: %v)\n", svcUC != nil && svcUC.Audit != nil)
+	return svcUC, nil
 }
 
 // initializeFundingUseCases initializes Funding domain use cases (3 entities: Fund, FundAllocation, FundTransaction).

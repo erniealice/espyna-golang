@@ -2,11 +2,12 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
@@ -48,7 +49,7 @@ func (uc *SwitchWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.
 
 	// Input validation
 	if req == nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.errors.switch_request_required", "switch workspace request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.errors.switch_request_required", "switch workspace request is required"))
 	}
 
 	// Call repository

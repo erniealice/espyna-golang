@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"

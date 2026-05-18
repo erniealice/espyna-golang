@@ -24,24 +24,25 @@ func ConfigurePayrollDomain(payrollUseCases *payrolluc.PayrollUseCases) contract
 
 	routes := []contracts.RouteConfiguration{}
 
-	// Orchestration routes — generate-cycles and calculate (the centerpiece)
-	if payrollUseCases.GeneratePayCycles != nil {
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/payroll/payroll-run/generate-cycles",
-			Handler: contracts.NewGenericHandler(payrollUseCases.GeneratePayCycles, &payrollrunpb.GeneratePayCyclesRequest{}),
-		})
-	}
-	if payrollUseCases.CalculatePayrollRun != nil {
-		routes = append(routes, contracts.RouteConfiguration{
-			Method:  "POST",
-			Path:    "/api/payroll/payroll-run/calculate",
-			Handler: contracts.NewGenericHandler(payrollUseCases.CalculatePayrollRun, &payrollrunpb.CalculatePayrollRunRequest{}),
-		})
-	}
-
 	// PayrollRun routes
 	if payrollUseCases.PayrollRun != nil {
+		// Orchestration routes — generate-cycles and calculate (the centerpiece).
+		// Phase 3 F6 closure: previously flat fields on PayrollUseCases,
+		// now nested under PayrollRun sub-aggregate.
+		if payrollUseCases.PayrollRun.GeneratePayCycles != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/payroll/payroll-run/generate-cycles",
+				Handler: contracts.NewGenericHandler(payrollUseCases.PayrollRun.GeneratePayCycles, &payrollrunpb.GeneratePayCyclesRequest{}),
+			})
+		}
+		if payrollUseCases.PayrollRun.Calculate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/payroll/payroll-run/calculate",
+				Handler: contracts.NewGenericHandler(payrollUseCases.PayrollRun.Calculate, &payrollrunpb.CalculatePayrollRunRequest{}),
+			})
+		}
 		if payrollUseCases.PayrollRun.CreatePayrollRun != nil {
 			routes = append(routes, contracts.RouteConfiguration{
 				Method:  "POST",

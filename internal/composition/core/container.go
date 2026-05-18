@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	audithelpers "github.com/erniealice/espyna-golang/internal/composition/audit"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/composition/core/initializers"
 	infraopts "github.com/erniealice/espyna-golang/internal/composition/options/infrastructure"
@@ -653,6 +655,21 @@ func (c *Container) GetDatabaseOperations() interface{} {
 	if err != nil {
 		fmt.Printf("⚠️ Failed to create database operations: %v\n", err)
 		return nil
+	}
+
+	// 20260518-hexagonal-strict-adherence Phase 1.D — transparently
+	// wrap the raw ops with audit-decorated ops when an audit provider
+	// is registered (e.g. contrib/postgres). Apps consume the
+	// audit-decorated ops via consumer.NewDatabaseAdapterFromContainer
+	// without needing to know the decoration happened.
+	sqlDB, _ := conn.(*sql.DB)
+	if sqlDB != nil {
+		auditSvc := audithelpers.NewAuditServiceFromDB(sqlDB)
+		if auditSvc != nil {
+			if decorated := audithelpers.DecorateOperationsWithAudit(ops, sqlDB, auditSvc); decorated != nil {
+				ops = decorated
+			}
+		}
 	}
 
 	return ops

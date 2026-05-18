@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
@@ -57,10 +59,10 @@ func (r *fakeAssetRepo) UpdateAsset(ctx context.Context, req *assetpb.UpdateAsse
 	r.updates = append(r.updates, req.GetData())
 	// Apply the partial update to byID so subsequent reads reflect the new state.
 	if a, ok := r.byID[req.GetData().GetId()]; ok {
-		updated := *a
+		updated := proto.Clone(a).(*assetpb.Asset)
 		updated.AccumulatedDepreciation = req.GetData().GetAccumulatedDepreciation()
 		updated.BookValue = req.GetData().GetBookValue()
-		r.byID[updated.GetId()] = &updated
+		r.byID[updated.GetId()] = updated
 	}
 	return &assetpb.UpdateAssetResponse{Data: []*assetpb.Asset{req.GetData()}}, nil
 }
@@ -623,8 +625,7 @@ func TestGenerate_SelectionSemantics_EmptyPeriodListMeansAll(t *testing.T) {
 			// Fresh repos per subtest (the asset is workspace-listed).
 			fresh := map[string]*assetpb.Asset{}
 			for k, v := range byID {
-				cp := *v
-				fresh[k] = &cp
+				fresh[k] = proto.Clone(v).(*assetpb.Asset)
 			}
 			assetRepo := &fakeAssetRepo{byID: fresh}
 			txRepo := &fakeAssetTransactionRepo{}

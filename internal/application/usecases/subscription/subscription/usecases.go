@@ -38,7 +38,13 @@ type SubscriptionServices struct {
 	JobTemplateInstantiator JobTemplateInstantiator
 }
 
-// UseCases contains all subscription-related use cases
+// UseCases contains all subscription-related use cases.
+//
+// 20260518-hexagonal-strict-adherence Phase 3 — MaterializeJobs +
+// MaterializeInstanceJobs (formerly flat fields on SubscriptionUseCases) now
+// nest here. The parent subscription aggregator post-assigns them when the
+// operation domain repos are available (the same lifecycle pattern as the
+// treasury advance use cases). nil-safe.
 type UseCases struct {
 	CreateSubscription           *CreateSubscriptionUseCase
 	ReadSubscription             *ReadSubscriptionUseCase
@@ -49,6 +55,12 @@ type UseCases struct {
 	GetSubscriptionItemPageData  *GetSubscriptionItemPageDataUseCase
 	CountActiveByClientIds       *CountActiveByClientIdsUseCase
 	ListSubscriptionsByPricePlan *ListSubscriptionsByPricePlanUseCase
+
+	// Job-spawn use cases (Phase 3 F6 closure). Populated post-construction by
+	// the parent aggregator (espyna/internal/composition/core/usecases.go)
+	// after the operation domain repos resolve. nil-safe.
+	MaterializeJobs         *MaterializeJobsForSubscriptionUseCase
+	MaterializeInstanceJobs *MaterializeInstanceJobsForSubscriptionUseCase
 }
 
 // NewUseCases creates a new collection of subscription use cases

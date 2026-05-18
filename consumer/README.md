@@ -35,21 +35,55 @@ as fallbacks.
 | `context.go` | WithUserID, ExtractUserIDFromContext — context utilities |
 | `server_gin.go` | CreateGinHandler, InstallRouteOnGin — Gin-specific helpers (//go:build gin) |
 
-### Adapter Wrappers
+### Adapter Wrappers (driven-port facades)
 
-Thin wrappers that expose internal provider functionality to consumer apps.
-Each file provides a `NewXxxAdapterFromContainer(container)` constructor.
+Thin substitution-driven wrappers that expose internal provider functionality
+to consumer apps. Each file provides a `NewXxxAdapterFromContainer(container)`
+constructor. Final inventory post-2026-05-18:
 
 | File | Adapter | Key Methods |
 |------|---------|-------------|
 | `adapter_auth.go` | AuthAdapter | VerifyToken, CreateCustomToken |
 | `adapter_database.go` | DatabaseAdapter | Create, Read, Update, Delete, List, Query |
 | `adapter_email.go` | EmailAdapter | SendEmail, SendSimpleEmail, SendHTMLEmail |
-| `adapter_id.go` | IDAdapter | GenerateID |
-| `adapter_payment.go` | PaymentAdapter | CreatePayment, VerifyPayment, ProcessWebhook |
-| `adapter_scheduler.go` | SchedulerAdapter | CreateSchedule, CancelSchedule, CheckAvailability |
+| `adapter_permission_query.go` | PermissionQueryAdapter | GetUserPermissionCodes |
 | `adapter_server.go` | ServerAdapter | Start, RegisterRoute, RegisterMiddleware |
 | `adapter_storage.go` | StorageAdapter | Upload, Download, Delete, GetSignedURL |
+
+### Admission policy (Q6, locked 2026-05-18)
+
+A new `consumer/adapter_*.go` file is admitted only if ONE of these tests holds:
+
+- **(A)** ≥2 real implementations exist AND ≥1 actual caller exists in the monorepo.
+- **(B)** The file wraps a port under `internal/application/ports/` AND has ≥1 actual caller AND the port enables tests (mock impl exists/roadmapped) or cross-package compilation visibility.
+- **(C) — REJECTED:** "exported public API for downstream consumers without callers" is explicitly NOT a valid admission rationale. Speculative facades fail.
+
+The PR description must cite which test is satisfied for every new file.
+
+### Deletions in 20260518-hexagonal-strict-adherence Phase 1.D
+
+Eight `consumer/adapter_*.go` files were removed:
+
+| File | Reason | Replacement |
+|------|--------|-------------|
+| `adapter_treasury_advances.go` | USE_CASE_WRAPPER (wraps usecases, not a port) | Callers go through `uc.Treasury.Collection.X` / `uc.Treasury.Disbursement.X` directly. |
+| `adapter_session.go` | USE_CASE_WRAPPER (wraps `usecases/auth`) | Service-admin middleware calls `uc.Auth.X.Execute` directly via `consumer/auth_aliases.go` type aliases. |
+| `adapter_audit.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/audit/list_audit_entries.go` use case (Q7 service-driven domain category); decorator moved to `internal/composition/audit/decorator.go`. |
+| `adapter_ledger.go` | Tier 2 (δ) visibility-bridge | Service-admin assembles a local `*ledgerReporting` struct via the existing public `registry.GetLedgerReportingFactory` alias; satisfies the duck-typed `LedgerReportingService` interfaces in fycha/centymo/entydad. |
+| `adapter_fulfillment.go` | Tier 3 — 0 callers | Underlying port + impls under `internal/application/ports/integration/` stay. Re-promote when a real caller arrives. |
+| `adapter_id.go` | Tier 3 — 0 callers | Same. The ID service is still wired via DI from composition; this facade was unused. |
+| `adapter_payment.go` | Tier 3 — 0 callers | Same. Payment registration still works via `register_payment_*.go` build-tag shims. |
+| `adapter_scheduler.go` | Tier 3 — 0 callers | Same. |
+
+### `consumer/auth_aliases.go` (non-adapter visibility-bridge)
+
+Minimal type aliases for the `internal/application/usecases/auth` Request /
+Response shapes. Apps that need to construct `AuthenticateSessionRequest`,
+`IssueSessionRequest`, etc., import them from `consumer/` because Go's
+`internal/` rule blocks direct imports across the module boundary. This file
+carries NO behavior (no methods, no constructors) and is NOT an `adapter_*.go`
+file, so it does not invoke the Q6 admission policy. The Q7 follow-up plan
+that migrates auth to `proto/v1/service/auth/` will delete this file.
 
 ### Registration Files
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	revaluationuc "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset_revaluation"
@@ -144,13 +146,13 @@ func (r *fakeAssetRepo) ReadAsset(ctx context.Context, req *assetpb.ReadAssetReq
 func (r *fakeAssetRepo) UpdateAsset(ctx context.Context, req *assetpb.UpdateAssetRequest) (*assetpb.UpdateAssetResponse, error) {
 	r.updates = append(r.updates, req.GetData())
 	if a, ok := r.byID[req.GetData().GetId()]; ok {
-		updated := *a
+		updated := proto.Clone(a).(*assetpb.Asset)
 		updated.BookValue = req.GetData().GetBookValue()
 		if req.GetData().FairValue != nil {
 			fv := req.GetData().GetFairValue()
 			updated.FairValue = &fv
 		}
-		r.byID[updated.GetId()] = &updated
+		r.byID[updated.GetId()] = updated
 	}
 	return &assetpb.UpdateAssetResponse{Data: []*assetpb.Asset{req.GetData()}}, nil
 }

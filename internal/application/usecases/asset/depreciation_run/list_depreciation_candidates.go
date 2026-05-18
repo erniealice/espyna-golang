@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	depengine "github.com/erniealice/espyna-golang/internal/domain/asset/depreciation"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
@@ -140,11 +142,13 @@ func (uc *ListDepreciationCandidatesUseCase) buildCandidate(
 	runningAccumulated := asset.GetAccumulatedDepreciation()
 	runningBookValue := asset.GetBookValue()
 
-	// Build a mutable copy of asset params for running balance simulation
-	simulatedAsset := *asset
+	// Build a mutable copy of asset params for running balance simulation.
+	// Use proto.Clone to safely copy the proto message without copying its
+	// embedded sync.Mutex (protoimpl.MessageState).
+	simulatedAsset := proto.Clone(asset).(*assetpb.Asset)
 
 	for _, pd := range periods {
-		amount, err := computeAmountForMethod(&simulatedAsset, pd, runningAccumulated)
+		amount, err := computeAmountForMethod(simulatedAsset, pd, runningAccumulated)
 		if err != nil {
 			if err == depengine.ErrUnitsRequired {
 				// UoP asset — return UNITS_REQUIRED blocker instead of periods

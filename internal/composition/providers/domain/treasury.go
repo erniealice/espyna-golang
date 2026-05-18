@@ -30,8 +30,8 @@ import (
 	// on BillingEvent / SupplierBillingEvent rows + their junction tables.
 	supplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_billing_event"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
-	treasurycollectionbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/treasury_collection_billing_event"
-	treasurydisbursementsupplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/treasury_disbursement_supplier_billing_event"
+	collectionbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_billing_event"
+	disbursementsupplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_supplier_billing_event"
 )
 
 // TreasuryRepositories contains all treasury domain repositories
@@ -61,8 +61,8 @@ type TreasuryRepositories struct {
 	// build; otherwise nil-safe (the use case construction guards on nil).
 	BillingEvent                             billingeventpb.BillingEventDomainServiceServer
 	SupplierBillingEvent                     supplierbillingeventpb.SupplierBillingEventDomainServiceServer
-	TreasuryCollectionBillingEvent           treasurycollectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer
-	TreasuryDisbursementSupplierBillingEvent treasurydisbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer
+	TreasuryCollectionBillingEvent           collectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer
+	TreasuryDisbursementSupplierBillingEvent disbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer
 }
 
 // NewTreasuryRepositories creates and returns a new set of TreasuryRepositories.
@@ -133,10 +133,10 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 		repos.SupplierBillingEvent = r.(supplierbillingeventpb.SupplierBillingEventDomainServiceServer)
 	}
 	if r := tryCreate(entityid.TreasuryCollectionBillingEvent); r != nil {
-		repos.TreasuryCollectionBillingEvent = r.(treasurycollectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer)
+		repos.TreasuryCollectionBillingEvent = r.(collectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer)
 	}
 	if r := tryCreate(entityid.TreasuryDisbursementSupplierBillingEvent); r != nil {
-		repos.TreasuryDisbursementSupplierBillingEvent = r.(treasurydisbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer)
+		repos.TreasuryDisbursementSupplierBillingEvent = r.(disbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

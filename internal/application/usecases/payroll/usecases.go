@@ -48,12 +48,15 @@ type CrossDomainRepositories struct {
 }
 
 // PayrollUseCases contains all payroll-related use cases.
+//
+// 20260518-hexagonal-strict-adherence Phase 3 — the two flat advance fields
+// (CalculatePayrollRun + GeneratePayCycles) have been folded into the
+// PayrollRun sub-aggregate as .PayrollRun.Calculate / .PayrollRun.GeneratePayCycles.
+// F6 closure.
 type PayrollUseCases struct {
-	PayrollRun          *payrollrunuc.UseCases
-	PayrollRemittance   *payrollremittanceuc.UseCases
-	Orchestrator        *payrollservice.Orchestrator
-	CalculatePayrollRun *payrollrunuc.CalculatePayrollRunUseCase
-	GeneratePayCycles   *payrollrunuc.GeneratePayCyclesUseCase
+	PayrollRun        *payrollrunuc.UseCases
+	PayrollRemittance *payrollremittanceuc.UseCases
+	Orchestrator      *payrollservice.Orchestrator
 
 	// Dashboard use case (nil when postgres build tag is inactive).
 	Dashboard *payrolldashboard.GetPayrollDashboardPageDataUseCase
@@ -127,12 +130,18 @@ func NewUseCases(
 		}
 	}
 
+	// Build sub-aggregates. The orchestrator-backed wrappers nest under
+	// PayrollRun (Phase 3 F6 closure).
+	payrollRunUC := payrollrunuc.NewUseCases(runRepos, runServices)
+	if payrollRunUC != nil {
+		payrollRunUC.Calculate = payrollrunuc.NewCalculatePayrollRunUseCase(orch, authSvc, i18nSvc, txSvc)
+		payrollRunUC.GeneratePayCycles = payrollrunuc.NewGeneratePayCyclesUseCase(orch, authSvc, i18nSvc)
+	}
+
 	return &PayrollUseCases{
-		PayrollRun:          payrollrunuc.NewUseCases(runRepos, runServices),
-		PayrollRemittance:   payrollremittanceuc.NewUseCases(remittanceRepos, remittanceServices),
-		Orchestrator:        orch,
-		CalculatePayrollRun: payrollrunuc.NewCalculatePayrollRunUseCase(orch, authSvc, i18nSvc, txSvc),
-		GeneratePayCycles:   payrollrunuc.NewGeneratePayCyclesUseCase(orch, authSvc, i18nSvc),
-		Dashboard:           payrollDash,
+		PayrollRun:        payrollRunUC,
+		PayrollRemittance: payrollremittanceuc.NewUseCases(remittanceRepos, remittanceServices),
+		Orchestrator:      orch,
+		Dashboard:         payrollDash,
 	}
 }

@@ -39,6 +39,86 @@ func (s *stubReferenceChecker) GetActiveSubscriptionCountForPricePlan(_ context.
 	return 0, nil
 }
 
+// ----- remaining reference.Checker stubs (return empty/nil) ---------------
+//
+// These exist solely to satisfy the interface; no test in this file exercises them.
+
+func (s *stubReferenceChecker) GetLocationInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetRoleInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetCategoryInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetClientInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetProductInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetProductVariantInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetProductOptionValueInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetProductOptionInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetPlanInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetPriceListInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetPricePlanInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetPriceScheduleInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetAssetCategoryInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetAssetInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetPaymentTermInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetLineInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetLocationAreaInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetEventTagInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetSubscriptionInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetSupplierInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetJobInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetJobActivityInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetJobPhaseInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetJobTaskInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *stubReferenceChecker) GetJobTemplateInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
+
 // pricePlanRepoForCascade — mock that exposes a list of child PricePlans for
 // the §3.2 cascade and captures every UpdatePricePlan call.
 type pricePlanRepoForCascade struct {

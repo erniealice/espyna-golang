@@ -7,27 +7,25 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
 )
-
-// AssetCategoryWithRollup enriches an AssetCategory with per-policy aggregate counts.
-type AssetCategoryWithRollup struct {
-	Category        *assetcategorypb.AssetCategory
-	AssetsInPolicy  int // assets with status IN_SERVICE in this category
-	AssetsDeviating int // in-service assets whose depreciation config deviates from category defaults
-}
 
 // PolicyRollupRepository extends AssetCategoryDomainServiceServer with the
 // rollup aggregation method. Postgres adapters implement this interface by
 // running a single JOIN-aggregate query.
+//
+// The return type is the proto message AssetCategoryWithPolicyRollup
+// (Layer 1 — the canonical seat). The adapter does not import this use-case
+// package; it implements the method against the proto type directly.
+// See docs/plan/20260518-hexagonal-strict-adherence/ phase 3 (F4).
 type PolicyRollupRepository interface {
 	assetcategorypb.AssetCategoryDomainServiceServer
 
 	// ListAssetCategoriesWithPolicyRollup returns all active asset categories
 	// with per-category IN_SERVICE asset counts and deviating-asset counts.
 	// workspace_id is derived from ctx by the workspace-aware adapter layer.
-	ListAssetCategoriesWithPolicyRollup(ctx context.Context) ([]AssetCategoryWithRollup, error)
+	ListAssetCategoriesWithPolicyRollup(ctx context.Context) ([]*assetcategorypb.AssetCategoryWithPolicyRollup, error)
 }
 
 // ListAssetCategoriesWithPolicyRollupRepositories groups all repository dependencies.
@@ -88,7 +86,10 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(
 				"asset_category.errors.rollup_query_failed", "[ERR-DEFAULT] Failed to load depreciation policy rollup")
 			return nil, fmt.Errorf("%s: %w", msg, err)
 		}
-		return goRollupToProto(rows), nil
+		return &assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse{
+			Data:    rows,
+			Success: true,
+		}, nil
 	}
 
 	// Fallback path: adapter doesn't support rollup — list categories with zero counts.
@@ -100,25 +101,14 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(
 			"asset_category.errors.list_failed", "[ERR-DEFAULT] Failed to list asset categories")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
-	rows := make([]AssetCategoryWithRollup, 0, len(listResp.GetData()))
+	items := make([]*assetcategorypb.AssetCategoryWithPolicyRollup, 0, len(listResp.GetData()))
 	for _, cat := range listResp.GetData() {
-		rows = append(rows, AssetCategoryWithRollup{Category: cat})
-	}
-	return goRollupToProto(rows), nil
-}
-
-// goRollupToProto converts the internal Go-struct slice to the proto response.
-func goRollupToProto(rows []AssetCategoryWithRollup) *assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse {
-	items := make([]*assetcategorypb.AssetCategoryWithPolicyRollup, 0, len(rows))
-	for _, r := range rows {
 		items = append(items, &assetcategorypb.AssetCategoryWithPolicyRollup{
-			Category:        r.Category,
-			AssetsInPolicy:  int32(r.AssetsInPolicy),
-			AssetsDeviating: int32(r.AssetsDeviating),
+			Category: cat,
 		})
 	}
 	return &assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse{
 		Data:    items,
 		Success: true,
-	}
+	}, nil
 }

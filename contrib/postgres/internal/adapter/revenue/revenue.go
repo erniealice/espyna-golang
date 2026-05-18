@@ -51,6 +51,15 @@ var revenueViewToSQLColMap = map[string]string{}
 // renders identically regardless of which side caught the conflict.
 const periodMarkerUniqueIndex = "idx_revenue_subscription_period_unique"
 
+// advancePeriodMarkerUniqueIndex is the mirror partial unique index added by
+// migration 20260517180000_revenue_advance_period_marker_unique for the
+// advance-amortization path (advance_collection_id, period_marker). Concurrent
+// `AmortizeAdvanceCollection` runs that race past the read-before-write
+// idempotency check land here; we translate the violation to the same
+// `ErrPeriodAlreadyInvoiced` sentinel so the use case can map the outcome to
+// SKIPPED + ConflictingRevenueId.
+const advancePeriodMarkerUniqueIndex = "idx_revenue_advance_period_unique"
+
 // ErrPeriodAlreadyInvoiced is the sentinel the recognize use case looks for to
 // surface the user-facing "period already invoiced" banner.
 var ErrPeriodAlreadyInvoiced = errors.New("period_already_invoiced")
@@ -143,21 +152,29 @@ func (r *PostgresRevenueRepository) CreateRevenue(ctx context.Context, req *reve
 	}, nil
 }
 
-// isPeriodMarkerUniqueViolation returns true when err comes from the partial
-// unique index on (subscription_id, period_marker). lib/pq surfaces the
-// constraint name on pq.Error.Constraint; a substring match in the message
-// is the fallback when the error is wrapped through dbOps.Create.
+// isPeriodMarkerUniqueViolation returns true when err comes from either of
+// the partial unique indexes that protect Revenue period_marker idempotency:
+//   - idx_revenue_subscription_period_unique (subscription path)
+//   - idx_revenue_advance_period_unique      (advance-amortization path)
+//
+// lib/pq surfaces the constraint name on pq.Error.Constraint; a substring
+// match in the message is the fallback when the error is wrapped through
+// dbOps.Create.
 func isPeriodMarkerUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
-		if pqErr.Code.Name() == "unique_violation" && pqErr.Constraint == periodMarkerUniqueIndex {
+		if pqErr.Code.Name() == "unique_violation" &&
+			(pqErr.Constraint == periodMarkerUniqueIndex ||
+				pqErr.Constraint == advancePeriodMarkerUniqueIndex) {
 			return true
 		}
 	}
-	return strings.Contains(err.Error(), periodMarkerUniqueIndex)
+	msg := err.Error()
+	return strings.Contains(msg, periodMarkerUniqueIndex) ||
+		strings.Contains(msg, advancePeriodMarkerUniqueIndex)
 }
 
 // ReadRevenue retrieves a revenue record by ID
@@ -351,6 +368,8 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	queryArgs = append(queryArgs, filterArgs...)
 	queryArgs = append(queryArgs, limit, offset)
 
+	// 20260517 advance-cash-events: expose `advance_collection_id` so the list
+	// row can flag advance-amortization revenue without a second round-trip.
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -371,6 +390,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				rv.payment_term_id,
 				rv.due_date_string,
 				rv.subscription_id,
+				rv.advance_collection_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
 				COALESCE(pt.name, '') as payment_term_name,
@@ -397,28 +417,29 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 
 	for rows.Next() {
 		var (
-			id                string
-			dateCreated       time.Time
-			dateModified      time.Time
-			active            bool
-			name              string
-			clientID          *string
-			revenueDateString *string
-			totalAmount       int64
-			currency          *string
-			status            *string
-			referenceNumber   *string
-			notes             *string
-			revenueCategoryID *string
-			locationID        *string
-			paymentTermID     *string
-			dueDateString     *string
-			subscriptionID    *string
-			clientName        string
-			locationName      string
-			paymentTermName   string
-			hasCollection     bool
-			total             int64
+			id                  string
+			dateCreated         time.Time
+			dateModified        time.Time
+			active              bool
+			name                string
+			clientID            *string
+			revenueDateString   *string
+			totalAmount         int64
+			currency            *string
+			status              *string
+			referenceNumber     *string
+			notes               *string
+			revenueCategoryID   *string
+			locationID          *string
+			paymentTermID       *string
+			dueDateString       *string
+			subscriptionID      *string
+			advanceCollectionID *string
+			clientName          string
+			locationName        string
+			paymentTermName     string
+			hasCollection       bool
+			total               int64
 		)
 
 		err := rows.Scan(
@@ -439,6 +460,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			&paymentTermID,
 			&dueDateString,
 			&subscriptionID,
+			&advanceCollectionID,
 			&clientName,
 			&locationName,
 			&paymentTermName,
@@ -490,6 +512,9 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		}
 		if subscriptionID != nil {
 			revenue.SubscriptionId = subscriptionID
+		}
+		if advanceCollectionID != nil {
+			revenue.AdvanceCollectionId = advanceCollectionID
 		}
 		if hasCollection {
 			hc := "has_collection"
@@ -553,6 +578,9 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
+	// 20260517 advance-cash-events: expose `advance_collection_id` so the
+	// detail page can render the back-edge to the TreasuryCollection that
+	// amortized into this revenue row.
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -573,6 +601,7 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 				rv.payment_term_id,
 				rv.due_date_string,
 				rv.subscription_id,
+				rv.advance_collection_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name
 			FROM ` + r.tableName + ` rv
@@ -586,25 +615,26 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.RevenueId, workspaceID)
 
 	var (
-		id                string
-		dateCreated       time.Time
-		dateModified      time.Time
-		active            bool
-		name              string
-		clientID          *string
-		revenueDateString *string
-		totalAmount       int64
-		currency          *string
-		status            *string
-		referenceNumber   *string
-		notes             *string
-		revenueCategoryID *string
-		locationID        *string
-		paymentTermID     *string
-		dueDateString     *string
-		subscriptionID    *string
-		clientName        string
-		locationName      string
+		id                  string
+		dateCreated         time.Time
+		dateModified        time.Time
+		active              bool
+		name                string
+		clientID            *string
+		revenueDateString   *string
+		totalAmount         int64
+		currency            *string
+		status              *string
+		referenceNumber     *string
+		notes               *string
+		revenueCategoryID   *string
+		locationID          *string
+		paymentTermID       *string
+		dueDateString       *string
+		subscriptionID      *string
+		advanceCollectionID *string
+		clientName          string
+		locationName        string
 	)
 
 	err := row.Scan(
@@ -625,6 +655,7 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 		&paymentTermID,
 		&dueDateString,
 		&subscriptionID,
+		&advanceCollectionID,
 		&clientName,
 		&locationName,
 	)
@@ -668,6 +699,9 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	}
 	if subscriptionID != nil {
 		revenue.SubscriptionId = subscriptionID
+	}
+	if advanceCollectionID != nil {
+		revenue.AdvanceCollectionId = advanceCollectionID
 	}
 
 	if !dateCreated.IsZero() {

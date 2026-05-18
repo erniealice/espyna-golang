@@ -130,7 +130,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		revenueUC = &revenue.RevenueUseCases{}
 	}
 
-	expenditureUC, err := uci.initializeExpenditureUseCases(container)
+	expenditureUC, err := uci.initializeExpenditureUseCases(container, treasuryUC)
 	if err != nil {
 		expenditureUC = &expenditure.ExpenditureUseCases{}
 	}
@@ -477,6 +477,34 @@ func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) 
 	}
 	fmt.Printf("✅ Got treasury repositories\n")
 
+	// 20260517-advance-cash-events Plan B Phase 2 — Treasury aggregator needs
+	// the Revenue + ExpenseRecognition repos for AmortizeAdvance* use cases.
+	// We construct the Revenue + Expenditure providers here just to pull those
+	// two repositories — the full aggregates are built independently
+	// downstream. Non-fatal: when unavailable, AmortizeAdvance* still wire but
+	// return errors at call time.
+	if revRepos, revErr := domain.NewRevenueRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); revErr == nil && revRepos != nil {
+		repos.Revenue = revRepos.Revenue
+	} else if revErr != nil {
+		fmt.Printf("⚠️  Treasury: revenue repo unavailable for AmortizeAdvanceCollection: %v\n", revErr)
+	}
+	if expRepos, expErr := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); expErr == nil && expRepos != nil {
+		repos.ExpenseRecognition = expRepos.ExpenseRecognition
+	} else if expErr != nil {
+		fmt.Printf("⚠️  Treasury: expense_recognition repo unavailable for AmortizeAdvanceDisbursement: %v\n", expErr)
+	}
+
+	// 20260517-advance-cash-events Plan B Phase 7 — pull BillingEvent from the
+	// subscription provider block so the selling-side MILESTONE recognize use
+	// case (RecognizeMilestoneAdvanceCollection) is actually constructed.
+	// Without this the four-AND nil-guard in treasury.NewUseCases sees
+	// repos.BillingEvent == nil and silently leaves the use case as nil.
+	if subRepos, subErr := domain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); subErr == nil && subRepos != nil {
+		repos.BillingEvent = subRepos.BillingEvent
+	} else if subErr != nil {
+		fmt.Printf("⚠️  Treasury: billing_event repo unavailable for RecognizeMilestoneAdvanceCollection: %v\n", subErr)
+	}
+
 	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
 	if err != nil {
 		fmt.Printf("❌ Failed to get services: %v\n", err)
@@ -553,8 +581,12 @@ func (uci *UseCaseInitializer) initializeRevenueUseCases(container *Container) (
 	return revenueUseCases, nil
 }
 
-// initializeExpenditureUseCases initializes Expenditure domain use cases (4 entities)
-func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Container) (*expenditure.ExpenditureUseCases, error) {
+// initializeExpenditureUseCases initializes Expenditure domain use cases (4 entities).
+//
+// treasuryUseCases is the already-constructed treasury aggregate (built earlier
+// in InitializeAllUseCases). Plan A Phase 4 GenerateExpenseRun composes the
+// cross-domain AmortizeAdvanceDisbursement from it. Pass nil to degrade.
+func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Container, treasuryUseCases *treasury.TreasuryUseCases) (*expenditure.ExpenditureUseCases, error) {
 	fmt.Printf("💸 Initializing Expenditure use cases...\n")
 
 	repos, err := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
@@ -572,6 +604,20 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 		procurementRepos = nil
 	} else {
 		repos.SupplierSubscription = procurementRepos.SupplierSubscription
+		// 20260517-expense-run Plan A Phase 2 — CostPlan + SupplierProductCostPlan
+		// for RecognizeExpenseFromSupplierSubscription.
+		repos.CostPlan = procurementRepos.CostPlan
+		repos.SupplierProductCostPlan = procurementRepos.SupplierProductCostPlan
+	}
+
+	// 20260517-expense-run Plan A Phase 2 — TreasuryDisbursement for advance
+	// enumeration in ListExpenseRunCandidates. Non-fatal; the candidate list
+	// degrades to subscription-only when unavailable.
+	treasuryRepos, trErr := domain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if trErr != nil {
+		fmt.Printf("⚠️  Expenditure: treasury repos unavailable for advance enumeration: %v\n", trErr)
+	} else if treasuryRepos != nil {
+		repos.TreasuryDisbursement = treasuryRepos.Disbursement
 	}
 
 	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
@@ -581,7 +627,7 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	expenditureUseCases, err := initializers.InitializeExpenditure(repos, authSvc, txSvc, i18nSvc, idSvc)
+	expenditureUseCases, err := initializers.InitializeExpenditure(repos, authSvc, txSvc, i18nSvc, idSvc, treasuryUseCases)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize expenditure use cases: %v\n", err)
 		return nil, err

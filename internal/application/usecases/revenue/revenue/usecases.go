@@ -17,6 +17,7 @@ import (
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
 
 // RevenueRepositories groups all repository dependencies for revenue use cases.
@@ -44,6 +45,12 @@ type RevenueRepositories struct {
 	BillingEvent     billingeventpb.BillingEventDomainServiceServer
 	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	Job              jobpb.JobDomainServiceServer
+
+	// TreasuryCollection — used by ListRevenueRunCandidates (advance-Collection
+	// branch) and indirectly by GenerateRevenueRun (via AmortizeAdvanceCollection).
+	// Optional; when nil, advance-Collection candidates and dispatch are skipped.
+	// Plan B Phase 5a.
+	TreasuryCollection collectionpb.CollectionDomainServiceServer
 }
 
 // RevenueServices groups all business service dependencies for revenue use cases
@@ -62,6 +69,12 @@ type RevenueServices struct {
 	// ComputeTaxes wires the ComputeTaxesForRevenue use case into the revenue
 	// domain. Optional; when nil, tax-compute integration points are skipped.
 	ComputeTaxes *computepkg.ComputeTaxesForRevenueUseCase
+
+	// AmortizeAdvanceCollection wires Plan B's selling-side amortization use
+	// case for the GenerateRevenueRun dispatcher. Optional; when nil,
+	// ADVANCE_COLLECTION selections error out with "amortize_advance_unavailable".
+	// Plan B Phase 5c.
+	AmortizeAdvanceCollection AdvanceCollectionAmortizer
 }
 
 // UseCases contains all revenue-related use cases
@@ -169,6 +182,8 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 		Workspace:    repositories.Workspace,
 	}
+	// Plan B Phase 5a — thread TreasuryCollection through for the advance branch.
+	listCandidatesRepos.TreasuryCollection = repositories.TreasuryCollection
 	listCandidatesServices := ListRevenueRunCandidatesServices{
 		AuthorizationService: services.AuthorizationService,
 		TranslationService:   services.TranslationService,
@@ -205,7 +220,7 @@ func NewUseCases(
 		GetRevenueListPageData:           NewGetRevenueListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
 		RecognizeRevenueFromSubscription: recognizeUC,
 		ListRevenueRunCandidates:         NewListRevenueRunCandidatesUseCase(listCandidatesRepos, listCandidatesServices, recognizeUC),
-		GenerateRevenueRun:               NewGenerateRevenueRunUseCase(generateRunRepos, generateRunServices, recognizeUC),
+		GenerateRevenueRun:               NewGenerateRevenueRunUseCase(generateRunRepos, generateRunServices, recognizeUC).WithAdvanceCollectionAmortizer(services.AmortizeAdvanceCollection),
 		RecomputeTaxes:                   recomputeTaxesUC,
 	}
 }

@@ -31,6 +31,19 @@ func InitializeTreasury(
 
 			// Tax extension
 			WithholdingCertificate: repos.WithholdingCertificate,
+
+			// 20260517-advance-cash-events Plan B Phase 2 — cross-domain.
+			Revenue:            repos.Revenue,
+			ExpenseRecognition: repos.ExpenseRecognition,
+
+			// 20260517-advance-cash-events Plan B Phase 7 — MILESTONE recognize.
+			// BillingEvent is wired post-construction (its provider lives under
+			// the subscription domain); the three repositories below come from
+			// the treasury + expenditure provider blocks.
+			BillingEvent:                             repos.BillingEvent,
+			SupplierBillingEvent:                     repos.SupplierBillingEvent,
+			TreasuryCollectionBillingEvent:           repos.TreasuryCollectionBillingEvent,
+			TreasuryDisbursementSupplierBillingEvent: repos.TreasuryDisbursementSupplierBillingEvent,
 		},
 		authSvc,
 		txSvc,

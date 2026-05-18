@@ -36,6 +36,12 @@ func init() {
 // a status-independent unique index (migration 20260430140200). Recurrence-engine
 // and manual-recognition callers race-resolve via INSERT ... ON CONFLICT
 // (idempotency_key) DO NOTHING RETURNING id at the use-case layer.
+//
+// 20260517 — `advance_disbursement_id` (Plan B / advance-cash-events) and
+// `run_id` (Plan A / expense-run) columns flow through transparently because
+// CRUD round-trips the row via protojson; no explicit SELECT/scan code is
+// required. The columns are populated by AmortizeAdvanceDisbursement (Plan B)
+// and GenerateExpenseRun (Plan A) respectively.
 type PostgresExpenseRecognitionRepository struct {
 	expenserecognitionpb.UnimplementedExpenseRecognitionDomainServiceServer
 	dbOps     interfaces.DatabaseOperation

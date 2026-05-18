@@ -11,7 +11,12 @@ import (
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 
 	// Protobuf domain services - Procurement domain (cross-domain: supplier subscription validation)
+	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
+	supplierproductcostplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_product_cost_plan"
 	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
+
+	// Protobuf domain services - Treasury domain (cross-domain: advance disbursement read)
+	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 
 	// Protobuf domain services - Expenditure domain
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
@@ -21,6 +26,7 @@ import (
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 	expenserecognitionlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_line"
+	expenserecognitionrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_run"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
@@ -57,6 +63,16 @@ type ExpenditureRepositories struct {
 	// Cross-domain dependency: supplier subscription workspace validation on RecognizeFromExpenditure
 	// Populated by the composition layer (usecases.go) from ProcurementRepositories.
 	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
+	// Cross-domain: CostPlan + SupplierProductCostPlan for
+	// RecognizeExpenseFromSupplierSubscription (Plan A Phase 2). Populated by the
+	// composition layer from ProcurementRepositories.
+	CostPlan                costplanpb.CostPlanDomainServiceServer
+	SupplierProductCostPlan supplierproductcostplanpb.SupplierProductCostPlanDomainServiceServer
+	// Cross-domain: TreasuryDisbursement for ListExpenseRunCandidates advance enum.
+	// Populated by the composition layer from TreasuryRepositories.
+	TreasuryDisbursement disbursementpb.DisbursementDomainServiceServer
+	// In-domain (this provider registers it): ExpenseRecognitionRun (Plan A Phase 4).
+	ExpenseRecognitionRun expenserecognitionrunpb.ExpenseRecognitionRunDomainServiceServer
 }
 
 // NewExpenditureRepositories creates and returns a new set of ExpenditureRepositories.
@@ -140,6 +156,10 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, tableConfig *regi
 	}
 	if r := tryCreate(entityid.PaymentTerm); r != nil {
 		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)
+	}
+	// Plan A Phase 4 — ExpenseRecognitionRun (entity ID + table registered in Phase 0).
+	if r := tryCreate(entityid.ExpenseRecognitionRun); r != nil {
+		repos.ExpenseRecognitionRun = r.(expenserecognitionrunpb.ExpenseRecognitionRunDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

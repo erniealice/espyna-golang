@@ -32,7 +32,13 @@ func init() {
 	})
 }
 
-// PostgresExpenditureRepository implements expenditure CRUD operations using PostgreSQL
+// PostgresExpenditureRepository implements expenditure CRUD operations using PostgreSQL.
+//
+// 20260517 — `run_id` (Plan A / expense-run) is written/read via protojson
+// round-trip on CRUD, and additionally surfaced explicitly through the
+// GetExpenditureListPageData / GetExpenditureItemPageData CTE selects so the
+// view layer can render run-linkage badges + the parent-run back-edge without
+// a second round-trip.
 type PostgresExpenditureRepository struct {
 	expenditurepb.UnimplementedExpenditureDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
@@ -263,6 +269,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 		}
 	}
 
+	// 20260517 expense-run: expose `run_id` so the list row can show
+	// run linkage badges without a second round-trip.
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -287,6 +295,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.approved_by,
 				ex.purchase_order_id,
 				ex.supplier_id,
+				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
@@ -344,6 +353,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			approvedBy            *string
 			purchaseOrderID       *string
 			supplierID            *string
+			runID                 *string
 			vendorName            string
 			locationName          string
 			total                 int64
@@ -371,6 +381,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			&approvedBy,
 			&purchaseOrderID,
 			&supplierID,
+			&runID,
 			&vendorName,
 			&locationName,
 			&total,
@@ -423,6 +434,9 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 		}
 		if supplierID != nil {
 			expenditure.SupplierId = supplierID
+		}
+		if runID != nil {
+			expenditure.RunId = runID
 		}
 
 		if !dateCreated.IsZero() {
@@ -478,6 +492,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		return nil, fmt.Errorf("expenditure ID is required")
 	}
 
+	// 20260517 expense-run: expose `run_id` so the detail page can render the
+	// linkage to the parent ExpenseRecognitionRun without a second round-trip.
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -502,6 +518,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 				ex.approved_by,
 				ex.purchase_order_id,
 				ex.supplier_id,
+				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
 			FROM expenditure ex
@@ -536,6 +553,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		approvedBy            *string
 		purchaseOrderID       *string
 		supplierID            *string
+		runID                 *string
 		vendorName            string
 		locationName          string
 	)
@@ -562,6 +580,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 		&approvedBy,
 		&purchaseOrderID,
 		&supplierID,
+		&runID,
 		&vendorName,
 		&locationName,
 	)
@@ -614,6 +633,9 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 	}
 	if supplierID != nil {
 		expenditure.SupplierId = supplierID
+	}
+	if runID != nil {
+		expenditure.RunId = runID
 	}
 
 	if !dateCreated.IsZero() {

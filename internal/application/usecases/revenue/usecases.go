@@ -12,6 +12,7 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
+	treasurycollectionpkg "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_collection"
 
 	// Protobuf domain services - Entity domain (cross-domain dependency)
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -33,6 +34,7 @@ import (
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 
 	// Milestone-billing branch — operation domain reads.
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
@@ -68,6 +70,12 @@ type RevenueRepositories struct {
 	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
 	Client           clientpb.ClientDomainServiceServer
 
+	// TreasuryCollection — used by ListRevenueRunCandidates (advance branch)
+	// and indirectly by GenerateRevenueRun (via AmortizeAdvanceCollection).
+	// Optional; when nil, advance-Collection candidates are skipped.
+	// Plan B Phase 5a.
+	TreasuryCollection collectionpb.CollectionDomainServiceServer
+
 	// Workspace repo — used by ListRevenueRunCandidates to resolve the
 	// workspace timezone for billing-cycle math. Optional; falls back to UTC.
 	Workspace workspacepb.WorkspaceDomainServiceServer
@@ -91,6 +99,9 @@ type RevenueUseCases struct {
 
 // NewUseCases creates all revenue use cases with proper constructor injection.
 // computeTaxes is optional; pass nil to disable tax-compute integration points.
+//
+// To wire the advance-Collection amortizer (Plan B Phase 5c), call
+// WithAmortizeAdvanceCollection on the returned aggregator after construction.
 func NewUseCases(
 	repos RevenueRepositories,
 	authSvc ports.AuthorizationService,
@@ -122,6 +133,9 @@ func NewUseCases(
 			BillingEvent:     repos.BillingEvent,
 			JobTemplatePhase: repos.JobTemplatePhase,
 			Job:              repos.Job,
+
+			// Plan B Phase 5a — advance-Collection branch.
+			TreasuryCollection: repos.TreasuryCollection,
 		},
 		revenueUseCases.RevenueServices{
 			AuthorizationService: authSvc,
@@ -198,4 +212,18 @@ func NewUseCases(
 		DeferredRevenue:  deferredRevenueUC,
 		RevenueTaxLine:   revenueTaxLineUC,
 	}
+}
+
+// WithAmortizeAdvanceCollection wires Plan B's AmortizeAdvanceCollection use
+// case into GenerateRevenueRun so ADVANCE_COLLECTION selections dispatch
+// correctly. Call after NewUseCases — the use case isn't constructed by this
+// aggregator (lives in a sibling package).
+//
+// Returns the receiver for builder-style chaining. Safe to call with nil.
+func (uc *RevenueUseCases) WithAmortizeAdvanceCollection(a *treasurycollectionpkg.AmortizeAdvanceCollectionUseCase) *RevenueUseCases {
+	if uc == nil || uc.Revenue == nil || uc.Revenue.GenerateRevenueRun == nil {
+		return uc
+	}
+	uc.Revenue.GenerateRevenueRun.WithAdvanceCollectionAmortizer(a)
+	return uc
 }

@@ -231,6 +231,19 @@ func (r *PostgresRevenueRunRepository) ListRevenueRuns(ctx context.Context, req 
 	return resp, nil
 }
 
+// foldRevenueRunAttemptEnumStringsToInt collapses protojson enum-name strings
+// on the attempt row to numeric wire values for the INTEGER-typed source_kind
+// column. The legacy `outcome` column is TEXT and so is left alone.
+//
+// Mirrors the expense_recognition_run_attempt pattern (Plan A Phase 5).
+func foldRevenueRunAttemptEnumStringsToInt(data map[string]any) {
+	if v, ok := data["sourceKind"].(string); ok {
+		if num, ok := revenuerunpb.RevenueRunSourceKind_value[v]; ok {
+			data["sourceKind"] = int32(num)
+		}
+	}
+}
+
 // CreateRevenueRunAttempt inserts one attempt row. Called from inside the
 // per-selection loop of GenerateRevenueRun. Errors are tolerated by the caller
 // (it logs and continues); this method itself returns the row on success.
@@ -247,6 +260,7 @@ func (r *PostgresRevenueRunRepository) CreateRevenueRunAttempt(ctx context.Conte
 		return nil, fmt.Errorf("failed to unmarshal revenue_run_attempt JSON to map: %w", err)
 	}
 	convertMillisToTime(data, "attemptedAt", "attempted_at")
+	foldRevenueRunAttemptEnumStringsToInt(data)
 
 	result, err := r.dbOps.Create(ctx, r.attemptTable, data)
 	if err != nil {

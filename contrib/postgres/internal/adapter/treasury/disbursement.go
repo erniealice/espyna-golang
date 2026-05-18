@@ -15,8 +15,10 @@ import (
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	treasuryusecases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
@@ -62,6 +64,13 @@ func NewPostgresDisbursementRepository(dbOps interfaces.DatabaseOperation, table
 func (r *PostgresDisbursementRepository) CreateDisbursement(ctx context.Context, req *disbursementpb.CreateDisbursementRequest) (*disbursementpb.CreateDisbursementResponse, error) {
 	if req.Data == nil {
 		return nil, fmt.Errorf("disbursement data is required")
+	}
+
+	// Plan B Phase 0 hard rule — BURN_DOWN is declared in the proto but
+	// disabled until v2. Reject before persistence so the row never lands
+	// in a state we cannot operate on.
+	if err := treasuryusecases.ValidateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
+		return nil, err
 	}
 
 	jsonData, err := protojson.Marshal(req.Data)
@@ -133,6 +142,12 @@ func (r *PostgresDisbursementRepository) ReadDisbursement(ctx context.Context, r
 func (r *PostgresDisbursementRepository) UpdateDisbursement(ctx context.Context, req *disbursementpb.UpdateDisbursementRequest) (*disbursementpb.UpdateDisbursementResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("disbursement ID is required")
+	}
+
+	// Plan B Phase 0 hard rule — reject BURN_DOWN on update too; otherwise an
+	// existing row could be flipped into the disabled kind via the edit path.
+	if err := treasuryusecases.ValidateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
+		return nil, err
 	}
 
 	jsonData, err := protojson.Marshal(req.Data)
@@ -264,6 +279,8 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 		}
 	}
 
+	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
+	// columns + supplier_id (buying-side mirror of collection.go).
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -281,7 +298,21 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 				d.currency,
 				d.reference_number,
 				d.payment_date,
-				d.approved_by
+				d.approved_by,
+				d.advance_kind,
+				d.advance_status,
+				d.advance_start_date,
+				d.advance_end_date,
+				d.advance_period_count,
+				d.advance_period_unit,
+				d.advance_total_amount,
+				d.advance_remaining_amount,
+				d.advance_recognized_amount,
+				d.advance_balance_account_id,
+				d.advance_target_account_id,
+				d.advance_expiry_date,
+				d.advance_proration_policy,
+				d.supplier_id
 			FROM treasury_disbursement d
 			WHERE d.active = true
 			  AND d.workspace_id = $1
@@ -313,22 +344,36 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 
 	for rows.Next() {
 		var (
-			id                   string
-			dateCreated          time.Time
-			dateModified         time.Time
-			active               bool
-			name                 string
-			subscriptionID       *string
-			amount               int64
-			status               *string
-			expenditureID        *string
-			disbursementType     *string
-			disbursementMethodID *string
-			currency             *string
-			referenceNumber      *string
-			paymentDate          *time.Time
-			approvedBy           *string
-			total                int64
+			id                      string
+			dateCreated             time.Time
+			dateModified            time.Time
+			active                  bool
+			name                    string
+			subscriptionID          *string
+			amount                  int64
+			status                  *string
+			expenditureID           *string
+			disbursementType        *string
+			disbursementMethodID    *string
+			currency                *string
+			referenceNumber         *string
+			paymentDate             *time.Time
+			approvedBy              *string
+			advanceKind             sql.NullInt32
+			advanceStatus           sql.NullInt32
+			advanceStartDate        *string
+			advanceEndDate          *string
+			advancePeriodCount      sql.NullInt32
+			advancePeriodUnit       *string
+			advanceTotalAmount      sql.NullInt64
+			advanceRemainingAmount  sql.NullInt64
+			advanceRecognizedAmount sql.NullInt64
+			advanceBalanceAccountID *string
+			advanceTargetAccountID  *string
+			advanceExpiryDate       *string
+			advanceProrationPolicy  sql.NullInt32
+			supplierID              *string
+			total                   int64
 		)
 
 		err := rows.Scan(
@@ -347,6 +392,20 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			&referenceNumber,
 			&paymentDate,
 			&approvedBy,
+			&advanceKind,
+			&advanceStatus,
+			&advanceStartDate,
+			&advanceEndDate,
+			&advancePeriodCount,
+			&advancePeriodUnit,
+			&advanceTotalAmount,
+			&advanceRemainingAmount,
+			&advanceRecognizedAmount,
+			&advanceBalanceAccountID,
+			&advanceTargetAccountID,
+			&advanceExpiryDate,
+			&advanceProrationPolicy,
+			&supplierID,
 			&total,
 		)
 		if err != nil {
@@ -389,6 +448,13 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 		if paymentDate != nil && !paymentDate.IsZero() {
 			disbursement.PaymentDate = paymentDate.Format("2006-01-02")
 		}
+		assignAdvanceFieldsDisbursement(disbursement,
+			advanceKind, advanceStatus, advanceStartDate, advanceEndDate,
+			advancePeriodCount, advancePeriodUnit,
+			advanceTotalAmount, advanceRemainingAmount, advanceRecognizedAmount,
+			advanceBalanceAccountID, advanceTargetAccountID, advanceExpiryDate,
+			advanceProrationPolicy, supplierID,
+		)
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -447,6 +513,8 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
+	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
+	// columns + supplier_id (mirrors GetDisbursementListPageData).
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -464,7 +532,21 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 				d.currency,
 				d.reference_number,
 				d.payment_date,
-				d.approved_by
+				d.approved_by,
+				d.advance_kind,
+				d.advance_status,
+				d.advance_start_date,
+				d.advance_end_date,
+				d.advance_period_count,
+				d.advance_period_unit,
+				d.advance_total_amount,
+				d.advance_remaining_amount,
+				d.advance_recognized_amount,
+				d.advance_balance_account_id,
+				d.advance_target_account_id,
+				d.advance_expiry_date,
+				d.advance_proration_policy,
+				d.supplier_id
 			FROM treasury_disbursement d
 			WHERE d.id = $1 AND d.workspace_id = $2 AND d.active = true
 		)
@@ -474,21 +556,35 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.DisbursementId, workspaceID)
 
 	var (
-		id                   string
-		dateCreated          time.Time
-		dateModified         time.Time
-		active               bool
-		name                 string
-		subscriptionID       *string
-		amount               int64
-		status               *string
-		expenditureID        *string
-		disbursementType     *string
-		disbursementMethodID *string
-		currency             *string
-		referenceNumber      *string
-		paymentDate          *time.Time
-		approvedBy           *string
+		id                      string
+		dateCreated             time.Time
+		dateModified            time.Time
+		active                  bool
+		name                    string
+		subscriptionID          *string
+		amount                  int64
+		status                  *string
+		expenditureID           *string
+		disbursementType        *string
+		disbursementMethodID    *string
+		currency                *string
+		referenceNumber         *string
+		paymentDate             *time.Time
+		approvedBy              *string
+		advanceKind             sql.NullInt32
+		advanceStatus           sql.NullInt32
+		advanceStartDate        *string
+		advanceEndDate          *string
+		advancePeriodCount      sql.NullInt32
+		advancePeriodUnit       *string
+		advanceTotalAmount      sql.NullInt64
+		advanceRemainingAmount  sql.NullInt64
+		advanceRecognizedAmount sql.NullInt64
+		advanceBalanceAccountID *string
+		advanceTargetAccountID  *string
+		advanceExpiryDate       *string
+		advanceProrationPolicy  sql.NullInt32
+		supplierID              *string
 	)
 
 	err := row.Scan(
@@ -507,6 +603,20 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 		&referenceNumber,
 		&paymentDate,
 		&approvedBy,
+		&advanceKind,
+		&advanceStatus,
+		&advanceStartDate,
+		&advanceEndDate,
+		&advancePeriodCount,
+		&advancePeriodUnit,
+		&advanceTotalAmount,
+		&advanceRemainingAmount,
+		&advanceRecognizedAmount,
+		&advanceBalanceAccountID,
+		&advanceTargetAccountID,
+		&advanceExpiryDate,
+		&advanceProrationPolicy,
+		&supplierID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("disbursement with ID '%s' not found", req.DisbursementId)
@@ -549,6 +659,13 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 	if paymentDate != nil && !paymentDate.IsZero() {
 		disbursement.PaymentDate = paymentDate.Format("2006-01-02")
 	}
+	assignAdvanceFieldsDisbursement(disbursement,
+		advanceKind, advanceStatus, advanceStartDate, advanceEndDate,
+		advancePeriodCount, advancePeriodUnit,
+		advanceTotalAmount, advanceRemainingAmount, advanceRecognizedAmount,
+		advanceBalanceAccountID, advanceTargetAccountID, advanceExpiryDate,
+		advanceProrationPolicy, supplierID,
+	)
 
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
@@ -567,6 +684,78 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 		Disbursement: disbursement,
 		Success:      true,
 	}, nil
+}
+
+// assignAdvanceFieldsDisbursement folds the optional advance_* schedule columns
+// scanned from a treasury_disbursement row into the Disbursement proto.
+// Centralised so GetDisbursementListPageData and GetDisbursementItemPageData
+// stay in lock-step.
+func assignAdvanceFieldsDisbursement(
+	out *disbursementpb.Disbursement,
+	advanceKind sql.NullInt32,
+	advanceStatus sql.NullInt32,
+	advanceStartDate *string,
+	advanceEndDate *string,
+	advancePeriodCount sql.NullInt32,
+	advancePeriodUnit *string,
+	advanceTotalAmount sql.NullInt64,
+	advanceRemainingAmount sql.NullInt64,
+	advanceRecognizedAmount sql.NullInt64,
+	advanceBalanceAccountID *string,
+	advanceTargetAccountID *string,
+	advanceExpiryDate *string,
+	advanceProrationPolicy sql.NullInt32,
+	supplierID *string,
+) {
+	if advanceKind.Valid {
+		k := advancekindpb.AdvanceKind(advanceKind.Int32)
+		out.AdvanceKind = &k
+	}
+	if advanceStatus.Valid {
+		s := advancekindpb.AdvanceStatus(advanceStatus.Int32)
+		out.AdvanceStatus = &s
+	}
+	if advanceStartDate != nil {
+		out.AdvanceStartDate = advanceStartDate
+	}
+	if advanceEndDate != nil {
+		out.AdvanceEndDate = advanceEndDate
+	}
+	if advancePeriodCount.Valid {
+		pc := advancePeriodCount.Int32
+		out.AdvancePeriodCount = &pc
+	}
+	if advancePeriodUnit != nil {
+		out.AdvancePeriodUnit = advancePeriodUnit
+	}
+	if advanceTotalAmount.Valid {
+		v := advanceTotalAmount.Int64
+		out.AdvanceTotalAmount = &v
+	}
+	if advanceRemainingAmount.Valid {
+		v := advanceRemainingAmount.Int64
+		out.AdvanceRemainingAmount = &v
+	}
+	if advanceRecognizedAmount.Valid {
+		v := advanceRecognizedAmount.Int64
+		out.AdvanceRecognizedAmount = &v
+	}
+	if advanceBalanceAccountID != nil {
+		out.AdvanceBalanceAccountId = advanceBalanceAccountID
+	}
+	if advanceTargetAccountID != nil {
+		out.AdvanceTargetAccountId = advanceTargetAccountID
+	}
+	if advanceExpiryDate != nil {
+		out.AdvanceExpiryDate = advanceExpiryDate
+	}
+	if advanceProrationPolicy.Valid {
+		p := advancekindpb.AdvanceProrationPolicy(advanceProrationPolicy.Int32)
+		out.AdvanceProrationPolicy = &p
+	}
+	if supplierID != nil {
+		out.SupplierId = supplierID
+	}
 }
 
 // NewDisbursementRepository creates a new PostgreSQL disbursement repository (old-style constructor)

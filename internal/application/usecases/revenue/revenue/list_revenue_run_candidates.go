@@ -10,13 +10,17 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
+	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/amortize_schedule"
+	treasurycollection "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_collection"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
 
 // RevenueRunScope describes the filter for a candidate list or generate call.
@@ -29,6 +33,11 @@ type RevenueRunScope struct {
 	AsOfDate       string // YYYY-MM-DD; defaults to today when empty
 	Cursor         string
 	Limit          int32
+	// IncludeAdvanceCollections opts-in to advance-Collection candidate
+	// emission (Plan B Phase 5a). When false (default), only subscription-cycle
+	// candidates are emitted — preserves pre-5a behavior for callers that
+	// haven't opted in.
+	IncludeAdvanceCollections bool
 }
 
 // periodWindow holds the computed start/end for one billing period.
@@ -46,6 +55,11 @@ type ListRevenueRunCandidatesRepositories struct {
 	// Optional; when nil, period enumeration falls back to UTC truncation
 	// (preserves pre-timezone-aware behavior).
 	Workspace workspacepb.WorkspaceDomainServiceServer
+	// TreasuryCollection — used to enumerate active TIME_BASED advance
+	// Collections when IncludeAdvanceCollections is true (Plan B Phase 5a).
+	// Optional; when nil, advance-Collection candidates are silently skipped
+	// even when the request opts in.
+	TreasuryCollection collectionpb.CollectionDomainServiceServer
 }
 
 // ListRevenueRunCandidatesServices groups all business service dependencies.
@@ -100,10 +114,11 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	// helper methods. Cursor/Limit are read directly off req below.
 	protoScope := req.GetScope()
 	scope := RevenueRunScope{
-		WorkspaceID:    protoScope.GetWorkspaceId(),
-		ClientID:       protoScope.GetClientId(),
-		SubscriptionID: protoScope.GetSubscriptionId(),
-		AsOfDate:       protoScope.GetAsOfDate(),
+		WorkspaceID:               protoScope.GetWorkspaceId(),
+		ClientID:                  protoScope.GetClientId(),
+		SubscriptionID:            protoScope.GetSubscriptionId(),
+		AsOfDate:                  protoScope.GetAsOfDate(),
+		IncludeAdvanceCollections: req.GetIncludeAdvanceCollections(),
 	}
 	limit := req.GetLimit()
 
@@ -144,6 +159,14 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	// 4. Build existing period marker set for all relevant subscriptions
 	existingMarkers := uc.buildExistingMarkerSet(ctx, subs)
 
+	// 4c. List active TIME_BASED advance Collections in scope.
+	// Used both for emitting ADVANCE_COLLECTION candidates AND for suppressing
+	// subscription cycles that overlap an active advance for the same client.
+	// Always loaded when the request opts in OR the workspace has any advance —
+	// suppression must run even if the client is not directly using the new flag,
+	// to keep Decision A (advance overrides cycle) honored.
+	advances := uc.listActiveTimeBasedAdvances(ctx, scope)
+
 	// 5. Enumerate periods per subscription. Initialised non-nil so the
 	// response's Data field is never nil — consumers do not need to defend.
 	candidates := []*revenuerunpb.RevenueRunCandidate{}
@@ -171,7 +194,32 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 
 			// Dry-run the recognizer to get amount, line count, and blocker flags
 			candidate := uc.buildCandidate(ctx, sub, plan, w, marker)
+
+			// Decision A — suppress subscription-cycle rows that overlap an
+			// active TIME_BASED advance Collection for the same client.
+			if suppressorID := findSuppressingAdvance(advances, sub.GetClientId(), w.Start, w.End); suppressorID != "" {
+				candidate.Eligible = false
+				candidate.BlockerReason = "suppressed_by_advance_collection"
+				candidate.SuppressingAdvanceCollectionId = &suppressorID
+			}
+			// Tag origin for the view layer (UNSPECIFIED is treated as
+			// SUBSCRIPTION_CYCLE downstream; this makes intent explicit).
+			candidate.SourceKind = revenuerunpb.RevenueRunSourceKind_REVENUE_RUN_SOURCE_KIND_SUBSCRIPTION_CYCLE
 			candidates = append(candidates, candidate)
+		}
+	}
+
+	// 5b. Emit advance-Collection candidates when the request opted in.
+	// Each active TIME_BASED advance gets at most ONE candidate per call: the
+	// next-due tranche per amortize_schedule. The drawer renders these as a
+	// second source-kind group; idempotency-skipped tranches surface as
+	// eligible=false with a "already_recognized" blocker.
+	if scope.IncludeAdvanceCollections {
+		for _, adv := range advances {
+			cand := uc.buildAdvanceCandidate(ctx, adv, asOfDate)
+			if cand != nil {
+				candidates = append(candidates, cand)
+			}
 		}
 	}
 
@@ -576,6 +624,213 @@ func extractBlockerReason(err error) string {
 		}
 	}
 	return "recognition_error"
+}
+
+// listActiveTimeBasedAdvances returns active TIME_BASED advance Collections
+// in the workspace/client scope. Returns nil on adapter unavailable.
+//
+// Filters applied (postgres):
+//   - active=true
+//   - advance_kind=TIME_BASED (numeric enum value)
+//   - advance_status=ACTIVE   (numeric enum value)
+//   - workspace_id           (when scope.WorkspaceID is set)
+//   - client_id              (when scope.ClientID is set)
+func (uc *ListRevenueRunCandidatesUseCase) listActiveTimeBasedAdvances(
+	ctx context.Context,
+	scope RevenueRunScope,
+) []*collectionpb.Collection {
+	if uc.repositories.TreasuryCollection == nil {
+		return nil
+	}
+	filters := []*commonpb.TypedFilter{
+		{
+			Field: "active",
+			FilterType: &commonpb.TypedFilter_BooleanFilter{
+				BooleanFilter: &commonpb.BooleanFilter{Value: true},
+			},
+		},
+		{
+			Field: "advance_kind",
+			FilterType: &commonpb.TypedFilter_NumberFilter{
+				NumberFilter: &commonpb.NumberFilter{
+					Value:    float64(advancekindpb.AdvanceKind_ADVANCE_KIND_TIME_BASED),
+					Operator: commonpb.NumberOperator_NUMBER_EQUALS,
+				},
+			},
+		},
+		{
+			Field: "advance_status",
+			FilterType: &commonpb.TypedFilter_NumberFilter{
+				NumberFilter: &commonpb.NumberFilter{
+					Value:    float64(advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE),
+					Operator: commonpb.NumberOperator_NUMBER_EQUALS,
+				},
+			},
+		},
+	}
+	if scope.WorkspaceID != "" {
+		filters = append(filters, &commonpb.TypedFilter{
+			Field: "workspace_id",
+			FilterType: &commonpb.TypedFilter_StringFilter{
+				StringFilter: &commonpb.StringFilter{
+					Value:    scope.WorkspaceID,
+					Operator: commonpb.StringOperator_STRING_EQUALS,
+				},
+			},
+		})
+	}
+	if scope.ClientID != "" {
+		filters = append(filters, &commonpb.TypedFilter{
+			Field: "client_id",
+			FilterType: &commonpb.TypedFilter_StringFilter{
+				StringFilter: &commonpb.StringFilter{
+					Value:    scope.ClientID,
+					Operator: commonpb.StringOperator_STRING_EQUALS,
+				},
+			},
+		})
+	}
+	resp, err := uc.repositories.TreasuryCollection.ListCollections(ctx, &collectionpb.ListCollectionsRequest{
+		Filters: &commonpb.FilterRequest{Filters: filters},
+	})
+	if err != nil || resp == nil {
+		return nil
+	}
+	return resp.GetData()
+}
+
+// findSuppressingAdvance returns the advance Collection ID whose schedule
+// overlaps the given (clientID, periodStart, periodEnd) window, or "" when
+// no overlap. Implements Decision A — advance Collection trumps subscription
+// cycle when both cover the same period for the same client.
+func findSuppressingAdvance(
+	advances []*collectionpb.Collection,
+	clientID, periodStart, periodEnd string,
+) string {
+	if clientID == "" || periodStart == "" || periodEnd == "" {
+		return ""
+	}
+	for _, adv := range advances {
+		if adv.GetClientId() != clientID {
+			continue
+		}
+		if !dateRangesOverlap(adv.GetAdvanceStartDate(), adv.GetAdvanceEndDate(), periodStart, periodEnd) {
+			continue
+		}
+		return adv.GetId()
+	}
+	return ""
+}
+
+// dateRangesOverlap returns true when [aStart, aEnd] overlaps [bStart, bEnd].
+// Empty advance_end_date is treated as open-ended (overlap-ever-after).
+func dateRangesOverlap(aStart, aEnd, bStart, bEnd string) bool {
+	if aStart == "" {
+		return false
+	}
+	if aEnd != "" && aEnd < bStart {
+		return false
+	}
+	if aStart > bEnd {
+		return false
+	}
+	return true
+}
+
+// buildAdvanceCandidate computes the next-due tranche for one advance
+// Collection and packages it as a RevenueRunCandidate row.
+//
+// Eligibility:
+//   - ok=false (no tranche due as of date) → returns nil so the row is omitted
+//   - tranche already recognized via existing Revenue → eligible=false +
+//     "already_recognized" blocker (visible in the drawer as a greyed row)
+//   - else eligible=true
+func (uc *ListRevenueRunCandidatesUseCase) buildAdvanceCandidate(
+	ctx context.Context,
+	adv *collectionpb.Collection,
+	asOfDate string,
+) *revenuerunpb.RevenueRunCandidate {
+	tranche, ok, err := amortizeschedule.ComputeNextDueTranche(amortizeschedule.Inputs{
+		StartDate:       adv.GetAdvanceStartDate(),
+		EndDate:         adv.GetAdvanceEndDate(),
+		PeriodCount:     int(adv.GetAdvancePeriodCount()),
+		PeriodUnit:      adv.GetAdvancePeriodUnit(),
+		TotalAmount:     adv.GetAdvanceTotalAmount(),
+		ProrationPolicy: treasurycollection.ProtoProrationToHelper(adv.GetAdvanceProrationPolicy()),
+		AsOfDate:        asOfDate,
+	})
+	if err != nil || !ok {
+		return nil
+	}
+
+	advanceID := adv.GetId()
+	marker := treasurycollection.BuildAdvancePeriodMarker(tranche.PeriodStart, tranche.PeriodEnd)
+	candidate := &revenuerunpb.RevenueRunCandidate{
+		ClientId:            adv.GetClientId(),
+		Currency:            adv.GetCurrency(),
+		PeriodStart:         tranche.PeriodStart,
+		PeriodEnd:           tranche.PeriodEnd,
+		PeriodLabel:         fmt.Sprintf("%s – %s", tranche.PeriodStart, tranche.PeriodEnd),
+		PeriodMarker:        marker,
+		Amount:              tranche.Amount,
+		LineItemCount:       1,
+		Eligible:            true,
+		SourceKind:          revenuerunpb.RevenueRunSourceKind_REVENUE_RUN_SOURCE_KIND_ADVANCE_COLLECTION,
+		AdvanceCollectionId: &advanceID,
+	}
+
+	// Idempotency check — surface "already_recognized" so operators see why
+	// a tranche row is greyed out.
+	if uc.repositories.Revenue != nil {
+		if found := advanceTrancheAlreadyRecognized(ctx, uc.repositories.Revenue, advanceID, marker); found {
+			candidate.Eligible = false
+			candidate.BlockerReason = "already_recognized"
+		}
+	}
+	return candidate
+}
+
+// advanceTrancheAlreadyRecognized scans existing Revenues bound to the advance
+// Collection for one whose notes-first-line marker matches the computed
+// tranche. Mirrors the idempotency check inside AmortizeAdvanceCollection so
+// the drawer renders the same "already done" state the actual run would.
+func advanceTrancheAlreadyRecognized(
+	ctx context.Context,
+	repo revenuepb.RevenueDomainServiceServer,
+	advanceID, wantMarker string,
+) bool {
+	resp, err := repo.ListRevenues(ctx, &revenuepb.ListRevenuesRequest{
+		Filters: &commonpb.FilterRequest{
+			Filters: []*commonpb.TypedFilter{
+				{
+					Field: "advance_collection_id",
+					FilterType: &commonpb.TypedFilter_StringFilter{
+						StringFilter: &commonpb.StringFilter{
+							Value:    advanceID,
+							Operator: commonpb.StringOperator_STRING_EQUALS,
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil || resp == nil {
+		return false
+	}
+	for _, r := range resp.GetData() {
+		n := r.GetNotes()
+		if n == "" {
+			continue
+		}
+		first := n
+		if idx := strings.Index(n, "\n"); idx >= 0 {
+			first = n[:idx]
+		}
+		if strings.TrimSpace(first) == wantMarker {
+			return true
+		}
+	}
+	return false
 }
 
 // buildRecognizeRequest builds a CreateRevenueWithLineItemsRequest for the

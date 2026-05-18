@@ -11,6 +11,10 @@ import (
 	pettyCashUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/petty_cash"
 	// SecurityDeposit use cases
 	securityDepositUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/security_deposit"
+	// TreasuryCollection (advance Plan B Phase 2) use cases
+	treasurycollectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_collection"
+	// TreasuryDisbursement (advance Plan B Phase 2) use cases
+	treasurydisbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_disbursement"
 	// WithholdingCertificate use cases
 	withholdingCertificateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/withholding_certificate"
 
@@ -32,6 +36,17 @@ import (
 	pettycashvoucherpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_voucher"
 	securitydepositpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/security_deposit"
 	withholdingcertificatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/withholding_certificate"
+
+	// Cross-domain repositories required by Plan B Phase 2 advance use cases.
+	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
+	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
+
+	// Plan B Phase 7 — MILESTONE recognize use cases anchor on BillingEvent /
+	// SupplierBillingEvent rows + their junction tables.
+	supplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_billing_event"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
+	treasurycollectionbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/treasury_collection_billing_event"
+	treasurydisbursementsupplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/treasury_disbursement_supplier_billing_event"
 )
 
 // TreasuryRepositories contains all treasury domain repositories
@@ -51,6 +66,21 @@ type TreasuryRepositories struct {
 
 	// Tax extension
 	WithholdingCertificate withholdingcertificatepb.WithholdingCertificateDomainServiceServer
+
+	// Cross-domain repositories required by Plan B Phase 2 advance use cases
+	// (AmortizeAdvanceCollection emits a Revenue row; AmortizeAdvanceDisbursement
+	// emits an ExpenseRecognition row). Populated by the composition layer.
+	Revenue            revenuepb.RevenueDomainServiceServer
+	ExpenseRecognition expenserecognitionpb.ExpenseRecognitionDomainServiceServer
+
+	// Plan B Phase 7 — MILESTONE recognize use cases (selling + buying)
+	// require the BillingEvent / SupplierBillingEvent reads + their junction
+	// tables. Optional; when nil, the corresponding RecognizeMilestoneAdvance
+	// use case construction is skipped (nil-safe).
+	BillingEvent                             billingeventpb.BillingEventDomainServiceServer
+	SupplierBillingEvent                     supplierbillingeventpb.SupplierBillingEventDomainServiceServer
+	TreasuryCollectionBillingEvent           treasurycollectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer
+	TreasuryDisbursementSupplierBillingEvent treasurydisbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer
 }
 
 // TreasuryUseCases contains all treasury-related use cases
@@ -67,6 +97,24 @@ type TreasuryUseCases struct {
 	// Dashboard use cases (nil when postgres build tag is inactive).
 	LoanDashboard *loandashboard.GetLoanDashboardPageDataUseCase
 	CashDashboard *cashdashboard.GetCashDashboardPageDataUseCase
+
+	// 20260517-advance-cash-events Plan B Phase 2 — advance use cases (BOTH sides).
+	// Constructed unconditionally; nil-safe via the existing repo nil-guards.
+	AmortizeAdvanceCollection           *treasurycollectionUseCases.AmortizeAdvanceCollectionUseCase
+	AmortizeAdvanceDisbursement         *treasurydisbursementUseCases.AmortizeAdvanceDisbursementUseCase
+	SettleUnscheduledAdvanceCollection  *treasurycollectionUseCases.SettleUnscheduledAdvanceUseCase
+	SettleUnscheduledAdvanceDisbursement *treasurydisbursementUseCases.SettleUnscheduledAdvanceUseCase
+	RefundUnscheduledAdvanceCollection  *treasurycollectionUseCases.RefundUnscheduledAdvanceUseCase
+	RefundUnscheduledAdvanceDisbursement *treasurydisbursementUseCases.RefundUnscheduledAdvanceUseCase
+	CancelAdvanceCollection             *treasurycollectionUseCases.CancelAdvanceUseCase
+	CancelAdvanceDisbursement           *treasurydisbursementUseCases.CancelAdvanceUseCase
+	// 20260517-advance-cash-events Plan B Phase 7 — MILESTONE recognize use
+	// cases (selling + buying). Nil when the BillingEvent / SupplierBillingEvent
+	// repositories are not wired (e.g., mock/firestore deployments without
+	// these adapters registered).
+	RecognizeMilestoneAdvanceCollection   *treasurycollectionUseCases.RecognizeMilestoneAdvanceCollectionUseCase
+	RecognizeMilestoneAdvanceDisbursement *treasurydisbursementUseCases.RecognizeMilestoneAdvanceDisbursementUseCase
+	GetAdvancesDashboard                  *GetAdvancesDashboardUseCase
 }
 
 // NewUseCases creates all treasury use cases with proper constructor injection
@@ -170,6 +218,173 @@ func NewUseCases(
 		},
 	)
 
+	// 20260517-advance-cash-events Plan B Phase 2 — wire advance use cases (BOTH sides).
+	var amortizeAdvCol *treasurycollectionUseCases.AmortizeAdvanceCollectionUseCase
+	if repos.Collection != nil {
+		amortizeAdvCol = treasurycollectionUseCases.NewAmortizeAdvanceCollectionUseCase(
+			treasurycollectionUseCases.AmortizeAdvanceCollectionRepositories{
+				TreasuryCollection: repos.Collection,
+				Revenue:            repos.Revenue,
+			},
+			treasurycollectionUseCases.AmortizeAdvanceCollectionServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idService,
+			},
+		)
+	}
+
+	var amortizeAdvDis *treasurydisbursementUseCases.AmortizeAdvanceDisbursementUseCase
+	if repos.Disbursement != nil {
+		amortizeAdvDis = treasurydisbursementUseCases.NewAmortizeAdvanceDisbursementUseCase(
+			treasurydisbursementUseCases.AmortizeAdvanceDisbursementRepositories{
+				TreasuryDisbursement: repos.Disbursement,
+				ExpenseRecognition:   repos.ExpenseRecognition,
+			},
+			treasurydisbursementUseCases.AmortizeAdvanceDisbursementServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idService,
+			},
+		)
+	}
+
+	var settleUnschedCol *treasurycollectionUseCases.SettleUnscheduledAdvanceUseCase
+	if repos.Collection != nil {
+		settleUnschedCol = treasurycollectionUseCases.NewSettleUnscheduledAdvanceUseCase(
+			treasurycollectionUseCases.SettleUnscheduledAdvanceRepositories{
+				TreasuryCollection: repos.Collection,
+			},
+			treasurycollectionUseCases.SettleUnscheduledAdvanceServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+			},
+		)
+	}
+
+	var settleUnschedDis *treasurydisbursementUseCases.SettleUnscheduledAdvanceUseCase
+	if repos.Disbursement != nil {
+		settleUnschedDis = treasurydisbursementUseCases.NewSettleUnscheduledAdvanceUseCase(
+			treasurydisbursementUseCases.SettleUnscheduledAdvanceRepositories{
+				TreasuryDisbursement: repos.Disbursement,
+			},
+			treasurydisbursementUseCases.SettleUnscheduledAdvanceServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+			},
+		)
+	}
+
+	var refundUnschedCol *treasurycollectionUseCases.RefundUnscheduledAdvanceUseCase
+	if repos.Collection != nil {
+		refundUnschedCol = treasurycollectionUseCases.NewRefundUnscheduledAdvanceUseCase(
+			treasurycollectionUseCases.RefundUnscheduledAdvanceRepositories{
+				TreasuryCollection: repos.Collection,
+			},
+			treasurycollectionUseCases.RefundUnscheduledAdvanceServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+			},
+		)
+	}
+
+	var refundUnschedDis *treasurydisbursementUseCases.RefundUnscheduledAdvanceUseCase
+	if repos.Disbursement != nil {
+		refundUnschedDis = treasurydisbursementUseCases.NewRefundUnscheduledAdvanceUseCase(
+			treasurydisbursementUseCases.RefundUnscheduledAdvanceRepositories{
+				TreasuryDisbursement: repos.Disbursement,
+			},
+			treasurydisbursementUseCases.RefundUnscheduledAdvanceServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+			},
+		)
+	}
+
+	var cancelAdvCol *treasurycollectionUseCases.CancelAdvanceUseCase
+	if repos.Collection != nil {
+		cancelAdvCol = treasurycollectionUseCases.NewCancelAdvanceUseCase(
+			treasurycollectionUseCases.CancelAdvanceRepositories{
+				TreasuryCollection: repos.Collection,
+			},
+			treasurycollectionUseCases.CancelAdvanceServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+			},
+		)
+	}
+
+	var cancelAdvDis *treasurydisbursementUseCases.CancelAdvanceUseCase
+	if repos.Disbursement != nil {
+		cancelAdvDis = treasurydisbursementUseCases.NewCancelAdvanceUseCase(
+			treasurydisbursementUseCases.CancelAdvanceRepositories{
+				TreasuryDisbursement: repos.Disbursement,
+			},
+			treasurydisbursementUseCases.CancelAdvanceServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+			},
+		)
+	}
+
+	// 20260517-advance-cash-events Plan B Phase 7 — MILESTONE recognize use
+	// cases. Nil-safe when the junction tables / billing event repositories
+	// are not yet registered for the active build (mock + firestore paths).
+	var recognizeMilestoneCol *treasurycollectionUseCases.RecognizeMilestoneAdvanceCollectionUseCase
+	if repos.Collection != nil && repos.Revenue != nil && repos.BillingEvent != nil && repos.TreasuryCollectionBillingEvent != nil {
+		recognizeMilestoneCol = treasurycollectionUseCases.NewRecognizeMilestoneAdvanceCollectionUseCase(
+			treasurycollectionUseCases.RecognizeMilestoneAdvanceCollectionRepositories{
+				TreasuryCollection:             repos.Collection,
+				Revenue:                        repos.Revenue,
+				BillingEvent:                   repos.BillingEvent,
+				TreasuryCollectionBillingEvent: repos.TreasuryCollectionBillingEvent,
+			},
+			treasurycollectionUseCases.RecognizeMilestoneAdvanceCollectionServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idService,
+			},
+		)
+	}
+
+	var recognizeMilestoneDis *treasurydisbursementUseCases.RecognizeMilestoneAdvanceDisbursementUseCase
+	if repos.Disbursement != nil && repos.ExpenseRecognition != nil && repos.SupplierBillingEvent != nil && repos.TreasuryDisbursementSupplierBillingEvent != nil {
+		recognizeMilestoneDis = treasurydisbursementUseCases.NewRecognizeMilestoneAdvanceDisbursementUseCase(
+			treasurydisbursementUseCases.RecognizeMilestoneAdvanceDisbursementRepositories{
+				TreasuryDisbursement:                     repos.Disbursement,
+				ExpenseRecognition:                       repos.ExpenseRecognition,
+				SupplierBillingEvent:                     repos.SupplierBillingEvent,
+				TreasuryDisbursementSupplierBillingEvent: repos.TreasuryDisbursementSupplierBillingEvent,
+			},
+			treasurydisbursementUseCases.RecognizeMilestoneAdvanceDisbursementServices{
+				AuthorizationService: authSvc,
+				TransactionService:   txSvc,
+				TranslationService:   i18nSvc,
+				IDService:            idService,
+			},
+		)
+	}
+
+	advancesDash := NewGetAdvancesDashboardUseCase(
+		GetAdvancesDashboardRepositories{
+			TreasuryCollection:   repos.Collection,
+			TreasuryDisbursement: repos.Disbursement,
+		},
+		GetAdvancesDashboardServices{
+			AuthorizationService: authSvc,
+			TranslationService:   i18nSvc,
+		},
+	)
+
 	return &TreasuryUseCases{
 		Collection:             collectionUC,
 		Disbursement:           disbursementUC,
@@ -179,5 +394,17 @@ func NewUseCases(
 		WithholdingCertificate: withholdingCertificateUC,
 		LoanDashboard:          loanDash,
 		CashDashboard:          cashDash,
+
+		AmortizeAdvanceCollection:            amortizeAdvCol,
+		AmortizeAdvanceDisbursement:          amortizeAdvDis,
+		SettleUnscheduledAdvanceCollection:   settleUnschedCol,
+		SettleUnscheduledAdvanceDisbursement: settleUnschedDis,
+		RefundUnscheduledAdvanceCollection:   refundUnschedCol,
+		RefundUnscheduledAdvanceDisbursement: refundUnschedDis,
+		CancelAdvanceCollection:              cancelAdvCol,
+		CancelAdvanceDisbursement:            cancelAdvDis,
+		RecognizeMilestoneAdvanceCollection:   recognizeMilestoneCol,
+		RecognizeMilestoneAdvanceDisbursement: recognizeMilestoneDis,
+		GetAdvancesDashboard:                 advancesDash,
 	}
 }

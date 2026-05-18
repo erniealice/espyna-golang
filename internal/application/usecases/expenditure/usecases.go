@@ -13,6 +13,7 @@ import (
 	expenditureLineItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_line_item"
 	expenseRecognitionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expense_recognition"
 	expenseRecognitionLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expense_recognition_line"
+	expenseRecognitionRunUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expense_recognition_run"
 	prepaymentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/prepayment"
 	procurementRequestUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/procurement_request"
 	procurementRequestLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/procurement_request_line"
@@ -22,6 +23,9 @@ import (
 	supplierContractLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/supplier_contract_line"
 	supplierContractPriceScheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/supplier_contract_price_schedule"
 	supplierContractPriceScheduleLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/supplier_contract_price_schedule_line"
+	// Cross-domain (treasury): AmortizeAdvanceDisbursement is composed into the
+	// GenerateExpenseRun engine. Plan B Phase 2.
+	treasurydisbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/treasury_disbursement"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -37,6 +41,7 @@ import (
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 	expenserecognitionlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_line"
+	expenserecognitionrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_run"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
@@ -47,7 +52,12 @@ import (
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
 	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
 	// Cross-domain: procurement domain for SupplierSubscription workspace validation
+	// + CostPlan + SupplierProductCostPlan (RecognizeExpenseFromSupplierSubscription).
+	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
+	supplierproductcostplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_product_cost_plan"
 	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
+	// Cross-domain: treasury for ListExpenseRunCandidates advance enumeration.
+	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
@@ -74,6 +84,14 @@ type ExpenditureRepositories struct {
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 	// Cross-domain dependency: supplier subscription workspace validation on RecognizeFromExpenditure
 	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
+	// Cross-domain (Plan A Phase 2): CostPlan + SupplierProductCostPlan are
+	// required by RecognizeExpenseFromSupplierSubscription; TreasuryDisbursement
+	// is required by ListExpenseRunCandidates (advance enumeration).
+	CostPlan                costplanpb.CostPlanDomainServiceServer
+	SupplierProductCostPlan supplierproductcostplanpb.SupplierProductCostPlanDomainServiceServer
+	TreasuryDisbursement    disbursementpb.DisbursementDomainServiceServer
+	// In-domain (Plan A Phase 4): ExpenseRecognitionRun repo (CRUD + Attempt RPCs).
+	ExpenseRecognitionRun expenserecognitionrunpb.ExpenseRecognitionRunDomainServiceServer
 }
 
 // ExpenditureUseCases contains all expenditure-related use cases
@@ -101,15 +119,28 @@ type ExpenditureUseCases struct {
 	// (the request carries the Kind discriminator). Nil when postgres build
 	// tag is inactive.
 	Dashboard *expendituredashboard.GetExpenditureDashboardPageDataUseCase
+
+	// 20260517-expense-run Plan A Phase 2 + Phase 4 — buying-side recognition.
+	// Constructed in NewUseCases when the required cross-domain repos are present.
+	// Nil-safe consumers; surface views degrade to disabled buttons + helpful
+	// tooltips when unwired.
+	RecognizeExpenseFromSupplierSubscription *expenseRecognitionUseCases.RecognizeExpenseFromSupplierSubscriptionUseCase
+	ListExpenseRunCandidates                 *expenseRecognitionRunUseCases.ListExpenseRunCandidatesUseCase
+	GenerateExpenseRun                       *expenseRecognitionRunUseCases.GenerateExpenseRunUseCase
 }
 
-// NewUseCases creates all expenditure use cases with proper constructor injection
+// NewUseCases creates all expenditure use cases with proper constructor injection.
+//
+// amortizeAdvDis is the cross-domain (treasury) AmortizeAdvanceDisbursement
+// use case composed into GenerateExpenseRun (Plan A Phase 4). May be nil; the
+// run engine logs an "amortizer_unavailable" attempt outcome in that case.
 func NewUseCases(
 	repos ExpenditureRepositories,
 	authSvc ports.AuthorizationService,
 	txSvc ports.TransactionService,
 	i18nSvc ports.TranslationService,
 	idService ports.IDService,
+	amortizeAdvDis *treasurydisbursementUseCases.AmortizeAdvanceDisbursementUseCase,
 ) *ExpenditureUseCases {
 	expenditureUC := expenditureUseCases.NewUseCases(
 		expenditureUseCases.ExpenditureRepositories{
@@ -330,6 +361,70 @@ func NewUseCases(
 		}
 	}
 
+	// 20260517-expense-run Plan A Phase 2 — RecognizeExpenseFromSupplierSubscription.
+	recognizeFromSupplierSub := expenseRecognitionUseCases.NewRecognizeExpenseFromSupplierSubscriptionUseCase(
+		expenseRecognitionUseCases.RecognizeExpenseFromSupplierSubscriptionRepositories{
+			ExpenseRecognition:      repos.ExpenseRecognition,
+			ExpenseRecognitionLine:  repos.ExpenseRecognitionLine,
+			Expenditure:             repos.Expenditure,
+			ExpenditureLineItem:     repos.ExpenditureLineItem,
+			SupplierSubscription:    repos.SupplierSubscription,
+			CostPlan:                repos.CostPlan,
+			SupplierProductCostPlan: repos.SupplierProductCostPlan,
+		},
+		expenseRecognitionUseCases.RecognizeExpenseFromSupplierSubscriptionServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+	)
+
+	// 20260517-expense-run Plan A Phase 2 — ListExpenseRunCandidates.
+	listRunCandidates := expenseRecognitionRunUseCases.NewListExpenseRunCandidatesUseCase(
+		expenseRecognitionRunUseCases.ListExpenseRunCandidatesRepositories{
+			SupplierSubscription: repos.SupplierSubscription,
+			CostPlan:             repos.CostPlan,
+			ExpenseRecognition:   repos.ExpenseRecognition,
+			TreasuryDisbursement: repos.TreasuryDisbursement,
+			Expenditure:          repos.Expenditure,
+		},
+		expenseRecognitionRunUseCases.ListExpenseRunCandidatesServices{
+			AuthorizationService: authSvc,
+			TranslationService:   i18nSvc,
+		},
+	)
+
+	// 20260517-expense-run Plan A Phase 4 — GenerateExpenseRun (composes the
+	// two inner use cases plus the cross-domain AmortizeAdvanceDisbursement).
+	//
+	// The Attempt writer port is satisfied by repos.ExpenseRecognitionRun when
+	// it implements CreateExpenseRecognitionRunAttempt (the Phase-0 proto
+	// declares it on the same DomainServiceServer interface, so we pass the
+	// run repo through directly). When the postgres adapter isn't registered,
+	// the run engine still returns the in-memory attempt rows in the response.
+	var attemptWriter expenseRecognitionRunUseCases.ExpenseRecognitionRunAttemptWriter
+	if repos.ExpenseRecognitionRun != nil {
+		// The proto DomainServiceServer already declares
+		// CreateExpenseRecognitionRunAttempt, so it satisfies the interface.
+		attemptWriter = repos.ExpenseRecognitionRun
+	}
+	generateExpenseRun := expenseRecognitionRunUseCases.NewGenerateExpenseRunUseCase(
+		expenseRecognitionRunUseCases.GenerateExpenseRunRepositories{
+			ExpenseRecognition:    repos.ExpenseRecognition,
+			ExpenseRecognitionRun: repos.ExpenseRecognitionRun,
+			AttemptWriter:         attemptWriter,
+		},
+		expenseRecognitionRunUseCases.GenerateExpenseRunServices{
+			AuthorizationService: authSvc,
+			TransactionService:   txSvc,
+			TranslationService:   i18nSvc,
+			IDService:            idService,
+		},
+		recognizeFromSupplierSub,
+		amortizeAdvDis,
+	)
+
 	return &ExpenditureUseCases{
 		Expenditure:                       expenditureUC,
 		ExpenditureLineItem:               expenditureLineItemUC,
@@ -349,5 +444,9 @@ func NewUseCases(
 		AccruedExpense:                    accruedExpenseUC,
 		AccruedExpenseSettlement:          accruedExpenseSettlementUC,
 		Dashboard:                         expenditureDash,
+
+		RecognizeExpenseFromSupplierSubscription: recognizeFromSupplierSub,
+		ListExpenseRunCandidates:                 listRunCandidates,
+		GenerateExpenseRun:                       generateExpenseRun,
 	}
 }

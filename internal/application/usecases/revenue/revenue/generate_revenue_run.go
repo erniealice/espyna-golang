@@ -10,18 +10,26 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/authcheck"
 
+	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
 
 // SelectedRevenueRunCandidate is one operator-confirmed selection to invoice.
+//
+// SourceKind discriminates how this selection is dispatched. UNSPECIFIED is
+// treated as SUBSCRIPTION_CYCLE to preserve pre-Plan-B caller behavior.
+// AdvanceCollectionID is required when SourceKind == ADVANCE_COLLECTION.
 type SelectedRevenueRunCandidate struct {
-	SubscriptionID string
-	PeriodStart    string // YYYY-MM-DD
-	PeriodEnd      string // YYYY-MM-DD
-	PeriodMarker   string // canonical idempotency anchor
+	SubscriptionID      string
+	PeriodStart         string // YYYY-MM-DD
+	PeriodEnd           string // YYYY-MM-DD
+	PeriodMarker        string // canonical idempotency anchor
+	SourceKind          revenuerunpb.RevenueRunSourceKind
+	AdvanceCollectionID string
 }
 
 // RevenueRunSelections carries either an explicit list or a filter token.
@@ -42,6 +50,14 @@ type GenerateRevenueRunRepositories struct {
 	Workspace workspacepb.WorkspaceDomainServiceServer
 }
 
+// AdvanceCollectionAmortizer is the narrow interface used by GenerateRevenueRun
+// to dispatch ADVANCE_COLLECTION selections to Plan B's amortize use case.
+// Pulled out as an interface so the run engine doesn't import the concrete
+// use-case package and so tests can stub it.
+type AdvanceCollectionAmortizer interface {
+	Execute(ctx context.Context, req *collectionpb.AmortizeAdvanceCollectionRequest) (*collectionpb.AmortizeAdvanceCollectionResponse, error)
+}
+
 // GenerateRevenueRunServices groups all business service dependencies.
 type GenerateRevenueRunServices struct {
 	AuthorizationService ports.AuthorizationService
@@ -52,14 +68,16 @@ type GenerateRevenueRunServices struct {
 
 // runAttemptRecord holds the in-memory outcome for one selection.
 type runAttemptRecord struct {
-	outcome   revenuerunpb.RevenueRunAttemptOutcome
-	subID     string
-	start     string
-	end       string
-	marker    string
-	revenueID *string
-	errCode   *string
-	errMsg    *string
+	outcome     revenuerunpb.RevenueRunAttemptOutcome
+	subID       string
+	start       string
+	end         string
+	marker      string
+	revenueID   *string
+	errCode     *string
+	errMsg      *string
+	sourceKind  revenuerunpb.RevenueRunSourceKind
+	advanceColl *string // advance_collection_id when sourceKind == ADVANCE_COLLECTION
 }
 
 // GenerateRevenueRunUseCase executes a batch revenue generation run.
@@ -77,6 +95,11 @@ type GenerateRevenueRunUseCase struct {
 	repositories     GenerateRevenueRunRepositories
 	services         GenerateRevenueRunServices
 	recognizeUseCase *RecognizeRevenueFromSubscriptionUseCase
+	// amortizeAdvance dispatches ADVANCE_COLLECTION selections. Optional —
+	// when nil, advance selections are recorded as ERRORED outcomes with a
+	// "amortize_advance_unavailable" error code so the run aggregate row
+	// still finalizes correctly.
+	amortizeAdvance AdvanceCollectionAmortizer
 }
 
 // RevenueRunRepo returns the RevenueRun repository. Used by the consumer layer
@@ -100,6 +123,16 @@ func NewGenerateRevenueRunUseCase(
 		services:         services,
 		recognizeUseCase: recognizeUseCase,
 	}
+}
+
+// WithAdvanceCollectionAmortizer attaches Plan B's AmortizeAdvanceCollection
+// use case so this run engine can dispatch ADVANCE_COLLECTION selections.
+// Returns the receiver for builder-style chaining. Optional.
+func (uc *GenerateRevenueRunUseCase) WithAdvanceCollectionAmortizer(a AdvanceCollectionAmortizer) *GenerateRevenueRunUseCase {
+	if uc != nil {
+		uc.amortizeAdvance = a
+	}
+	return uc
 }
 
 // Execute runs the batch revenue generation process.
@@ -134,10 +167,12 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 		selections.ExplicitList = make([]SelectedRevenueRunCandidate, 0, len(explicit))
 		for _, e := range explicit {
 			selections.ExplicitList = append(selections.ExplicitList, SelectedRevenueRunCandidate{
-				SubscriptionID: e.GetSubscriptionId(),
-				PeriodStart:    e.GetPeriodStart(),
-				PeriodEnd:      e.GetPeriodEnd(),
-				PeriodMarker:   e.GetPeriodMarker(),
+				SubscriptionID:      e.GetSubscriptionId(),
+				PeriodStart:         e.GetPeriodStart(),
+				PeriodEnd:           e.GetPeriodEnd(),
+				PeriodMarker:        e.GetPeriodMarker(),
+				SourceKind:          e.GetSourceKind(),
+				AdvanceCollectionID: e.GetAdvanceCollectionId(),
 			})
 		}
 	}
@@ -229,7 +264,24 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 	var insertedAttempts []*revenuerunpb.RevenueRunAttempt
 
 	for _, sel := range sels {
-		acc := uc.processSingleSelection(ctx, run, sel, scope)
+		// Normalize source_kind: UNSPECIFIED → SUBSCRIPTION_CYCLE so pre-Plan-B
+		// callers (no source_kind set) keep their existing dispatch.
+		kind := sel.SourceKind
+		if kind == revenuerunpb.RevenueRunSourceKind_REVENUE_RUN_SOURCE_KIND_UNSPECIFIED {
+			kind = revenuerunpb.RevenueRunSourceKind_REVENUE_RUN_SOURCE_KIND_SUBSCRIPTION_CYCLE
+		}
+		var acc runAttemptRecord
+		switch kind {
+		case revenuerunpb.RevenueRunSourceKind_REVENUE_RUN_SOURCE_KIND_ADVANCE_COLLECTION:
+			acc = uc.processAdvanceCollectionSelection(ctx, run, sel, scope)
+		default:
+			acc = uc.processSingleSelection(ctx, run, sel, scope)
+		}
+		acc.sourceKind = kind
+		if kind == revenuerunpb.RevenueRunSourceKind_REVENUE_RUN_SOURCE_KIND_ADVANCE_COLLECTION && sel.AdvanceCollectionID != "" {
+			id := sel.AdvanceCollectionID
+			acc.advanceColl = &id
+		}
 		accumulator = append(accumulator, acc)
 
 		// INSERT attempt row
@@ -239,18 +291,20 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 		}
 		attemptTime := time.Now().UTC().UnixMilli()
 		attempt := &revenuerunpb.RevenueRunAttempt{
-			Id:             attemptID,
-			RunId:          run.GetId(),
-			SubscriptionId: acc.subID,
-			PeriodStart:    acc.start,
-			PeriodEnd:      acc.end,
-			PeriodMarker:   acc.marker,
-			Outcome:        acc.outcome,
-			RevenueId:      acc.revenueID,
-			ErrorCode:      acc.errCode,
-			ErrorMessage:   acc.errMsg,
-			AttemptedAt:    &attemptTime,
-			Active:         true,
+			Id:                  attemptID,
+			RunId:               run.GetId(),
+			SubscriptionId:      acc.subID,
+			PeriodStart:         acc.start,
+			PeriodEnd:           acc.end,
+			PeriodMarker:        acc.marker,
+			Outcome:             acc.outcome,
+			RevenueId:           acc.revenueID,
+			ErrorCode:           acc.errCode,
+			ErrorMessage:        acc.errMsg,
+			AttemptedAt:         &attemptTime,
+			Active:              true,
+			SourceKind:          acc.sourceKind,
+			AdvanceCollectionId: acc.advanceColl,
 		}
 		createdAttemptResp, insertErr := uc.repositories.RevenueRun.CreateRevenueRunAttempt(ctx, &revenuerunpb.CreateRevenueRunAttemptRequest{
 			Data: attempt,
@@ -476,6 +530,90 @@ func (uc *GenerateRevenueRunUseCase) resolveScopeKind(scope RevenueRunScope) rev
 		return revenuerunpb.RevenueRunScopeKind_REVENUE_RUN_SCOPE_KIND_CLIENT
 	}
 	return revenuerunpb.RevenueRunScopeKind_REVENUE_RUN_SCOPE_KIND_WORKSPACE
+}
+
+// processAdvanceCollectionSelection dispatches one ADVANCE_COLLECTION
+// selection to Plan B's AmortizeAdvanceCollection use case and translates
+// its CREATED/SKIPPED/ERRORED outcome into the run's attempt accumulator.
+//
+// AdvanceCollectionID is the required FK; when missing or the amortizer is
+// unwired, the selection is recorded as ERRORED so the run still finalizes.
+func (uc *GenerateRevenueRunUseCase) processAdvanceCollectionSelection(
+	ctx context.Context,
+	run *revenuerunpb.RevenueRun,
+	sel SelectedRevenueRunCandidate,
+	scope RevenueRunScope,
+) runAttemptRecord {
+	makeErr := func(code, msg string) runAttemptRecord {
+		return runAttemptRecord{
+			outcome: revenuerunpb.RevenueRunAttemptOutcome_REVENUE_RUN_ATTEMPT_OUTCOME_ERRORED,
+			subID:   sel.SubscriptionID,
+			start:   sel.PeriodStart,
+			end:     sel.PeriodEnd,
+			marker:  sel.PeriodMarker,
+			errCode: strPtr(code),
+			errMsg:  strPtr(msg),
+		}
+	}
+	if sel.AdvanceCollectionID == "" {
+		return makeErr("advance_collection_id_required",
+			"advance_collection_id is required for ADVANCE_COLLECTION selections")
+	}
+	if uc.amortizeAdvance == nil {
+		return makeErr("amortize_advance_unavailable",
+			"AmortizeAdvanceCollection use case is not configured")
+	}
+
+	runID := run.GetId()
+	out, err := uc.amortizeAdvance.Execute(ctx, &collectionpb.AmortizeAdvanceCollectionRequest{
+		TreasuryCollectionId: sel.AdvanceCollectionID,
+		AsOfDate:             scope.AsOfDate,
+		WorkspaceId:          scope.WorkspaceID,
+		ActorId:              contextutil.ExtractWorkspaceUserIDFromContext(ctx),
+		RunId:                &runID,
+	})
+	if err != nil {
+		return makeErr("amortize_advance_failed", err.Error())
+	}
+	if out == nil {
+		return makeErr("amortize_advance_no_output",
+			"amortize_advance_collection returned no output")
+	}
+
+	switch out.GetOutcome() {
+	case advancekindpb.AdvanceAmortizeOutcome_ADVANCE_AMORTIZE_OUTCOME_CREATED:
+		revID := out.GetRevenueId()
+		return runAttemptRecord{
+			outcome:   revenuerunpb.RevenueRunAttemptOutcome_REVENUE_RUN_ATTEMPT_OUTCOME_CREATED,
+			start:     out.GetTrancheStart(),
+			end:       out.GetTrancheEnd(),
+			marker:    sel.PeriodMarker,
+			revenueID: &revID,
+		}
+	case advancekindpb.AdvanceAmortizeOutcome_ADVANCE_AMORTIZE_OUTCOME_SKIPPED:
+		rec := runAttemptRecord{
+			outcome: revenuerunpb.RevenueRunAttemptOutcome_REVENUE_RUN_ATTEMPT_OUTCOME_SKIPPED,
+			start:   out.GetTrancheStart(),
+			end:     out.GetTrancheEnd(),
+			marker:  sel.PeriodMarker,
+			errCode: strPtr("period_already_invoiced"),
+			errMsg:  strPtr("advance tranche already recognized"),
+		}
+		if conflict := out.GetConflictingRevenueId(); conflict != "" {
+			revID := conflict
+			rec.revenueID = &revID
+		}
+		return rec
+	case advancekindpb.AdvanceAmortizeOutcome_ADVANCE_AMORTIZE_OUTCOME_ERRORED:
+		msg := "amortize_advance errored"
+		if e := out.GetError(); e != nil && e.GetMessage() != "" {
+			msg = e.GetMessage()
+		}
+		return makeErr("amortize_advance_errored", msg)
+	default:
+		return makeErr("amortize_advance_unknown_outcome",
+			"amortize_advance_collection returned unknown outcome")
+	}
 }
 
 // isIdempotencyConflict returns true when err represents a period-already-invoiced

@@ -141,6 +141,11 @@ const (
 	SupplierContractLine   = "supplier_contract_line"
 	ProcurementRequest     = "procurement_request"
 	ProcurementRequestLine = "procurement_request_line"
+	// Advance-cash-events (20260517) — buying-side mirror of BillingEvent.
+	SupplierBillingEvent = "supplier_billing_event"
+	// Expense Run (20260517) — recurrence-engine parent + per-attempt rows.
+	ExpenseRecognitionRun        = "expense_recognition_run"
+	ExpenseRecognitionRunAttempt = "expense_recognition_run_attempt"
 )
 
 // Inventory domain
@@ -177,6 +182,12 @@ const (
 	TreasuryCollection     = "treasury_collection"
 	TreasuryDisbursement   = "treasury_disbursement"
 	WithholdingCertificate = "withholding_certificate"
+	// Advance-cash-events (20260517) — MILESTONE junction tables linking a
+	// TreasuryCollection / TreasuryDisbursement to one or more BillingEvent /
+	// SupplierBillingEvent rows. Tranche amounts are tracked per junction row;
+	// SUM(tranche_amount) <= advance.amount is application-layer-enforced.
+	TreasuryCollectionBillingEvent           = "treasury_collection_billing_event"
+	TreasuryDisbursementSupplierBillingEvent = "treasury_disbursement_supplier_billing_event"
 )
 
 // Ledger / Document domain
@@ -356,6 +367,9 @@ var ExpenditureEntities = []string{
 	SupplierContractPriceSchedule, SupplierContractPriceScheduleLine,
 	ExpenseRecognition, ExpenseRecognitionLine,
 	AccruedExpense, AccruedExpenseSettlement,
+	// Advance-cash-events + Expense Run (20260517)
+	SupplierBillingEvent,
+	ExpenseRecognitionRun, ExpenseRecognitionRunAttempt,
 }
 
 // InventoryEntities lists all entity IDs in the Inventory domain.
@@ -382,6 +396,9 @@ var TreasuryEntities = []string{
 	Loan, LoanPayment, SecurityDeposit,
 	PettyCashFund, PettyCashVoucher, PettyCashReplenishment,
 	WithholdingCertificate,
+	// Advance-cash-events (20260517) — MILESTONE junction tables
+	TreasuryCollectionBillingEvent,
+	TreasuryDisbursementSupplierBillingEvent,
 }
 
 // LedgerDocumentEntities lists all entity IDs in the Ledger / Document domain.

@@ -37,6 +37,9 @@ func InitializeRevenue(
 			BillingEvent:     repos.BillingEvent,
 			JobTemplatePhase: repos.JobTemplatePhase,
 			Job:              repos.Job,
+
+			// Plan B Phase 5a — advance Collection branch.
+			TreasuryCollection: repos.TreasuryCollection,
 		},
 		authSvc,
 		txSvc,

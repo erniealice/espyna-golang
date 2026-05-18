@@ -16,9 +16,11 @@ import (
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	treasuryusecases "github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
@@ -92,6 +94,13 @@ func (r *PostgresCollectionRepository) CreateCollection(ctx context.Context, req
 		return nil, fmt.Errorf("collection data is required")
 	}
 
+	// Plan B Phase 0 hard rule — BURN_DOWN is declared in the proto but
+	// disabled until v2. Reject before persistence so the row never lands
+	// in a state we cannot operate on.
+	if err := treasuryusecases.ValidateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
+		return nil, err
+	}
+
 	jsonData, err := protojson.Marshal(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
@@ -161,6 +170,12 @@ func (r *PostgresCollectionRepository) ReadCollection(ctx context.Context, req *
 func (r *PostgresCollectionRepository) UpdateCollection(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("collection ID is required")
+	}
+
+	// Plan B Phase 0 hard rule — reject BURN_DOWN on update too; otherwise an
+	// existing row could be flipped into the disabled kind via the edit path.
+	if err := treasuryusecases.ValidateAdvanceKindNotBurnDown(req.Data.GetAdvanceKind()); err != nil {
+		return nil, err
 	}
 
 	jsonData, err := protojson.Marshal(req.Data)
@@ -304,6 +319,10 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "collection", collectionSortableSQLCols)
 	}
 
+	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
+	// columns + client_id. The list view doesn't render every column today,
+	// but downstream filter chips + Treasury dashboard need the data flowing
+	// through the proto without a second round-trip.
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -322,7 +341,21 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 				tc.payment_date,
 				tc.received_by,
 				tc.received_role,
-				tc.collection_type
+				tc.collection_type,
+				tc.advance_kind,
+				tc.advance_status,
+				tc.advance_start_date,
+				tc.advance_end_date,
+				tc.advance_period_count,
+				tc.advance_period_unit,
+				tc.advance_total_amount,
+				tc.advance_remaining_amount,
+				tc.advance_recognized_amount,
+				tc.advance_balance_account_id,
+				tc.advance_target_account_id,
+				tc.advance_expiry_date,
+				tc.advance_proration_policy,
+				tc.client_id
 			FROM treasury_collection tc
 			WHERE tc.active = true
 			  AND tc.workspace_id = $1
@@ -354,23 +387,37 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 
 	for rows.Next() {
 		var (
-			id                 string
-			dateCreated        time.Time
-			dateModified       time.Time
-			active             bool
-			name               string
-			subscriptionID     *string
-			amount             int64
-			status             *string
-			revenueID          *string
-			collectionMethodID *string
-			currency           *string
-			referenceNumber    *string
-			paymentDate        *time.Time
-			receivedBy         *string
-			receivedRole       *string
-			collectionType     *string
-			total              int64
+			id                      string
+			dateCreated             time.Time
+			dateModified            time.Time
+			active                  bool
+			name                    string
+			subscriptionID          *string
+			amount                  int64
+			status                  *string
+			revenueID               *string
+			collectionMethodID      *string
+			currency                *string
+			referenceNumber         *string
+			paymentDate             *time.Time
+			receivedBy              *string
+			receivedRole            *string
+			collectionType          *string
+			advanceKind             sql.NullInt32
+			advanceStatus           sql.NullInt32
+			advanceStartDate        *string
+			advanceEndDate          *string
+			advancePeriodCount      sql.NullInt32
+			advancePeriodUnit       *string
+			advanceTotalAmount      sql.NullInt64
+			advanceRemainingAmount  sql.NullInt64
+			advanceRecognizedAmount sql.NullInt64
+			advanceBalanceAccountID *string
+			advanceTargetAccountID  *string
+			advanceExpiryDate       *string
+			advanceProrationPolicy  sql.NullInt32
+			clientID                *string
+			total                   int64
 		)
 
 		err := rows.Scan(
@@ -390,6 +437,20 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			&receivedBy,
 			&receivedRole,
 			&collectionType,
+			&advanceKind,
+			&advanceStatus,
+			&advanceStartDate,
+			&advanceEndDate,
+			&advancePeriodCount,
+			&advancePeriodUnit,
+			&advanceTotalAmount,
+			&advanceRemainingAmount,
+			&advanceRecognizedAmount,
+			&advanceBalanceAccountID,
+			&advanceTargetAccountID,
+			&advanceExpiryDate,
+			&advanceProrationPolicy,
+			&clientID,
 			&total,
 		)
 		if err != nil {
@@ -435,6 +496,13 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 		if paymentDate != nil && !paymentDate.IsZero() {
 			collection.PaymentDate = paymentDate.Format("2006-01-02")
 		}
+		assignAdvanceFieldsCollection(collection,
+			advanceKind, advanceStatus, advanceStartDate, advanceEndDate,
+			advancePeriodCount, advancePeriodUnit,
+			advanceTotalAmount, advanceRemainingAmount, advanceRecognizedAmount,
+			advanceBalanceAccountID, advanceTargetAccountID, advanceExpiryDate,
+			advanceProrationPolicy, clientID,
+		)
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -493,6 +561,9 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
+	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
+	// columns + client_id (mirrors GetCollectionListPageData; needed by the
+	// Advance Schedule tab + Treasury dashboard tile).
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -511,7 +582,21 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 				tc.payment_date,
 				tc.received_by,
 				tc.received_role,
-				tc.collection_type
+				tc.collection_type,
+				tc.advance_kind,
+				tc.advance_status,
+				tc.advance_start_date,
+				tc.advance_end_date,
+				tc.advance_period_count,
+				tc.advance_period_unit,
+				tc.advance_total_amount,
+				tc.advance_remaining_amount,
+				tc.advance_recognized_amount,
+				tc.advance_balance_account_id,
+				tc.advance_target_account_id,
+				tc.advance_expiry_date,
+				tc.advance_proration_policy,
+				tc.client_id
 			FROM treasury_collection tc
 			WHERE tc.id = $1 AND tc.workspace_id = $2 AND tc.active = true
 		)
@@ -521,22 +606,36 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.CollectionId, workspaceID)
 
 	var (
-		id                 string
-		dateCreated        time.Time
-		dateModified       time.Time
-		active             bool
-		name               string
-		subscriptionID     *string
-		amount             int64
-		status             *string
-		revenueID          *string
-		collectionMethodID *string
-		currency           *string
-		referenceNumber    *string
-		paymentDate        *time.Time
-		receivedBy         *string
-		receivedRole       *string
-		collectionType     *string
+		id                      string
+		dateCreated             time.Time
+		dateModified            time.Time
+		active                  bool
+		name                    string
+		subscriptionID          *string
+		amount                  int64
+		status                  *string
+		revenueID               *string
+		collectionMethodID      *string
+		currency                *string
+		referenceNumber         *string
+		paymentDate             *time.Time
+		receivedBy              *string
+		receivedRole            *string
+		collectionType          *string
+		advanceKind             sql.NullInt32
+		advanceStatus           sql.NullInt32
+		advanceStartDate        *string
+		advanceEndDate          *string
+		advancePeriodCount      sql.NullInt32
+		advancePeriodUnit       *string
+		advanceTotalAmount      sql.NullInt64
+		advanceRemainingAmount  sql.NullInt64
+		advanceRecognizedAmount sql.NullInt64
+		advanceBalanceAccountID *string
+		advanceTargetAccountID  *string
+		advanceExpiryDate       *string
+		advanceProrationPolicy  sql.NullInt32
+		clientID                *string
 	)
 
 	err := row.Scan(
@@ -556,6 +655,20 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		&receivedBy,
 		&receivedRole,
 		&collectionType,
+		&advanceKind,
+		&advanceStatus,
+		&advanceStartDate,
+		&advanceEndDate,
+		&advancePeriodCount,
+		&advancePeriodUnit,
+		&advanceTotalAmount,
+		&advanceRemainingAmount,
+		&advanceRecognizedAmount,
+		&advanceBalanceAccountID,
+		&advanceTargetAccountID,
+		&advanceExpiryDate,
+		&advanceProrationPolicy,
+		&clientID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("collection with ID '%s' not found", req.CollectionId)
@@ -601,6 +714,13 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 	if paymentDate != nil && !paymentDate.IsZero() {
 		collection.PaymentDate = paymentDate.Format("2006-01-02")
 	}
+	assignAdvanceFieldsCollection(collection,
+		advanceKind, advanceStatus, advanceStartDate, advanceEndDate,
+		advancePeriodCount, advancePeriodUnit,
+		advanceTotalAmount, advanceRemainingAmount, advanceRecognizedAmount,
+		advanceBalanceAccountID, advanceTargetAccountID, advanceExpiryDate,
+		advanceProrationPolicy, clientID,
+	)
 
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
@@ -619,6 +739,77 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		Collection: collection,
 		Success:    true,
 	}, nil
+}
+
+// assignAdvanceFieldsCollection folds the optional advance_* schedule columns
+// scanned from a treasury_collection row into the Collection proto. Centralised
+// so GetCollectionListPageData and GetCollectionItemPageData stay in lock-step.
+func assignAdvanceFieldsCollection(
+	out *collectionpb.Collection,
+	advanceKind sql.NullInt32,
+	advanceStatus sql.NullInt32,
+	advanceStartDate *string,
+	advanceEndDate *string,
+	advancePeriodCount sql.NullInt32,
+	advancePeriodUnit *string,
+	advanceTotalAmount sql.NullInt64,
+	advanceRemainingAmount sql.NullInt64,
+	advanceRecognizedAmount sql.NullInt64,
+	advanceBalanceAccountID *string,
+	advanceTargetAccountID *string,
+	advanceExpiryDate *string,
+	advanceProrationPolicy sql.NullInt32,
+	clientID *string,
+) {
+	if advanceKind.Valid {
+		k := advancekindpb.AdvanceKind(advanceKind.Int32)
+		out.AdvanceKind = &k
+	}
+	if advanceStatus.Valid {
+		s := advancekindpb.AdvanceStatus(advanceStatus.Int32)
+		out.AdvanceStatus = &s
+	}
+	if advanceStartDate != nil {
+		out.AdvanceStartDate = advanceStartDate
+	}
+	if advanceEndDate != nil {
+		out.AdvanceEndDate = advanceEndDate
+	}
+	if advancePeriodCount.Valid {
+		pc := advancePeriodCount.Int32
+		out.AdvancePeriodCount = &pc
+	}
+	if advancePeriodUnit != nil {
+		out.AdvancePeriodUnit = advancePeriodUnit
+	}
+	if advanceTotalAmount.Valid {
+		v := advanceTotalAmount.Int64
+		out.AdvanceTotalAmount = &v
+	}
+	if advanceRemainingAmount.Valid {
+		v := advanceRemainingAmount.Int64
+		out.AdvanceRemainingAmount = &v
+	}
+	if advanceRecognizedAmount.Valid {
+		v := advanceRecognizedAmount.Int64
+		out.AdvanceRecognizedAmount = &v
+	}
+	if advanceBalanceAccountID != nil {
+		out.AdvanceBalanceAccountId = advanceBalanceAccountID
+	}
+	if advanceTargetAccountID != nil {
+		out.AdvanceTargetAccountId = advanceTargetAccountID
+	}
+	if advanceExpiryDate != nil {
+		out.AdvanceExpiryDate = advanceExpiryDate
+	}
+	if advanceProrationPolicy.Valid {
+		p := advancekindpb.AdvanceProrationPolicy(advanceProrationPolicy.Int32)
+		out.AdvanceProrationPolicy = &p
+	}
+	if clientID != nil {
+		out.ClientId = clientID
+	}
 }
 
 // ListByClient lists collections for a given client by joining treasury_collection

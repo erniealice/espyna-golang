@@ -34,6 +34,9 @@ import (
 	// MaterializeBillingEventsForJob).
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+
+	// Protobuf domain services - Treasury domain (Plan B Phase 5a).
+	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
 
 // RevenueRepositories contains all revenue domain repositories.
@@ -74,6 +77,11 @@ type RevenueRepositories struct {
 	BillingEvent     billingeventpb.BillingEventDomainServiceServer
 	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	Job              jobpb.JobDomainServiceServer
+
+	// TreasuryCollection — Plan B Phase 5a, advance-Collection candidate
+	// enumeration in ListRevenueRunCandidates. Optional; when nil the advance
+	// branch is silently disabled.
+	TreasuryCollection collectionpb.CollectionDomainServiceServer
 }
 
 // NewRevenueRepositories creates and returns a new set of RevenueRepositories.
@@ -159,6 +167,11 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.Job); r != nil {
 		repos.Job = r.(jobpb.JobDomainServiceServer)
+	}
+
+	// Treasury — selling-side advance Collection (Plan B Phase 5a).
+	if r := tryCreate(entityid.TreasuryCollection); r != nil {
+		repos.TreasuryCollection = r.(collectionpb.CollectionDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

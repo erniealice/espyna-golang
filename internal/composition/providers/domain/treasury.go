@@ -18,6 +18,20 @@ import (
 	pettycashvoucherpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_voucher"
 	securitydepositpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/security_deposit"
 	withholdingcertificatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/withholding_certificate"
+
+	// Cross-domain references required by Plan B Phase 2 advance use cases
+	// (AmortizeAdvanceCollection emits a Revenue row; AmortizeAdvanceDisbursement
+	// emits an ExpenseRecognition row). Populated by the composition layer from
+	// the Revenue + Expenditure provider blocks.
+	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
+	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
+
+	// Plan B Phase 7 — MILESTONE recognize use cases (selling + buying) anchor
+	// on BillingEvent / SupplierBillingEvent rows + their junction tables.
+	supplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_billing_event"
+	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
+	treasurycollectionbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/treasury_collection_billing_event"
+	treasurydisbursementsupplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/treasury_disbursement_supplier_billing_event"
 )
 
 // TreasuryRepositories contains all treasury domain repositories
@@ -37,6 +51,18 @@ type TreasuryRepositories struct {
 
 	// Tax extension
 	WithholdingCertificate withholdingcertificatepb.WithholdingCertificateDomainServiceServer
+
+	// Cross-domain repositories (populated by the composition layer post-construction).
+	Revenue            revenuepb.RevenueDomainServiceServer
+	ExpenseRecognition expenserecognitionpb.ExpenseRecognitionDomainServiceServer
+
+	// Plan B Phase 7 — MILESTONE recognize repositories. Created via the
+	// registry when the matching adapters are registered for the active
+	// build; otherwise nil-safe (the use case construction guards on nil).
+	BillingEvent                             billingeventpb.BillingEventDomainServiceServer
+	SupplierBillingEvent                     supplierbillingeventpb.SupplierBillingEventDomainServiceServer
+	TreasuryCollectionBillingEvent           treasurycollectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer
+	TreasuryDisbursementSupplierBillingEvent treasurydisbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer
 }
 
 // NewTreasuryRepositories creates and returns a new set of TreasuryRepositories.
@@ -98,6 +124,19 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 	}
 	if r := tryCreate(entityid.WithholdingCertificate); r != nil {
 		repos.WithholdingCertificate = r.(withholdingcertificatepb.WithholdingCertificateDomainServiceServer)
+	}
+
+	// Plan B Phase 7 — MILESTONE junctions + supplier_billing_event.
+	// BillingEvent itself comes from the subscription domain and is wired
+	// post-construction by the composition layer when available.
+	if r := tryCreate(entityid.SupplierBillingEvent); r != nil {
+		repos.SupplierBillingEvent = r.(supplierbillingeventpb.SupplierBillingEventDomainServiceServer)
+	}
+	if r := tryCreate(entityid.TreasuryCollectionBillingEvent); r != nil {
+		repos.TreasuryCollectionBillingEvent = r.(treasurycollectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer)
+	}
+	if r := tryCreate(entityid.TreasuryDisbursementSupplierBillingEvent); r != nil {
+		repos.TreasuryDisbursementSupplierBillingEvent = r.(treasurydisbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

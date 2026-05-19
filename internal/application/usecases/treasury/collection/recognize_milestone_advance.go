@@ -1,7 +1,7 @@
 // Plan B Phase 7 — MILESTONE advance recognition (selling side).
 //
 // RecognizeMilestoneAdvanceCollection consumes one
-// treasury_collection_billing_event junction row, emits a single Revenue tied
+// collection_billing_event junction row, emits a single Revenue tied
 // to that BillingEvent + the advance Collection, decrements the advance
 // counters, and (if drained) flips advance_status to FULLY_RECOGNIZED.
 //
@@ -41,7 +41,7 @@ type RecognizeMilestoneAdvanceCollectionRepositories struct {
 	TreasuryCollection             collectionpb.CollectionDomainServiceServer
 	Revenue                        revenuepb.RevenueDomainServiceServer
 	BillingEvent                   billingeventpb.BillingEventDomainServiceServer
-	TreasuryCollectionBillingEvent junctionpb.TreasuryCollectionBillingEventDomainServiceServer
+	CollectionBillingEvent junctionpb.CollectionBillingEventDomainServiceServer
 }
 
 // RecognizeMilestoneAdvanceCollectionServices groups infra services.
@@ -182,7 +182,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.TranslationService,
 			"treasury_collection.errors.junction_not_found",
-			"treasury_collection_billing_event junction not found [DEFAULT]",
+			"collection_billing_event junction not found [DEFAULT]",
 		))
 		return milestoneErrored(err), err
 	}
@@ -238,7 +238,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	now := time.Now()
 	dm := now.UnixMilli()
 	junction.DateModified = &dm
-	if _, err := uc.repositories.TreasuryCollectionBillingEvent.UpdateTreasuryCollectionBillingEvent(ctx, &junctionpb.UpdateTreasuryCollectionBillingEventRequest{
+	if _, err := uc.repositories.CollectionBillingEvent.UpdateCollectionBillingEvent(ctx, &junctionpb.UpdateCollectionBillingEventRequest{
 		Data: junction,
 	}); err != nil {
 		return milestoneErrored(err), err
@@ -278,21 +278,21 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	}, nil
 }
 
-// findJunction returns the single treasury_collection_billing_event row
+// findJunction returns the single collection_billing_event row
 // matching (collection_id, billing_event_id), or nil if missing. We use List
 // with a composite filter — both columns are indexed.
 func (uc *RecognizeMilestoneAdvanceCollectionUseCase) findJunction(
 	ctx context.Context,
 	collectionID, billingEventID string,
-) (*junctionpb.TreasuryCollectionBillingEvent, error) {
-	if uc.repositories.TreasuryCollectionBillingEvent == nil {
+) (*junctionpb.CollectionBillingEvent, error) {
+	if uc.repositories.CollectionBillingEvent == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.TranslationService,
 			"treasury_collection.errors.junction_repo_unavailable",
-			"treasury_collection_billing_event repository is not configured [DEFAULT]",
+			"collection_billing_event repository is not configured [DEFAULT]",
 		))
 	}
-	resp, err := uc.repositories.TreasuryCollectionBillingEvent.ListTreasuryCollectionBillingEvents(ctx, &junctionpb.ListTreasuryCollectionBillingEventsRequest{
+	resp, err := uc.repositories.CollectionBillingEvent.ListCollectionBillingEvents(ctx, &junctionpb.ListCollectionBillingEventsRequest{
 		Filters: &commonpb.FilterRequest{
 			Filters: []*commonpb.TypedFilter{
 				{
@@ -336,7 +336,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) findJunction(
 func (uc *RecognizeMilestoneAdvanceCollectionUseCase) insertRevenue(
 	ctx context.Context,
 	adv *collectionpb.Collection,
-	junction *junctionpb.TreasuryCollectionBillingEvent,
+	junction *junctionpb.CollectionBillingEvent,
 	req *collectionpb.RecognizeMilestoneAdvanceCollectionRequest,
 	tranche int64,
 ) (string, error) {

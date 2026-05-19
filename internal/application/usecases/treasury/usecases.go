@@ -66,8 +66,8 @@ type TreasuryRepositories struct {
 	// SupplierBillingEvent reads + their junction tables. Optional; nil-safe.
 	BillingEvent                             billingeventpb.BillingEventDomainServiceServer
 	SupplierBillingEvent                     supplierbillingeventpb.SupplierBillingEventDomainServiceServer
-	TreasuryCollectionBillingEvent           collectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer
-	TreasuryDisbursementSupplierBillingEvent disbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer
+	CollectionBillingEvent           collectionbillingeventpb.CollectionBillingEventDomainServiceServer
+	DisbursementSupplierBillingEvent disbursementsupplierbillingeventpb.DisbursementSupplierBillingEventDomainServiceServer
 }
 
 // TreasuryUseCases contains all treasury-related use cases.
@@ -254,13 +254,13 @@ func NewUseCases(
 			collectionUC.UpdateCollection,
 		)
 
-		if repos.Revenue != nil && repos.BillingEvent != nil && repos.TreasuryCollectionBillingEvent != nil {
+		if repos.Revenue != nil && repos.BillingEvent != nil && repos.CollectionBillingEvent != nil {
 			collectionUC.RecognizeMilestoneAdvance = collectionUseCases.NewRecognizeMilestoneAdvanceCollectionUseCase(
 				collectionUseCases.RecognizeMilestoneAdvanceCollectionRepositories{
 					TreasuryCollection:             repos.Collection,
 					Revenue:                        repos.Revenue,
 					BillingEvent:                   repos.BillingEvent,
-					TreasuryCollectionBillingEvent: repos.TreasuryCollectionBillingEvent,
+					CollectionBillingEvent: repos.CollectionBillingEvent,
 				},
 				collectionUseCases.RecognizeMilestoneAdvanceCollectionServices{
 					AuthorizationService: authSvc,
@@ -334,13 +334,13 @@ func NewUseCases(
 			disbursementUC.UpdateDisbursement,
 		)
 
-		if repos.ExpenseRecognition != nil && repos.SupplierBillingEvent != nil && repos.TreasuryDisbursementSupplierBillingEvent != nil {
+		if repos.ExpenseRecognition != nil && repos.SupplierBillingEvent != nil && repos.DisbursementSupplierBillingEvent != nil {
 			disbursementUC.RecognizeMilestoneAdvance = disbursementUseCases.NewRecognizeMilestoneAdvanceDisbursementUseCase(
 				disbursementUseCases.RecognizeMilestoneAdvanceDisbursementRepositories{
 					TreasuryDisbursement:                     repos.Disbursement,
 					ExpenseRecognition:                       repos.ExpenseRecognition,
 					SupplierBillingEvent:                     repos.SupplierBillingEvent,
-					TreasuryDisbursementSupplierBillingEvent: repos.TreasuryDisbursementSupplierBillingEvent,
+					DisbursementSupplierBillingEvent: repos.DisbursementSupplierBillingEvent,
 				},
 				disbursementUseCases.RecognizeMilestoneAdvanceDisbursementServices{
 					AuthorizationService: authSvc,

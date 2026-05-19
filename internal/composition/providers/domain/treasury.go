@@ -61,8 +61,8 @@ type TreasuryRepositories struct {
 	// build; otherwise nil-safe (the use case construction guards on nil).
 	BillingEvent                             billingeventpb.BillingEventDomainServiceServer
 	SupplierBillingEvent                     supplierbillingeventpb.SupplierBillingEventDomainServiceServer
-	TreasuryCollectionBillingEvent           collectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer
-	TreasuryDisbursementSupplierBillingEvent disbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer
+	CollectionBillingEvent           collectionbillingeventpb.CollectionBillingEventDomainServiceServer
+	DisbursementSupplierBillingEvent disbursementsupplierbillingeventpb.DisbursementSupplierBillingEventDomainServiceServer
 }
 
 // NewTreasuryRepositories creates and returns a new set of TreasuryRepositories.
@@ -132,11 +132,11 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 	if r := tryCreate(entityid.SupplierBillingEvent); r != nil {
 		repos.SupplierBillingEvent = r.(supplierbillingeventpb.SupplierBillingEventDomainServiceServer)
 	}
-	if r := tryCreate(entityid.TreasuryCollectionBillingEvent); r != nil {
-		repos.TreasuryCollectionBillingEvent = r.(collectionbillingeventpb.TreasuryCollectionBillingEventDomainServiceServer)
+	if r := tryCreate(entityid.CollectionBillingEvent); r != nil {
+		repos.CollectionBillingEvent = r.(collectionbillingeventpb.CollectionBillingEventDomainServiceServer)
 	}
-	if r := tryCreate(entityid.TreasuryDisbursementSupplierBillingEvent); r != nil {
-		repos.TreasuryDisbursementSupplierBillingEvent = r.(disbursementsupplierbillingeventpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer)
+	if r := tryCreate(entityid.DisbursementSupplierBillingEvent); r != nil {
+		repos.DisbursementSupplierBillingEvent = r.(disbursementsupplierbillingeventpb.DisbursementSupplierBillingEventDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

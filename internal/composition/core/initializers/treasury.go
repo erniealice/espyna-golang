@@ -42,8 +42,8 @@ func InitializeTreasury(
 			// the treasury + expenditure provider blocks.
 			BillingEvent:                             repos.BillingEvent,
 			SupplierBillingEvent:                     repos.SupplierBillingEvent,
-			TreasuryCollectionBillingEvent:           repos.TreasuryCollectionBillingEvent,
-			TreasuryDisbursementSupplierBillingEvent: repos.TreasuryDisbursementSupplierBillingEvent,
+			CollectionBillingEvent:           repos.CollectionBillingEvent,
+			DisbursementSupplierBillingEvent: repos.DisbursementSupplierBillingEvent,
 		},
 		authSvc,
 		txSvc,

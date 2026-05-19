@@ -186,8 +186,8 @@ const (
 	// TreasuryCollection / TreasuryDisbursement to one or more BillingEvent /
 	// SupplierBillingEvent rows. Tranche amounts are tracked per junction row;
 	// SUM(tranche_amount) <= advance.amount is application-layer-enforced.
-	TreasuryCollectionBillingEvent           = "treasury_collection_billing_event"
-	TreasuryDisbursementSupplierBillingEvent = "treasury_disbursement_supplier_billing_event"
+	CollectionBillingEvent           = "collection_billing_event"
+	DisbursementSupplierBillingEvent = "disbursement_supplier_billing_event"
 )
 
 // Ledger / Document domain
@@ -397,8 +397,8 @@ var TreasuryEntities = []string{
 	PettyCashFund, PettyCashVoucher, PettyCashReplenishment,
 	WithholdingCertificate,
 	// Advance-cash-events (20260517) — MILESTONE junction tables
-	TreasuryCollectionBillingEvent,
-	TreasuryDisbursementSupplierBillingEvent,
+	CollectionBillingEvent,
+	DisbursementSupplierBillingEvent,
 }
 
 // LedgerDocumentEntities lists all entity IDs in the Ledger / Document domain.

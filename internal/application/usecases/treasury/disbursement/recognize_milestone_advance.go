@@ -1,7 +1,7 @@
 // Plan B Phase 7 — MILESTONE advance recognition (buying side).
 //
 // RecognizeMilestoneAdvanceDisbursement consumes one
-// treasury_disbursement_supplier_billing_event junction row, emits a single
+// disbursement_supplier_billing_event junction row, emits a single
 // ExpenseRecognition tied to that SupplierBillingEvent + the advance
 // Disbursement, decrements the advance counters, and (if drained) flips
 // advance_status to FULLY_AMORTIZED.
@@ -45,7 +45,7 @@ type RecognizeMilestoneAdvanceDisbursementRepositories struct {
 	TreasuryDisbursement                     disbursementpb.DisbursementDomainServiceServer
 	ExpenseRecognition                       expenserecognitionpb.ExpenseRecognitionDomainServiceServer
 	SupplierBillingEvent                     supplierbillingeventpb.SupplierBillingEventDomainServiceServer
-	TreasuryDisbursementSupplierBillingEvent junctionpb.TreasuryDisbursementSupplierBillingEventDomainServiceServer
+	DisbursementSupplierBillingEvent junctionpb.DisbursementSupplierBillingEventDomainServiceServer
 }
 
 // RecognizeMilestoneAdvanceDisbursementServices groups infra services.
@@ -172,7 +172,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.TranslationService,
 			"treasury_disbursement.errors.junction_not_found",
-			"treasury_disbursement_supplier_billing_event junction not found [DEFAULT]",
+			"disbursement_supplier_billing_event junction not found [DEFAULT]",
 		))
 		return milestoneErrored(err), err
 	}
@@ -229,7 +229,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	now := time.Now()
 	dm := now.UnixMilli()
 	junction.DateModified = &dm
-	if _, err := uc.repositories.TreasuryDisbursementSupplierBillingEvent.UpdateTreasuryDisbursementSupplierBillingEvent(ctx, &junctionpb.UpdateTreasuryDisbursementSupplierBillingEventRequest{
+	if _, err := uc.repositories.DisbursementSupplierBillingEvent.UpdateDisbursementSupplierBillingEvent(ctx, &junctionpb.UpdateDisbursementSupplierBillingEventRequest{
 		Data: junction,
 	}); err != nil {
 		return milestoneErrored(err), err
@@ -269,21 +269,21 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	}, nil
 }
 
-// findJunction returns the single treasury_disbursement_supplier_billing_event
+// findJunction returns the single disbursement_supplier_billing_event
 // row matching (disbursement_id, supplier_billing_event_id), or nil if
 // missing.
 func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) findJunction(
 	ctx context.Context,
 	disbursementID, supplierBillingEventID string,
-) (*junctionpb.TreasuryDisbursementSupplierBillingEvent, error) {
-	if uc.repositories.TreasuryDisbursementSupplierBillingEvent == nil {
+) (*junctionpb.DisbursementSupplierBillingEvent, error) {
+	if uc.repositories.DisbursementSupplierBillingEvent == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.TranslationService,
 			"treasury_disbursement.errors.junction_repo_unavailable",
-			"treasury_disbursement_supplier_billing_event repository is not configured [DEFAULT]",
+			"disbursement_supplier_billing_event repository is not configured [DEFAULT]",
 		))
 	}
-	resp, err := uc.repositories.TreasuryDisbursementSupplierBillingEvent.ListTreasuryDisbursementSupplierBillingEvents(ctx, &junctionpb.ListTreasuryDisbursementSupplierBillingEventsRequest{
+	resp, err := uc.repositories.DisbursementSupplierBillingEvent.ListDisbursementSupplierBillingEvents(ctx, &junctionpb.ListDisbursementSupplierBillingEventsRequest{
 		Filters: &commonpb.FilterRequest{
 			Filters: []*commonpb.TypedFilter{
 				{
@@ -334,7 +334,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) findJunction(
 func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) insertRecognition(
 	ctx context.Context,
 	adv *disbursementpb.Disbursement,
-	junction *junctionpb.TreasuryDisbursementSupplierBillingEvent,
+	junction *junctionpb.DisbursementSupplierBillingEvent,
 	req *disbursementpb.RecognizeMilestoneAdvanceDisbursementRequest,
 	tranche int64,
 ) (string, error) {

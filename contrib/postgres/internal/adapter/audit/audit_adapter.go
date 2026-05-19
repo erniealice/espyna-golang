@@ -93,7 +93,7 @@ func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogReq
 	var entryID string
 	var occurredAt time.Time
 	err := exec.QueryRowContext(ctx, entrySQL,
-		workspaceID, ac.ActorID, actorType, nullableString(ac.IP), nullableString(ac.UserAgent),
+		nullableString(workspaceID), ac.ActorID, actorType, nullableString(ac.IP), nullableString(ac.UserAgent),
 		req.EntityType, req.EntityID,
 		req.Domain, req.Action, req.PermissionCode, req.UseCase, req.Reason, req.MethodName,
 		ac.RequestID, fieldCount,

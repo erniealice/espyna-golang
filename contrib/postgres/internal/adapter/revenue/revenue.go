@@ -37,6 +37,7 @@ var revenueSortableSQLCols = []string{
 	"date_created",
 	"date_modified",
 	"client_name",
+	"revenue_date_string",
 }
 
 // revenueViewToSQLColMap translates view-facing sort column keys to SQL column

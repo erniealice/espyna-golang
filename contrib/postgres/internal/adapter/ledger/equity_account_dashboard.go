@@ -5,6 +5,8 @@ package ledger
 import (
 	"context"
 	"fmt"
+
+	equitydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
 )
 
 // SumContributedTotal returns the total positive contribution balance across all
@@ -63,13 +65,17 @@ func (r *PostgresEquityAccountRepository) CountActive(
 // EquityAccountSlice is a tiny row shape used by the equity dashboard for the
 // "top contributors" widget — keeps the dashboard query cheap and avoids
 // dragging in the full proto for purely read-only display.
-type EquityAccountSlice struct {
-	ID          string
-	Name        string
-	OwnerName   string
-	AccountType string
-	Balance     int64
-}
+//
+// **Aliased to the service-layer row type** so the postgres adapter
+// directly satisfies [equitydash.EquityAccountDashboardRepository]. Go's
+// interface satisfaction requires the *exact* named return type — without
+// this alias the adapter's `TopContributors` would return its own local
+// `ledger.EquityAccountSlice`, silently failing the type assertion in
+// `internal/composition/core/initializers/service.go` and producing a nil
+// `dashboardDeps.EquityAccount` at runtime. See Q-SDM-DASHBOARD-COMPILE-ASSERTIONS
+// (LOCKED) and the §8 "Lesson learned" caveat in
+// `docs/wiki/articles/hexagonal-rules.md`.
+type EquityAccountSlice = equitydash.EquityAccountSlice
 
 // TopContributors returns the active equity accounts with the highest positive
 // balances. Workspace-scoped. Returned in centavos.

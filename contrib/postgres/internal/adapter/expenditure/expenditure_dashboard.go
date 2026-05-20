@@ -12,21 +12,18 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
+
+	expendituredash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/expenditure"
 )
 
-// TimeBucket is a (period, value) tuple for time-series aggregates. Centavos.
-type TimeBucket struct {
-	Period time.Time
-	Value  int64
-}
-
-// TopSupplierRow is one row in the "top suppliers by spend" widget.
-// Centavos. SupplierName falls back to SupplierID when no entity row exists.
-type TopSupplierRow struct {
-	SupplierID   string
-	SupplierName string
-	Total        int64
-}
+// Q-SDM-DASHBOARD-COMPILE-ASSERTIONS named-type contract: the postgres adapter
+// MUST return EXACTLY the named row types declared by the service-layer
+// dashboard package. Aliasing here keeps signatures identical so the
+// compile-time assertion in expenditure_dashboard_assertions.go succeeds.
+type (
+	TimeBucket     = expendituredash.TimeBucket
+	TopSupplierRow = expendituredash.TopSupplierRow
+)
 
 // CountByStatus returns a map of status → count for expenditures of the
 // given kind (`purchase` or `expense`). Workspace-scoped.

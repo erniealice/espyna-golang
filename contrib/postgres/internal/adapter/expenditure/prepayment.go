@@ -222,8 +222,13 @@ func (r *PostgresPrepaymentRepository) ListPrepayments(ctx context.Context, req 
 	}, nil
 }
 
-// GetPrepaymentListPageData retrieves prepayments with pagination, filtering, sorting, and search using CTE
-// TODO: Add enriched joins with account table for GL account names once CoA is in place
+// GetPrepaymentListPageData is a no-op stub: the Prepayment entity was RETIRED
+// on 2026-05-17 (see docs/wiki/articles/advance-cash-events.md) — the
+// `prepayment` table was dropped and the concept is now modeled as
+// `treasury_disbursement.advance_kind = TIME_BASED`. The proto and use cases
+// have not yet been removed, so this method still has to satisfy the server
+// interface; it returns an empty list rather than executing SQL against a
+// non-existent table with a non-existent `vendor_name` column.
 func (r *PostgresPrepaymentRepository) GetPrepaymentListPageData(
 	ctx context.Context,
 	req *prepaymentpb.GetPrepaymentListPageDataRequest,
@@ -231,173 +236,18 @@ func (r *PostgresPrepaymentRepository) GetPrepaymentListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get prepayment list page data request is required")
 	}
+	_ = ctx
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
-	limit := int32(50)
-	offset := int32(0)
 	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
-	}
-
-	sortField := "p.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-
-	query := fmt.Sprintf(`
-		WITH enriched AS (
-			SELECT
-				p.id,
-				p.date_created,
-				p.date_modified,
-				p.active,
-				p.description,
-				p.vendor_name,
-				p.total_amount,
-				p.remaining_amount,
-				p.start_date,
-				p.end_date,
-				p.amortization_months,
-				p.status,
-				p.account_id,
-				p.expense_account_id
-			FROM %s p
-			WHERE p.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       p.description ILIKE $1 OR
-			       p.vendor_name ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
-		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY %s %s
-		LIMIT $2 OFFSET $3;
-	`, r.tableName, sortField, sortOrder)
-
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query prepayment list page data: %w", err)
-	}
-	defer rows.Close()
-
-	var prepayments []*prepaymentpb.Prepayment
-	var totalCount int64
-
-	for rows.Next() {
-		var (
-			id                 string
-			dateCreated        int64
-			dateModified       int64
-			active             bool
-			description        string
-			vendorName         *string
-			totalAmount        int64
-			remainingAmount    int64
-			startDate          *string
-			endDate            *string
-			amortizationMonths int32
-			statusStr          string
-			accountID          *string
-			expenseAccountID   *string
-			total              int64
-		)
-
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&dateModified,
-			&active,
-			&description,
-			&vendorName,
-			&totalAmount,
-			&remainingAmount,
-			&startDate,
-			&endDate,
-			&amortizationMonths,
-			&statusStr,
-			&accountID,
-			&expenseAccountID,
-			&total,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan prepayment row: %w", err)
-		}
-
-		totalCount = total
-
-		prepayment := &prepaymentpb.Prepayment{
-			Id:                 id,
-			Active:             active,
-			Description:        description,
-			VendorName:         vendorName,
-			TotalAmount:        totalAmount,
-			RemainingAmount:    remainingAmount,
-			AmortizationMonths: amortizationMonths,
-			AccountId:          accountID,
-			ExpenseAccountId:   expenseAccountID,
-		}
-
-		if val, ok := prepaymentpb.PrepaymentStatus_value[statusStr]; ok {
-			prepayment.Status = prepaymentpb.PrepaymentStatus(val)
-		}
-
-		if startDate != nil {
-			prepayment.StartDate = *startDate
-		}
-		if endDate != nil {
-			prepayment.EndDate = *endDate
-		}
-		if dateCreated > 0 {
-			prepayment.DateCreated = &dateCreated
-		}
-		if dateModified > 0 {
-			prepayment.DateModified = &dateModified
-		}
-
-		prepayments = append(prepayments, prepayment)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating prepayment rows: %w", err)
-	}
-
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
-	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
 	return &prepaymentpb.GetPrepaymentListPageDataResponse{
-		PrepaymentList: prepayments,
+		PrepaymentList: nil,
 		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
+			TotalItems:  0,
 			CurrentPage: &page,
 			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
+			HasNext:     false,
+			HasPrev:     false,
 		},
 		Success: true,
 	}, nil

@@ -540,33 +540,43 @@ func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context, start, end *t
 	if table == "" {
 		return nil, nil
 	}
-	query := `SELECT id, reference_number, vendor_name, category, status,
-		total_amount, currency,
-		COALESCE(expenditure_date_string, '') AS expenditure_date,
-		COALESCE(notes, '') AS notes
-		FROM ` + table + `
-		WHERE expenditure_type = 'expense'`
+	supplierTable := a.tableConfig.Supplier
+	if supplierTable == "" {
+		supplierTable = "supplier"
+	}
+	// expenditure has no vendor_name / category columns; join supplier and the
+	// expenditure_category_id FK to recover those denormalized values for the
+	// reporting consumer (which still expects vendor_name + category aliases).
+	query := `SELECT e.id, e.reference_number,
+		COALESCE(s.name, '') AS vendor_name,
+		COALESCE(e.expenditure_category_id, '') AS category,
+		e.status, e.total_amount, e.currency,
+		COALESCE(e.expenditure_date_string, '') AS expenditure_date,
+		COALESCE(e.notes, '') AS notes
+		FROM ` + table + ` e
+		LEFT JOIN ` + supplierTable + ` s ON s.id = e.supplier_id
+		WHERE e.expenditure_type = 'expense'`
 
 	var args []any
 	paramIdx := 1
 
 	if start != nil {
-		query += fmt.Sprintf(" AND created_at >= $%d", paramIdx)
+		query += fmt.Sprintf(" AND e.date_created >= $%d", paramIdx)
 		args = append(args, *start)
 		paramIdx++
 	}
 	if end != nil {
-		query += fmt.Sprintf(" AND created_at <= $%d", paramIdx)
+		query += fmt.Sprintf(" AND e.date_created <= $%d", paramIdx)
 		args = append(args, *end)
 		paramIdx++
 	}
 	if workspaceID != "" {
-		query += fmt.Sprintf(" AND workspace_id = $%d", paramIdx)
+		query += fmt.Sprintf(" AND e.workspace_id = $%d", paramIdx)
 		args = append(args, workspaceID)
 		paramIdx++
 	}
 
-	query += " ORDER BY created_at DESC LIMIT 200"
+	query += " ORDER BY e.date_created DESC LIMIT 200"
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {

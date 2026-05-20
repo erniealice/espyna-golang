@@ -95,6 +95,16 @@ type RecognizeRevenueFromSubscriptionServices struct {
 	// step is skipped entirely (no warning). Failure is non-fatal; any error
 	// is appended as a structured "tax_compute_failed: <err>" warning so that
 	// the recognized Revenue is never rolled back on account of tax bookkeeping.
+	//
+	// 2026-05-20 Plan 2 / Q-SDM-TAX — the composition root now satisfies this
+	// Invoker by resolving the service-driven tax wrapper
+	// (`usecases/service/tax`.ComputeTaxesForRevenueUseCase) via the dynamic
+	// registry (servicetax.From). The previous wiring passed the entity-layer
+	// use case directly; the new path routes through the proto-shaped wrapper
+	// so the recognize flow consumes the formalized service contract
+	// (`proto/v1/service/tax/compute.proto`) without re-importing the
+	// entity-layer package. Failure semantics are unchanged — the wrapper's
+	// ExecuteForRevenue is a thin pass-through to the entity compute.
 	ComputeTaxes ComputeTaxesForRevenueInvoker
 }
 

@@ -7,15 +7,26 @@ import (
 	"fmt"
 	"time"
 
+	payrolldash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/payroll"
 	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
 )
 
 // TimeBucket is a (period, value) tuple used by payroll dashboard time series.
 // Values are centavos.
-type TimeBucket struct {
-	Period time.Time
-	Value  int64
-}
+//
+// **Aliased to the service-layer query-interface type** (Wave B P1.C.6
+// LANDED 2026-05-20) so the postgres adapter's `SumGrossByMonth` directly
+// satisfies [payrolldash.PayrollRunDashboardRepository]. Go's interface
+// satisfaction requires the *exact* named return type — without this alias
+// the adapter's `SumGrossByMonth` would return its own local
+// `payroll.TimeBucket`, silently failing the type assertion in
+// `internal/composition/core/initializers/service.go` and producing a nil
+// payroll dashboard at runtime. See Q-SDM-DASHBOARD-COMPILE-ASSERTIONS
+// (LOCKED 2026-05-20) and the §8 admin pilot "Lesson learned" caveat in
+// `docs/wiki/articles/hexagonal-rules.md` — this is the same trap that
+// shipped Wave B P1.C.1 with a permanently nil `dashboardDeps.AdminRole`
+// (codex review P0, 2026-05-20).
+type TimeBucket = payrolldash.TimeBucket
 
 // CountByStatus returns counts of payroll runs grouped by status, optionally
 // limited to runs created at-or-after `since`. Workspace-scoped.

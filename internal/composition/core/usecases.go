@@ -39,6 +39,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/event/dashboard"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/finance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
@@ -53,10 +54,20 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
+	servicetax "github.com/erniealice/espyna-golang/internal/application/usecases/service/tax"
+	// serviceregistrar blank-import: triggers init() of every
+	// dynamically-registered service-driven candidate (currently
+	// tax_compute; future dashboards/reporting). MUST be loaded before
+	// initializers.InitializeService so service.Register has populated
+	// the factory map by the time service.NewServiceUseCases iterates it.
+	// See docs/wiki/articles/hexagonal-rules.md §8 (tax_compute worked
+	// example) for the canonical shape.
+	_ "github.com/erniealice/espyna-golang/internal/application/usecases/serviceregistrar"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
 
 	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
+	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/tenancy"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
@@ -199,26 +210,39 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	// 2026-05-10 tax-integration Phase 4 — wire ComputeTaxesForRevenue into the
 	// revenue domain. Both revenueUC and taxUC must be initialized first.
 	// Non-fatal: if either is nil/empty, the respective hook remains a no-op.
+	//
+	// 2026-05-20 Plan 2 / Q-SDM-TAX — also capture the entity-layer compute
+	// into the service/tax registry slot so that NewServiceUseCases (called
+	// later in this method) builds a working service-driven Tax sub-aggregate.
+	// RecognizeRevenueFromSubscription is then rewired BELOW (after serviceUC
+	// is built) to route through that proto-shaped wrapper instead of the
+	// entity-layer use case directly, satisfying the Q-SDM-TAX direction
+	// (service-driven domain category) without changing failure semantics —
+	// the wrapper's ExecuteForRevenue is a thin pass-through that calls the
+	// captured entity compute with the same 3-arg shape.
+	var entityCompute *computepkg.ComputeTaxesForRevenueUseCase
 	if taxUC != nil && taxUC.ComputeTaxes != nil && revenueUC != nil && revenueUC.Revenue != nil {
-		computeUC := taxUC.ComputeTaxes.ComputeTaxesForRevenue
-		if computeUC != nil {
+		entityCompute = taxUC.ComputeTaxes.ComputeTaxesForRevenue
+		if entityCompute != nil {
 			// Wire into RecomputeTaxes admin use case (Phase E).
 			if revenueUC.Revenue.RecomputeTaxes != nil {
-				revenueUC.Revenue.RecomputeTaxes.SetComputeTaxes(computeUC)
+				revenueUC.Revenue.RecomputeTaxes.SetComputeTaxes(entityCompute)
 				fmt.Printf("Tax compute wired into revenue domain (ComputeTaxesForRevenue → RecomputeTaxes)\n")
-			}
-			// Wire into RecognizeRevenueFromSubscription post-persist hook (Phase C).
-			if revenueUC.Revenue.RecognizeRevenueFromSubscription != nil {
-				revenueUC.Revenue.RecognizeRevenueFromSubscription.SetComputeTaxes(computeUC)
-				fmt.Printf("Tax compute wired into revenue domain (ComputeTaxesForRevenue → RecognizeRevenueFromSubscription)\n")
 			}
 			// Wire into CreateRevenue post-persist hook (Phase D).
 			if revenueUC.Revenue.CreateRevenue != nil {
-				revenueUC.Revenue.CreateRevenue.SetComputeTaxes(computeUC)
+				revenueUC.Revenue.CreateRevenue.SetComputeTaxes(entityCompute)
 				fmt.Printf("Tax compute wired into revenue domain (ComputeTaxesForRevenue → CreateRevenue)\n")
 			}
 		}
 	}
+
+	// Capture entity-layer compute into the service/tax registry BEFORE
+	// initializeServiceUseCases runs. The registered factory reads the
+	// captured value at construction time; passing nil leaves the
+	// service.Tax sub-aggregate unresolved and the RecognizeRevenueFromSubscription
+	// invoker rewire below degrades to a no-op (no warning, no panic).
+	servicetax.SetEntityCompute(entityCompute)
 
 	financeUC, err := uci.initializeFinanceUseCases(container)
 	if err != nil {
@@ -247,13 +271,33 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	}
 
 	// 20260518-hexagonal-strict-adherence Phase 1.D — service-driven
-	// use cases (audit query; eventually reporting/auth/security per Q7).
+	// use cases (audit query; reporting; auth; security per Q7).
 	// Resolves the raw *sql.DB from the database provider so the audit
 	// service factory can plug in; degrades to a no-op service when the
-	// connection isn't SQL-backed (mock/firestore).
-	serviceUC, err := uci.initializeServiceUseCases(container)
+	// connection isn't SQL-backed (mock/firestore). Threads authUC so
+	// the Wave 3 / Plan 2 service-driven Auth sub-aggregate can wrap the
+	// existing entity-layer Auth use cases.
+	serviceUC, err := uci.initializeServiceUseCases(container, authUC)
 	if err != nil {
 		serviceUC = &service.ServiceUseCases{}
+	}
+
+	// 2026-05-20 Plan 2 / Q-SDM-TAX — wire RecognizeRevenueFromSubscription's
+	// ComputeTaxes hook through the service/tax wrapper instead of the
+	// entity-layer use case directly. The proto-shaped wrapper satisfies the
+	// narrow ComputeTaxesForRevenueInvoker contract via its ExecuteForRevenue
+	// pass-through (defined in service/tax/compute_taxes_for_revenue.go) — no
+	// failure-semantics change. serviceUC.Tax resolves via the dynamic
+	// registry (servicetax.From == service.Get[*servicetax.UseCases]); when
+	// the entity-layer compute is nil (no SQL provider), From returns nil and
+	// SetComputeTaxes(nil) below leaves the hook disabled per its nil-safe
+	// contract.
+	if serviceUC != nil && revenueUC != nil && revenueUC.Revenue != nil &&
+		revenueUC.Revenue.RecognizeRevenueFromSubscription != nil {
+		if taxSub := servicetax.From(serviceUC); taxSub != nil && taxSub.ComputeTaxesForRevenue != nil {
+			revenueUC.Revenue.RecognizeRevenueFromSubscription.SetComputeTaxes(taxSub.ComputeTaxesForRevenue)
+			fmt.Printf("Tax compute wired into revenue domain via service/tax (ComputeTaxesForRevenue → RecognizeRevenueFromSubscription [service-driven path])\n")
+		}
 	}
 
 	// Create aggregate with successfully initialized domains
@@ -1244,12 +1288,15 @@ func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (
 }
 
 // initializeServiceUseCases initializes the service-driven domain
-// sub-aggregate (audit query; eventually reporting/auth/security per
-// Q7). The audit sub-aggregate needs a raw *sql.DB so the audit service
-// factory can plug in; on non-SQL providers (mock/firestore) the
-// AuditService resolves to nil and the use cases degrade gracefully.
-func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container) (*service.ServiceUseCases, error) {
-	fmt.Printf("🧩 Initializing Service-driven use cases (audit)...\n")
+// sub-aggregate (audit query; reporting; auth; security per Q7). The
+// audit sub-aggregate needs a raw *sql.DB so the audit service factory
+// can plug in; on non-SQL providers (mock/firestore) the AuditService
+// resolves to nil and the use cases degrade gracefully. authUC is the
+// entity-layer Auth use cases; the service-driven Auth sub-aggregate
+// (Wave 3 / Plan 2, 2026-05-20) WRAPS them to expose a proto-shaped
+// Request/Response surface.
+func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, authUC *auth.UseCases) (*service.ServiceUseCases, error) {
+	fmt.Printf("🧩 Initializing Service-driven use cases (audit, security, auth)...\n")
 
 	authSvc, _, i18nSvc, _, err := uci.getServices(container)
 	if err != nil {
@@ -1271,12 +1318,84 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container) (
 		}
 	}
 
-	svcUC, err := initializers.InitializeService(sqlDB, authSvc, i18nSvc)
+	// Wave B P1.C.1+: dashboards under service.Dashboard read across
+	// entity repos via extension interfaces; resolve them once here so
+	// InitializeService can thread per-candidate Deps fields through to
+	// the umbrella factory.
+	//
+	// Round 2a (Location P1.C.2, Equity P1.C.4, Payroll P1.C.6) aborted
+	// 2026-05-20 — the ledger/payroll repo resolution for the equity +
+	// payroll dashboards is omitted here until the proto regen + use
+	// cases re-land. See docs/plan/20260520-service-domain-migration/
+	// progress.md.
+	entityRepos, _ := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+
+	// Wave B P1.C.4 Equity — dashboards under service.Dashboard.Equity read
+	// across the ledger equity_account + equity_transaction aggregates.
+	// Resolved here so InitializeService can thread typed Deps fields into
+	// the umbrella factory. Nil under non-postgres builds — equity use case
+	// tolerates nil repositories.
+	ledgerReposForSvc, _ := domain.NewLedgerRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+
+	// Wave B P1.C.6 Payroll — dashboards under service.Dashboard.Payroll read
+	// across the payroll_run + payroll_remittance aggregates. Resolved here
+	// so InitializeService can thread typed Deps fields into the umbrella
+	// factory. Nil under non-postgres builds — payroll dashboard use case
+	// tolerates nil repositories.
+	payrollReposForSvc, _ := domain.NewPayrollRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+
+	// Wave B P1.C.5 Treasury (unified Loan+Cash) — dashboards under
+	// service.Dashboard.Treasury read across loan + loan_payment (Loan slice)
+	// and collection (Cash slice). Resolved here so InitializeService can
+	// thread typed Deps fields into the umbrella factory. Nil under non-
+	// postgres builds — treasury dashboard use cases tolerate nil repos.
+	treasuryReposForSvc, _ := domain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+
+	// Wave C P1.C.8 Expenditure, P1.C.9 Job (source aggregate `operation`),
+	// P1.C.11 Product, P1.C.12 Fulfillment — dashboards under
+	// service.Dashboard.{Expenditure,Job,Product,Fulfillment} read from the
+	// expenditure / operation (job+job_activity) / product / fulfillment
+	// aggregates. Resolved here so InitializeService can thread typed Deps
+	// fields into the umbrella factory. Nil under non-postgres builds — each
+	// dashboard use case tolerates nil repositories.
+	expenditureReposForSvc, _ := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	operationReposForSvc, _ := domain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	productReposForSvc, _ := domain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	fulfillmentReposForSvc, _ := domain.NewFulfillmentRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+
+	// Wave B P1.C.7 Schedule (event dashboard): build the entity-layer
+	// schedule-dashboard use case here so the service-layer wrapper can
+	// wrap it without re-coupling event/usecases.go to the dashboard
+	// proto. The event repo only satisfies EventDashboardRepository under
+	// the postgres adapter; type assertion fails harmlessly on mock builds
+	// and the wrapper degrades to empty Response.
+	eventRepos, _ := domain.NewEventRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	var scheduleEntityDash *eventdashboard.GetScheduleDashboardPageDataUseCase
+	if eventRepos != nil && eventRepos.Event != nil {
+		if eq, ok := eventRepos.Event.(eventdashboard.EventDashboardRepository); ok {
+			scheduleEntityDash = eventdashboard.NewGetScheduleDashboardPageDataUseCase(eq)
+		}
+	}
+
+	// Wave B P1.E.1 AR aging — the espyna composition root cannot build the
+	// concrete ledger reporting svc here (the table config lives in the
+	// app's composition root, e.g. apps/service-admin/internal/composition/
+	// ledger_reporting.go:721-746). Pass nil; the AR aging Reporter on the
+	// umbrella stays nil and the use cases degrade to empty responses
+	// until the app's composition root rewires through a different code
+	// path. The actual wiring happens in apps/service-admin via a setter
+	// pattern (see ar_aging.SetReporter in service/reporting/ar_aging/).
+	var ledgerReportingSvcForARAging any = nil
+
+	svcUC, err := initializers.InitializeService(sqlDB, authSvc, i18nSvc, authUC, entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize service-driven use cases: %v\n", err)
 		return &service.ServiceUseCases{}, err
 	}
-	fmt.Printf("✅ Service-driven use cases initialized (audit: %v)\n", svcUC != nil && svcUC.Audit != nil)
+	fmt.Printf("✅ Service-driven use cases initialized (audit: %v, security: %v, auth: %v)\n",
+		svcUC != nil && svcUC.Audit != nil,
+		svcUC != nil && svcUC.Security != nil,
+		svcUC != nil && svcUC.Auth != nil)
 	return svcUC, nil
 }
 

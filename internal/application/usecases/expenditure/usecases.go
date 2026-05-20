@@ -4,9 +4,7 @@ import (
 	// Expenditure use cases
 	accruedExpenseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/accrued_expense"
 
-	// Dashboard use case (purchase + expense share one use case)
 	accruedExpenseSettlementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/accrued_expense_settlement"
-	expendituredashboard "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/dashboard"
 	expenditureUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure"
 	expenditureAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_attribute"
 	expenditureCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure/expenditure_category"
@@ -121,10 +119,11 @@ type ExpenditureUseCases struct {
 	AccruedExpense                    *accruedExpenseUseCases.UseCases
 	AccruedExpenseSettlement          *accruedExpenseSettlementUseCases.UseCases
 
-	// Dashboard use case — shared for both purchase and expense surfaces
-	// (the request carries the Kind discriminator). Nil when postgres build
-	// tag is inactive.
-	Dashboard *expendituredashboard.GetExpenditureDashboardPageDataUseCase
+	// Dashboard field retired 2026-05-21 (Wave C P1.C.8 Expenditure) — the
+	// dashboard now lives under `service.Dashboard.Expenditure` per Q-SDM-
+	// DASHBOARD-DOWNSTREAM. The `usecases/expenditure/dashboard/` package is
+	// retired in the same commit; the repository composition relocated to
+	// `usecases/service/dashboard/expenditure/`.
 }
 
 // NewUseCases creates all expenditure use cases with proper constructor injection.
@@ -351,13 +350,10 @@ func NewUseCases(
 		},
 	)
 
-	// Wire expenditure dashboard via type assertion on expenditure repo.
-	var expenditureDash *expendituredashboard.GetExpenditureDashboardPageDataUseCase
-	if repos.Expenditure != nil {
-		if eq, ok := repos.Expenditure.(expendituredashboard.ExpenditureDashboardQueries); ok {
-			expenditureDash = expendituredashboard.NewGetExpenditureDashboardPageDataUseCase(eq)
-		}
-	}
+	// Expenditure dashboard wiring retired 2026-05-21 (Wave C P1.C.8) —
+	// type-assertion + factory wiring now lives in the service-layer
+	// initializer at `internal/composition/core/initializers/service.go`
+	// (search "Wave C P1.C.8 Expenditure").
 
 	// 20260517-expense-run Plan A Phase 2 — RecognizeExpenseFromSupplierSubscription.
 	recognizeFromSupplierSub := expenseRecognitionUseCases.NewRecognizeExpenseFromSupplierSubscriptionUseCase(
@@ -468,6 +464,5 @@ func NewUseCases(
 		ExpenseRecognitionRun:             expenseRecognitionRunUC,
 		AccruedExpense:                    accruedExpenseUC,
 		AccruedExpenseSettlement:          accruedExpenseSettlementUC,
-		Dashboard:                         expenditureDash,
 	}
 }

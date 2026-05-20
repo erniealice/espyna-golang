@@ -22,9 +22,6 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
-	// Dashboard use case
-	jobdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/operation/dashboard"
-
 	// Protobuf domain services for operation repositories
 	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
 	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
@@ -111,8 +108,12 @@ type OperationUseCases struct {
 	PhaseOutcomeSummary  *phaseOutcomeSummaryUseCases.UseCases
 	JobOutcomeSummary    *jobOutcomeSummaryUseCases.UseCases
 
-	// Dashboard use case (nil when postgres build tag is inactive).
-	Dashboard *jobdashboard.GetJobDashboardPageDataUseCase
+	// Dashboard field retired 2026-05-21 (Wave C P1.C.9 Job) — the dashboard
+	// now lives under `service.Dashboard.Job` (note the candidate-name vs.
+	// source-aggregate divergence: source is `operation`, surface is `Job`).
+	// The `usecases/operation/dashboard/` package is retired in the same
+	// commit; the repository composition relocated to
+	// `usecases/service/dashboard/job/`.
 }
 
 // NewUseCases creates all operation use cases with proper constructor injection
@@ -285,20 +286,10 @@ func NewUseCases(
 		},
 	)
 
-	// Wire job dashboard via type assertions on job + job_activity repos.
-	var jobDash *jobdashboard.GetJobDashboardPageDataUseCase
-	if repos.Job != nil && repos.JobActivity != nil {
-		jobQ, jOK := repos.Job.(jobdashboard.JobDashboardQueries)
-		actQ, aOK := repos.JobActivity.(jobdashboard.JobActivityDashboardQueries)
-		if jOK && aOK {
-			// Optional recent-activity interface.
-			var recentQ jobdashboard.JobActivityRecentQueries
-			if rq, ok := repos.JobActivity.(jobdashboard.JobActivityRecentQueries); ok {
-				recentQ = rq
-			}
-			jobDash = jobdashboard.NewGetJobDashboardPageDataUseCase(jobQ, actQ, recentQ)
-		}
-	}
+	// Job dashboard wiring retired 2026-05-21 (Wave C P1.C.9 Job) —
+	// type-assertion + factory wiring now lives in the service-layer
+	// initializer at `internal/composition/core/initializers/service.go`
+	// (search "Wave C P1.C.9 Job").
 
 	// Phase 3 F7 closure — wrap the raw JobTemplateRelation
 	// DomainServiceServer in a Layer-7 use case sub-aggregate. nil-safe when
@@ -330,6 +321,5 @@ func NewUseCases(
 		TaskOutcomeCheck:     taskOutcomeCheckUC,
 		PhaseOutcomeSummary:  phaseOutcomeSummaryUC,
 		JobOutcomeSummary:    jobOutcomeSummaryUC,
-		Dashboard:            jobDash,
 	}
 }

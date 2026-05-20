@@ -7,17 +7,15 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	jobdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
+	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 )
 
-// TimeBucket is a generic (period, value) tuple for time-series aggregates,
-// shared across multiple dashboard methods in the operation adapter package.
-//
-// Value semantics depend on the producing method:
-//   - SumHoursByWeek: hours × 100 (centi-hours) for fixed-precision integer math.
-type TimeBucket struct {
-	Period time.Time
-	Value  int64
-}
+// Q-SDM-DASHBOARD-COMPILE-ASSERTIONS named-type contract: alias TimeBucket
+// from the service-layer job dashboard package so the adapter's named return
+// type matches the interface.
+type TimeBucket = jobdash.TimeBucket
 
 // jaGetDB extracts the raw *sql.DB from the dbOps wrapper. Mirrors the
 // pattern used by NewPostgresJobRepository (job.go) and the other adapters
@@ -102,6 +100,100 @@ func (r *PostgresJobActivityRepository) SumHoursByWeek(
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating hours-by-week rows: %w", err)
+	}
+	return out, nil
+}
+
+// RecentActivity returns the most recent JobActivity rows (ordered by
+// entry_date DESC, then date_created DESC) for the workspace's "Recent
+// Activity" dashboard widget. Returns sparse protos populated with just the
+// columns the widget consumes: id, job_id, quantity, description,
+// entry_date (+ entry_date_string).
+//
+// codex-review-phase1-round2b P1 fix (2026-05-21): adds the missing optional
+// repository method so the runtime type assertion in
+// `internal/composition/core/initializers/service.go` succeeds, populating
+// `dashboardDeps.JobActivityRecent`. Without this method the Recent Activity
+// widget rendered permanently empty.
+//
+// Performance index recommendation:
+//
+//	CREATE INDEX idx_job_activity_workspace_entrydate
+//	  ON job_activity(workspace_id, entry_date DESC)
+//	  WHERE active = true;
+func (r *PostgresJobActivityRepository) RecentActivity(
+	ctx context.Context,
+	workspaceID string,
+	limit int32,
+) ([]*jobactivitypb.JobActivity, error) {
+	if r == nil {
+		return nil, fmt.Errorf("repository is nil")
+	}
+	db := jaGetDB(r.dbOps)
+	if db == nil {
+		return nil, fmt.Errorf("database connection is not available")
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+
+	const query = `
+		SELECT
+			ja.id,
+			ja.job_id,
+			ja.quantity,
+			ja.description,
+			ja.entry_date,
+			ja.date_created
+		FROM job_activity ja
+		WHERE ja.active = true
+		  AND ($1::text IS NULL OR $1::text = '' OR ja.workspace_id = $1)
+		ORDER BY ja.entry_date DESC NULLS LAST, ja.date_created DESC NULLS LAST
+		LIMIT $2`
+
+	rows, err := db.QueryContext(ctx, query, workspaceID, limit)
+	if err != nil {
+		return nil, nil //nolint:nilerr
+	}
+	defer rows.Close()
+
+	out := make([]*jobactivitypb.JobActivity, 0, limit)
+	for rows.Next() {
+		var (
+			id          string
+			jobID       string
+			quantity    float64
+			description sql.NullString
+			entryDate   sql.NullTime
+			dateCreated sql.NullTime
+		)
+		if scanErr := rows.Scan(&id, &jobID, &quantity, &description, &entryDate, &dateCreated); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan recent-activity row: %w", scanErr)
+		}
+		ja := &jobactivitypb.JobActivity{
+			Id:       id,
+			JobId:    jobID,
+			Quantity: quantity,
+			Active:   true,
+		}
+		if description.Valid {
+			d := description.String
+			ja.Description = &d
+		}
+		if entryDate.Valid {
+			ts := entryDate.Time.Unix()
+			ja.EntryDate = &ts
+			s := entryDate.Time.Format("2006-01-02")
+			ja.EntryDateString = &s
+		}
+		if dateCreated.Valid {
+			ts := dateCreated.Time.Unix()
+			ja.DateCreated = &ts
+		}
+		out = append(out, ja)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating recent-activity rows: %w", err)
 	}
 	return out, nil
 }

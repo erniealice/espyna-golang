@@ -46,7 +46,6 @@ constructor. Final inventory post-2026-05-18:
 | `adapter_auth.go` | AuthAdapter | VerifyToken, CreateCustomToken |
 | `adapter_database.go` | DatabaseAdapter | Create, Read, Update, Delete, List, Query |
 | `adapter_email.go` | EmailAdapter | SendEmail, SendSimpleEmail, SendHTMLEmail |
-| `adapter_permission_query.go` | PermissionQueryAdapter | GetUserPermissionCodes |
 | `adapter_server.go` | ServerAdapter | Start, RegisterRoute, RegisterMiddleware |
 | `adapter_storage.go` | StorageAdapter | Upload, Download, Delete, GetSignedURL |
 
@@ -70,6 +69,7 @@ Eight `consumer/adapter_*.go` files were removed:
 | `adapter_session.go` | USE_CASE_WRAPPER (wraps `usecases/auth`) | Service-admin middleware calls `uc.Auth.X.Execute` directly via `consumer/auth_aliases.go` type aliases. |
 | `adapter_audit.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/audit/list_audit_entries.go` use case (Q7 service-driven domain category); decorator moved to `internal/composition/audit/decorator.go`. |
 | `adapter_ledger.go` | Tier 2 (δ) visibility-bridge | Service-admin assembles a local `*ledgerReporting` struct via the existing public `registry.GetLedgerReportingFactory` alias; satisfies the duck-typed `LedgerReportingService` interfaces in fycha/centymo/entydad. |
+| `adapter_permission_query.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/security/get_user_permission_codes.go` use case (Q7 service-driven domain — `proto/v1/service/security/permission_query.proto`); registry-resolution helper moved to `internal/composition/security/permission_query.go`. Removed in 20260520-service-domain-migration. |
 | `adapter_fulfillment.go` | Tier 3 — 0 callers | Underlying port + impls under `internal/application/ports/integration/` stay. Re-promote when a real caller arrives. |
 | `adapter_id.go` | Tier 3 — 0 callers | Same. The ID service is still wired via DI from composition; this facade was unused. |
 | `adapter_payment.go` | Tier 3 — 0 callers | Same. Payment registration still works via `register_payment_*.go` build-tag shims. |

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	locationdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/location"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 )
 
@@ -17,11 +18,18 @@ import (
 // while individual Locations belong to one area via location.location_area_id.
 // Per Phase 4 of the dashboards plan, the location dashboard surfaces
 // per-area concentration and per-area location count via this struct.
-type LocationAreaCount struct {
-	LocationAreaID   string
-	LocationAreaName string
-	LocationCount    int64
-}
+//
+// **Wave B P1.C.2 / Q-SDM-DASHBOARD-COMPILE-ASSERTIONS (LOCKED 2026-05-20):**
+// aliased to `locationdash.LocationAreaCount` so the postgres
+// `PostgresLocationAreaRepository` adapter's CountByLocation method
+// directly satisfies [locationdash.LocationAreaDashboardRepository]. Go's
+// interface satisfaction requires EXACT named-type matches; without this
+// alias the adapter would return its own named `entity.LocationAreaCount`,
+// silently failing the type assertion in `initializers/service.go` (the
+// exact bug that shipped with P1.C.1 Admin; see `role_dashboard.go:46` for
+// the equivalent fix). The `location_dashboard_assertions.go` sibling file
+// enforces the satisfaction at compile time.
+type LocationAreaCount = locationdash.LocationAreaCount
 
 // CountByStatus returns a map of status → count for locations in the
 // workspace. Locations have a boolean `active` flag (no enum status), so

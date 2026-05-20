@@ -32,8 +32,10 @@ import (
 	// Note: Protobuf imports removed as domain-level constructors are no longer used
 
 	// Dashboard use cases
-	admindashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/admin/dashboard"
-	locationdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/location/dashboard"
+	// Note: AdminDashboard relocated to service/dashboard/admin per
+	// docs/plan/20260520-service-domain-migration §P1.C.1 (Q-SDM-DASHBOARD-LAYOUT).
+	// Note: LocationDashboard relocated to service/dashboard/location per
+	// docs/plan/20260520-service-domain-migration §P1.C.2 (Q-SDM-DASHBOARD-LAYOUT).
 )
 
 // EntityUseCases contains all entity-related use cases
@@ -66,9 +68,10 @@ type EntityUseCases struct {
 	WorkspaceUser       *workspaceUserUseCases.UseCases
 	WorkspaceUserRole   *workspaceUserRoleUseCases.UseCases
 
-	// Dashboard use cases (nil when postgres build tag is inactive).
-	LocationDashboard *locationdashboard.GetLocationDashboardPageDataUseCase
-	AdminDashboard    *admindashboard.GetAdminDashboardPageDataUseCase
+	// Dashboard use cases retired to service-driven layer:
+	//   - AdminDashboard → service.Dashboard.Admin (Wave B P1.C.1)
+	//   - LocationDashboard → service.Dashboard.Location (Wave B P1.C.2)
+	// per docs/plan/20260520-service-domain-migration §P1.C, Q-SDM-DASHBOARD-LAYOUT.
 }
 
 // Note: Domain-level constructors are no longer needed with the new architecture.

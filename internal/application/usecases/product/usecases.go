@@ -2,7 +2,6 @@ package product
 
 import (
 	// Product use cases
-	productdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/product/dashboard"
 	lineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/line"
 	priceListUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/price_list"
 	priceProductUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/product/price_product"
@@ -74,8 +73,14 @@ type ProductUseCases struct {
 	ProductVariantOption *productVariantOptionUC.UseCases
 	Resource             *resourceUseCases.UseCases
 
-	// Dashboard use case — nil when postgres build tag is inactive.
-	Dashboard *productdashboard.GetServiceDashboardPageDataUseCase
+	// Dashboard field retired 2026-05-21 (Wave C P1.C.11 Product) — the
+	// dashboard now lives under `service.Dashboard.Product` per Q-SDM-
+	// DASHBOARD-DOWNSTREAM. The `usecases/product/dashboard/` package is
+	// retired in the same commit; the repository composition relocated to
+	// `usecases/service/dashboard/product/`. Source use case was
+	// `GetServiceDashboardPageDataUseCase` because it filters
+	// product_kind="service"; service-layer surfaces it under the
+	// candidate-aligned name `GetProductDashboard`.
 }
 
 // NewUseCases creates all product use cases with proper constructor injection
@@ -248,13 +253,10 @@ func NewUseCases(
 		},
 	)
 
-	// Wire service dashboard via type assertion on product repo.
-	var serviceDash *productdashboard.GetServiceDashboardPageDataUseCase
-	if repos.Product != nil {
-		if pq, ok := repos.Product.(productdashboard.ProductDashboardQueries); ok {
-			serviceDash = productdashboard.NewGetServiceDashboardPageDataUseCase(pq)
-		}
-	}
+	// Product dashboard wiring retired 2026-05-21 (Wave C P1.C.11) — the
+	// type-assertion + factory wiring now lives in the service-layer
+	// initializer at `internal/composition/core/initializers/service.go`
+	// (search "Wave C P1.C.11 Product").
 
 	return &ProductUseCases{
 		Line:                 lineUC,
@@ -270,6 +272,5 @@ func NewUseCases(
 		ProductVariantImage:  productVariantImageUseCases,
 		ProductVariantOption: productVariantOptionUseCases,
 		Resource:             resourceUC,
-		Dashboard:            serviceDash,
 	}
 }

@@ -87,12 +87,18 @@ func buildGrossProfitQuery(tc TableConfig, req *reportpb.GrossProfitReportReques
 	var sb strings.Builder
 
 	// Revenue summary CTE
+	// NOTE (2026-05-20): `revenue_line_item` has no `discount_amount` column —
+	// the dashboard report was crashing with `pq: column rli.discount_amount
+	// does not exist`. Discount tracking at the line level is a future
+	// migration; for now total_discount is hard-zeroed and net_revenue equals
+	// total_revenue. Re-introduce SUM(COALESCE(rli.discount_amount, 0)) when
+	// the column lands.
 	sb.WriteString(fmt.Sprintf(`WITH revenue_summary AS (
     SELECT
         %s,
         SUM(rli.total_price)::bigint AS total_revenue,
-        SUM(COALESCE(rli.discount_amount, 0))::bigint AS total_discount,
-        (SUM(rli.total_price) - SUM(COALESCE(rli.discount_amount, 0)))::bigint AS net_revenue,
+        0::bigint AS total_discount,
+        SUM(rli.total_price)::bigint AS net_revenue,
         SUM(rli.quantity)::bigint AS units_sold,
         COUNT(DISTINCT r.id) AS transaction_count
     FROM %s rli

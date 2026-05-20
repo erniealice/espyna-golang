@@ -6,8 +6,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
 	// Dashboard use cases
-	admindashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/admin/dashboard"
-	locationdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/entity/location/dashboard"
+	// Note: admin dashboard relocated to service/dashboard/admin per Wave B P1.C.1
+	// (docs/plan/20260520-service-domain-migration §P1.C.1). The admin dashboard
+	// repository wiring lives in initializers/service.go now.
+	// Note: location dashboard relocated to service/dashboard/location per Wave B P1.C.2
+	// (docs/plan/20260520-service-domain-migration §P1.C.2). The location dashboard
+	// repository wiring lives in initializers/service.go now.
 
 	// Entity sub-domain use cases
 	adminUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/entity/admin"
@@ -318,30 +322,13 @@ func InitializeEntity(
 		)
 	}
 
-	// Wire location dashboard via type assertions on location + location_area repos.
-	if repos.Location != nil {
-		locQ, lOK := repos.Location.(locationdashboard.LocationDashboardRepository)
-		if lOK {
-			var areaQ locationdashboard.LocationAreaDashboardRepository
-			if repos.LocationArea != nil {
-				if aq, ok := repos.LocationArea.(locationdashboard.LocationAreaDashboardRepository); ok {
-					areaQ = aq
-				}
-			}
-			result.LocationDashboard = locationdashboard.NewGetLocationDashboardPageDataUseCase(locQ, areaQ)
-		}
-	}
-
-	// Wire admin dashboard via type assertions on permission/role/workspace_user/workspace_user_role repos.
-	if repos.Permission != nil && repos.Role != nil && repos.WorkspaceUser != nil && repos.WorkspaceUserRole != nil {
-		permQ, p1 := repos.Permission.(admindashboard.PermissionDashboardRepository)
-		roleQ, p2 := repos.Role.(admindashboard.RoleDashboardRepository)
-		wuQ, p3 := repos.WorkspaceUser.(admindashboard.WorkspaceUserDashboardRepository)
-		wurQ, p4 := repos.WorkspaceUserRole.(admindashboard.WorkspaceUserRoleDashboardRepository)
-		if p1 && p2 && p3 && p4 {
-			result.AdminDashboard = admindashboard.NewGetAdminDashboardPageDataUseCase(permQ, roleQ, wuQ, wurQ)
-		}
-	}
+	// Admin dashboard wiring relocated to initializers/service.go
+	// (Wave B P1.C.1 — Q-SDM-DASHBOARD-LAYOUT). The cross-entity repository
+	// type assertions live on service.Dashboard.Admin's Deps now.
+	//
+	// Location dashboard wiring relocated to initializers/service.go
+	// (Wave B P1.C.2 — Q-SDM-DASHBOARD-LAYOUT). The cross-entity repository
+	// type assertions live on service.Dashboard.Location's Deps now.
 
 	return result, nil
 }

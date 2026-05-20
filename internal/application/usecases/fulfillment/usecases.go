@@ -2,7 +2,6 @@ package fulfillment
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	fulfillmentdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment/dashboard"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
 
@@ -31,8 +30,11 @@ type UseCases struct {
 	TransitionStatus           *TransitionStatusUseCase
 	ListStatusEvents           *ListStatusEventsUseCase
 
-	// Dashboard use case (nil when postgres build tag is inactive).
-	Dashboard *fulfillmentdashboard.GetFulfillmentDashboardPageDataUseCase
+	// Dashboard field retired 2026-05-21 (Wave C P1.C.12 Fulfillment) — the
+	// dashboard now lives under `service.Dashboard.Fulfillment` per Q-SDM-
+	// DASHBOARD-DOWNSTREAM. The `usecases/fulfillment/dashboard/` package is
+	// retired in the same commit; the repository composition relocated to
+	// `usecases/service/dashboard/fulfillment/`.
 }
 
 // NewUseCases creates a new collection of fulfillment use cases.
@@ -40,13 +42,10 @@ func NewUseCases(
 	repositories Repositories,
 	services Services,
 ) *UseCases {
-	// Wire fulfillment dashboard via type assertion on the fulfillment repo.
-	var fulfillDash *fulfillmentdashboard.GetFulfillmentDashboardPageDataUseCase
-	if repositories.Fulfillment != nil {
-		if fq, ok := repositories.Fulfillment.(fulfillmentdashboard.FulfillmentDashboardQueries); ok {
-			fulfillDash = fulfillmentdashboard.NewGetFulfillmentDashboardPageDataUseCase(fq)
-		}
-	}
+	// Fulfillment dashboard wiring retired 2026-05-21 (Wave C P1.C.12) —
+	// type-assertion + factory wiring now lives in the service-layer
+	// initializer at `internal/composition/core/initializers/service.go`
+	// (search "Wave C P1.C.12 Fulfillment").
 
 	return &UseCases{
 		CreateFulfillment: &CreateFulfillmentUseCase{
@@ -115,6 +114,5 @@ func NewUseCases(
 				TranslationService:   services.TranslationService,
 			},
 		},
-		Dashboard: fulfillDash,
 	}
 }

@@ -4,6 +4,7 @@ package postgres
 
 import (
 	// Repository sub-packages - each registers its factory via init()
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/asset"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/common"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/document"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/entity"

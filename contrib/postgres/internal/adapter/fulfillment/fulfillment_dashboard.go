@@ -9,16 +9,14 @@ import (
 	"time"
 
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
+
+	fulfillmentdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/fulfillment"
 )
 
-// TimeBucket is a generic (period, value) tuple for time-series aggregates,
-// shared across the fulfillment dashboard methods.
-//
-//	DailyDeliveredLast30 → Value = count of deliveries on that day.
-type TimeBucket struct {
-	Period time.Time
-	Value  int64
-}
+// Q-SDM-DASHBOARD-COMPILE-ASSERTIONS named-type contract: alias TimeBucket
+// from the service-layer fulfillment dashboard package so the adapter's
+// named return type matches the interface.
+type TimeBucket = fulfillmentdash.TimeBucket
 
 // CountByStatus returns a map of fulfillment.status (canonical string e.g.
 // "PENDING", "IN_TRANSIT", "DELIVERED", "EXCEPTION", "CANCELLED") to count,
@@ -169,13 +167,13 @@ func (r *PostgresFulfillmentRepository) RecentExceptions(
 	out := make([]*pb.Fulfillment, 0, limit)
 	for rows.Next() {
 		var (
-			id              string
-			status          sql.NullString
-			deliveryMode    sql.NullString
-			providerStatus  sql.NullString
-			providerRef     sql.NullString
-			dateCreated     sql.NullTime
-			dateModified    sql.NullTime
+			id             string
+			status         sql.NullString
+			deliveryMode   sql.NullString
+			providerStatus sql.NullString
+			providerRef    sql.NullString
+			dateCreated    sql.NullTime
+			dateModified   sql.NullTime
 		)
 		if scanErr := rows.Scan(
 			&id, &status, &deliveryMode, &providerStatus, &providerRef,
@@ -233,6 +231,12 @@ func (r *PostgresFulfillmentRepository) DailyDeliveredLast30(
 		asOf = time.Now()
 	}
 
+	// codex-review-phase1-round2b P0 fix (2026-05-21): count f.id (not e.id) so
+	// that the workspace LEFT JOIN actually scopes the aggregate. Counting e.id
+	// would include event rows that join to no fulfillment row (i.e. wrong
+	// workspace), inflating the delivered count across workspaces. With
+	// COUNT(f.id) the workspace predicate on the fulfillment join effectively
+	// becomes a workspace filter on what gets counted.
 	const query = `
 		WITH days AS (
 			SELECT generate_series(
@@ -243,7 +247,7 @@ func (r *PostgresFulfillmentRepository) DailyDeliveredLast30(
 		)
 		SELECT
 			d.bucket,
-			COUNT(e.id)::bigint AS delivered
+			COUNT(f.id)::bigint AS delivered
 		FROM days d
 		LEFT JOIN fulfillment_status_event e
 			ON date_trunc('day', e.occurred_at) = d.bucket

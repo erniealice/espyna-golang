@@ -6,25 +6,25 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	treasurydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/treasury"
 )
 
-// TimeBucket is a generic (period, value) tuple for time-series aggregates,
-// shared across multiple dashboard methods. Values are centavos.
-type TimeBucket struct {
-	Period time.Time
-	Value  int64
-}
+// TimeBucket is aliased to the service-layer Go-only TimeBucket so the
+// adapter's dashboard methods satisfy the service-layer
+// `LoanDashboardRepository` / `CollectionDashboardRepository` interfaces
+// EXACTLY (Q-SDM-DASHBOARD-COMPILE-ASSERTIONS, LOCKED 2026-05-20). Using a
+// fresh local type would silently break the runtime type assertion in
+// `internal/composition/core/initializers/service.go`. Wave B P1.C.5
+// adopted the same aliasing pattern from the Location pilot
+// (P1.C.2) — see `internal/application/usecases/service/dashboard/
+// location/get_location_dashboard.go` for the canonical doc-comment.
+type TimeBucket = treasurydash.TimeBucket
 
-// LoanSlice is a tiny row shape for the loan dashboard "top 5 by outstanding"
-// widget. Centavos.
-type LoanSlice struct {
-	ID               string
-	LoanNumber       string
-	LenderName       string
-	RemainingBalance int64
-	PrincipalAmount  int64
-	Status           string
-}
+// LoanSlice is aliased to the service-layer Go-only LoanSlice for the same
+// reason as TimeBucket above. The runtime assertion in
+// `initializers/service.go` requires exact named return type match.
+type LoanSlice = treasurydash.LoanSlice
 
 // SumOutstanding returns the sum of remaining_balance across all active loans
 // (centavos). Workspace-scoped.

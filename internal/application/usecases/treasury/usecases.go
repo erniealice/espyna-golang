@@ -10,10 +10,6 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
-	// Dashboard use cases
-	cashdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/collection/dashboard"
-	loandashboard "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/dashboard"
-
 	// Protobuf domain services for treasury repositories
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
@@ -85,9 +81,12 @@ type TreasuryUseCases struct {
 	PettyCash              *pettyCashUseCases.UseCases
 	WithholdingCertificate *withholdingCertificateUseCases.UseCases
 
-	// Dashboard use cases (nil when postgres build tag is inactive).
-	LoanDashboard *loandashboard.GetLoanDashboardPageDataUseCase
-	CashDashboard *cashdashboard.GetCashDashboardPageDataUseCase
+	// LoanDashboard + CashDashboard fields retired 2026-05-21 (Wave B P1.C.5
+	// unified Treasury candidate) — both surfaces now live under
+	// `service.Dashboard.Treasury.Loan` and `service.Dashboard.Treasury.Cash`.
+	// The `usecases/treasury/dashboard/` + `usecases/treasury/collection/
+	// dashboard/` packages are retired in the same commit per Q-SDM-
+	// DASHBOARD-DOWNSTREAM and Q-SDM-DASHBOARD-COUNT.
 }
 
 // NewUseCases creates all treasury use cases with proper constructor injection.
@@ -161,23 +160,10 @@ func NewUseCases(
 		},
 	)
 
-	// Wire loan dashboard via type assertions on loan repos.
-	var loanDash *loandashboard.GetLoanDashboardPageDataUseCase
-	if repos.Loan != nil && repos.LoanPayment != nil {
-		loanQ, lOK := repos.Loan.(loandashboard.LoanDashboardQueries)
-		pmtQ, pOK := repos.LoanPayment.(loandashboard.LoanPaymentDashboardQueries)
-		if lOK && pOK {
-			loanDash = loandashboard.NewGetLoanDashboardPageDataUseCase(loanQ, pmtQ)
-		}
-	}
-
-	// Wire cash dashboard via type assertion on collection repo.
-	var cashDash *cashdashboard.GetCashDashboardPageDataUseCase
-	if repos.Collection != nil {
-		if collQ, ok := repos.Collection.(cashdashboard.CollectionDashboardQueries); ok {
-			cashDash = cashdashboard.NewGetCashDashboardPageDataUseCase(collQ)
-		}
-	}
+	// Loan + Cash dashboard wiring retired 2026-05-21 (Wave B P1.C.5 unified
+	// Treasury candidate) — type-assertion + factory wiring now lives in the
+	// service-layer initializer at `internal/composition/core/initializers/
+	// service.go` (search "Wave B P1.C.5 Treasury").
 
 	withholdingCertificateUC := withholdingCertificateUseCases.NewUseCases(
 		withholdingCertificateUseCases.WithholdingCertificateRepositories{
@@ -370,7 +356,5 @@ func NewUseCases(
 		SecurityDeposit:        securityDepositUC,
 		PettyCash:              pettyCashUC,
 		WithholdingCertificate: withholdingCertificateUC,
-		LoanDashboard:          loanDash,
-		CashDashboard:          cashDash,
 	}
 }

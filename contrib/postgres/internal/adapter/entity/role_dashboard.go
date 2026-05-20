@@ -6,6 +6,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	admindash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
 )
 
 // Count returns the number of roles in the workspace.
@@ -31,11 +33,17 @@ func (r *PostgresRoleRepository) Count(ctx context.Context, workspaceID string) 
 
 // RolePermissionCount is one row of the "roles by permission count" table
 // widget on the admin dashboard.
-type RolePermissionCount struct {
-	RoleID          string
-	RoleName        string
-	PermissionCount int64
-}
+//
+// **Aliased to the service-layer row type** so the postgres adapter
+// directly satisfies [admindash.RoleDashboardRepository]. Go's interface
+// satisfaction requires the *exact* named return type — without this alias
+// the adapter's `TopByPermissionCount` would return its own local
+// `entity.RolePermissionCount`, silently failing the type assertion in
+// `internal/composition/core/initializers/service.go` and producing a nil
+// `dashboardDeps.AdminRole` at runtime. See Q-SDM-DASHBOARD-COMPILE-ASSERTIONS
+// (LOCKED) and the §8 "Lesson learned" caveat in
+// `docs/wiki/articles/hexagonal-rules.md`.
+type RolePermissionCount = admindash.RolePermissionCount
 
 // TopByPermissionCount returns the top-N roles ordered by their assigned
 // permission count (descending).

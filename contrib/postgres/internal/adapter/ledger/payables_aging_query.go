@@ -150,7 +150,9 @@ WITH outstanding AS (
     FROM %s e
     LEFT JOIN %s td
         ON td.expenditure_id = e.id
-        AND td.payment_date < ($1::date + interval '1 day')
+        -- treasury_disbursement.payment_date is TEXT (YYYY-MM-DD); cast to
+        -- date so the comparison with the timestamptz literal type-checks.
+        AND NULLIF(td.payment_date, '')::date < ($1::date + interval '1 day')
     %s
     WHERE e.status != 'cancelled'
         AND e.active = true

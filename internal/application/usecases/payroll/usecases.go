@@ -4,7 +4,6 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	payrollservice "github.com/erniealice/espyna-golang/internal/application/services/payroll"
-	payrolldashboard "github.com/erniealice/espyna-golang/internal/application/usecases/payroll/dashboard"
 	payrollremittanceuc "github.com/erniealice/espyna-golang/internal/application/usecases/payroll/payroll_remittance"
 	payrollrunuc "github.com/erniealice/espyna-golang/internal/application/usecases/payroll/payroll_run"
 
@@ -53,13 +52,18 @@ type CrossDomainRepositories struct {
 // (CalculatePayrollRun + GeneratePayCycles) have been folded into the
 // PayrollRun sub-aggregate as .PayrollRun.Calculate / .PayrollRun.GeneratePayCycles.
 // F6 closure.
+//
+// 20260520-service-domain-migration Wave B P1.C.6 — the `Dashboard` flat
+// field has been folded into the service-driven Dashboard umbrella at
+// `Service.Dashboard.Payroll.GetPayrollDashboard`. The proto contract moved
+// from `proto/v1/domain/payroll/dashboard/` to
+// `proto/v1/service/dashboard/payroll/`; the repository composition lives
+// at `usecases/service/dashboard/payroll/`. See hexagonal-rules.md §8 Wave B
+// P1.C.6 worked example.
 type PayrollUseCases struct {
 	PayrollRun        *payrollrunuc.UseCases
 	PayrollRemittance *payrollremittanceuc.UseCases
 	Orchestrator      *payrollservice.Orchestrator
-
-	// Dashboard use case (nil when postgres build tag is inactive).
-	Dashboard *payrolldashboard.GetPayrollDashboardPageDataUseCase
 }
 
 // NewUseCases creates all payroll use cases with proper constructor injection.
@@ -120,18 +124,13 @@ func NewUseCases(
 		}, idService)
 	}
 
-	// Wire payroll dashboard via type assertions on payroll repos.
-	var payrollDash *payrolldashboard.GetPayrollDashboardPageDataUseCase
-	if repos.PayrollRun != nil && repos.PayrollRemittance != nil {
-		runQ, rOK := repos.PayrollRun.(payrolldashboard.PayrollRunDashboardQueries)
-		remQ, mOK := repos.PayrollRemittance.(payrolldashboard.PayrollRemittanceDashboardQueries)
-		if rOK && mOK {
-			payrollDash = payrolldashboard.NewGetPayrollDashboardPageDataUseCase(runQ, remQ)
-		}
-	}
-
 	// Build sub-aggregates. The orchestrator-backed wrappers nest under
 	// PayrollRun (Phase 3 F6 closure).
+	//
+	// Dashboard wiring relocated to the service-driven umbrella per Wave B
+	// P1.C.6 — see `internal/composition/core/initializers/service.go`
+	// where the payroll dashboard repos are threaded into
+	// `Service.Dashboard.Payroll`.
 	payrollRunUC := payrollrunuc.NewUseCases(runRepos, runServices)
 	if payrollRunUC != nil {
 		payrollRunUC.Calculate = payrollrunuc.NewCalculatePayrollRunUseCase(orch, authSvc, i18nSvc, txSvc)
@@ -142,6 +141,5 @@ func NewUseCases(
 		PayrollRun:        payrollRunUC,
 		PayrollRemittance: payrollremittanceuc.NewUseCases(remittanceRepos, remittanceServices),
 		Orchestrator:      orch,
-		Dashboard:         payrollDash,
 	}
 }

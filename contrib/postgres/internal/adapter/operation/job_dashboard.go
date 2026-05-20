@@ -10,20 +10,15 @@ import (
 	"time"
 
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+
+	jobdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
 )
 
-// JobRisk is a tiny row shape for the Job dashboard "completion risk" widget —
-// jobs whose completion percent is low while the planned end date is near.
-//
-// CompletionPct is 0..100. DateEnd is the planned_end (falling back to due_date
-// when planned_end is NULL).
-type JobRisk struct {
-	JobID         string
-	Code          string
-	Name          string
-	CompletionPct float64
-	DateEnd       time.Time
-}
+// Q-SDM-DASHBOARD-COMPILE-ASSERTIONS named-type contract: alias to the
+// service-layer types so Go's exact-named-return-type matching makes
+// `var _ jobdash.JobDashboardRepository = (*PostgresJobRepository)(nil)`
+// succeed in job_dashboard_assertions.go.
+type JobRisk = jobdash.JobRisk
 
 // CountByStatus returns a map of job.status (raw enum string e.g.
 // "JOB_STATUS_ACTIVE") to count, restricted to jobs created since `since`
@@ -111,8 +106,12 @@ func (r *PostgresJobRepository) UpcomingDeadlines(
 		limit = 5
 	}
 
-	// COALESCE(planned_end, to_timestamp(due_date / 1000)) handles either
-	// timestamp-typed or epoch-millis-typed deadline columns.
+	// codex-review-phase1-round2b P2 fix (2026-05-21): implement the comment's
+	// claim that planned_end falls back to due_date. due_date is stored as
+	// epoch millis (bigint), so to_timestamp(due_date / 1000) converts it to
+	// a timestamp for comparison; COALESCE picks planned_end first when set.
+	// This means due-date-only jobs (with NULL planned_end) now surface in
+	// the upcoming-deadlines widget.
 	const query = `
 		SELECT
 			j.id,
@@ -123,10 +122,10 @@ func (r *PostgresJobRepository) UpcomingDeadlines(
 		FROM job j
 		WHERE j.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR j.workspace_id = $1)
-		  AND COALESCE(j.planned_end, NULL) IS NOT NULL
-		  AND j.planned_end >= NOW()
-		  AND j.planned_end <= NOW() + ($2 || ' days')::interval
-		ORDER BY j.planned_end ASC
+		  AND COALESCE(j.planned_end, to_timestamp(j.due_date / 1000.0)) IS NOT NULL
+		  AND COALESCE(j.planned_end, to_timestamp(j.due_date / 1000.0)) >= NOW()
+		  AND COALESCE(j.planned_end, to_timestamp(j.due_date / 1000.0)) <= NOW() + ($2 || ' days')::interval
+		ORDER BY COALESCE(j.planned_end, to_timestamp(j.due_date / 1000.0)) ASC
 		LIMIT $3`
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, days, limit)
@@ -138,11 +137,11 @@ func (r *PostgresJobRepository) UpcomingDeadlines(
 	out := make([]*jobpb.Job, 0, limit)
 	for rows.Next() {
 		var (
-			id          string
-			name        string
-			status      sql.NullString
-			plannedEnd  sql.NullTime
-			dueDateMs   sql.NullInt64
+			id         string
+			name       string
+			status     sql.NullString
+			plannedEnd sql.NullTime
+			dueDateMs  sql.NullInt64
 		)
 		if scanErr := rows.Scan(&id, &name, &status, &plannedEnd, &dueDateMs); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan upcoming-deadline row: %w", scanErr)

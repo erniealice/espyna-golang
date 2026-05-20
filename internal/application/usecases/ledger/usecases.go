@@ -20,9 +20,6 @@ import (
 	fiscalPeriodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/fiscal_period"
 	journalEntryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/journal_entry"
 
-	// Dashboard use cases
-	ledgerdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/dashboard"
-	equitydashboard "github.com/erniealice/espyna-golang/internal/application/usecases/ledger/equity_dashboard"
 
 	// Protobuf domain services for ledger repositories
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
@@ -70,9 +67,11 @@ type LedgerUseCases struct {
 	JournalEntry *journalEntryUseCases.UseCases
 	FiscalPeriod *fiscalPeriodUseCases.UseCases
 
-	// Dashboard use cases (nil when postgres build tag is inactive).
-	Dashboard       *ledgerdashboard.GetLedgerDashboardPageDataUseCase
-	EquityDashboard *equitydashboard.GetEquityDashboardPageDataUseCase
+	// Dashboard fields retired 2026-05-21 (Wave B P1.C.3 Ledger + P1.C.4
+	// Equity) — both ledger + equity dashboards now live under
+	// `service.Dashboard.Ledger` and `service.Dashboard.Equity`. The
+	// `usecases/ledger/dashboard/` and `usecases/ledger/equity_dashboard/`
+	// packages are retired in the same commit per Q-SDM-DASHBOARD-DOWNSTREAM.
 }
 
 // NewUseCases creates all ledger use cases with proper constructor injection.
@@ -158,27 +157,10 @@ func NewUseCases(
 		)
 	}
 
-	// Wire ledger dashboard use case via type assertions — safe when postgres
-	// build tag is inactive (assertion fails and Dashboard stays nil).
-	var ledgerDash *ledgerdashboard.GetLedgerDashboardPageDataUseCase
-	if repos.Account != nil && repos.JournalEntry != nil {
-		accountQ, aOK := repos.Account.(ledgerdashboard.AccountDashboardQueries)
-		journalQ, jOK := repos.JournalEntry.(ledgerdashboard.JournalEntryDashboardQueries)
-		if aOK && jOK {
-			ledgerDash = ledgerdashboard.NewGetLedgerDashboardPageDataUseCase(accountQ, journalQ)
-		}
-	}
-
-	// Wire equity dashboard use case via type assertions.
-	var equityDash *equitydashboard.GetEquityDashboardPageDataUseCase
-	if repos.EquityAccount != nil && repos.EquityTransaction != nil {
-		eaQ, eaOK := repos.EquityAccount.(equitydashboard.EquityAccountDashboardQueries)
-		etQ, etOK := repos.EquityTransaction.(equitydashboard.EquityTransactionDashboardQueries)
-		if eaOK && etOK {
-			equityDash = equitydashboard.NewGetEquityDashboardPageDataUseCase(eaQ, etQ)
-		}
-	}
-
+	// Ledger + Equity dashboard wiring retired 2026-05-21 (Wave B P1.C.3 +
+	// P1.C.4) — type-assertion + factory wiring now lives in the service-
+	// layer initializer at `internal/composition/core/initializers/service.go`
+	// (search "Wave B P1.C.3 Ledger" and "Wave B P1.C.4 Equity").
 	return &LedgerUseCases{
 		DocumentTemplate:             documentTemplateUC,
 		Attachment:                   attachmentUC,
@@ -188,7 +170,5 @@ func NewUseCases(
 		Account:                      accountUC,
 		JournalEntry:                 journalEntryUC,
 		FiscalPeriod:                 fiscalPeriodUC,
-		Dashboard:                    ledgerDash,
-		EquityDashboard:              equityDash,
 	}
 }

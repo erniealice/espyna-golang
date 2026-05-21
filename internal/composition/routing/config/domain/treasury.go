@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	treasuryuc "github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
+	treasuryuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 

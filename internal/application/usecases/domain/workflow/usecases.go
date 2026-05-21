@@ -1,0 +1,43 @@
+package workflow
+
+import (
+	// Workflow domain use cases
+	activityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/activity"
+	activityTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/activity_template"
+	stageUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/stage"
+	stageTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/stage_template"
+	workflowUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/workflow"
+	workflowTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/workflow_template"
+)
+
+// WorkflowUseCases contains all workflow domain use cases.
+// Note: The workflow engine is NOT part of this aggregate - it's an orchestration
+// concern managed by the Container as a first-class service (Container.services.WorkflowEngine).
+type WorkflowUseCases struct {
+	Workflow         *workflowUseCases.UseCases
+	WorkflowTemplate *workflowTemplateUseCases.UseCases
+	Stage            *stageUseCases.UseCases
+	StageTemplate    *stageTemplateUseCases.UseCases
+	Activity         *activityUseCases.UseCases
+	ActivityTemplate *activityTemplateUseCases.UseCases
+}
+
+// NewUseCases creates a new collection of workflow domain use cases.
+// This is a simple aggregation constructor - no dependency wiring logic here.
+func NewUseCases(
+	workflowUseCases *workflowUseCases.UseCases,
+	workflowTemplateUseCases *workflowTemplateUseCases.UseCases,
+	stageUseCases *stageUseCases.UseCases,
+	stageTemplateUseCases *stageTemplateUseCases.UseCases,
+	activityUseCases *activityUseCases.UseCases,
+	activityTemplateUseCases *activityTemplateUseCases.UseCases,
+) *WorkflowUseCases {
+	return &WorkflowUseCases{
+		Workflow:         workflowUseCases,
+		WorkflowTemplate: workflowTemplateUseCases,
+		Stage:            stageUseCases,
+		StageTemplate:    stageTemplateUseCases,
+		Activity:         activityUseCases,
+		ActivityTemplate: activityTemplateUseCases,
+	}
+}

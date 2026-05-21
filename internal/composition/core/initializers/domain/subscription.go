@@ -2,8 +2,8 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
-	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription"
+	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 

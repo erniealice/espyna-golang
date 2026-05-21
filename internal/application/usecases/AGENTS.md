@@ -42,85 +42,48 @@
 
 ## Directory Structure
 
+After Plan 2 (`20260522-usecases-realignment`, landed 2026-05-21), entity-layer use cases
+live under `domain/` and service-layer use cases live under `service/`:
+
 ```
 usecases/
-├── auth/                       # Identity-lifecycle use cases
+├── auth/                       # Identity-lifecycle use cases (stays here; no proto/v1/domain/auth)
 │   ├── authenticate_session.go # Cookie/token → Identity
 │   ├── issue_session.go        # Mint a new session token
 │   └── invalidate_session.go   # Logout / session termination
-│                               # (Future home for login, register,
-│                               #  request_password_reset, execute_password_reset
-│                               #  currently embedded in the password auth adapter.)
 │
-├── common/                     # Cross-domain use cases
-│   └── attribute/              # Generic attribute CRUD
+├── domain/                     # Entity-layer use cases (mirrors proto/v1/domain/<X>/)
+│   ├── common/                 # Cross-domain use cases
+│   │   └── attribute/          # Generic attribute CRUD
+│   │
+│   ├── entity/                 # Entity domain (17+ entities)
+│   │   ├── admin/
+│   │   ├── client/
+│   │   ├── workspace/
+│   │   ├── workspace_user/
+│   │   └── workspace_user_role/
+│   │   └── ...
+│   │
+│   ├── event/                  # Event domain
+│   ├── product/                # Product domain
+│   ├── subscription/           # Subscription domain
+│   ├── revenue/                # Revenue domain
+│   ├── expenditure/            # Expenditure domain
+│   ├── treasury/               # Treasury domain
+│   ├── ledger/                 # Ledger domain
+│   ├── document/               # Document sub-aggregate (wraps attachment + template)
+│   ├── operation/              # Operation domain
+│   ├── workflow/               # Workflow domain
+│   └── ...                     # All other proto/v1/domain/ domains
 │
-├── entity/                     # Entity domain (17 entities)
-│   ├── admin/
-│   ├── client/
-│   ├── client_attribute/
-│   ├── delegate/
-│   ├── delegate_attribute/
-│   ├── delegate_client/
-│   ├── group/
-│   ├── group_attribute/
-│   ├── location/
-│   ├── location_attribute/
-│   ├── permission/
-│   ├── role/
-│   ├── role_permission/
-│   ├── staff/
-│   ├── staff_attribute/
-│   ├── user/
-│   ├── workspace/
-│   ├── workspace_user/
-│   └── workspace_user_role/
-│
-├── event/                      # Event domain (3 entities)
-│   ├── event/
-│   ├── event_attribute/
-│   └── event_client/
-│
-├── payment/                    # Payment domain (4 entities)
-│   ├── payment/
-│   ├── payment_attribute/
-│   ├── payment_method/
-│   └── payment_profile/
-│
-├── product/                    # Product domain (9 entities)
-│   ├── collection/
-│   ├── collection_attribute/
-│   ├── collection_plan/
-│   ├── price_product/
-│   ├── product/
-│   ├── product_attribute/
-│   ├── product_collection/
-│   ├── product_plan/
-│   └── resource/
-│
-├── subscription/               # Subscription domain (8 entities)
-│   ├── balance/
-│   ├── balance_attribute/
-│   ├── invoice/
-│   ├── invoice_attribute/
-│   ├── plan/
-│   ├── plan_attribute/
-│   ├── plan_settings/
-│   ├── price_plan/
-│   ├── subscription/
-│   └── subscription_attribute/
-│
-├── workflow/                   # Workflow domain (6 entities)
-│   ├── activity/
-│   ├── activity_template/
-│   ├── stage/
-│   ├── stage_template/
-│   ├── workflow/
-│   └── workflow_template/
-│
-└── integration/                # External service use cases
-    ├── email/
-    └── payment/
+└── service/                    # Service-layer use cases (mirrors proto/v1/service/<X>/)
+    ├── audit/
+    ├── auth/                   # Auth application service (orchestrates Session + User)
+    ├── dashboard/
+    ├── reporting/
+    ├── registrar/              # Cycle-break blank-import registrar (formerly serviceregistrar/)
+    ├── security/
+    └── tax/
 ```
 
 ## Use Case File Pattern
@@ -128,7 +91,7 @@ usecases/
 Each entity folder contains these files:
 
 ```
-entity/{name}/
+domain/{domain}/{name}/
 ├── usecases.go                 # Aggregates all use cases + NewUseCases()
 ├── create_{name}.go            # Create use case
 ├── read_{name}.go              # Read (get by ID) use case
@@ -284,7 +247,7 @@ func NewUseCases(
 
 ```go
 // Use case package
-import "leapfor.xyz/espyna/internal/application/usecases/entity/client"
+import "leapfor.xyz/espyna/internal/application/usecases/domain/entity/client"
 
 // Create aggregated use cases
 clientUseCases := client.NewUseCases(repos, services)
@@ -340,7 +303,8 @@ func TestCreateClientUseCase_Execute(t *testing.T) {
 | Package | Purpose |
 |---------|---------|
 | `application/ports/` | Service interfaces (AuthorizationService, etc.) |
-| `composition/core/initializers/` | Use case initialization per domain |
+| `composition/core/initializers/domain/` | Entity-layer use case initialization per domain |
+| `composition/core/initializers/service/` | Service-layer use case initialization |
 | `composition/routing/handlers/` | HTTP handlers that call use cases |
 | `esqyma/pkg/schema/v1/domain/` | Proto-generated request/response types |
 

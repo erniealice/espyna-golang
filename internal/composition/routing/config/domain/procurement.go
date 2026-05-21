@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	procurementuc "github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
+	procurementuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/procurement"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 	costschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_schedule"

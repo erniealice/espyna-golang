@@ -2,9 +2,9 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
-	treasurydisbursement "github.com/erniealice/espyna-golang/internal/application/usecases/treasury/disbursement"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury"
+	treasurydisbursement "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 

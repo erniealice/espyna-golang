@@ -7,8 +7,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	admindashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/admin"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
+	admindashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/admin"
 )
 
 // PermissionDashboardRepository is satisfied by PostgresPermissionRepository.

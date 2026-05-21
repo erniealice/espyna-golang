@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	commonuc "github.com/erniealice/espyna-golang/internal/application/usecases/common"
+	commonuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/common"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"

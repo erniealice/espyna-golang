@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	operationuc "github.com/erniealice/espyna-golang/internal/application/usecases/operation"
+	operationuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"

@@ -15,7 +15,7 @@
 package tax
 
 import (
-	taxcompute "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
+	taxcompute "github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
 )
 
 // UseCases aggregates every service-driven tax use case.

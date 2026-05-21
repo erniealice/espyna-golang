@@ -2,7 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 

@@ -2,16 +2,16 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
 	// Workflow domain use cases
-	activityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/activity"
-	activityTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/activity_template"
-	stageUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/stage"
-	stageTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/stage_template"
-	workflowUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/workflow"
-	workflowTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/workflow/workflow_template"
+	activityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/activity"
+	activityTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/activity_template"
+	stageUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/stage"
+	stageTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/stage_template"
+	workflowUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/workflow"
+	workflowTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow/workflow_template"
 
 	// Orchestration layer - workflow engine
 	engineUseCases "github.com/erniealice/espyna-golang/internal/orchestration/engine"

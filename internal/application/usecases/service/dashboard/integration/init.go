@@ -56,7 +56,7 @@ func init() {
 
 // From is the typed accessor companion to the registry registration.
 // Returns nil if the sub-aggregate is unregistered (e.g. the
-// serviceregistrar blank import is not loaded, which would be a wiring
+// service/registrar blank import is not loaded, which would be a wiring
 // bug in the composition root).
 func From(s *service.ServiceUseCases) *UseCases {
 	return service.Get[*UseCases](s, Key)

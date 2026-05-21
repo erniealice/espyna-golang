@@ -28,7 +28,7 @@ package integration
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	integrationuc "github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	integrationuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/integration"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )

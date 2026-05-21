@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	integrationdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/integration/dashboard"
+	integrationdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/integration/dashboard"
 	integrationdashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/integration"
 )
 
@@ -126,10 +126,10 @@ func (uc *GetIntegrationDashboardUseCase) Execute(
 			occurredAt = e.OccurredAt.UnixMilli()
 		}
 		errors = append(errors, &integrationdashpb.IntegrationErrorEntry{
-			Id:                e.ID,
-			Provider:          e.Provider,
-			Message:           e.Message,
-			OccurredAtMillis:  occurredAt,
+			Id:               e.ID,
+			Provider:         e.Provider,
+			Message:          e.Message,
+			OccurredAtMillis: occurredAt,
 		})
 	}
 

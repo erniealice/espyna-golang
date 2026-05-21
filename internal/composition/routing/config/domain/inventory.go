@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	inventoryuc "github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
+	inventoryuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/inventory"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	inventoryitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_item"

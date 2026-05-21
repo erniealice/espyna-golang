@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	workflowuc "github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
+	workflowuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"

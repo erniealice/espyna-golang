@@ -8,10 +8,10 @@ import (
 	"log"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
+	"github.com/google/uuid"
 )
 
 func init() {

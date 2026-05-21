@@ -10,11 +10,11 @@ import (
 
 const (
 	// Context key constants for gRPC context values
-	ContextKeyUID        = "uid"
-	ContextKeyEmail      = "email"
-	ContextKeyIdentity   = "identity"
-	ContextKeyWorkspace  = "workspace_id"
-	ContextKeyExpires    = "expires"
+	ContextKeyUID       = "uid"
+	ContextKeyEmail     = "email"
+	ContextKeyIdentity  = "identity"
+	ContextKeyWorkspace = "workspace_id"
+	ContextKeyExpires   = "expires"
 )
 
 // Metadata keys for gRPC metadata

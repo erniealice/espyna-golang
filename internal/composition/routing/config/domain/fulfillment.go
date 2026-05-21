@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	fulfillmentuc "github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
+	fulfillmentuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/fulfillment"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"

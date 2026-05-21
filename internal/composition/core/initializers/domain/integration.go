@@ -3,7 +3,7 @@ package domain
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	integrationPorts "github.com/erniealice/espyna-golang/internal/application/ports/integration"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/integration"
 )
 
 // InitializeIntegration creates all integration use cases from provider dependencies.

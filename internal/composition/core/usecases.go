@@ -34,42 +34,44 @@ import (
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
 
 	// Domain use cases (for proper initialization)
-	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
-	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/event/dashboard"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/finance"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/funding"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
-	jobUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/operation/job"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/document"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/event"
+	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/finance"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/fulfillment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/funding"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/inventory"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation"
+	jobUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/payroll"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/procurement"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/product"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
 	servicetax "github.com/erniealice/espyna-golang/internal/application/usecases/service/tax"
-	// serviceregistrar blank-import: triggers init() of every
+
+	// service/registrar blank-import: triggers init() of every
 	// dynamically-registered service-driven candidate (currently
 	// tax_compute; future dashboards/reporting). MUST be loaded before
 	// initservice.InitializeAll so service.Register has populated
 	// the factory map by the time service.NewServiceUseCases iterates it.
 	// See docs/wiki/articles/hexagonal-rules.md §8 (tax_compute worked
 	// example) for the canonical shape.
-	_ "github.com/erniealice/espyna-golang/internal/application/usecases/serviceregistrar"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
-	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/subscription/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription"
+	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription"
+	_ "github.com/erniealice/espyna-golang/internal/application/usecases/service/registrar"
 
-	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
-	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/tenancy"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax"
+	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tenancy"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 
 	repodomain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
@@ -101,6 +103,11 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	if err != nil {
 		// Only Common domain fails - use empty struct for this domain only
 		commonUC = &common.CommonUseCases{}
+	}
+
+	documentUC, err := uci.initializeDocumentUseCases(container)
+	if err != nil {
+		documentUC = &document.UseCases{}
 	}
 
 	entityUC, err := uci.initializeEntityUseCases(container)
@@ -295,6 +302,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	// Create aggregate with successfully initialized domains
 	aggregate := usecases.NewAggregate(
 		commonUC,
+		documentUC,
 		entityUC,
 		eventUC,
 		expenditureUC,
@@ -441,6 +449,33 @@ func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*
 	fmt.Printf("✅ Ledger domain initialized successfully: %v\n", ledgerUseCases != nil)
 
 	return ledgerUseCases, nil
+}
+
+// initializeDocumentUseCases initializes Document domain use cases (attachment + template sub-aggregates).
+// Per docs/plan/20260522-usecases-realignment Q-UR4 LOCK — bundled into one initializer
+// because the document/ proto has both attachment and template sub-categories under it.
+func (uci *UseCaseInitializer) initializeDocumentUseCases(container *Container) (*document.UseCases, error) {
+	fmt.Printf("📄 Initializing Document use cases...\n")
+
+	ledgerRepos, err := repodomain.NewLedgerRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		fmt.Printf("⚠️  Document repositories not available (Ledger unavailable): %v\n", err)
+		return &document.UseCases{}, nil
+	}
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		fmt.Printf("❌ Failed to get services: %v\n", err)
+		return nil, err
+	}
+
+	documentUseCases, err := domain.InitializeDocument(ledgerRepos, authSvc, txSvc, i18nSvc, idSvc)
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize document use cases: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("✅ Document domain initialized successfully: %v\n", documentUseCases != nil)
+	return documentUseCases, nil
 }
 
 // initializeOperationUseCases initializes Operation domain use cases.

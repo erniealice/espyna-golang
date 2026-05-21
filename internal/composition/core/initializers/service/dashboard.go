@@ -4,7 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/event/dashboard"
+	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	dashboardusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
 	admindash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
 	equitydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"

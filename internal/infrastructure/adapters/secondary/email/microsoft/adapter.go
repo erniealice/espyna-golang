@@ -357,9 +357,9 @@ func (p *MicrosoftGraphProvider) sendEmailLegacy(ctx context.Context, message po
 func (p *MicrosoftGraphProvider) convertToGraphMessage(message ports.EmailMessage) graphMessage {
 	graphMsg := graphMessage{
 		Subject:       message.Subject,
-		ToRecipients:  []graphRecipient{},  // Initialize empty to avoid null in JSON
-		CcRecipients:  []graphRecipient{},  // Initialize empty to avoid null in JSON
-		BccRecipients: []graphRecipient{},  // Initialize empty to avoid null in JSON
+		ToRecipients:  []graphRecipient{}, // Initialize empty to avoid null in JSON
+		CcRecipients:  []graphRecipient{}, // Initialize empty to avoid null in JSON
+		BccRecipients: []graphRecipient{}, // Initialize empty to avoid null in JSON
 	}
 
 	// Set body

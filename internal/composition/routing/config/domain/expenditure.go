@@ -17,7 +17,7 @@ import (
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
 	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
 
-	expenditureuc "github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
+	expenditureuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 

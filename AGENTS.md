@@ -341,9 +341,9 @@ packages/espyna/internal/infrastructure/adapters/secondary/database/[provider]/[
 ### Folder Structure Alignment
 Use cases must match protobuf structure exactly:
 ```
-esqyma/schema/v1/domain/entity/client/client.proto
+esqyma/proto/v1/domain/entity/client/client.proto
     ↓
-espyna/internal/application/usecases/entity/client/
+espyna/internal/application/usecases/domain/entity/client/
 ```
 
 ### Use Case Standards

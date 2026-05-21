@@ -23,10 +23,10 @@
 //     callsites live inside `packages/espyna-golang/`** (espyna-internal
 //     callers). Each candidate's package init() calls
 //     service.Register("<key>", factory); blank imports are owned by the
-//     sibling [serviceregistrar] package (NOT this package's
+//     sibling [service/registrar] package (NOT this package's
 //     imports.go, which is a docstring-only file kept to explain the
 //     cycle-break). Adding a new dynamic candidate requires ONE blank
-//     import in [serviceregistrar/imports.go] — no struct edits.
+//     import in [service/registrar/imports.go] — no struct edits.
 //     The tax_compute candidate is the canonical exemplar (caller:
 //     RecognizeRevenueFromSubscription, espyna-internal).
 //
@@ -74,11 +74,11 @@ type Deps struct {
 
 // ServiceUseCases aggregates every service-driven use case package.
 type ServiceUseCases struct {
-	Audit     *audit.UseCases                // Phase 1.D (20260518)
-	Security  *security.UseCases             // Phase 1.A (20260520, permission_query)
-	Auth      *serviceauth.UseCases          // Wave 3 / Plan 2 (20260520, auth-session)
-	Dashboard *dashboard.DashboardUseCases   // Wave B P1.C (20260520, 11 dashboard candidates)
-	Reporting *reporting.ReportingUseCases   // Wave B P1.E (20260520, 5 ledger reporting groups)
+	Audit     *audit.UseCases              // Phase 1.D (20260518)
+	Security  *security.UseCases           // Phase 1.A (20260520, permission_query)
+	Auth      *serviceauth.UseCases        // Wave 3 / Plan 2 (20260520, auth-session)
+	Dashboard *dashboard.DashboardUseCases // Wave B P1.C (20260520, 11 dashboard candidates)
+	Reporting *reporting.ReportingUseCases // Wave B P1.E (20260520, 5 ledger reporting groups)
 
 	components map[string]any // dynamic registry — see [Register] / [Get]
 }

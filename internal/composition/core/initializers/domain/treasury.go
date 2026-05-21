@@ -2,7 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
@@ -40,8 +40,8 @@ func InitializeTreasury(
 			// BillingEvent is wired post-construction (its provider lives under
 			// the subscription domain); the three repositories below come from
 			// the treasury + expenditure provider blocks.
-			BillingEvent:                             repos.BillingEvent,
-			SupplierBillingEvent:                     repos.SupplierBillingEvent,
+			BillingEvent:                     repos.BillingEvent,
+			SupplierBillingEvent:             repos.SupplierBillingEvent,
 			CollectionBillingEvent:           repos.CollectionBillingEvent,
 			DisbursementSupplierBillingEvent: repos.DisbursementSupplierBillingEvent,
 		},

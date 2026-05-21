@@ -2,11 +2,11 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
-	assetUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset"
-	assetCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset_category"
-	assetRevaluationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/asset_revaluation"
-	depreciationRunUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/asset/depreciation_run"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset"
+	assetUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset/asset"
+	assetCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset/asset_category"
+	assetRevaluationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset/asset_revaluation"
+	depreciationRunUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset/depreciation_run"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 

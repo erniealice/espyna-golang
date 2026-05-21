@@ -19,7 +19,7 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/event/dashboard"
+	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/expenditure"

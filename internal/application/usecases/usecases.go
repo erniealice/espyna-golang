@@ -2,28 +2,29 @@ package usecases
 
 import (
 	// Domain use case packages
-	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/expenditure"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/finance"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/fulfillment"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/funding"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/integration"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/inventory"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/operation"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/procurement"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/product"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/document"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/event"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/finance"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/fulfillment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/funding"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/integration"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/inventory"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/payroll"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/procurement"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/product"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tenancy"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/tax"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/tenancy"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/treasury"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 )
 
 // Aggregate is a collection of all domain use cases across the application.
@@ -45,6 +46,7 @@ import (
 //   - Fulfillment:  1 entity (Fulfillment — placeholder, use cases pending)
 type Aggregate struct {
 	Common       *common.CommonUseCases
+	Document     *document.UseCases
 	Entity       *entity.EntityUseCases
 	Event        *event.EventUseCases
 	Expenditure  *expenditure.ExpenditureUseCases
@@ -81,6 +83,7 @@ type Aggregate struct {
 // repositories and services before being passed to this constructor.
 func NewAggregate(
 	commonUC *common.CommonUseCases,
+	documentUC *document.UseCases,
 	entityUC *entity.EntityUseCases,
 	eventUC *event.EventUseCases,
 	expenditureUC *expenditure.ExpenditureUseCases,
@@ -105,6 +108,7 @@ func NewAggregate(
 ) *Aggregate {
 	return &Aggregate{
 		Common:       commonUC,
+		Document:     documentUC,
 		Entity:       entityUC,
 		Event:        eventUC,
 		Expenditure:  expenditureUC,
@@ -134,6 +138,7 @@ func NewAggregate(
 func NewEmptyAggregate() *Aggregate {
 	return &Aggregate{
 		Common:       &common.CommonUseCases{},
+		Document:     &document.UseCases{},
 		Entity:       &entity.EntityUseCases{},
 		Event:        &event.EventUseCases{},
 		Expenditure:  &expenditure.ExpenditureUseCases{},

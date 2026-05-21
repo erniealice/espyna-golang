@@ -3,8 +3,8 @@ package tax
 import (
 	"sync"
 
+	taxcompute "github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
-	taxcompute "github.com/erniealice/espyna-golang/internal/application/usecases/tax/compute_taxes_for_revenue"
 )
 
 // Key is the registry key under which tax service-driven use cases are
@@ -25,7 +25,7 @@ import (
 //
 //  1. Rewired (this migration):
 //     packages/espyna-golang/internal/application/usecases/revenue/revenue/
-//       recognize_revenue_from_subscription.go — the
+//     recognize_revenue_from_subscription.go — the
 //     RecognizeRevenueFromSubscription post-persist hook now invokes
 //     servicetax.From(serviceUC).ComputeTaxesForRevenue.ExecuteForRevenue
 //     via its narrow ComputeTaxesForRevenueInvoker interface. Wiring lives
@@ -35,7 +35,7 @@ import (
 //
 //  2. Deferred — RecomputeTaxes (admin direct entity-layer caller).
 //     packages/espyna-golang/internal/application/usecases/revenue/revenue/
-//       recompute_taxes.go — invoked from admin recompute flows. Stays
+//     recompute_taxes.go — invoked from admin recompute flows. Stays
 //     wired to the entity-layer ComputeTaxesForRevenue use case via
 //     SetComputeTaxes in internal/composition/core/usecases.go (the
 //     "Tax compute wired into revenue domain (… → RecomputeTaxes)" log
@@ -45,7 +45,7 @@ import (
 //
 //  3. Deferred — CreateRevenue post-persist hook (dormant).
 //     packages/espyna-golang/internal/application/usecases/revenue/revenue/
-//       create_revenue.go — the SetComputeTaxes hook on CreateRevenue
+//     create_revenue.go — the SetComputeTaxes hook on CreateRevenue
 //     is currently dormant (no production flow invokes it; only present
 //     for Phase D wiring symmetry with the recognize path). Stays
 //     entity-direct until the hook becomes load-bearing; at that point

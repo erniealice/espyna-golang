@@ -40,8 +40,8 @@ package ap_aging
 import (
 	"context"
 
-	payagingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	payagingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 )

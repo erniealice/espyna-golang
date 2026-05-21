@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	integrationuc "github.com/erniealice/espyna-golang/internal/application/usecases/integration"
+	integrationuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/integration"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 

@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	payrolluc "github.com/erniealice/espyna-golang/internal/application/usecases/payroll"
+	payrolluc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/payroll"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"

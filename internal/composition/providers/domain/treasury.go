@@ -59,8 +59,8 @@ type TreasuryRepositories struct {
 	// Plan B Phase 7 — MILESTONE recognize repositories. Created via the
 	// registry when the matching adapters are registered for the active
 	// build; otherwise nil-safe (the use case construction guards on nil).
-	BillingEvent                             billingeventpb.BillingEventDomainServiceServer
-	SupplierBillingEvent                     supplierbillingeventpb.SupplierBillingEventDomainServiceServer
+	BillingEvent                     billingeventpb.BillingEventDomainServiceServer
+	SupplierBillingEvent             supplierbillingeventpb.SupplierBillingEventDomainServiceServer
 	CollectionBillingEvent           collectionbillingeventpb.CollectionBillingEventDomainServiceServer
 	DisbursementSupplierBillingEvent disbursementsupplierbillingeventpb.DisbursementSupplierBillingEventDomainServiceServer
 }

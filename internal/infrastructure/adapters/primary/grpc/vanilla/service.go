@@ -21,26 +21,26 @@ import (
 
 // EspynaService is a dynamic gRPC service that maps gRPC methods to HTTP routes
 type EspynaService struct {
-	container     *core.Container
-	routes        map[string]*routing.Route // fullMethod -> route
-	methodDescs   map[string]*MethodDescriptor
-	services      map[string]*ServiceDescriptor // serviceName -> ServiceDescriptor
+	container   *core.Container
+	routes      map[string]*routing.Route // fullMethod -> route
+	methodDescs map[string]*MethodDescriptor
+	services    map[string]*ServiceDescriptor // serviceName -> ServiceDescriptor
 }
 
 // ServiceDescriptor describes a gRPC service (e.g., ClientService)
 type ServiceDescriptor struct {
-	Name        string
-	FullName    string
-	Methods     map[string]*MethodDescriptor
+	Name     string
+	FullName string
+	Methods  map[string]*MethodDescriptor
 }
 
 // MethodDescriptor describes a gRPC method
 type MethodDescriptor struct {
-	Name           string
-	FullMethod     string // /espyna.entity.v1.ClientService/Create
-	InputType      string
-	OutputType     string
-	HTTPRoute      *routing.Route
+	Name       string
+	FullMethod string // /espyna.entity.v1.ClientService/Create
+	InputType  string
+	OutputType string
+	HTTPRoute  *routing.Route
 }
 
 // NewEspynaService creates a new Espyna dynamic service
@@ -104,17 +104,19 @@ func (s *EspynaService) buildRouteMap() {
 // httpRouteToGRPCMethod converts route metadata to gRPC full method name
 //
 // Mapping Formula:
-//   Domain: route.Metadata.Domain (e.g., "entity")
-//   Resource: route.Metadata.Resource (e.g., "client")
-//   Operation: route.Metadata.Operation (e.g., "create")
 //
-//   Service: espyna.{domain}.v1.{Resource}Service
-//   Method: {Operation}
+//	Domain: route.Metadata.Domain (e.g., "entity")
+//	Resource: route.Metadata.Resource (e.g., "client")
+//	Operation: route.Metadata.Operation (e.g., "create")
+//
+//	Service: espyna.{domain}.v1.{Resource}Service
+//	Method: {Operation}
 //
 // Examples:
-//   /api/entity/client/create -> /espyna.entity.v1.ClientService/Create
-//   /api/entity/client/list   -> /espyna.entity.v1.ClientService/List
-//   /api/subscription/plan/read -> /espyna.subscription.v1.PlanService/Read
+//
+//	/api/entity/client/create -> /espyna.entity.v1.ClientService/Create
+//	/api/entity/client/list   -> /espyna.entity.v1.ClientService/List
+//	/api/subscription/plan/read -> /espyna.subscription.v1.PlanService/Read
 func (s *EspynaService) httpRouteToGRPCMethod(route *routing.Route) string {
 	if route.Metadata.Domain == "" || route.Metadata.Resource == "" || route.Metadata.Operation == "" {
 		return ""

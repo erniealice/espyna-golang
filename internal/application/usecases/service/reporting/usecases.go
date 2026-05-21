@@ -41,13 +41,13 @@
 // The 15-method → 5-group allocation is locked in decisions.md
 // §Q-SDM-LEDGER-INTERFACE:
 //
-//   ARAging          — GetReceivablesAgingReport, GetCollectionSummaryReport
-//   APAging          — GetPayablesAgingReport, GetSimplePayablesAgingReport
-//   GrossCashFlow    — GetGrossProfitReport, GetCashBookReport
-//   Statements       — GetClientStatement, GetSupplierStatement,
-//                      GetClientBalances, GetSupplierBalances
-//   DomainSpecific   — GetRevenueReport, GetExpenditureReport,
-//                      GetDisbursementReport, ListRevenue, ListExpenses
+//	ARAging          — GetReceivablesAgingReport, GetCollectionSummaryReport
+//	APAging          — GetPayablesAgingReport, GetSimplePayablesAgingReport
+//	GrossCashFlow    — GetGrossProfitReport, GetCashBookReport
+//	Statements       — GetClientStatement, GetSupplierStatement,
+//	                   GetClientBalances, GetSupplierBalances
+//	DomainSpecific   — GetRevenueReport, GetExpenditureReport,
+//	                   GetDisbursementReport, ListRevenue, ListExpenses
 package reporting
 
 import (
@@ -193,12 +193,12 @@ type ReportingUseCases struct {
 //
 // **Wave B per-candidate edit pattern:**
 //
-//   1. Replace the typed `any` on the relevant field above with the
-//      candidate's typed pointer (e.g. `ARAging *ar_aging.UseCases`).
-//   2. Replace the nil literal below with the factory call (e.g.
-//      `ARAging: ar_aging.NewUseCases(ar_aging.Repositories{...}, ...)`).
-//   3. Add any new typed deps needed to [Deps] above — keeps
-//      reporting-specific deps out of the parent service.Deps.
+//  1. Replace the typed `any` on the relevant field above with the
+//     candidate's typed pointer (e.g. `ARAging *ar_aging.UseCases`).
+//  2. Replace the nil literal below with the factory call (e.g.
+//     `ARAging: ar_aging.NewUseCases(ar_aging.Repositories{...}, ...)`).
+//  3. Add any new typed deps needed to [Deps] above — keeps
+//     reporting-specific deps out of the parent service.Deps.
 //
 // `deps` may be nil during unit tests that don't exercise any sub-
 // candidate's wiring. Each sub-candidate's factory must tolerate nil

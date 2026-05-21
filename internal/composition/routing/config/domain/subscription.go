@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	subscriptionuc "github.com/erniealice/espyna-golang/internal/application/usecases/subscription"
+	subscriptionuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"

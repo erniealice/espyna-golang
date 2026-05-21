@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	equitydashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/equity"
 	equitytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/equity_transaction"
+	equitydashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/equity"
 )
 
 // EquityAccountSlice mirrors the equity_account row shape for the dashboard

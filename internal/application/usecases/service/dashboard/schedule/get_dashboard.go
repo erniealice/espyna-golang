@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/event/dashboard"
+	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	scheduledashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/schedule"
 )
 

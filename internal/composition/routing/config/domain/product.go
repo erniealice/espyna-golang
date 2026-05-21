@@ -10,7 +10,7 @@ import (
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 
-	productuc "github.com/erniealice/espyna-golang/internal/application/usecases/product"
+	productuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 

@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/event"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	// Protobuf imports

@@ -8,7 +8,7 @@ import (
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 
-	revenueuc "github.com/erniealice/espyna-golang/internal/application/usecases/revenue"
+	revenueuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 )
 

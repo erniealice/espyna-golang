@@ -81,10 +81,10 @@ type Deps struct {
 
 // UseCases aggregates every statement + balance use case.
 type UseCases struct {
-	GetClientStatement    *GetClientStatementUseCase
-	GetSupplierStatement  *GetSupplierStatementUseCase
-	ListClientBalances    *ListClientBalancesUseCase
-	ListSupplierBalances  *ListSupplierBalancesUseCase
+	GetClientStatement   *GetClientStatementUseCase
+	GetSupplierStatement *GetSupplierStatementUseCase
+	ListClientBalances   *ListClientBalancesUseCase
+	ListSupplierBalances *ListSupplierBalancesUseCase
 }
 
 // setReporter rewires every use case to a non-nil reporter after

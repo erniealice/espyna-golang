@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
 // AuthorizationInterceptor provides authorization interceptor for gRPC requests
@@ -80,9 +80,9 @@ func (i *AuthorizationInterceptor) methodToPermission(fullMethod string) string 
 		return ""
 	}
 
-	domain := serviceParts[1]     // entity
+	domain := serviceParts[1]       // entity
 	resourceName := serviceParts[3] // ClientService -> client
-	operation := parts[1]          // Create
+	operation := parts[1]           // Create
 
 	// Remove "Service" suffix from resource name
 	resource := strings.ToLower(strings.TrimSuffix(resourceName, "Service"))

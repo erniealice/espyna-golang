@@ -151,10 +151,10 @@ func translateAgingBuckets(b *agingpb.AgingBuckets) *aragingpb.AgingBuckets {
 		return nil
 	}
 	return &aragingpb.AgingBuckets{
-		Current:    b.GetCurrent(),
-		Days_1_30:  b.GetDays_1_30(),
-		Days_31_60: b.GetDays_31_60(),
-		Days_61_90: b.GetDays_61_90(),
+		Current:     b.GetCurrent(),
+		Days_1_30:   b.GetDays_1_30(),
+		Days_31_60:  b.GetDays_31_60(),
+		Days_61_90:  b.GetDays_61_90(),
 		DaysOver_90: b.GetDaysOver_90(),
 	}
 }

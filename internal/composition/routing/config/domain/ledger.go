@@ -3,7 +3,7 @@ package domain
 import (
 	"fmt"
 
-	ledgeruc "github.com/erniealice/espyna-golang/internal/application/usecases/ledger"
+	ledgeruc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"

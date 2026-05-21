@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	payrolldashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/payroll"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
+	payrolldashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/payroll"
 )
 
 // TimeBucket mirrors the postgres-adapter TimeBucket — kept as a Go-only

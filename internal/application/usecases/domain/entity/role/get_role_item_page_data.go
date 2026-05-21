@@ -1,0 +1,119 @@
+package role
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
+)
+
+// GetRoleItemPageDataRepositories groups all repository dependencies
+type GetRoleItemPageDataRepositories struct {
+	Role rolepb.RoleDomainServiceServer // Primary entity repository
+}
+
+// GetRoleItemPageDataServices groups all business service dependencies
+type GetRoleItemPageDataServices struct {
+	AuthorizationService ports.AuthorizationService
+	TransactionService   ports.TransactionService
+	TranslationService   ports.TranslationService
+}
+
+// GetRoleItemPageDataUseCase handles the business logic for retrieving role item page data
+type GetRoleItemPageDataUseCase struct {
+	repositories GetRoleItemPageDataRepositories
+	services     GetRoleItemPageDataServices
+}
+
+// NewGetRoleItemPageDataUseCase creates use case with grouped dependencies
+func NewGetRoleItemPageDataUseCase(
+	repositories GetRoleItemPageDataRepositories,
+	services GetRoleItemPageDataServices,
+) *GetRoleItemPageDataUseCase {
+	return &GetRoleItemPageDataUseCase{
+		repositories: repositories,
+		services:     services,
+	}
+}
+
+// NewGetRoleItemPageDataUseCaseUngrouped creates use case with individual parameters
+// Deprecated: Use NewGetRoleItemPageDataUseCase with grouped parameters instead
+func NewGetRoleItemPageDataUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *GetRoleItemPageDataUseCase {
+	// Build grouped parameters internally for backward compatibility
+	repositories := GetRoleItemPageDataRepositories{
+		Role: roleRepo,
+	}
+
+	services := GetRoleItemPageDataServices{
+		AuthorizationService: nil,
+		TransactionService:   ports.NewNoOpTransactionService(),
+		TranslationService:   ports.NewNoOpTranslationService(),
+	}
+
+	return NewGetRoleItemPageDataUseCase(repositories, services)
+}
+
+// Execute performs the get role item page data operation
+func (uc *GetRoleItemPageDataUseCase) Execute(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) (*rolepb.GetRoleItemPageDataResponse, error) {
+	// Authorization check
+	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+		ports.EntityRole, ports.ActionList); err != nil {
+		return nil, err
+	}
+
+	// Check if transaction service is available and supports transactions
+	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+		return uc.executeWithTransaction(ctx, req)
+	}
+
+	// Fallback to non-transactional execution
+	return uc.executeCore(ctx, req)
+}
+
+// executeWithTransaction executes role item page data retrieval within a transaction
+func (uc *GetRoleItemPageDataUseCase) executeWithTransaction(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) (*rolepb.GetRoleItemPageDataResponse, error) {
+	var result *rolepb.GetRoleItemPageDataResponse
+
+	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		res, err := uc.executeCore(txCtx, req)
+		if err != nil {
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "role.errors.item_page_data_retrieval_failed", "Role item page data retrieval failed [DEFAULT]")
+			return fmt.Errorf("%s: %w", translatedError, err)
+		}
+		result = res
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// executeCore contains the core business logic
+func (uc *GetRoleItemPageDataUseCase) executeCore(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) (*rolepb.GetRoleItemPageDataResponse, error) {
+	// Input validation
+	if err := uc.validateInput(ctx, req); err != nil {
+		return nil, err
+	}
+
+	// Call repository
+	return uc.repositories.Role.GetRoleItemPageData(ctx, req)
+}
+
+// validateInput validates the input request
+func (uc *GetRoleItemPageDataUseCase) validateInput(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) error {
+	if req == nil {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.request_required", "Request is required for role item page data [DEFAULT]"))
+	}
+
+	if req.RoleId == "" {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.role_id_required", "Role ID is required [DEFAULT]"))
+	}
+
+	return nil
+}

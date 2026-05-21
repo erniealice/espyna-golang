@@ -17,9 +17,9 @@ type ListPurchaseOrdersRepositories struct {
 
 // ListPurchaseOrdersServices groups all business service dependencies
 type ListPurchaseOrdersServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListPurchaseOrdersUseCase handles the business logic for listing purchase orders
@@ -41,13 +41,13 @@ func NewListPurchaseOrdersUseCase(
 
 // Execute performs the list purchase orders operation
 func (uc *ListPurchaseOrdersUseCase) Execute(ctx context.Context, req *purchaseorderpb.ListPurchaseOrdersRequest) (*purchaseorderpb.ListPurchaseOrdersResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrder, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	if uc.repositories.PurchaseOrder == nil {

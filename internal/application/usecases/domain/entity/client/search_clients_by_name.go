@@ -17,9 +17,9 @@ type SearchClientsByNameRepositories struct {
 
 // SearchClientsByNameServices groups all business service dependencies
 type SearchClientsByNameServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // SearchClientsByNameUseCase handles the business logic for searching clients by name
@@ -42,7 +42,7 @@ func NewSearchClientsByNameUseCase(
 // Execute performs the search clients by name operation
 func (uc *SearchClientsByNameUseCase) Execute(ctx context.Context, req *clientpb.SearchClientsByNameRequest) (*clientpb.SearchClientsByNameResponse, error) {
 	// Authorization check — search is a read/list operation
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (uc *SearchClientsByNameUseCase) Execute(ctx context.Context, req *clientpb
 
 	resp, err := uc.repositories.Client.SearchClientsByName(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.errors.search_failed", "Failed to search clients [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.search_failed", "Failed to search clients [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

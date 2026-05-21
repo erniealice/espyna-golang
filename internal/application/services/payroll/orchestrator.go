@@ -40,11 +40,11 @@ type OrchestratorRepositories struct {
 // It wraps the per-region PayrollCalculator and ties it to repository writes.
 type Orchestrator struct {
 	repos     OrchestratorRepositories
-	idService ports.IDService
+	idService ports.IDGenerator
 }
 
 // NewOrchestrator wires the orchestrator with all required repos.
-func NewOrchestrator(repos OrchestratorRepositories, idService ports.IDService) *Orchestrator {
+func NewOrchestrator(repos OrchestratorRepositories, idService ports.IDGenerator) *Orchestrator {
 	return &Orchestrator{repos: repos, idService: idService}
 }
 

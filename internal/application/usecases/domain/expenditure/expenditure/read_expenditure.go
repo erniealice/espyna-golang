@@ -17,9 +17,9 @@ type ReadExpenditureRepositories struct {
 
 // ReadExpenditureServices groups all business service dependencies
 type ReadExpenditureServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadExpenditureUseCase handles the business logic for reading an expenditure
@@ -41,13 +41,13 @@ func NewReadExpenditureUseCase(
 
 // Execute performs the read expenditure operation
 func (uc *ReadExpenditureUseCase) Execute(ctx context.Context, req *expenditurepb.ReadExpenditureRequest) (*expenditurepb.ReadExpenditureResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditure, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure.validation.id_required", "Expenditure ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure.validation.id_required", "Expenditure ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Expenditure.ReadExpenditure(ctx, req)

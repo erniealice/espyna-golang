@@ -41,7 +41,7 @@ type Repositories struct {
 
 // Services groups application services.
 type Services struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // Deps groups the constructor inputs the umbrella initializer threads to the
@@ -49,11 +49,11 @@ type Services struct {
 // composite struct so the umbrella `NewDashboardUseCases` factory in the
 // sibling package can pass it through unchanged.
 type Deps struct {
-	Permission         PermissionDashboardRepository
-	Role               RoleDashboardRepository
-	WorkspaceUser      WorkspaceUserDashboardRepository
-	WorkspaceUserRole  WorkspaceUserRoleDashboardRepository
-	TranslationService ports.TranslationService
+	Permission        PermissionDashboardRepository
+	Role              RoleDashboardRepository
+	WorkspaceUser     WorkspaceUserDashboardRepository
+	WorkspaceUserRole WorkspaceUserRoleDashboardRepository
+	Translator        ports.Translator
 }
 
 // NewUseCases wires every admin-dashboard service use case from grouped
@@ -71,7 +71,7 @@ func NewUseCases(deps *Deps) *UseCases {
 				WorkspaceUser:     deps.WorkspaceUser,
 				WorkspaceUserRole: deps.WorkspaceUserRole,
 			},
-			GetAdminDashboardServices{TranslationService: deps.TranslationService},
+			GetAdminDashboardServices{Translator: deps.Translator},
 		),
 	}
 }

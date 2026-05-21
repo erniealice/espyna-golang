@@ -17,8 +17,8 @@ type DeleteSupplierContractPriceScheduleRepositories struct {
 
 // DeleteSupplierContractPriceScheduleServices groups service dependencies.
 type DeleteSupplierContractPriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteSupplierContractPriceScheduleUseCase handles deleting a schedule.
@@ -37,12 +37,12 @@ func NewDeleteSupplierContractPriceScheduleUseCase(
 
 // Execute performs the delete operation.
 func (uc *DeleteSupplierContractPriceScheduleUseCase) Execute(ctx context.Context, req *scpspb.DeleteSupplierContractPriceScheduleRequest) (*scpspb.DeleteSupplierContractPriceScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceSchedule, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.validation.id_required", "Supplier contract price schedule ID is required [DEFAULT]"))
 	}
 	return uc.repositories.SupplierContractPriceSchedule.DeleteSupplierContractPriceSchedule(ctx, req)

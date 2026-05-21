@@ -18,10 +18,10 @@ import (
 // degradation on non-postgres builds.
 func InitializeDocument(
 	ledgerRepos *repodomain.LedgerRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*document.UseCases, error) {
 	uc := &document.UseCases{}
 	if ledgerRepos == nil {
@@ -32,10 +32,10 @@ func InitializeDocument(
 		uc.Attachment = attachment.NewUseCases(
 			attachment.AttachmentRepositories{Attachment: ledgerRepos.Attachment},
 			attachment.AttachmentServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idSvc,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idSvc,
 			},
 		)
 	}
@@ -43,10 +43,10 @@ func InitializeDocument(
 		uc.Template = template.NewUseCases(
 			template.DocumentTemplateRepositories{DocumentTemplate: ledgerRepos.DocumentTemplate},
 			template.DocumentTemplateServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idSvc,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idSvc,
 			},
 		)
 	}

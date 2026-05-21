@@ -19,9 +19,9 @@ type GetClientCategoryListPageDataRepositories struct {
 
 // GetClientCategoryListPageDataServices groups all business service dependencies
 type GetClientCategoryListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetClientCategoryListPageDataUseCase handles the business logic for getting client category list page data
@@ -49,9 +49,9 @@ func NewGetClientCategoryListPageDataUseCaseUngrouped(clientCategoryRepo clientc
 	}
 
 	services := GetClientCategoryListPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetClientCategoryListPageDataUseCase(repositories, services)
@@ -59,24 +59,24 @@ func NewGetClientCategoryListPageDataUseCaseUngrouped(clientCategoryRepo clientc
 
 func (uc *GetClientCategoryListPageDataUseCase) Execute(ctx context.Context, req *clientcategorypb.GetClientCategoryListPageDataRequest) (*clientcategorypb.GetClientCategoryListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"client_category", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	resp, err := uc.repositories.ClientCategory.GetClientCategoryListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.errors.list_page_data_failed", "Failed to retrieve client category list page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.errors.list_page_data_failed", "Failed to retrieve client category list page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -85,21 +85,21 @@ func (uc *GetClientCategoryListPageDataUseCase) Execute(ctx context.Context, req
 
 func (uc *GetClientCategoryListPageDataUseCase) validateInput(ctx context.Context, req *clientcategorypb.GetClientCategoryListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
 	}
 
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
 		}
 		if req.Pagination.Limit > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
 		}
 	}
 
 	if req.Search != nil && req.Search.Query != "" {
 		if len(req.Search.Query) < 2 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
 		}
 	}
 

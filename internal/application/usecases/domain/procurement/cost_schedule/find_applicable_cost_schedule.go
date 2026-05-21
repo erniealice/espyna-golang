@@ -16,9 +16,9 @@ type FindApplicableCostScheduleRepositories struct {
 }
 
 type FindApplicableCostScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type FindApplicableCostScheduleUseCase struct {
@@ -34,25 +34,25 @@ func NewFindApplicableCostScheduleUseCase(
 }
 
 func (uc *FindApplicableCostScheduleUseCase) Execute(ctx context.Context, req *costschedulepb.FindApplicableCostScheduleRequest) (*costschedulepb.FindApplicableCostScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCostSchedule, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.request_required", "request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.request_required", "request is required"))
 	}
 	if req.LocationId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.location_id_required", "location_id is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.location_id_required", "location_id is required"))
 	}
 	if req.Date == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.date_required", "date is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.date_required", "date is required"))
 	}
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *costschedulepb.FindApplicableCostScheduleResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.CostSchedule.FindApplicableCostSchedule(txCtx, req)
 			if err != nil {
-				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "cost_schedule.errors.find_applicable_failed", "find applicable cost schedule failed: %w"), err)
+				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "cost_schedule.errors.find_applicable_failed", "find applicable cost schedule failed: %w"), err)
 			}
 			result = res
 			return nil
@@ -64,7 +64,7 @@ func (uc *FindApplicableCostScheduleUseCase) Execute(ctx context.Context, req *c
 	}
 	resp, err := uc.repositories.CostSchedule.FindApplicableCostSchedule(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.errors.find_applicable_failed", "failed to find applicable cost schedule: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.errors.find_applicable_failed", "failed to find applicable cost schedule: %w"), err)
 	}
 	return resp, nil
 }

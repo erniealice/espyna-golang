@@ -28,8 +28,8 @@ type ListAdvanceCollectionsForDashboardRepositories struct {
 
 // ListAdvanceCollectionsForDashboardServices groups infra services.
 type ListAdvanceCollectionsForDashboardServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListAdvanceCollectionsForDashboardUseCase projects active selling-side
@@ -58,7 +58,7 @@ func (uc *ListAdvanceCollectionsForDashboardUseCase) Execute(
 	}
 	_ = req // request fields are reserved for future as-of filtering.
 
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"treasury_collection", ports.ActionList); err != nil {
 		return nil, err
 	}

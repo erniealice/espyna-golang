@@ -26,9 +26,9 @@ type CreateRevenueTaxLineRepositories struct {
 
 // CreateRevenueTaxLineServices groups service dependencies.
 type CreateRevenueTaxLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateRevenueTaxLineUseCase handles system-writes of revenue_tax_line rows.
@@ -51,22 +51,22 @@ func NewCreateRevenueTaxLineUseCase(
 
 // Execute inserts a single revenue_tax_line row.
 func (uc *CreateRevenueTaxLineUseCase) Execute(ctx context.Context, line *revenuetaxlinepb.RevenueTaxLine) (*revenuetaxlinepb.RevenueTaxLine, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueTaxLine, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if line == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.data_required", "Revenue tax line data is required [DEFAULT]"))
 	}
 	if line.RevenueId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.revenue_id_required", "Revenue ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()
-	if line.Id == "" && uc.services.IDService != nil {
-		line.Id = uc.services.IDService.GenerateID()
+	if line.Id == "" && uc.services.IDGenerator != nil {
+		line.Id = uc.services.IDGenerator.GenerateID()
 	}
 	line.Active = true
 	ms := now.UnixMilli()

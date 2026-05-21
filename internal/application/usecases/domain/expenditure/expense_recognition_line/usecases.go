@@ -12,10 +12,10 @@ type ExpenseRecognitionLineRepositories struct {
 
 // ExpenseRecognitionLineServices groups all service dependencies.
 type ExpenseRecognitionLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all expense recognition line use cases.
@@ -36,37 +36,37 @@ func NewUseCases(
 		CreateExpenseRecognitionLine: NewCreateExpenseRecognitionLineUseCase(
 			CreateExpenseRecognitionLineRepositories{ExpenseRecognitionLine: repositories.ExpenseRecognitionLine},
 			CreateExpenseRecognitionLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadExpenseRecognitionLine: NewReadExpenseRecognitionLineUseCase(
 			ReadExpenseRecognitionLineRepositories{ExpenseRecognitionLine: repositories.ExpenseRecognitionLine},
 			ReadExpenseRecognitionLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateExpenseRecognitionLine: NewUpdateExpenseRecognitionLineUseCase(
 			UpdateExpenseRecognitionLineRepositories{ExpenseRecognitionLine: repositories.ExpenseRecognitionLine},
 			UpdateExpenseRecognitionLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteExpenseRecognitionLine: NewDeleteExpenseRecognitionLineUseCase(
 			DeleteExpenseRecognitionLineRepositories{ExpenseRecognitionLine: repositories.ExpenseRecognitionLine},
 			DeleteExpenseRecognitionLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListExpenseRecognitionLines: NewListExpenseRecognitionLinesUseCase(
 			ListExpenseRecognitionLinesRepositories{ExpenseRecognitionLine: repositories.ExpenseRecognitionLine},
 			ListExpenseRecognitionLinesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

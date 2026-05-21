@@ -10,13 +10,13 @@ import (
 )
 
 // initServiceAudit wires the service-layer Audit sub-aggregate.
-func initServiceAudit(db *sql.DB, authSvc ports.AuthorizationService, i18nSvc ports.TranslationService) *auditusecases.UseCases {
+func initServiceAudit(db *sql.DB, authSvc ports.Authorizer, i18nSvc ports.Translator) *auditusecases.UseCases {
 	auditSvc := auditServiceFromDB(db)
 	return auditusecases.NewUseCases(
 		auditusecases.Repositories{AuditService: auditSvc},
 		auditusecases.Services{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 }

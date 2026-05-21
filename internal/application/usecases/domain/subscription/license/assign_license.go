@@ -25,9 +25,9 @@ type AssignLicenseRepositories struct {
 
 // AssignLicenseServices groups all business service dependencies
 type AssignLicenseServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
+	Authorizer ports.Authorizer // RBAC and permissions
+	Transactor ports.Transactor // Database transactions
+	Translator ports.Translator // i18n error messages
 }
 
 // AssignLicenseUseCase handles the business logic for assigning licenses
@@ -53,13 +53,13 @@ func NewAssignLicenseUseCase(
 // Execute performs the assign license operation
 func (uc *AssignLicenseUseCase) Execute(ctx context.Context, req *licensepb.AssignLicenseRequest) (*licensepb.AssignLicenseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicense, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -68,11 +68,11 @@ func (uc *AssignLicenseUseCase) Execute(ctx context.Context, req *licensepb.Assi
 // executeWithTransaction performs the assign license operation within a transaction
 func (uc *AssignLicenseUseCase) executeWithTransaction(ctx context.Context, req *licensepb.AssignLicenseRequest) (*licensepb.AssignLicenseResponse, error) {
 	var result *licensepb.AssignLicenseResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(ctx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(ctx context.Context) error {
 		var txErr error
 		result, txErr = uc.executeCore(ctx, req)
 		if txErr != nil {
-			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.assignment_failed", "license assignment failed [DEFAULT]")
+			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.assignment_failed", "license assignment failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", errMsg, txErr)
 		}
 		return nil
@@ -96,20 +96,20 @@ func (uc *AssignLicenseUseCase) executeCore(ctx context.Context, req *licensepb.
 		Data: &licensepb.License{Id: req.LicenseId},
 	})
 	if err != nil || readResp == nil || len(readResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.not_found", "license not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.not_found", "license not found [DEFAULT]"))
 	}
 
 	license := readResp.Data[0]
 
 	// Check if license is already assigned
 	if license.AssigneeId != nil && *license.AssigneeId != "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.already_assigned", "license is already assigned [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.already_assigned", "license is already assigned [DEFAULT]"))
 	}
 
 	// Check if license is in a valid state for assignment
 	if license.Status == licensepb.LicenseStatus_LICENSE_STATUS_REVOKED ||
 		license.Status == licensepb.LicenseStatus_LICENSE_STATUS_EXPIRED {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.invalid_status_for_assignment", "license cannot be assigned in its current status [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.invalid_status_for_assignment", "license cannot be assigned in its current status [DEFAULT]"))
 	}
 
 	// Store previous status for history
@@ -198,19 +198,19 @@ func (uc *AssignLicenseUseCase) updateSubscriptionAssignedCount(ctx context.Cont
 // validateInput validates the input request
 func (uc *AssignLicenseUseCase) validateInput(ctx context.Context, req *licensepb.AssignLicenseRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.LicenseId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.id_required", "license ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.id_required", "license ID is required [DEFAULT]"))
 	}
 	if req.AssigneeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.assignee_id_required", "assignee ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.assignee_id_required", "assignee ID is required [DEFAULT]"))
 	}
 	if req.AssigneeType == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.assignee_type_required", "assignee type is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.assignee_type_required", "assignee type is required [DEFAULT]"))
 	}
 	if req.AssignedBy == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.assigned_by_required", "assigned_by is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.assigned_by_required", "assigned_by is required [DEFAULT]"))
 	}
 	return nil
 }

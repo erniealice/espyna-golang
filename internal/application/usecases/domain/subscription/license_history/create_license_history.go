@@ -19,10 +19,10 @@ type CreateLicenseHistoryRepositories struct {
 
 // CreateLicenseHistoryServices groups all business service dependencies
 type CreateLicenseHistoryServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
-	IDService            ports.IDService            // UUID generation
+	Authorizer  ports.Authorizer  // RBAC and permissions
+	Transactor  ports.Transactor  // Database transactions
+	Translator  ports.Translator  // i18n error messages
+	IDGenerator ports.IDGenerator // UUID generation
 }
 
 // CreateLicenseHistoryUseCase handles the business logic for creating license history entries
@@ -45,13 +45,13 @@ func NewCreateLicenseHistoryUseCase(
 // Execute performs the create license history operation
 func (uc *CreateLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehistorypb.CreateLicenseHistoryRequest) (*licensehistorypb.CreateLicenseHistoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicenseHistory, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -60,11 +60,11 @@ func (uc *CreateLicenseHistoryUseCase) Execute(ctx context.Context, req *license
 // executeWithTransaction performs the create license history operation within a transaction
 func (uc *CreateLicenseHistoryUseCase) executeWithTransaction(ctx context.Context, req *licensehistorypb.CreateLicenseHistoryRequest) (*licensehistorypb.CreateLicenseHistoryResponse, error) {
 	var result *licensehistorypb.CreateLicenseHistoryResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(ctx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(ctx context.Context) error {
 		var txErr error
 		result, txErr = uc.executeCore(ctx, req)
 		if txErr != nil {
-			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.errors.creation_failed", "license history creation failed [DEFAULT]")
+			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.errors.creation_failed", "license history creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", errMsg, txErr)
 		}
 		return nil
@@ -104,16 +104,16 @@ func (uc *CreateLicenseHistoryUseCase) executeCore(ctx context.Context, req *lic
 // validateInput validates the input request
 func (uc *CreateLicenseHistoryUseCase) validateInput(ctx context.Context, req *licensehistorypb.CreateLicenseHistoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.data_required", "license history data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.data_required", "license history data is required [DEFAULT]"))
 	}
 	if req.Data.LicenseId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.license_id_required", "license ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.license_id_required", "license ID is required [DEFAULT]"))
 	}
 	if req.Data.PerformedBy == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.performed_by_required", "performed_by is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.performed_by_required", "performed_by is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -124,7 +124,7 @@ func (uc *CreateLicenseHistoryUseCase) enrichHistoryData(history *licensehistory
 
 	// Generate History ID if not provided
 	if history.Id == "" {
-		history.Id = uc.services.IDService.GenerateID()
+		history.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields

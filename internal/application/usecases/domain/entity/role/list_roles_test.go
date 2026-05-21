@@ -28,7 +28,7 @@ func createTestListRolesUseCase(businessType string) *ListRolesUseCase {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListRolesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewListRolesUseCase(repositories, services)
 }
@@ -40,7 +40,7 @@ func TestListRolesUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockRoleRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListRolesUseCase(ListRolesRepositories{Role: mockRepo}, ListRolesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/role has 2 entries
@@ -65,9 +65,9 @@ func TestListRolesUseCase_Execute_AfterDelete(t *testing.T) {
 	deleteRepositories := DeleteRoleRepositories{Role: mockRepo}
 	standardServices2 := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteRoleServices{
-		AuthorizationService: standardServices2.AuthorizationService,
-		TransactionService:   standardServices2.TransactionService,
-		TranslationService:   standardServices2.TranslationService,
+		Authorizer: standardServices2.Authorizer,
+		Transactor: standardServices2.Transactor,
+		Translator: standardServices2.Translator,
 	}
 	deleteUseCase := NewDeleteRoleUseCase(deleteRepositories, deleteServices)
 
@@ -75,7 +75,7 @@ func TestListRolesUseCase_Execute_AfterDelete(t *testing.T) {
 	listReq2 := &rolepb.ListRolesRequest{}
 	standardServices3 := testutil.CreateStandardServices(false, true)
 	listTestUseCase := NewListRolesUseCase(ListRolesRepositories{Role: mockRepo}, ListRolesServices{
-		TranslationService: standardServices3.TranslationService,
+		Translator: standardServices3.Translator,
 	})
 	listRes2, err := listTestUseCase.Execute(ctx, listReq2)
 	if err != nil || len(listRes2.Data) == 0 {
@@ -90,7 +90,7 @@ func TestListRolesUseCase_Execute_AfterDelete(t *testing.T) {
 	// --- Now list the roles ---
 	standardServices4 := testutil.CreateStandardServices(false, true)
 	listUseCase := NewListRolesUseCase(ListRolesRepositories{Role: mockRepo}, ListRolesServices{
-		TranslationService: standardServices4.TranslationService,
+		Translator: standardServices4.Translator,
 	})
 
 	listReq := &rolepb.ListRolesRequest{}

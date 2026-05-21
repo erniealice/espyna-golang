@@ -12,10 +12,10 @@ type SecurityDepositRepositories struct {
 
 // SecurityDepositServices groups all business service dependencies for security deposit use cases
 type SecurityDepositServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all security deposit-related use cases
@@ -32,24 +32,24 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateSecurityDepositRepositories(repositories)
 	createServices := CreateSecurityDepositServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	listRepos := ListSecurityDepositsRepositories(repositories)
 	listServices := ListSecurityDepositsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetSecurityDepositListPageDataRepositories(repositories)
 	getListPageDataServices := GetSecurityDepositListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

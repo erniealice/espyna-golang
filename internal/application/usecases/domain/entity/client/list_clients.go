@@ -17,9 +17,9 @@ type ListClientsRepositories struct {
 
 // ListClientsServices groups all business service dependencies
 type ListClientsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListClientsUseCase handles the business logic for listing clients
@@ -48,9 +48,9 @@ func NewListClientsUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServe
 	}
 
 	services := ListClientsServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListClientsUseCase(repositories, services)
@@ -59,7 +59,7 @@ func NewListClientsUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServe
 // Execute performs the list clients operation
 func (uc *ListClientsUseCase) Execute(ctx context.Context, req *clientpb.ListClientsRequest) (*clientpb.ListClientsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (uc *ListClientsUseCase) Execute(ctx context.Context, req *clientpb.ListCli
 	// Call repository
 	resp, err := uc.repositories.Client.ListClients(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.errors.list_failed", "Failed to retrieve clients [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.list_failed", "Failed to retrieve clients [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

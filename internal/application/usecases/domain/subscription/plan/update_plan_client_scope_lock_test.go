@@ -141,10 +141,10 @@ func newUpdateUC(t *testing.T, planRepo *mockPlanRepo, pricePlanRepo *pricePlanR
 	return NewUpdatePlanUseCase(
 		UpdatePlanRepositories{Plan: planRepo, PricePlan: pricePlanRepo},
 		UpdatePlanServices{
-			AuthorizationService: noOpAuth(),
-			TransactionService:   noTxn{},
-			TranslationService:   noOpTranslation(),
-			ReferenceChecker:     refChecker,
+			Authorizer:       noOpAuth(),
+			Transactor:       noTxn{},
+			Translator:       noOpTranslation(),
+			ReferenceChecker: refChecker,
 		},
 	)
 }

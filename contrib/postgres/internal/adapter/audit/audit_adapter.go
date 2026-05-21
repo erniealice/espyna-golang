@@ -1,6 +1,5 @@
 //go:build postgresql
 
-
 package audit
 
 import (

@@ -25,7 +25,7 @@ import (
 //  6. AD_HOC × {pool, per-call} × Plan.job_template_id IS NULL → pool_no_template / pay_per_call_no_template
 func validateAdHoc(
 	ctx context.Context,
-	translationService ports.TranslationService,
+	translationService ports.Translator,
 	pricePlan *priceplanpb.PricePlan,
 	plan *planpb.Plan,
 ) error {

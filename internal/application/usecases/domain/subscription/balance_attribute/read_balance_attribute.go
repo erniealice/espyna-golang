@@ -18,9 +18,9 @@ type ReadBalanceAttributeRepositories struct {
 
 // ReadBalanceAttributeServices groups all business service dependencies
 type ReadBalanceAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadBalanceAttributeUseCase handles the business logic for reading balance attributes
@@ -43,7 +43,7 @@ func NewReadBalanceAttributeUseCase(
 // Execute performs the read balance attribute operation
 func (uc *ReadBalanceAttributeUseCase) Execute(ctx context.Context, req *balanceattributepb.ReadBalanceAttributeRequest) (*balanceattributepb.ReadBalanceAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalanceAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *ReadBalanceAttributeUseCase) Execute(ctx context.Context, req *balance
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"balance_attribute.errors.not_found",
 				map[string]interface{}{"balanceAttributeId": req.Data.Id},
 				"Balance attribute not found [DEFAULT]",
@@ -79,13 +79,13 @@ func (uc *ReadBalanceAttributeUseCase) Execute(ctx context.Context, req *balance
 // validateInput validates the input request
 func (uc *ReadBalanceAttributeUseCase) validateInput(ctx context.Context, req *balanceattributepb.ReadBalanceAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.id_required", "Balance attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.id_required", "Balance attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

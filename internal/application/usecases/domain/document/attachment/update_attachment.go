@@ -19,9 +19,9 @@ type UpdateAttachmentRepositories struct {
 
 // UpdateAttachmentServices groups all business service dependencies
 type UpdateAttachmentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateAttachmentUseCase handles the business logic for updating attachments
@@ -43,14 +43,14 @@ func NewUpdateAttachmentUseCase(
 
 // Execute performs the update attachment operation
 func (uc *UpdateAttachmentUseCase) Execute(ctx context.Context, req *attachmentpb.UpdateAttachmentRequest) (*attachmentpb.UpdateAttachmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAttachment, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *attachmentpb.UpdateAttachmentResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("attachment update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateAttachmentUseCase) Execute(ctx context.Context, req *attachmentp
 
 func (uc *UpdateAttachmentUseCase) executeCore(ctx context.Context, req *attachmentpb.UpdateAttachmentRequest) (*attachmentpb.UpdateAttachmentResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "attachment.validation.id_required", "Attachment ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "attachment.validation.id_required", "Attachment ID is required [DEFAULT]"))
 	}
 
 	// Set date_modified

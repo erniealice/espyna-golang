@@ -64,8 +64,8 @@ type ListRevenueRunCandidatesRepositories struct {
 
 // ListRevenueRunCandidatesServices groups all business service dependencies.
 type ListRevenueRunCandidatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListRevenueRunCandidatesUseCase enumerates pending billing periods for the
@@ -101,11 +101,11 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	req *revenuerunpb.ListRevenueRunCandidatesRequest,
 ) (*revenuerunpb.ListRevenueRunCandidatesResponse, error) {
 	// 1. Auth checks
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenue, ports.ActionCreate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySubscription, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 	asOfTime, err := time.ParseInLocation("2006-01-02", asOfDate, loc)
 	if err != nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.validation.invalid_as_of_date",
 			"as_of_date must be YYYY-MM-DD [DEFAULT]",
 		))

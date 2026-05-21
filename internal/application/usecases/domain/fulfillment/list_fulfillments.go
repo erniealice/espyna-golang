@@ -16,8 +16,8 @@ type ListFulfillmentsRepositories struct {
 	Fulfillment pb.FulfillmentDomainServiceServer
 }
 type ListFulfillmentsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 type ListFulfillmentsUseCase struct {
 	repositories ListFulfillmentsRepositories
@@ -30,8 +30,8 @@ type GetFulfillmentListPageDataRepositories struct {
 	Fulfillment pb.FulfillmentDomainServiceServer
 }
 type GetFulfillmentListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 type GetFulfillmentListPageDataUseCase struct {
 	repositories GetFulfillmentListPageDataRepositories
@@ -39,15 +39,15 @@ type GetFulfillmentListPageDataUseCase struct {
 }
 
 func (uc *ListFulfillmentsUseCase) Execute(ctx context.Context, req *pb.ListFulfillmentsRequest) (*pb.ListFulfillmentsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "fulfillment", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.validation.request_required", "request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.validation.request_required", "request is required [DEFAULT]"))
 	}
 	result, err := uc.repositories.Fulfillment.ListFulfillments(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.errors.list_failed", "fulfillment listing failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.errors.list_failed", "fulfillment listing failed [DEFAULT]"))
 	}
 	return result, nil
 }
@@ -55,11 +55,11 @@ func (uc *ListFulfillmentsUseCase) Execute(ctx context.Context, req *pb.ListFulf
 // ---- GetFulfillmentListPageData ----
 
 func (uc *GetFulfillmentListPageDataUseCase) Execute(ctx context.Context, req *pb.GetFulfillmentListPageDataRequest) (*pb.GetFulfillmentListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "fulfillment", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.validation.request_required", "request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.validation.request_required", "request is required [DEFAULT]"))
 	}
 	return uc.repositories.Fulfillment.GetFulfillmentListPageData(ctx, req)
 }

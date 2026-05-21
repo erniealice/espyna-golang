@@ -13,10 +13,10 @@ type AccruedExpenseRepositories struct {
 
 // AccruedExpenseServices groups all service dependencies.
 type AccruedExpenseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all accrued expense use cases.
@@ -41,55 +41,55 @@ func NewUseCases(
 		CreateAccruedExpense: NewCreateAccruedExpenseUseCase(
 			CreateAccruedExpenseRepositories{AccruedExpense: repositories.AccruedExpense},
 			CreateAccruedExpenseServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadAccruedExpense: NewReadAccruedExpenseUseCase(
 			ReadAccruedExpenseRepositories{AccruedExpense: repositories.AccruedExpense},
 			ReadAccruedExpenseServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateAccruedExpense: NewUpdateAccruedExpenseUseCase(
 			UpdateAccruedExpenseRepositories{AccruedExpense: repositories.AccruedExpense},
 			UpdateAccruedExpenseServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteAccruedExpense: NewDeleteAccruedExpenseUseCase(
 			DeleteAccruedExpenseRepositories{AccruedExpense: repositories.AccruedExpense},
 			DeleteAccruedExpenseServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListAccruedExpenses: NewListAccruedExpensesUseCase(
 			ListAccruedExpensesRepositories{AccruedExpense: repositories.AccruedExpense},
 			ListAccruedExpensesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		AccrueFromContract: NewAccrueFromContractUseCase(
 			AccrueFromContractRepositories{AccruedExpense: repositories.AccruedExpense},
 			AccrueFromContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReverseAccrual: NewReverseAccrualUseCase(
 			ReverseAccrualRepositories{AccruedExpense: repositories.AccruedExpense},
 			ReverseAccrualServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		// SPS Wave 2 Opus: SettleAccrual lives in settle_accrual.go.
@@ -99,10 +99,10 @@ func NewUseCases(
 				AccruedExpenseSettlement: repositories.AccruedExpenseSettlement,
 			},
 			SettleAccrualServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 	}

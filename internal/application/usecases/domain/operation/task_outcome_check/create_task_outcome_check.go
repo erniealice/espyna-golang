@@ -16,10 +16,10 @@ type CreateTaskOutcomeCheckRepositories struct {
 }
 
 type CreateTaskOutcomeCheckServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateTaskOutcomeCheckUseCase handles the business logic for creating task outcome checks
@@ -42,13 +42,13 @@ func NewCreateTaskOutcomeCheckUseCase(
 // Execute performs the create task outcome check operation
 func (uc *CreateTaskOutcomeCheckUseCase) Execute(ctx context.Context, req *pb.CreateTaskOutcomeCheckRequest) (*pb.CreateTaskOutcomeCheckResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTaskOutcomeCheck, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome_check.validation.data_required", "[ERR-DEFAULT] Task outcome check data is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome_check.validation.data_required", "[ERR-DEFAULT] Task outcome check data is required"))
 	}
 
 	// Business validation
@@ -60,7 +60,7 @@ func (uc *CreateTaskOutcomeCheckUseCase) Execute(ctx context.Context, req *pb.Cr
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req, enrichedData)
 	}
 
@@ -71,7 +71,7 @@ func (uc *CreateTaskOutcomeCheckUseCase) Execute(ctx context.Context, req *pb.Cr
 // executeWithTransaction executes creation within a transaction
 func (uc *CreateTaskOutcomeCheckUseCase) executeWithTransaction(ctx context.Context, req *pb.CreateTaskOutcomeCheckRequest, enrichedData *pb.TaskOutcomeCheck) (*pb.CreateTaskOutcomeCheckResponse, error) {
 	var result *pb.CreateTaskOutcomeCheckResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req, enrichedData)
 		if err != nil {
 			return err
@@ -92,7 +92,7 @@ func (uc *CreateTaskOutcomeCheckUseCase) executeCore(ctx context.Context, req *p
 		Data: enrichedData,
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome_check.errors.creation_failed", "[ERR-DEFAULT] Task outcome check creation failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome_check.errors.creation_failed", "[ERR-DEFAULT] Task outcome check creation failed"))
 	}
 	return resp, nil
 }
@@ -102,7 +102,7 @@ func (uc *CreateTaskOutcomeCheckUseCase) applyBusinessLogic(data *pb.TaskOutcome
 	now := time.Now()
 
 	if data.Id == "" {
-		data.Id = uc.services.IDService.GenerateID()
+		data.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	data.DateCreated = &[]int64{now.UnixMilli()}[0]
@@ -114,10 +114,10 @@ func (uc *CreateTaskOutcomeCheckUseCase) applyBusinessLogic(data *pb.TaskOutcome
 // validateBusinessRules enforces business constraints
 func (uc *CreateTaskOutcomeCheckUseCase) validateBusinessRules(ctx context.Context, data *pb.TaskOutcomeCheck) error {
 	if data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome_check.validation.data_required", "[ERR-DEFAULT] Task outcome check data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome_check.validation.data_required", "[ERR-DEFAULT] Task outcome check data is required"))
 	}
 	if data.TaskOutcomeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome_check.validation.task_outcome_id_required", "[ERR-DEFAULT] Task outcome ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome_check.validation.task_outcome_id_required", "[ERR-DEFAULT] Task outcome ID is required"))
 	}
 
 	return nil

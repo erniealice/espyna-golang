@@ -20,10 +20,10 @@ type CreateInvoiceRepositories struct {
 
 // CreateInvoiceServices groups all business service dependencies
 type CreateInvoiceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateInvoiceUseCase handles the business logic for creating invoices
@@ -46,7 +46,7 @@ func NewCreateInvoiceUseCase(
 // Execute performs the create invoice operation
 func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, req *invoicepb.CreateInvoiceRequest) (*invoicepb.CreateInvoiceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInvoice, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -54,18 +54,18 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, req *invoicepb.Crea
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityInvoice, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -96,11 +96,11 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, req *invoicepb.Crea
 // validateInput validates the input request
 func (uc *CreateInvoiceUseCase) validateInput(ctx context.Context, req *invoicepb.CreateInvoiceRequest) error {
 	if req == nil {
-		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.request_required", "request is required")
+		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.validation.request_required", "request is required")
 		return errors.New(errorMsg)
 	}
 	if req.Data == nil {
-		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.data_required", "invoice data is required")
+		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.validation.data_required", "invoice data is required")
 		return errors.New(errorMsg)
 	}
 	return nil
@@ -112,7 +112,7 @@ func (uc *CreateInvoiceUseCase) enrichInvoiceData(invoice *invoicepb.Invoice) er
 
 	// Generate Invoice ID if not provided
 	if invoice.Id == "" {
-		invoice.Id = uc.services.IDService.GenerateID()
+		invoice.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Generate Invoice Number if not provided
@@ -134,13 +134,13 @@ func (uc *CreateInvoiceUseCase) enrichInvoiceData(invoice *invoicepb.Invoice) er
 func (uc *CreateInvoiceUseCase) validateBusinessRules(ctx context.Context, invoice *invoicepb.Invoice) error {
 	// Validate invoice number uniqueness (this would typically involve checking the repository)
 	if strings.TrimSpace(invoice.InvoiceNumber) == "" {
-		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.number_required", "invoice number cannot be empty")
+		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.validation.number_required", "invoice number cannot be empty")
 		return errors.New(errorMsg)
 	}
 
 	// Validate amount constraints
 	if invoice.Amount <= 0 {
-		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.amount_positive", "invoice amount must be greater than 0")
+		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.validation.amount_positive", "invoice amount must be greater than 0")
 		return errors.New(errorMsg)
 	}
 

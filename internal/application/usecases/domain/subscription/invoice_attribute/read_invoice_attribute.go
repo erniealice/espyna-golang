@@ -18,9 +18,9 @@ type ReadInvoiceAttributeRepositories struct {
 
 // ReadInvoiceAttributeServices groups all business service dependencies
 type ReadInvoiceAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadInvoiceAttributeUseCase handles the business logic for reading invoice attributes
@@ -43,7 +43,7 @@ func NewReadInvoiceAttributeUseCase(
 // Execute performs the read invoice attribute operation
 func (uc *ReadInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoiceattributepb.ReadInvoiceAttributeRequest) (*invoiceattributepb.ReadInvoiceAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInvoiceAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *ReadInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoice
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"invoice_attribute.errors.not_found",
 				map[string]interface{}{"invoiceAttributeId": req.Data.Id},
 				"Invoice attribute not found [DEFAULT]",
@@ -79,13 +79,13 @@ func (uc *ReadInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoice
 // validateInput validates the input request
 func (uc *ReadInvoiceAttributeUseCase) validateInput(ctx context.Context, req *invoiceattributepb.ReadInvoiceAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

@@ -16,9 +16,9 @@ type GetEventRecurrenceListPageDataRepositories struct {
 
 // GetEventRecurrenceListPageDataServices groups all business service dependencies
 type GetEventRecurrenceListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetEventRecurrenceListPageDataUseCase handles the business logic for getting event recurrence list page data
@@ -44,7 +44,7 @@ func (uc *GetEventRecurrenceListPageDataUseCase) Execute(
 	req *eventrecurrencepb.GetEventRecurrenceListPageDataRequest,
 ) (*eventrecurrencepb.GetEventRecurrenceListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"event_recurrence", ports.ActionList); err != nil {
 		return nil, err
 	}

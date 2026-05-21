@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
 	"github.com/erniealice/espyna-golang/ports"
+	contextutil "github.com/erniealice/espyna-golang/shared/context"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 

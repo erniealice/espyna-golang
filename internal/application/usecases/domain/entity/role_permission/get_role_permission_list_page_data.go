@@ -20,9 +20,9 @@ type GetRolePermissionListPageDataRepositories struct {
 
 // GetRolePermissionListPageDataServices groups all business service dependencies
 type GetRolePermissionListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetRolePermissionListPageDataUseCase handles the business logic for retrieving role permission list page data
@@ -51,9 +51,9 @@ func NewGetRolePermissionListPageDataUseCaseUngrouped(rolePermissionRepo roleper
 	}
 
 	services := GetRolePermissionListPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetRolePermissionListPageDataUseCase(repositories, services)
@@ -62,13 +62,13 @@ func NewGetRolePermissionListPageDataUseCaseUngrouped(rolePermissionRepo roleper
 // Execute performs the get role permission list page data operation
 func (uc *GetRolePermissionListPageDataUseCase) Execute(ctx context.Context, req *rolepermissionpb.GetRolePermissionListPageDataRequest) (*rolepermissionpb.GetRolePermissionListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRolePermission, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -80,10 +80,10 @@ func (uc *GetRolePermissionListPageDataUseCase) Execute(ctx context.Context, req
 func (uc *GetRolePermissionListPageDataUseCase) executeWithTransaction(ctx context.Context, req *rolepermissionpb.GetRolePermissionListPageDataRequest) (*rolepermissionpb.GetRolePermissionListPageDataResponse, error) {
 	var result *rolepermissionpb.GetRolePermissionListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "role_permission.errors.list_page_data_retrieval_failed", "Role permission list page data retrieval failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "role_permission.errors.list_page_data_retrieval_failed", "Role permission list page data retrieval failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -110,16 +110,16 @@ func (uc *GetRolePermissionListPageDataUseCase) executeCore(ctx context.Context,
 // validateInput validates the input request
 func (uc *GetRolePermissionListPageDataUseCase) validateInput(ctx context.Context, req *rolepermissionpb.GetRolePermissionListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.request_required", "Request is required for role permission list page data [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.request_required", "Request is required for role permission list page data [DEFAULT]"))
 	}
 
 	// Validate pagination parameters if provided
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.invalid_limit", "Pagination limit cannot be negative [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.invalid_limit", "Pagination limit cannot be negative [DEFAULT]"))
 		}
 		if req.Pagination.Limit > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.limit_too_large", "Pagination limit cannot exceed 100 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.limit_too_large", "Pagination limit cannot exceed 100 [DEFAULT]"))
 		}
 	}
 

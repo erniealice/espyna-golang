@@ -18,9 +18,9 @@ type ListGroupsRepositories struct {
 
 // ListGroupsServices groups all business service dependencies
 type ListGroupsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListGroupsUseCase handles the business logic for listing groups
@@ -49,9 +49,9 @@ func NewListGroupsUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) *
 	}
 
 	services := ListGroupsServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListGroupsUseCase(repositories, services)
@@ -59,27 +59,27 @@ func NewListGroupsUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) *
 
 func (uc *ListGroupsUseCase) Execute(ctx context.Context, req *grouppb.ListGroupsRequest) (*grouppb.ListGroupsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroup, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Group.ListGroups(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.list_failed", "Failed to retrieve groups [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.list_failed", "Failed to retrieve groups [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -89,7 +89,7 @@ func (uc *ListGroupsUseCase) Execute(ctx context.Context, req *grouppb.ListGroup
 // validateInput validates the input request
 func (uc *ListGroupsUseCase) validateInput(ctx context.Context, req *grouppb.ListGroupsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
 	}
 	return nil
 }

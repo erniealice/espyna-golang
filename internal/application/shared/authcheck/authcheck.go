@@ -34,13 +34,13 @@ import (
 // If authService.IsEnabled() returns false, allows all (for dev/mock mode).
 func Check(
 	ctx context.Context,
-	authService ports.AuthorizationService,
-	translationService ports.TranslationService,
+	authService ports.Authorizer,
+	translationService ports.Translator,
 	entity string,
 	action string,
 ) error {
 	if authService == nil {
-		log.Println("WARNING: AuthorizationService is nil — denying by default")
+		log.Println("WARNING: Authorizer is nil — denying by default")
 		msg := contextutil.GetTranslatedMessageWithContext(
 			ctx, translationService, "common.errors.authorization_failed", "Authorization not configured")
 		return errors.New(msg)

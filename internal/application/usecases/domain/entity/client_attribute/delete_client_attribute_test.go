@@ -30,8 +30,8 @@ func createTestDeleteClientAttributeUseCase(businessType string, supportsTransac
 	}
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := DeleteClientAttributeServices{
-		TransactionService: standardServices.TransactionService,
-		TranslationService: standardServices.TranslationService,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	return NewDeleteClientAttributeUseCase(repositories, services)
 }
@@ -90,5 +90,5 @@ func TestDeleteClientAttributeUseCase_Execute_EmptyId(t *testing.T) {
 		Data: &clientattributepb.ClientAttribute{Id: ""},
 	}
 	_, err := useCase.Execute(ctx, req)
-	testutil.AssertTranslatedError(t, err, "client_attribute.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "client_attribute.validation.id_required", useCase.services.Translator, ctx)
 }

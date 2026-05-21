@@ -50,10 +50,10 @@ type RecognizeMilestoneAdvanceDisbursementRepositories struct {
 
 // RecognizeMilestoneAdvanceDisbursementServices groups infra services.
 type RecognizeMilestoneAdvanceDisbursementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // RecognizeMilestoneAdvanceDisbursementUseCase mirrors the selling-side use
@@ -83,32 +83,32 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) Execute(
 	if req == nil {
 		req = &disbursementpb.RecognizeMilestoneAdvanceDisbursementRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTreasuryDisbursement, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"expense_recognition", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryDisbursementId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.validation.id_required",
 			"treasury_disbursement_id is required [DEFAULT]",
 		))
 	}
 	if strings.TrimSpace(req.GetSupplierBillingEventId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.validation.supplier_billing_event_id_required",
 			"supplier_billing_event_id is required [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *disbursementpb.RecognizeMilestoneAdvanceDisbursementResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return execErr
@@ -137,7 +137,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.not_found",
 			"treasury_disbursement not found [DEFAULT]",
 		))
@@ -148,7 +148,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	// 2. Validate advance kind/status.
 	if adv.GetAdvanceKind() != advancekindpb.AdvanceKind_ADVANCE_KIND_MILESTONE {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.recognize_milestone_requires_milestone",
 			"RecognizeMilestoneAdvance requires advance_kind=MILESTONE [DEFAULT]",
 		))
@@ -156,7 +156,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	}
 	if adv.GetAdvanceStatus() != advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.recognize_requires_active",
 			"RecognizeMilestoneAdvance requires advance_status=ACTIVE [DEFAULT]",
 		))
@@ -170,7 +170,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	}
 	if junction == nil {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.junction_not_found",
 			"disbursement_supplier_billing_event junction not found [DEFAULT]",
 		))
@@ -200,7 +200,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	}
 	if beResp == nil || len(beResp.GetData()) == 0 {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"supplier_billing_event.errors.not_found",
 			"supplier_billing_event not found [DEFAULT]",
 		))
@@ -209,7 +209,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) executeCore(
 	be := beResp.GetData()[0]
 	if be.GetStatus() != supplierbillingeventpb.SupplierBillingEventStatus_SUPPLIER_BILLING_EVENT_STATUS_BILLED {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.supplier_billing_event_not_billed",
 			"SupplierBillingEvent must be in BILLED status to recognize [DEFAULT]",
 		))
@@ -278,7 +278,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) findJunction(
 ) (*junctionpb.DisbursementSupplierBillingEvent, error) {
 	if uc.repositories.DisbursementSupplierBillingEvent == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.junction_repo_unavailable",
 			"disbursement_supplier_billing_event repository is not configured [DEFAULT]",
 		))
@@ -338,7 +338,7 @@ func (uc *RecognizeMilestoneAdvanceDisbursementUseCase) insertRecognition(
 	req *disbursementpb.RecognizeMilestoneAdvanceDisbursementRequest,
 	tranche int64,
 ) (string, error) {
-	recID := uc.services.IDService.GenerateID()
+	recID := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)

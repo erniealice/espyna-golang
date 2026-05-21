@@ -15,9 +15,9 @@ type GetSupplierListPageDataRepositories struct {
 
 // GetSupplierListPageDataServices groups service dependencies for GetSupplierListPageData use case
 type GetSupplierListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSupplierListPageDataUseCase handles getting paginated supplier list data with search, filtering, and sorting
@@ -44,7 +44,7 @@ func (uc *GetSupplierListPageDataUseCase) Execute(
 	req *supplierpb.GetSupplierListPageDataRequest,
 ) (*supplierpb.GetSupplierListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier", ports.ActionList); err != nil {
 		return nil, err
 	}

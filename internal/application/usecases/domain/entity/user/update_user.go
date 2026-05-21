@@ -18,9 +18,9 @@ type UpdateUserRepositories struct {
 
 // UpdateUserServices groups all business service dependencies
 type UpdateUserServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateUserUseCase handles the business logic for updating a user
@@ -49,9 +49,9 @@ func NewUpdateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *Upd
 	}
 
 	services := UpdateUserServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateUserUseCase(repositories, services)
@@ -60,29 +60,29 @@ func NewUpdateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *Upd
 // Execute performs the update user operation
 func (uc *UpdateUserUseCase) Execute(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityUser, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.request_required", "Request is required for users [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.request_required", "Request is required for users [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.id_required", "User ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.id_required", "User ID is required [DEFAULT]"))
 	}
 
 	// Business logic validation
 	if req.Data.EmailAddress == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.email_required", "User email is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.email_required", "User email is required [DEFAULT]"))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.User.UpdateUser(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.errors.update_failed", "User update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.update_failed", "User update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

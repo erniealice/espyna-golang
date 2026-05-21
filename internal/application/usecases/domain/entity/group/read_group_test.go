@@ -29,7 +29,7 @@ func createTestReadGroupUseCase(businessType string) *ReadGroupUseCase {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadGroupServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewReadGroupUseCase(repositories, services)
 }
@@ -83,5 +83,5 @@ func TestReadGroupUseCase_Execute_EmptyId(t *testing.T) {
 		Data: &grouppb.Group{Id: ""},
 	}
 	_, err := useCase.Execute(ctx, req)
-	testutil.AssertTranslatedError(t, err, "group.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "group.validation.id_required", useCase.services.Translator, ctx)
 }

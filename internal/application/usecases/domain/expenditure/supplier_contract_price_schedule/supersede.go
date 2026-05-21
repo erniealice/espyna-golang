@@ -18,8 +18,8 @@ type SupersedeSupplierContractPriceScheduleRepositories struct {
 
 // SupersedeSupplierContractPriceScheduleServices groups service dependencies.
 type SupersedeSupplierContractPriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // SupersedeSupplierContractPriceScheduleUseCase transitions ACTIVE -> SUPERSEDED.
@@ -41,18 +41,18 @@ func NewSupersedeSupplierContractPriceScheduleUseCase(
 
 // Execute performs the supersede operation.
 func (uc *SupersedeSupplierContractPriceScheduleUseCase) Execute(ctx context.Context, req *scpspb.SupersedeSupplierContractPriceScheduleRequest) (*scpspb.SupersedeSupplierContractPriceScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceSchedule, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractPriceScheduleId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.validation.id_required", "Supplier contract price schedule ID is required [DEFAULT]"))
 	}
 
 	resp, err := uc.repositories.SupplierContractPriceSchedule.SupersedeSupplierContractPriceSchedule(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.errors.supersede_failed", "[ERR-DEFAULT] Failed to supersede schedule")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

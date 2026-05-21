@@ -43,8 +43,8 @@ func applyClientScopedScheduleRule(
 	parentPlan *planpb.Plan,
 	priceScheduleRepo priceschedulepb.PriceScheduleDomainServiceServer,
 	clientRepo clientpb.ClientDomainServiceServer,
-	idSvc ports.IDService,
-	translation ports.TranslationService,
+	idSvc ports.IDGenerator,
+	translation ports.Translator,
 ) error {
 	if data == nil || parentPlan == nil {
 		return nil

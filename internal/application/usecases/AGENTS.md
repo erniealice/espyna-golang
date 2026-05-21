@@ -20,7 +20,7 @@
 │  │  1. Input Validation      → Nil checks, required fields              │   │
 │  │  2. Business Validation   → validateBusinessRules()                  │   │
 │  │  3. Business Enrichment   → applyBusinessLogic()                     │   │
-│  │  4. Transaction Wrapper   → TransactionService.ExecuteInTransaction  │   │
+│  │  4. Transaction Wrapper   → Transactor.ExecuteInTransaction          │   │
 │  │  5. Core Execution        → executeCore() → Repository calls         │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                      │                                      │
@@ -120,10 +120,10 @@ type CreateClientRepositories struct {
 
 // 2. Service dependencies (injected via DI)
 type CreateClientServices struct {
-    AuthorizationService ports.AuthorizationService
-    TransactionService   ports.TransactionService
-    TranslationService   ports.TranslationService
-    IDService            ports.IDService
+    Authorizer  ports.Authorizer
+    Transactor  ports.Transactor
+    Translator  ports.Translator
+    IDGenerator ports.IDGenerator
 }
 
 // 3. Use case struct
@@ -164,13 +164,13 @@ Execute(ctx, req)
            ▼               - Business constraints
 ┌──────────────────────┐
 │  3. Business Logic   │ → applyBusinessLogic()
-│     Enrichment       │   - Generate IDs (via IDService)
+│     Enrichment       │   - Generate IDs (via IDGenerator)
 └──────────┬───────────┘   - Set audit fields (dates)
            │               - Set default values
            ▼               - Normalize data
 ┌──────────────────────┐
-│  4. Transaction?     │ → if TransactionService.SupportsTransactions()
-│                      │     ExecuteInTransaction(ctx, func)
+│  4. Transaction?     │ → if Transactor.SupportsTransactions()
+│                      │     Transactor.ExecuteInTransaction(ctx, func)
 └──────────┬───────────┘   else direct call
            │
            ▼
@@ -187,10 +187,10 @@ Execute(ctx, req)
 
 | Service | Purpose | Interface |
 |---------|---------|-----------|
-| AuthorizationService | Permission checks | `ports.AuthorizationService` |
-| TransactionService | Atomic operations | `ports.TransactionService` |
-| TranslationService | i18n error messages | `ports.TranslationService` |
-| IDService | Generate UUIDs | `ports.IDService` |
+| Authorizer | Permission checks | `ports.Authorizer` |
+| Transactor | Atomic operations | `ports.Transactor` |
+| Translator | i18n error messages | `ports.Translator` |
+| IDGenerator | Generate UUIDs | `ports.IDGenerator` |
 
 ## Domain Summary
 
@@ -265,7 +265,7 @@ Use cases support i18n for error messages:
 if client.User.EmailAddress == "" {
     return errors.New(contextutil.GetTranslatedMessageWithContext(
         ctx,
-        uc.services.TranslationService,
+        uc.services.Translator,
         "client.validation.email_required",      // translation key
         "Email address is required [DEFAULT]",   // fallback
     ))
@@ -285,9 +285,9 @@ func TestCreateClientUseCase_Execute(t *testing.T) {
 
     repos := CreateClientRepositories{Client: mockClientRepo, User: mockUserRepo}
     services := CreateClientServices{
-        TransactionService: ports.NewNoOpTransactionService(),
-        TranslationService: ports.NewNoOpTranslationService(),
-        IDService:          ports.NewNoOpIDService(),
+        Transactor:  ports.NewNoOpTransactor(),
+        Translator:  ports.NewNoOpTranslator(),
+        IDGenerator: ports.NewNoOpIDGenerator(),
     }
 
     uc := NewCreateClientUseCase(repos, services)
@@ -302,7 +302,7 @@ func TestCreateClientUseCase_Execute(t *testing.T) {
 
 | Package | Purpose |
 |---------|---------|
-| `application/ports/` | Service interfaces (AuthorizationService, etc.) |
+| `application/ports/` | Service interfaces (Authorizer, Transactor, etc.) |
 | `composition/core/initializers/domain/` | Entity-layer use case initialization per domain |
 | `composition/core/initializers/service/` | Service-layer use case initialization |
 | `composition/routing/handlers/` | HTTP handlers that call use cases |
@@ -312,9 +312,9 @@ func TestCreateClientUseCase_Execute(t *testing.T) {
 
 1. **One file per use case** - Clear separation, easy to find and test
 2. **Grouped dependencies** - Repositories and Services structs, not individual params
-3. **Transaction wrapper** - Optional transaction support via TransactionService
-4. **Translation support** - All user-facing errors go through TranslationService
-5. **ID generation** - Centralized via IDService, not scattered UUID calls
+3. **Transaction wrapper** - Optional transaction support via Transactor
+4. **Translation support** - All user-facing errors go through Translator
+5. **ID generation** - Centralized via IDGenerator, not scattered UUID calls
 6. **Proto-based contracts** - Repository interfaces from protobuf, not hand-written
 7. **Page data use cases** - Dedicated use cases for frontend list/item pages
 8. **NoOp services** - Default no-op implementations for optional services

@@ -21,9 +21,9 @@ type UpdateEventResourceRepositories struct {
 
 // UpdateEventResourceServices groups all business service dependencies
 type UpdateEventResourceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // UpdateEventResourceUseCase handles the business logic for updating event resource assignments
@@ -55,9 +55,9 @@ func NewUpdateEventResourceUseCaseUngrouped(
 	}
 
 	services := UpdateEventResourceServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &UpdateEventResourceUseCase{
@@ -69,7 +69,7 @@ func NewUpdateEventResourceUseCaseUngrouped(
 // Execute performs the update event resource operation
 func (uc *UpdateEventResourceUseCase) Execute(ctx context.Context, req *eventresourcepb.UpdateEventResourceRequest) (*eventresourcepb.UpdateEventResourceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventResource, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -77,18 +77,18 @@ func (uc *UpdateEventResourceUseCase) Execute(ctx context.Context, req *eventres
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventResource, ports.ActionUpdate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
 		return nil, errors.New(translatedError)
 	}
 

@@ -18,9 +18,9 @@ type GetPrepaymentListPageDataRepositories struct {
 
 // GetPrepaymentListPageDataServices groups all business service dependencies
 type GetPrepaymentListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPrepaymentListPageDataUseCase handles fetching paginated, searchable prepayment list data
@@ -42,13 +42,13 @@ func NewGetPrepaymentListPageDataUseCase(
 
 // Execute performs the get prepayment list page data operation
 func (uc *GetPrepaymentListPageDataUseCase) Execute(ctx context.Context, req *prepaymentpb.GetPrepaymentListPageDataRequest) (*prepaymentpb.GetPrepaymentListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPrepayment, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -57,7 +57,7 @@ func (uc *GetPrepaymentListPageDataUseCase) Execute(ctx context.Context, req *pr
 	}
 	resp, err := uc.repositories.Prepayment.GetPrepaymentListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load prepayment list")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load prepayment list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -65,13 +65,13 @@ func (uc *GetPrepaymentListPageDataUseCase) Execute(ctx context.Context, req *pr
 
 func (uc *GetPrepaymentListPageDataUseCase) validateInput(ctx context.Context, req *prepaymentpb.GetPrepaymentListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Pagination != nil && req.Pagination.Limit > 0 && req.Pagination.Limit > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
 	}
 	if req.Search != nil && len(req.Search.Query) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
 	}
 	return nil
 }

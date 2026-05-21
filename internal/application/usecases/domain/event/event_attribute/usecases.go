@@ -16,10 +16,10 @@ type EventAttributeRepositories struct {
 
 // EventAttributeServices groups all business service dependencies for event attribute use cases
 type EventAttributeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all event attribute-related use cases
@@ -45,19 +45,19 @@ func NewUseCases(
 		Attribute:      repositories.Attribute,
 	}
 	createServices := CreateEventAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadEventAttributeRepositories{
 		EventAttribute: repositories.EventAttribute,
 	}
 	readServices := ReadEventAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateEventAttributeRepositories{
@@ -66,43 +66,43 @@ func NewUseCases(
 		Attribute:      repositories.Attribute,
 	}
 	updateServices := UpdateEventAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteEventAttributeRepositories{
 		EventAttribute: repositories.EventAttribute,
 	}
 	deleteServices := DeleteEventAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListEventAttributesRepositories{
 		EventAttribute: repositories.EventAttribute,
 	}
 	listServices := ListEventAttributesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetEventAttributeListPageDataRepositories{
 		EventAttribute: repositories.EventAttribute,
 	}
 	listPageDataServices := GetEventAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetEventAttributeItemPageDataRepositories{
 		EventAttribute: repositories.EventAttribute,
 	}
 	itemPageDataServices := GetEventAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

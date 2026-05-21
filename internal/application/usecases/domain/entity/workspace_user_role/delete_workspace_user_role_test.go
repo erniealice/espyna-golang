@@ -32,8 +32,8 @@ func createTestDeleteWorkspaceUserRoleUseCase(businessType string, supportsTrans
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := DeleteWorkspaceUserRoleServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth(),
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth(),
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeleteWorkspaceUserRoleUseCase(repositories, services)
@@ -62,8 +62,8 @@ func TestDeleteWorkspaceUserRoleUseCase_Execute_Success(t *testing.T) {
 	readUseCase := NewReadWorkspaceUserRoleUseCase(
 		ReadWorkspaceUserRoleRepositories{WorkspaceUserRole: useCase.repositories.WorkspaceUserRole},
 		ReadWorkspaceUserRoleServices{
-			AuthorizationService: mockAuth.NewAllowAllAuth(),
-			TranslationService:   testutil.CreateStandardServices(false, true).TranslationService,
+			Authorizer: mockAuth.NewAllowAllAuth(),
+			Translator: testutil.CreateStandardServices(false, true).Translator,
 		},
 	)
 	readReq := &workspaceuserrolepb.ReadWorkspaceUserRoleRequest{Data: &workspaceuserrolepb.WorkspaceUserRole{Id: existingID}}
@@ -84,7 +84,7 @@ func TestDeleteWorkspaceUserRoleUseCase_Execute_NotFound(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "workspace_user_role.errors.deletion_failed", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user_role.errors.deletion_failed", useCase.services.Translator, ctx)
 }
 
 func TestDeleteWorkspaceUserRoleUseCase_Execute_EmptyId(t *testing.T) {
@@ -98,5 +98,5 @@ func TestDeleteWorkspaceUserRoleUseCase_Execute_EmptyId(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "workspace_user_role.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user_role.validation.id_required", useCase.services.Translator, ctx)
 }

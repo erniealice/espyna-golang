@@ -52,10 +52,10 @@ func init() {
 // operations using PostgreSQL.
 type PostgresRevenueRunRepository struct {
 	revenuerunpb.UnimplementedRevenueRunDomainServiceServer
-	dbOps         interfaces.DatabaseOperation
-	db            *sql.DB
-	runTableName  string
-	attemptTable  string
+	dbOps        interfaces.DatabaseOperation
+	db           *sql.DB
+	runTableName string
+	attemptTable string
 }
 
 // NewPostgresRevenueRunRepository creates a new PostgreSQL revenue_run repository.

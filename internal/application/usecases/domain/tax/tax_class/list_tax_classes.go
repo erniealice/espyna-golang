@@ -17,8 +17,8 @@ type ListTaxClassesRepositories struct {
 
 // ListTaxClassesServices groups service dependencies.
 type ListTaxClassesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListTaxClassesUseCase handles listing tax classes.
@@ -34,12 +34,12 @@ func NewListTaxClassesUseCase(repositories ListTaxClassesRepositories, services 
 
 // Execute performs the list tax_classes operation.
 func (uc *ListTaxClassesUseCase) Execute(ctx context.Context, req *taxclasspb.ListTaxClassesRequest) (*taxclasspb.ListTaxClassesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxClass, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_class.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return uc.repositories.TaxClass.ListTaxClasses(ctx, req)

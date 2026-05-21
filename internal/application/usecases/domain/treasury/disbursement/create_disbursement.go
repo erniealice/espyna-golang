@@ -21,10 +21,10 @@ type CreateDisbursementRepositories struct {
 
 // CreateDisbursementServices groups all business service dependencies
 type CreateDisbursementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateDisbursementUseCase handles the business logic for creating disbursements
@@ -49,7 +49,7 @@ func NewCreateDisbursementUseCase(
 // 20260518-hexagonal-strict-adherence Phase 1.C-iv — BURN_DOWN guard relocated
 // from the postgres adapter (F4 layer-violation fix).
 func (uc *CreateDisbursementUseCase) Execute(ctx context.Context, req *disbursementpb.CreateDisbursementRequest) (*disbursementpb.CreateDisbursementResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDisbursement, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -61,9 +61,9 @@ func (uc *CreateDisbursementUseCase) Execute(ctx context.Context, req *disbursem
 		}
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *disbursementpb.CreateDisbursementResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("disbursement creation failed: %w", err)
@@ -82,13 +82,13 @@ func (uc *CreateDisbursementUseCase) Execute(ctx context.Context, req *disbursem
 
 func (uc *CreateDisbursementUseCase) executeCore(ctx context.Context, req *disbursementpb.CreateDisbursementRequest) (*disbursementpb.CreateDisbursementResponse, error) {
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "disbursement.validation.data_required", "Disbursement data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "disbursement.validation.data_required", "Disbursement data is required [DEFAULT]"))
 	}
 
 	// Enrich with ID and audit fields
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

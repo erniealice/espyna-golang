@@ -19,9 +19,9 @@ type ListEventAttendeesRepositories struct {
 
 // ListEventAttendeesServices groups all business service dependencies
 type ListEventAttendeesServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ListEventAttendeesUseCase handles the business logic for listing event attendee associations
@@ -53,9 +53,9 @@ func NewListEventAttendeesUseCaseUngrouped(
 	}
 
 	services := ListEventAttendeesServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &ListEventAttendeesUseCase{
@@ -67,7 +67,7 @@ func NewListEventAttendeesUseCaseUngrouped(
 // Execute performs the list event attendees operation
 func (uc *ListEventAttendeesUseCase) Execute(ctx context.Context, req *eventattendeepb.ListEventAttendeesRequest) (*eventattendeepb.ListEventAttendeesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventAttendee, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -75,18 +75,18 @@ func (uc *ListEventAttendeesUseCase) Execute(ctx context.Context, req *eventatte
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventAttendee, ports.ActionList)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
 		return nil, errors.New(translatedError)
 	}
 

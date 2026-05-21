@@ -17,8 +17,8 @@ type ReadRevenueTaxLineRepositories struct {
 
 // ReadRevenueTaxLineServices groups service dependencies.
 type ReadRevenueTaxLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadRevenueTaxLineUseCase handles reading a revenue_tax_line.
@@ -34,12 +34,12 @@ func NewReadRevenueTaxLineUseCase(repositories ReadRevenueTaxLineRepositories, s
 
 // Execute performs the read revenue_tax_line operation.
 func (uc *ReadRevenueTaxLineUseCase) Execute(ctx context.Context, req *revenuetaxlinepb.ReadRevenueTaxLineRequest) (*revenuetaxlinepb.ReadRevenueTaxLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueTaxLine, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.id_required", "Revenue Tax Line ID is required [DEFAULT]"))
 	}
 	return uc.repositories.RevenueTaxLine.ReadRevenueTaxLine(ctx, req)

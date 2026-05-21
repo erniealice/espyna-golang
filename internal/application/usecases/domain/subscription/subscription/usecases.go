@@ -31,10 +31,10 @@ type SubscriptionRepositories struct {
 
 // SubscriptionServices groups all business service dependencies
 type SubscriptionServices struct {
-	AuthorizationService    ports.AuthorizationService
-	TransactionService      ports.TransactionService
-	TranslationService      ports.TranslationService
-	IDService               ports.IDService // Only for CreateSubscription
+	Authorizer              ports.Authorizer
+	Transactor              ports.Transactor
+	Translator              ports.Translator
+	IDGenerator             ports.IDGenerator // Only for CreateSubscription
 	JobTemplateInstantiator JobTemplateInstantiator
 }
 
@@ -75,10 +75,10 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 	}
 	createServices := CreateSubscriptionServices{
-		AuthorizationService:    services.AuthorizationService,
-		TransactionService:      services.TransactionService,
-		TranslationService:      services.TranslationService,
-		IDService:               services.IDService,
+		Authorizer:              services.Authorizer,
+		Transactor:              services.Transactor,
+		Translator:              services.Translator,
+		IDGenerator:             services.IDGenerator,
 		JobTemplateInstantiator: services.JobTemplateInstantiator,
 	}
 
@@ -86,9 +86,9 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	readServices := ReadSubscriptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateSubscriptionRepositories{
@@ -97,62 +97,62 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 	}
 	updateServices := UpdateSubscriptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteSubscriptionRepositories{
 		Subscription: repositories.Subscription,
 	}
 	deleteServices := DeleteSubscriptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListSubscriptionsRepositories{
 		Subscription: repositories.Subscription,
 	}
 	listServices := ListSubscriptionsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetSubscriptionListPageDataRepositories{
 		Subscription: repositories.Subscription,
 	}
 	listPageDataServices := GetSubscriptionListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetSubscriptionItemPageDataRepositories{
 		Subscription: repositories.Subscription,
 	}
 	itemPageDataServices := GetSubscriptionItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	countActiveRepos := CountActiveByClientIdsRepositories{
 		Subscription: repositories.Subscription,
 	}
 	countActiveServices := CountActiveByClientIdsServices{
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	listByPricePlanRepos := ListSubscriptionsByPricePlanRepositories{
 		Subscription: repositories.Subscription,
 	}
 	listByPricePlanServices := ListSubscriptionsByPricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

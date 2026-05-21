@@ -15,8 +15,8 @@ type ListAccruedExpenseSettlementsRepositories struct {
 
 // ListAccruedExpenseSettlementsServices groups service dependencies.
 type ListAccruedExpenseSettlementsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListAccruedExpenseSettlementsUseCase handles listing settlements.
@@ -35,7 +35,7 @@ func NewListAccruedExpenseSettlementsUseCase(
 
 // Execute performs the list operation.
 func (uc *ListAccruedExpenseSettlementsUseCase) Execute(ctx context.Context, req *accruedexpensepb.ListAccruedExpenseSettlementsRequest) (*accruedexpensepb.ListAccruedExpenseSettlementsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpenseSettlement, ports.ActionList); err != nil {
 		return nil, err
 	}

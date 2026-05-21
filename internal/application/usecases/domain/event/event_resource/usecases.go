@@ -25,10 +25,10 @@ type EventResourceRepositories struct {
 
 // EventResourceServices groups all business service dependencies for event resource use cases
 type EventResourceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of event resource use cases
@@ -42,10 +42,10 @@ func NewUseCases(
 		Event:         repositories.Event,
 	}
 	createServices := CreateEventResourceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadEventResourceRepositories{
@@ -53,9 +53,9 @@ func NewUseCases(
 		Event:         repositories.Event,
 	}
 	readServices := ReadEventResourceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateEventResourceRepositories{
@@ -63,9 +63,9 @@ func NewUseCases(
 		Event:         repositories.Event,
 	}
 	updateServices := UpdateEventResourceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteEventResourceRepositories{
@@ -73,9 +73,9 @@ func NewUseCases(
 		Event:         repositories.Event,
 	}
 	deleteServices := DeleteEventResourceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListEventResourcesRepositories{
@@ -83,9 +83,9 @@ func NewUseCases(
 		Event:         repositories.Event,
 	}
 	listServices := ListEventResourcesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetEventResourceListPageDataRepositories{
@@ -93,9 +93,9 @@ func NewUseCases(
 		Event:         repositories.Event,
 	}
 	getListPageDataServices := GetEventResourceListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetEventResourceItemPageDataRepositories{
@@ -103,9 +103,9 @@ func NewUseCases(
 		Event:         repositories.Event,
 	}
 	getItemPageDataServices := GetEventResourceItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -124,7 +124,7 @@ func NewUseCases(
 func NewUseCasesUngrouped(
 	eventResourceRepo eventresourcepb.EventResourceDomainServiceServer,
 	eventRepo eventpb.EventDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := EventResourceRepositories{
@@ -133,9 +133,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := EventResourceServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

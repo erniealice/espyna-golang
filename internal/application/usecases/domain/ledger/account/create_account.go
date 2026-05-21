@@ -22,10 +22,10 @@ type CreateAccountRepositories struct {
 
 // CreateAccountServices groups all business service dependencies
 type CreateAccountServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateAccountUseCase handles the business logic for creating accounts
@@ -48,13 +48,13 @@ func NewCreateAccountUseCase(
 // Execute performs the create account operation
 func (uc *CreateAccountUseCase) Execute(ctx context.Context, req *accountpb.CreateAccountRequest) (*accountpb.CreateAccountResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccount, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -66,10 +66,10 @@ func (uc *CreateAccountUseCase) Execute(ctx context.Context, req *accountpb.Crea
 func (uc *CreateAccountUseCase) executeWithTransaction(ctx context.Context, req *accountpb.CreateAccountRequest) (*accountpb.CreateAccountResponse, error) {
 	var result *accountpb.CreateAccountResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "account.errors.creation_failed", "Account creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "account.errors.creation_failed", "Account creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -109,10 +109,10 @@ func (uc *CreateAccountUseCase) executeCore(ctx context.Context, req *accountpb.
 // validateInput validates the input request
 func (uc *CreateAccountUseCase) validateInput(ctx context.Context, req *accountpb.CreateAccountRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.data_required", "[ERR-DEFAULT] Account data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.data_required", "[ERR-DEFAULT] Account data is required"))
 	}
 
 	// Trim leading and trailing spaces
@@ -120,10 +120,10 @@ func (uc *CreateAccountUseCase) validateInput(ctx context.Context, req *accountp
 	req.Data.Code = strings.TrimSpace(req.Data.Code)
 
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.name_required", "[ERR-DEFAULT] Name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.name_required", "[ERR-DEFAULT] Name is required"))
 	}
 	if req.Data.Code == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.code_required", "[ERR-DEFAULT] Account code is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.code_required", "[ERR-DEFAULT] Account code is required"))
 	}
 	return nil
 }
@@ -134,7 +134,7 @@ func (uc *CreateAccountUseCase) enrichAccountData(account *accountpb.Account) er
 
 	// Generate Account ID if not provided
 	if account.Id == "" {
-		account.Id = uc.services.IDService.GenerateID()
+		account.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -156,12 +156,12 @@ func (uc *CreateAccountUseCase) enrichAccountData(account *accountpb.Account) er
 func (uc *CreateAccountUseCase) validateBusinessRules(ctx context.Context, account *accountpb.Account) error {
 	// Validate name length
 	if len(account.Name) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 200 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 200 characters"))
 	}
 
 	// Validate code length
 	if len(account.Code) > 50 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.code_too_long", "[ERR-DEFAULT] Account code must not exceed 50 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.code_too_long", "[ERR-DEFAULT] Account code must not exceed 50 characters"))
 	}
 
 	return nil

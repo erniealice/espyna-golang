@@ -12,10 +12,10 @@ type Repositories struct {
 
 // Services groups all business service dependencies for fulfillment use cases.
 type Services struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all fulfillment-related use cases.
@@ -51,67 +51,67 @@ func NewUseCases(
 		CreateFulfillment: &CreateFulfillmentUseCase{
 			repositories: CreateFulfillmentRepositories{Fulfillment: repositories.Fulfillment},
 			services: CreateFulfillmentServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		},
 		GetFulfillment: &GetFulfillmentUseCase{
 			repositories: GetFulfillmentRepositories{Fulfillment: repositories.Fulfillment},
 			services: GetFulfillmentServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 		UpdateFulfillment: &UpdateFulfillmentUseCase{
 			repositories: UpdateFulfillmentRepositories{Fulfillment: repositories.Fulfillment},
 			services: UpdateFulfillmentServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 		DeleteFulfillment: &DeleteFulfillmentUseCase{
 			repositories: DeleteFulfillmentRepositories{Fulfillment: repositories.Fulfillment},
 			services: DeleteFulfillmentServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 		ListFulfillments: &ListFulfillmentsUseCase{
 			repositories: ListFulfillmentsRepositories{Fulfillment: repositories.Fulfillment},
 			services: ListFulfillmentsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 		GetFulfillmentListPageData: &GetFulfillmentListPageDataUseCase{
 			repositories: GetFulfillmentListPageDataRepositories{Fulfillment: repositories.Fulfillment},
 			services: GetFulfillmentListPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 		GetFulfillmentItemPageData: &GetFulfillmentItemPageDataUseCase{
 			repositories: GetFulfillmentItemPageDataRepositories{Fulfillment: repositories.Fulfillment},
 			services: GetFulfillmentItemPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 		TransitionStatus: &TransitionStatusUseCase{
 			repositories: TransitionStatusRepositories{Fulfillment: repositories.Fulfillment},
 			services: TransitionStatusServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		},
 		ListStatusEvents: &ListStatusEventsUseCase{
 			repositories: ListStatusEventsRepositories{Fulfillment: repositories.Fulfillment},
 			services: ListStatusEventsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 	}

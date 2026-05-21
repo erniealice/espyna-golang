@@ -19,10 +19,10 @@ type AccrueFromContractRepositories struct {
 
 // AccrueFromContractServices groups service dependencies.
 type AccrueFromContractServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // AccrueFromContractUseCase emits an AccruedExpense(OUTSTANDING) row for a
@@ -46,21 +46,21 @@ func NewAccrueFromContractUseCase(
 
 // Execute performs the accrue-from-contract operation.
 func (uc *AccrueFromContractUseCase) Execute(ctx context.Context, req *accruedexpensepb.AccrueFromContractRequest) (*accruedexpensepb.AccrueFromContractResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpense, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.contract_id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	if req.GetCycleDate() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.cycle_date_required", "Cycle date is required [DEFAULT]"))
 	}
 
 	now := time.Now()
-	id := uc.services.IDService.GenerateID()
+	id := uc.services.IDGenerator.GenerateID()
 	cycleDate := req.GetCycleDate()
 	createReq := &accruedexpensepb.CreateAccruedExpenseRequest{
 		Data: &accruedexpensepb.AccruedExpense{

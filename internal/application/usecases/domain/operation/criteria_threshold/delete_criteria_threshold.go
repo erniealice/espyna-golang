@@ -15,9 +15,9 @@ type DeleteCriteriaThresholdRepositories struct {
 }
 
 type DeleteCriteriaThresholdServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteCriteriaThresholdUseCase handles the business logic for deleting criteria thresholds
@@ -40,7 +40,7 @@ func NewDeleteCriteriaThresholdUseCase(
 // Execute performs the delete criteria threshold operation
 func (uc *DeleteCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.DeleteCriteriaThresholdRequest) (*pb.DeleteCriteriaThresholdResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCriteriaThreshold, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *DeleteCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.D
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -63,7 +63,7 @@ func (uc *DeleteCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.D
 func (uc *DeleteCriteriaThresholdUseCase) executeWithTransaction(ctx context.Context, req *pb.DeleteCriteriaThresholdRequest) (*pb.DeleteCriteriaThresholdResponse, error) {
 	var result *pb.DeleteCriteriaThresholdResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -85,12 +85,12 @@ func (uc *DeleteCriteriaThresholdUseCase) executeCore(ctx context.Context, req *
 		Data: &pb.CriteriaThreshold{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.errors.not_found", "[ERR-DEFAULT] Criteria threshold not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.errors.not_found", "[ERR-DEFAULT] Criteria threshold not found"))
 	}
 
 	resp, err := uc.repositories.CriteriaThreshold.DeleteCriteriaThreshold(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.errors.deletion_failed", "[ERR-DEFAULT] Criteria threshold deletion failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.errors.deletion_failed", "[ERR-DEFAULT] Criteria threshold deletion failed"))
 	}
 	return resp, nil
 }
@@ -98,13 +98,13 @@ func (uc *DeleteCriteriaThresholdUseCase) executeCore(ctx context.Context, req *
 // validateInput validates the input request
 func (uc *DeleteCriteriaThresholdUseCase) validateInput(ctx context.Context, req *pb.DeleteCriteriaThresholdRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.data_required", "[ERR-DEFAULT] Criteria threshold data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.data_required", "[ERR-DEFAULT] Criteria threshold data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.id_required", "[ERR-DEFAULT] Criteria threshold ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.id_required", "[ERR-DEFAULT] Criteria threshold ID is required"))
 	}
 	return nil
 }

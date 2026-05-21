@@ -17,9 +17,9 @@ type GetClientCategoryItemPageDataRepositories struct {
 
 // GetClientCategoryItemPageDataServices groups all business service dependencies
 type GetClientCategoryItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetClientCategoryItemPageDataUseCase handles the business logic for getting client category item page data
@@ -47,9 +47,9 @@ func NewGetClientCategoryItemPageDataUseCaseUngrouped(clientCategoryRepo clientc
 	}
 
 	services := GetClientCategoryItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetClientCategoryItemPageDataUseCase(repositories, services)
@@ -57,7 +57,7 @@ func NewGetClientCategoryItemPageDataUseCaseUngrouped(clientCategoryRepo clientc
 
 func (uc *GetClientCategoryItemPageDataUseCase) Execute(ctx context.Context, req *clientcategorypb.GetClientCategoryItemPageDataRequest) (*clientcategorypb.GetClientCategoryItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"client_category", ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -76,10 +76,10 @@ func (uc *GetClientCategoryItemPageDataUseCase) Execute(ctx context.Context, req
 
 func (uc *GetClientCategoryItemPageDataUseCase) validateInput(ctx context.Context, req *clientcategorypb.GetClientCategoryItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
 	}
 	if req.ClientCategoryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.id_required", "Client category ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.id_required", "Client category ID is required [DEFAULT]"))
 	}
 	return nil
 }

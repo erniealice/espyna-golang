@@ -19,9 +19,9 @@ type ListActivityTemplatesRepositories struct {
 
 // ListActivityTemplatesServices groups all business service dependencies
 type ListActivityTemplatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListActivityTemplatesUseCase handles the business logic for listing activity templates
@@ -49,9 +49,9 @@ func NewListActivityTemplatesUseCaseUngrouped(activityTemplateRepo activityTempl
 	}
 
 	services := ListActivityTemplatesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListActivityTemplatesUseCase(repositories, services)
@@ -60,14 +60,14 @@ func NewListActivityTemplatesUseCaseUngrouped(activityTemplateRepo activityTempl
 // Execute performs the list activity templates operation
 func (uc *ListActivityTemplatesUseCase) Execute(ctx context.Context, req *activityTemplatepb.ListActivityTemplatesRequest) (*activityTemplatepb.ListActivityTemplatesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"activity_template", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.request_required", "Request is required for activity templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity_template.validation.request_required", "Request is required for activity templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -79,7 +79,7 @@ func (uc *ListActivityTemplatesUseCase) Execute(ctx context.Context, req *activi
 	enrichedRequest := uc.applyBusinessLogic(req)
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -91,10 +91,10 @@ func (uc *ListActivityTemplatesUseCase) Execute(ctx context.Context, req *activi
 func (uc *ListActivityTemplatesUseCase) executeWithTransaction(ctx context.Context, req *activityTemplatepb.ListActivityTemplatesRequest) (*activityTemplatepb.ListActivityTemplatesResponse, error) {
 	var result *activityTemplatepb.ListActivityTemplatesResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "activity_template.errors.list_failed", "Activity template listing failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "activity_template.errors.list_failed", "Activity template listing failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -140,11 +140,11 @@ func (uc *ListActivityTemplatesUseCase) applyBusinessLogic(req *activityTemplate
 func (uc *ListActivityTemplatesUseCase) validateBusinessRules(ctx context.Context, req *activityTemplatepb.ListActivityTemplatesRequest) error {
 	// Business rule: Pagination limit validation if provided
 	if req.Pagination != nil && req.Pagination.Limit < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.page_size_negative", "Page size cannot be negative [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity_template.validation.page_size_negative", "Page size cannot be negative [DEFAULT]"))
 	}
 
 	if req.Pagination != nil && req.Pagination.Limit > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.page_size_too_large", "Page size cannot exceed 1000 [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity_template.validation.page_size_too_large", "Page size cannot exceed 1000 [DEFAULT]"))
 	}
 
 	return nil

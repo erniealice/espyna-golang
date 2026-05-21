@@ -17,9 +17,9 @@ type GetSupplierCategoryItemPageDataRepositories struct {
 
 // GetSupplierCategoryItemPageDataServices groups all business service dependencies
 type GetSupplierCategoryItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSupplierCategoryItemPageDataUseCase handles the business logic for getting supplier category item page data
@@ -47,9 +47,9 @@ func NewGetSupplierCategoryItemPageDataUseCaseUngrouped(supplierCategoryRepo sup
 	}
 
 	services := GetSupplierCategoryItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetSupplierCategoryItemPageDataUseCase(repositories, services)
@@ -57,7 +57,7 @@ func NewGetSupplierCategoryItemPageDataUseCaseUngrouped(supplierCategoryRepo sup
 
 func (uc *GetSupplierCategoryItemPageDataUseCase) Execute(ctx context.Context, req *suppliercategorypb.GetSupplierCategoryItemPageDataRequest) (*suppliercategorypb.GetSupplierCategoryItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_category", ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -76,10 +76,10 @@ func (uc *GetSupplierCategoryItemPageDataUseCase) Execute(ctx context.Context, r
 
 func (uc *GetSupplierCategoryItemPageDataUseCase) validateInput(ctx context.Context, req *suppliercategorypb.GetSupplierCategoryItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
 	}
 	if req.SupplierCategoryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.id_required", "Supplier category ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.id_required", "Supplier category ID is required [DEFAULT]"))
 	}
 	return nil
 }

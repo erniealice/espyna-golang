@@ -30,11 +30,11 @@ type PlanRepositories struct {
 
 // PlanServices groups all business service dependencies for plan use cases
 type PlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService        // Only for CreatePlan / CustomizePlanForClient
-	ReferenceChecker     ports.ReferenceChecker // §3.1 — UpdatePlan client_id reassignment guard
+	Authorizer       ports.Authorizer // Current: RBAC and permissions
+	Transactor       ports.Transactor // Current: Database transactions
+	Translator       ports.Translator
+	IDGenerator      ports.IDGenerator      // Only for CreatePlan / CustomizePlanForClient
+	ReferenceChecker ports.ReferenceChecker // §3.1 — UpdatePlan client_id reassignment guard
 }
 
 // UseCases contains all plan-related use cases
@@ -58,17 +58,17 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreatePlanRepositories{Plan: repositories.Plan}
 	createServices := CreatePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPlanRepositories{Plan: repositories.Plan}
 	readServices := ReadPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePlanRepositories{
@@ -76,51 +76,51 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	updateServices := UpdatePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		ReferenceChecker:     services.ReferenceChecker,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		ReferenceChecker: services.ReferenceChecker,
 	}
 
 	deleteRepos := DeletePlanRepositories{Plan: repositories.Plan}
 	deleteServices := DeletePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPlansRepositories{Plan: repositories.Plan}
 	listServices := ListPlansServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetPlanListPageDataRepositories{
 		Plan: repositories.Plan,
 	}
 	listPageDataServices := GetPlanListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetPlanItemPageDataRepositories{
 		Plan: repositories.Plan,
 	}
 	itemPageDataServices := GetPlanItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	searchByNameRepos := SearchPlansByNameRepositories{
 		Plan: repositories.Plan,
 	}
 	searchByNameServices := SearchPlansByNameServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	customizeRepos := CustomizePlanForClientRepositories{
@@ -133,10 +133,10 @@ func NewUseCases(
 		Client:           repositories.Client,
 	}
 	customizeServices := CustomizePlanForClientServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	return &UseCases{

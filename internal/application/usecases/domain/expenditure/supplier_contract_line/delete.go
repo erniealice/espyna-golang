@@ -17,8 +17,8 @@ type DeleteSupplierContractLineRepositories struct {
 
 // DeleteSupplierContractLineServices groups service dependencies.
 type DeleteSupplierContractLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteSupplierContractLineUseCase handles deleting a supplier contract line.
@@ -37,12 +37,12 @@ func NewDeleteSupplierContractLineUseCase(
 
 // Execute performs the delete supplier contract line operation.
 func (uc *DeleteSupplierContractLineUseCase) Execute(ctx context.Context, req *suppliercontractlinepb.DeleteSupplierContractLineRequest) (*suppliercontractlinepb.DeleteSupplierContractLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractLine, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_line.validation.id_required", "Supplier contract line ID is required [DEFAULT]"))
 	}
 	return uc.repositories.SupplierContractLine.DeleteSupplierContractLine(ctx, req)

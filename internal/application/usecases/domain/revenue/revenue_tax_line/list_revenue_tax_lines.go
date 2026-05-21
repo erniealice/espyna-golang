@@ -17,8 +17,8 @@ type ListRevenueTaxLinesRepositories struct {
 
 // ListRevenueTaxLinesServices groups service dependencies.
 type ListRevenueTaxLinesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListRevenueTaxLinesUseCase handles listing revenue tax lines.
@@ -34,12 +34,12 @@ func NewListRevenueTaxLinesUseCase(repositories ListRevenueTaxLinesRepositories,
 
 // Execute performs the list revenue_tax_lines operation.
 func (uc *ListRevenueTaxLinesUseCase) Execute(ctx context.Context, req *revenuetaxlinepb.ListRevenueTaxLinesRequest) (*revenuetaxlinepb.ListRevenueTaxLinesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueTaxLine, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return uc.repositories.RevenueTaxLine.ListRevenueTaxLines(ctx, req)

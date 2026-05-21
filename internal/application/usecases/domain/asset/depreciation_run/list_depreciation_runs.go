@@ -16,8 +16,8 @@ type ListDepreciationRunsRepositories struct {
 
 // ListDepreciationRunsServices groups service dependencies.
 type ListDepreciationRunsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListDepreciationRunsUseCase lists depreciation run history rows.
@@ -42,7 +42,7 @@ func (uc *ListDepreciationRunsUseCase) Execute(
 	ctx context.Context,
 	req *deprunpb.ListDepreciationRunsRequest,
 ) (*deprunpb.ListDepreciationRunsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetDepreciationRun, ports.ActionRead); err != nil {
 		return nil, err
 	}

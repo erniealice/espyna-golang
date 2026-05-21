@@ -17,9 +17,9 @@ type ReadLocationRepositories struct {
 
 // ReadLocationServices groups all business service dependencies
 type ReadLocationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadLocationUseCase handles the business logic for reading locations
@@ -41,7 +41,7 @@ func NewReadLocationUseCase(
 
 func (uc *ReadLocationUseCase) Execute(ctx context.Context, req *locationpb.ReadLocationRequest) (*locationpb.ReadLocationResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLocation, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -64,13 +64,13 @@ func (uc *ReadLocationUseCase) Execute(ctx context.Context, req *locationpb.Read
 // validateInput validates the input request
 func (uc *ReadLocationUseCase) validateInput(ctx context.Context, req *locationpb.ReadLocationRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

@@ -19,9 +19,9 @@ type UpdateInventoryTransactionRepositories struct {
 
 // UpdateInventoryTransactionServices groups all business service dependencies
 type UpdateInventoryTransactionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateInventoryTransactionUseCase handles the business logic for updating inventory transactions
@@ -43,12 +43,12 @@ func NewUpdateInventoryTransactionUseCase(
 
 // Execute performs the update inventory transaction operation
 func (uc *UpdateInventoryTransactionUseCase) Execute(ctx context.Context, req *inventorytransactionpb.UpdateInventoryTransactionRequest) (*inventorytransactionpb.UpdateInventoryTransactionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInventoryTransaction, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -56,10 +56,10 @@ func (uc *UpdateInventoryTransactionUseCase) Execute(ctx context.Context, req *i
 
 func (uc *UpdateInventoryTransactionUseCase) executeWithTransaction(ctx context.Context, req *inventorytransactionpb.UpdateInventoryTransactionRequest) (*inventorytransactionpb.UpdateInventoryTransactionResponse, error) {
 	var result *inventorytransactionpb.UpdateInventoryTransactionResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "inventory_transaction.errors.update_failed", "Inventory transaction update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "inventory_transaction.errors.update_failed", "Inventory transaction update failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -74,34 +74,34 @@ func (uc *UpdateInventoryTransactionUseCase) executeWithTransaction(ctx context.
 func (uc *UpdateInventoryTransactionUseCase) executeCore(ctx context.Context, req *inventorytransactionpb.UpdateInventoryTransactionRequest) (*inventorytransactionpb.UpdateInventoryTransactionResponse, error) {
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityInventoryTransaction, ports.ActionUpdate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	if err := uc.enrichData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	existingResp, err := uc.repositories.InventoryTransaction.ReadInventoryTransaction(ctx, &inventorytransactionpb.ReadInventoryTransactionRequest{Data: &inventorytransactionpb.InventoryTransaction{Id: req.Data.Id}})
 	if err != nil || existingResp == nil || len(existingResp.Data) == 0 {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.errors.not_found", "Inventory transaction not found for update [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.not_found", "Inventory transaction not found for update [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	existing := existingResp.Data[0]
@@ -112,7 +112,7 @@ func (uc *UpdateInventoryTransactionUseCase) executeCore(ctx context.Context, re
 
 	resp, err := uc.repositories.InventoryTransaction.UpdateInventoryTransaction(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.errors.update_failed", "Inventory transaction update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.update_failed", "Inventory transaction update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -120,13 +120,13 @@ func (uc *UpdateInventoryTransactionUseCase) executeCore(ctx context.Context, re
 
 func (uc *UpdateInventoryTransactionUseCase) validateInput(ctx context.Context, req *inventorytransactionpb.UpdateInventoryTransactionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.validation.data_required", "Inventory transaction data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.validation.data_required", "Inventory transaction data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.validation.id_required", "Inventory transaction ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.validation.id_required", "Inventory transaction ID is required [DEFAULT]"))
 	}
 	return nil
 }

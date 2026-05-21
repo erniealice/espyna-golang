@@ -17,9 +17,9 @@ type ReadDisbursementRepositories struct {
 
 // ReadDisbursementServices groups all business service dependencies
 type ReadDisbursementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadDisbursementUseCase handles the business logic for reading a disbursement
@@ -41,13 +41,13 @@ func NewReadDisbursementUseCase(
 
 // Execute performs the read disbursement operation
 func (uc *ReadDisbursementUseCase) Execute(ctx context.Context, req *disbursementpb.ReadDisbursementRequest) (*disbursementpb.ReadDisbursementResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDisbursement, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "disbursement.validation.id_required", "Disbursement ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "disbursement.validation.id_required", "Disbursement ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Disbursement.ReadDisbursement(ctx, req)

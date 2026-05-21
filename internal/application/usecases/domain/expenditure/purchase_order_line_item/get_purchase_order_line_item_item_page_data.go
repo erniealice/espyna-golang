@@ -17,9 +17,9 @@ type GetPurchaseOrderLineItemItemPageDataRepositories struct {
 
 // GetPurchaseOrderLineItemItemPageDataServices groups all business service dependencies
 type GetPurchaseOrderLineItemItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPurchaseOrderLineItemItemPageDataUseCase handles the business logic for getting a single purchase order line item page data
@@ -41,13 +41,13 @@ func NewGetPurchaseOrderLineItemItemPageDataUseCase(
 
 // Execute performs the get purchase order line item item page data operation
 func (uc *GetPurchaseOrderLineItemItemPageDataUseCase) Execute(ctx context.Context, req *purchaseorderlineitempb.GetPurchaseOrderLineItemItemPageDataRequest) (*purchaseorderlineitempb.GetPurchaseOrderLineItemItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrderLineItem, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.PurchaseOrderLineItemId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.id_required", "Purchase order line item ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.id_required", "Purchase order line item ID is required [DEFAULT]"))
 	}
 
 	if uc.repositories.PurchaseOrderLineItem == nil {

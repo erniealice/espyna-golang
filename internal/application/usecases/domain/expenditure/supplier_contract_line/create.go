@@ -21,10 +21,10 @@ type CreateSupplierContractLineRepositories struct {
 
 // CreateSupplierContractLineServices groups service dependencies.
 type CreateSupplierContractLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateSupplierContractLineUseCase handles creating a supplier contract line.
@@ -43,30 +43,30 @@ func NewCreateSupplierContractLineUseCase(
 
 // Execute performs the create supplier contract line operation.
 func (uc *CreateSupplierContractLineUseCase) Execute(ctx context.Context, req *suppliercontractlinepb.CreateSupplierContractLineRequest) (*suppliercontractlinepb.CreateSupplierContractLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractLine, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_line.validation.data_required", "Supplier contract line data is required [DEFAULT]"))
 	}
 	if req.Data.SupplierContractId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_line.validation.contract_id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
 	req.Data.Active = true
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *suppliercontractlinepb.CreateSupplierContractLineResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.SupplierContractLine.CreateSupplierContractLine(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("supplier contract line creation failed: %w", err)

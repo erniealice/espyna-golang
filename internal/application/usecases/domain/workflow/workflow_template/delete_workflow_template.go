@@ -22,9 +22,9 @@ type DeleteWorkflowTemplateRepositories struct {
 
 // DeleteWorkflowTemplateServices groups all business service dependencies
 type DeleteWorkflowTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteWorkflowTemplateUseCase handles the business logic for deleting workflow templates
@@ -54,9 +54,9 @@ func NewDeleteWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 	}
 
 	services := DeleteWorkflowTemplateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteWorkflowTemplateUseCase(repositories, services)
@@ -65,14 +65,14 @@ func NewDeleteWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 // Execute performs the delete workflow template operation
 func (uc *DeleteWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.DeleteWorkflowTemplateRequest) (*workflow_templatepb.DeleteWorkflowTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow_template", ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.request_required", "Request is required for workflow templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.request_required", "Request is required for workflow templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -81,7 +81,7 @@ func (uc *DeleteWorkflowTemplateUseCase) Execute(ctx context.Context, req *workf
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req.Data)
 	}
 
@@ -93,10 +93,10 @@ func (uc *DeleteWorkflowTemplateUseCase) Execute(ctx context.Context, req *workf
 func (uc *DeleteWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.DeleteWorkflowTemplateResponse, error) {
 	var result *workflow_templatepb.DeleteWorkflowTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, workflowTemplate)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workflow_template.errors.deletion_failed", "Workflow template deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workflow_template.errors.deletion_failed", "Workflow template deletion failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -121,24 +121,24 @@ func (uc *DeleteWorkflowTemplateUseCase) executeCore(ctx context.Context, workfl
 func (uc *DeleteWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) error {
 	// Business rule: Required data validation
 	if workflowTemplate == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for deletion
 	if workflowTemplate.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.id_required", "Workflow template ID is required for delete operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.id_required", "Workflow template ID is required for delete operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateWorkflowTemplateID(workflowTemplate.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.id_invalid", "Workflow template ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.id_invalid", "Workflow template ID format is invalid [DEFAULT]"))
 	}
 
 	// Business rule: Cannot delete active workflow templates
 	if workflowTemplate.Active {
 		// Note: This check might be better performed at the repository level
 		// where we have the full entity data from the database
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.cannot_delete_active", "Cannot delete active workflow templates [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.cannot_delete_active", "Cannot delete active workflow templates [DEFAULT]"))
 	}
 
 	return nil

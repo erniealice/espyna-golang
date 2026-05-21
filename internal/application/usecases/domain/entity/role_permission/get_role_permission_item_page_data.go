@@ -20,9 +20,9 @@ type GetRolePermissionItemPageDataRepositories struct {
 
 // GetRolePermissionItemPageDataServices groups all business service dependencies
 type GetRolePermissionItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetRolePermissionItemPageDataUseCase handles the business logic for retrieving role permission item page data
@@ -51,9 +51,9 @@ func NewGetRolePermissionItemPageDataUseCaseUngrouped(rolePermissionRepo roleper
 	}
 
 	services := GetRolePermissionItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetRolePermissionItemPageDataUseCase(repositories, services)
@@ -62,13 +62,13 @@ func NewGetRolePermissionItemPageDataUseCaseUngrouped(rolePermissionRepo roleper
 // Execute performs the get role permission item page data operation
 func (uc *GetRolePermissionItemPageDataUseCase) Execute(ctx context.Context, req *rolepermissionpb.GetRolePermissionItemPageDataRequest) (*rolepermissionpb.GetRolePermissionItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRolePermission, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -80,10 +80,10 @@ func (uc *GetRolePermissionItemPageDataUseCase) Execute(ctx context.Context, req
 func (uc *GetRolePermissionItemPageDataUseCase) executeWithTransaction(ctx context.Context, req *rolepermissionpb.GetRolePermissionItemPageDataRequest) (*rolepermissionpb.GetRolePermissionItemPageDataResponse, error) {
 	var result *rolepermissionpb.GetRolePermissionItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "role_permission.errors.item_page_data_retrieval_failed", "Role permission item page data retrieval failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "role_permission.errors.item_page_data_retrieval_failed", "Role permission item page data retrieval failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -110,11 +110,11 @@ func (uc *GetRolePermissionItemPageDataUseCase) executeCore(ctx context.Context,
 // validateInput validates the input request
 func (uc *GetRolePermissionItemPageDataUseCase) validateInput(ctx context.Context, req *rolepermissionpb.GetRolePermissionItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.request_required", "Request is required for role permission item page data [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.request_required", "Request is required for role permission item page data [DEFAULT]"))
 	}
 
 	if req.RolePermissionId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.role_permission_id_required", "Role permission ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.role_permission_id_required", "Role permission ID is required [DEFAULT]"))
 	}
 
 	return nil

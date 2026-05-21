@@ -17,9 +17,9 @@ type ListPlansRepositories struct {
 
 // ListPlansServices groups all business service dependencies
 type ListPlansServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ListPlansUseCase handles the business logic for listing plans
@@ -42,7 +42,7 @@ func NewListPlansUseCase(
 // Execute performs the list plans operation
 func (uc *ListPlansUseCase) Execute(ctx context.Context, req *planpb.ListPlansRequest) (*planpb.ListPlansResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *ListPlansUseCase) Execute(ctx context.Context, req *planpb.ListPlansRe
 	// Call repository
 	result, err := uc.repositories.Plan.ListPlans(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.list_failed", "plan listing failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.errors.list_failed", "plan listing failed [DEFAULT]"))
 	}
 
 	return result, nil
@@ -69,7 +69,7 @@ func (uc *ListPlansUseCase) Execute(ctx context.Context, req *planpb.ListPlansRe
 // validateInput validates the input request
 func (uc *ListPlansUseCase) validateInput(ctx context.Context, req *planpb.ListPlansRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.request_required", "request is required"))
 	}
 	return nil
 }

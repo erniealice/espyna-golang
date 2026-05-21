@@ -34,9 +34,9 @@ func createTestUpdateWorkspaceUserRoleUseCase(businessType string, supportsTrans
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := UpdateWorkspaceUserRoleServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth(),
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth(),
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateWorkspaceUserRoleUseCase(repositories, services)
@@ -87,7 +87,7 @@ func TestUpdateWorkspaceUserRoleUseCase_Execute_NotFound(t *testing.T) {
 
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "workspace_user_role.errors.update_failed", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user_role.errors.update_failed", useCase.services.Translator, ctx)
 }
 
 func TestUpdateWorkspaceUserRoleUseCase_Execute_InvalidReference(t *testing.T) {
@@ -105,5 +105,5 @@ func TestUpdateWorkspaceUserRoleUseCase_Execute_InvalidReference(t *testing.T) {
 
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedErrorWithContext(t, err, "workspace_user_role.errors.workspace_user_not_found", "{\"workspaceUserId\": \"wu-999\"}", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedErrorWithContext(t, err, "workspace_user_role.errors.workspace_user_not_found", "{\"workspaceUserId\": \"wu-999\"}", useCase.services.Translator, ctx)
 }

@@ -350,17 +350,17 @@ func (r *PostgresPurchaseOrderLineItemRepository) GetPurchaseOrderLineItemListPa
 		totalCount = total
 
 		poli := &purchaseorderlineitempb.PurchaseOrderLineItem{
-			Id:              id,
-			PurchaseOrderId: purchaseOrderID,
-			Description:     description,
-			LineType:        lineType,
-			QuantityOrdered: qtyOrdered,
+			Id:               id,
+			PurchaseOrderId:  purchaseOrderID,
+			Description:      description,
+			LineType:         lineType,
+			QuantityOrdered:  qtyOrdered,
 			QuantityReceived: qtyReceived,
-			QuantityBilled:  qtyBilled,
-			UnitPrice:       unitPrice,
-			TotalPrice:      totalPrice,
-			LineNumber:      lineNumber,
-			Active:          active,
+			QuantityBilled:   qtyBilled,
+			UnitPrice:        unitPrice,
+			TotalPrice:       totalPrice,
+			LineNumber:       lineNumber,
+			Active:           active,
 		}
 
 		if productID != nil {

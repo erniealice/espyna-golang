@@ -19,9 +19,9 @@ type ListWorkflowsRepositories struct {
 
 // ListWorkflowsServices groups all business service dependencies
 type ListWorkflowsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListWorkflowsUseCase handles the business logic for listing workflows
@@ -49,9 +49,9 @@ func NewListWorkflowsUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainServ
 	}
 
 	services := ListWorkflowsServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListWorkflowsUseCase(repositories, services)
@@ -60,14 +60,14 @@ func NewListWorkflowsUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainServ
 // Execute performs the list workflows operation
 func (uc *ListWorkflowsUseCase) Execute(ctx context.Context, req *workflowpb.ListWorkflowsRequest) (*workflowpb.ListWorkflowsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
 	}
 
 	// Business validation
@@ -79,7 +79,7 @@ func (uc *ListWorkflowsUseCase) Execute(ctx context.Context, req *workflowpb.Lis
 	enrichedRequest := uc.applyBusinessLogic(req)
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -91,10 +91,10 @@ func (uc *ListWorkflowsUseCase) Execute(ctx context.Context, req *workflowpb.Lis
 func (uc *ListWorkflowsUseCase) executeWithTransaction(ctx context.Context, req *workflowpb.ListWorkflowsRequest) (*workflowpb.ListWorkflowsResponse, error) {
 	var result *workflowpb.ListWorkflowsResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workflow.errors.list_failed", "Workflow listing failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workflow.errors.list_failed", "Workflow listing failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -140,10 +140,10 @@ func (uc *ListWorkflowsUseCase) validateBusinessRules(ctx context.Context, req *
 	// Business rule: Pagination validation if provided
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.limit_negative", "Limit cannot be negative [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.limit_negative", "Limit cannot be negative [DEFAULT]"))
 		}
 		if req.Pagination.Limit > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.limit_too_large", "Limit cannot exceed 1000 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.limit_too_large", "Limit cannot exceed 1000 [DEFAULT]"))
 		}
 	}
 

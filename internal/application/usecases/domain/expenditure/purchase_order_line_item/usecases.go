@@ -12,10 +12,10 @@ type PurchaseOrderLineItemRepositories struct {
 
 // PurchaseOrderLineItemServices groups all business service dependencies for purchase order line item use cases
 type PurchaseOrderLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all purchase order line item-related use cases
@@ -36,52 +36,52 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreatePurchaseOrderLineItemRepositories(repositories)
 	createServices := CreatePurchaseOrderLineItemServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPurchaseOrderLineItemRepositories(repositories)
 	readServices := ReadPurchaseOrderLineItemServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePurchaseOrderLineItemRepositories(repositories)
 	updateServices := UpdatePurchaseOrderLineItemServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePurchaseOrderLineItemRepositories(repositories)
 	deleteServices := DeletePurchaseOrderLineItemServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPurchaseOrderLineItemsRepositories(repositories)
 	listServices := ListPurchaseOrderLineItemsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetPurchaseOrderLineItemListPageDataRepositories(repositories)
 	getListPageDataServices := GetPurchaseOrderLineItemListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetPurchaseOrderLineItemItemPageDataRepositories(repositories)
 	getItemPageDataServices := GetPurchaseOrderLineItemItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

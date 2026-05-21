@@ -17,9 +17,9 @@ type ListEventOccurrencesRepositories struct {
 
 // ListEventOccurrencesServices groups all business service dependencies
 type ListEventOccurrencesServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListEventOccurrencesUseCase handles the business logic for listing event occurrences
@@ -42,7 +42,7 @@ func NewListEventOccurrencesUseCase(
 // Execute performs the list event occurrences operation
 func (uc *ListEventOccurrencesUseCase) Execute(ctx context.Context, req *eventoccurrencepb.ListEventOccurrencesRequest) (*eventoccurrencepb.ListEventOccurrencesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventOccurrence, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (uc *ListEventOccurrencesUseCase) Execute(ctx context.Context, req *eventoc
 	// Call repository
 	resp, err := uc.repositories.EventOccurrence.ListEventOccurrences(ctx, req)
 	if err != nil {
-		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_occurrence.errors.list_failed", "Failed to retrieve event occurrences [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_occurrence.errors.list_failed", "Failed to retrieve event occurrences [DEFAULT]")
 		return nil, errors.New(errorMessage)
 	}
 

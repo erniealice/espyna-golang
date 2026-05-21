@@ -23,10 +23,10 @@ type EventTagRepositories struct {
 
 // EventTagServices groups all business service dependencies for event_tag use cases
 type EventTagServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of event_tag use cases
@@ -36,52 +36,52 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateEventTagRepositories{EventTag: repositories.EventTag}
 	createServices := CreateEventTagServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadEventTagRepositories{EventTag: repositories.EventTag}
 	readServices := ReadEventTagServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateEventTagRepositories{EventTag: repositories.EventTag}
 	updateServices := UpdateEventTagServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteEventTagRepositories{EventTag: repositories.EventTag}
 	deleteServices := DeleteEventTagServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListEventTagsRepositories{EventTag: repositories.EventTag}
 	listServices := ListEventTagsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetEventTagListPageDataRepositories{EventTag: repositories.EventTag}
 	getListPageDataServices := GetEventTagListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetEventTagItemPageDataRepositories{EventTag: repositories.EventTag}
 	getItemPageDataServices := GetEventTagItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

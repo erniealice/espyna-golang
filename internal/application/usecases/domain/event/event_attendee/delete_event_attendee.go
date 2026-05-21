@@ -19,9 +19,9 @@ type DeleteEventAttendeeRepositories struct {
 
 // DeleteEventAttendeeServices groups all business service dependencies
 type DeleteEventAttendeeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteEventAttendeeUseCase handles the business logic for deleting event attendee associations
@@ -53,9 +53,9 @@ func NewDeleteEventAttendeeUseCaseUngrouped(
 	}
 
 	services := DeleteEventAttendeeServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &DeleteEventAttendeeUseCase{
@@ -67,7 +67,7 @@ func NewDeleteEventAttendeeUseCaseUngrouped(
 // Execute performs the delete event attendee operation
 func (uc *DeleteEventAttendeeUseCase) Execute(ctx context.Context, req *eventattendeepb.DeleteEventAttendeeRequest) (*eventattendeepb.DeleteEventAttendeeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventAttendee, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -75,18 +75,18 @@ func (uc *DeleteEventAttendeeUseCase) Execute(ctx context.Context, req *eventatt
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventAttendee, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")
 		return nil, errors.New(translatedError)
 	}
 

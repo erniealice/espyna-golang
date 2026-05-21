@@ -17,9 +17,9 @@ type ListEventRecurrencesRepositories struct {
 
 // ListEventRecurrencesServices groups all business service dependencies
 type ListEventRecurrencesServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListEventRecurrencesUseCase handles the business logic for listing event recurrences
@@ -48,9 +48,9 @@ func NewListEventRecurrencesUseCaseUngrouped(eventRecurrenceRepo eventrecurrence
 	}
 
 	services := ListEventRecurrencesServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &ListEventRecurrencesUseCase{
@@ -62,7 +62,7 @@ func NewListEventRecurrencesUseCaseUngrouped(eventRecurrenceRepo eventrecurrence
 // Execute performs the list event recurrences operation
 func (uc *ListEventRecurrencesUseCase) Execute(ctx context.Context, req *eventrecurrencepb.ListEventRecurrencesRequest) (*eventrecurrencepb.ListEventRecurrencesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"event_recurrence", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (uc *ListEventRecurrencesUseCase) Execute(ctx context.Context, req *eventre
 	// Call repository
 	resp, err := uc.repositories.EventRecurrence.ListEventRecurrences(ctx, req)
 	if err != nil {
-		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.errors.list_failed", "Failed to retrieve event recurrences [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.errors.list_failed", "Failed to retrieve event recurrences [DEFAULT]")
 		return nil, errors.New(errorMessage)
 	}
 

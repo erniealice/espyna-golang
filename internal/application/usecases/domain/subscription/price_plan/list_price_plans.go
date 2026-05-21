@@ -18,9 +18,9 @@ type ListPricePlansRepositories struct {
 
 // ListPricePlansServices groups all business service dependencies
 type ListPricePlansServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ListPricePlansUseCase handles the business logic for listing price_plans
@@ -43,7 +43,7 @@ func NewListPricePlansUseCase(
 // Execute performs the list price_plans operation
 func (uc *ListPricePlansUseCase) Execute(ctx context.Context, req *priceplanpb.ListPricePlansRequest) (*priceplanpb.ListPricePlansResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *ListPricePlansUseCase) Execute(ctx context.Context, req *priceplanpb.L
 	// Call repository with error wrapping
 	result, err := uc.repositories.PricePlan.ListPricePlans(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.list_failed", "price plan listing failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.errors.list_failed", "price plan listing failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil
@@ -70,7 +70,7 @@ func (uc *ListPricePlansUseCase) Execute(ctx context.Context, req *priceplanpb.L
 // validateInput validates the input request
 func (uc *ListPricePlansUseCase) validateInput(ctx context.Context, req *priceplanpb.ListPricePlansRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", "request is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.request_required", "request is required")
 		return errors.New(msg)
 	}
 	return nil

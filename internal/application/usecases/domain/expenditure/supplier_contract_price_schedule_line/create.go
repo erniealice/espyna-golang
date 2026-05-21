@@ -21,10 +21,10 @@ type CreateSupplierContractPriceScheduleLineRepositories struct {
 
 // CreateSupplierContractPriceScheduleLineServices groups service dependencies.
 type CreateSupplierContractPriceScheduleLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateSupplierContractPriceScheduleLineUseCase handles creating a new schedule line.
@@ -46,14 +46,14 @@ func NewCreateSupplierContractPriceScheduleLineUseCase(
 
 // Execute performs the create operation.
 func (uc *CreateSupplierContractPriceScheduleLineUseCase) Execute(ctx context.Context, req *scpslpb.CreateSupplierContractPriceScheduleLineRequest) (*scpslpb.CreateSupplierContractPriceScheduleLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceScheduleLine, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *scpslpb.CreateSupplierContractPriceScheduleLineResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("supplier contract price schedule line creation failed: %w", err)
@@ -71,21 +71,21 @@ func (uc *CreateSupplierContractPriceScheduleLineUseCase) Execute(ctx context.Co
 
 func (uc *CreateSupplierContractPriceScheduleLineUseCase) executeCore(ctx context.Context, req *scpslpb.CreateSupplierContractPriceScheduleLineRequest) (*scpslpb.CreateSupplierContractPriceScheduleLineResponse, error) {
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule_line.validation.data_required", "Schedule line data is required [DEFAULT]"))
 	}
 	if req.Data.SupplierContractPriceScheduleId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule_line.validation.schedule_id_required", "Schedule ID is required [DEFAULT]"))
 	}
 	if req.Data.SupplierContractLineId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule_line.validation.contract_line_id_required", "Supplier contract line ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

@@ -19,9 +19,9 @@ type UpdateExpenditureLineItemRepositories struct {
 
 // UpdateExpenditureLineItemServices groups all business service dependencies
 type UpdateExpenditureLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateExpenditureLineItemUseCase handles the business logic for updating expenditure line items
@@ -43,14 +43,14 @@ func NewUpdateExpenditureLineItemUseCase(
 
 // Execute performs the update expenditure line item operation
 func (uc *UpdateExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb.UpdateExpenditureLineItemRequest) (*pb.UpdateExpenditureLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureLineItem, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *pb.UpdateExpenditureLineItemResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("expenditure line item update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb
 
 func (uc *UpdateExpenditureLineItemUseCase) executeCore(ctx context.Context, req *pb.UpdateExpenditureLineItemRequest) (*pb.UpdateExpenditureLineItemResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_line_item.validation.id_required", "Expenditure line item ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_line_item.validation.id_required", "Expenditure line item ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()

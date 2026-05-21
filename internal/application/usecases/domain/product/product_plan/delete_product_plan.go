@@ -31,13 +31,13 @@ func NewDeleteProductPlanUseCase(
 // Execute performs the delete product plan operation
 func (uc *DeleteProductPlanUseCase) Execute(ctx context.Context, req *productplanpb.DeleteProductPlanRequest) (*productplanpb.DeleteProductPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductPlan, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -48,7 +48,7 @@ func (uc *DeleteProductPlanUseCase) Execute(ctx context.Context, req *productpla
 // executeWithTransaction executes product plan deletion within a transaction
 func (uc *DeleteProductPlanUseCase) executeWithTransaction(ctx context.Context, req *productplanpb.DeleteProductPlanRequest) (*productplanpb.DeleteProductPlanResponse, error) {
 	var result *productplanpb.DeleteProductPlanResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -58,7 +58,7 @@ func (uc *DeleteProductPlanUseCase) executeWithTransaction(ctx context.Context, 
 	})
 
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -88,13 +88,13 @@ func (uc *DeleteProductPlanUseCase) executeCore(ctx context.Context, req *produc
 // validateInput validates the input request
 func (uc *DeleteProductPlanUseCase) validateInput(ctx context.Context, req *productplanpb.DeleteProductPlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.data_required", "Product plan data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.validation.data_required", "Product plan data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.id_required", "Product plan ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.validation.id_required", "Product plan ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ func (uc *DeleteProductPlanUseCase) validateBusinessRules(ctx context.Context, r
 	// Additional business rule validation can be added here
 	// For example: check if product plan is referenced by active subscriptions
 	if uc.isProductPlanInUse(ctx, req.Data.Id) {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.in_use", "Product plan is currently in use and cannot be deleted [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.errors.in_use", "Product plan is currently in use and cannot be deleted [DEFAULT]"))
 	}
 	return nil
 }

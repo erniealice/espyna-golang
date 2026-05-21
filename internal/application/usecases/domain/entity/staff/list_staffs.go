@@ -17,9 +17,9 @@ type ListStaffsRepositories struct {
 
 // ListStaffsServices groups all business service dependencies
 type ListStaffsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListStaffsUseCase handles the business logic for listing staffs
@@ -48,9 +48,9 @@ func NewListStaffsUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) *
 	}
 
 	services := ListStaffsServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListStaffsUseCase(repositories, services)
@@ -58,7 +58,7 @@ func NewListStaffsUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) *
 
 func (uc *ListStaffsUseCase) Execute(ctx context.Context, req *staffpb.ListStaffsRequest) (*staffpb.ListStaffsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaff, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (uc *ListStaffsUseCase) Execute(ctx context.Context, req *staffpb.ListStaff
 	// Call repository
 	resp, err := uc.repositories.Staff.ListStaffs(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.errors.list_failed", "Failed to retrieve staff [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.errors.list_failed", "Failed to retrieve staff [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

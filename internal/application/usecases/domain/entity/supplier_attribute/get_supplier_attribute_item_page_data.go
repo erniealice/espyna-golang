@@ -19,9 +19,9 @@ type GetSupplierAttributeItemPageDataRepositories struct {
 
 // GetSupplierAttributeItemPageDataServices groups all business service dependencies
 type GetSupplierAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSupplierAttributeItemPageDataUseCase handles the business logic for getting supplier attribute item page data
@@ -49,9 +49,9 @@ func NewGetSupplierAttributeItemPageDataUseCaseUngrouped(supplierAttributeRepo s
 	}
 
 	services := GetSupplierAttributeItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetSupplierAttributeItemPageDataUseCase(repositories, services)
@@ -60,21 +60,21 @@ func NewGetSupplierAttributeItemPageDataUseCaseUngrouped(supplierAttributeRepo s
 // Execute performs the get supplier attribute item page data operation
 func (uc *GetSupplierAttributeItemPageDataUseCase) Execute(ctx context.Context, req *supplierattributepb.GetSupplierAttributeItemPageDataRequest) (*supplierattributepb.GetSupplierAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_attribute", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.SupplierAttribute.GetSupplierAttributeItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.item_page_data_failed", "Failed to retrieve supplier attribute item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.item_page_data_failed", "Failed to retrieve supplier attribute item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -84,15 +84,15 @@ func (uc *GetSupplierAttributeItemPageDataUseCase) Execute(ctx context.Context, 
 // validateInput validates the input request
 func (uc *GetSupplierAttributeItemPageDataUseCase) validateInput(ctx context.Context, req *supplierattributepb.GetSupplierAttributeItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
 	}
 
 	if strings.TrimSpace(req.SupplierAttributeId) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.id_required", "Supplier attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.id_required", "Supplier attribute ID is required [DEFAULT]"))
 	}
 
 	if len(req.SupplierAttributeId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.id_too_short", "Supplier attribute ID must be at least 3 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.id_too_short", "Supplier attribute ID must be at least 3 characters [DEFAULT]"))
 	}
 
 	return nil

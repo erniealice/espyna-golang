@@ -19,9 +19,9 @@ type UpdateDisbursementRepositories struct {
 
 // UpdateDisbursementServices groups all business service dependencies
 type UpdateDisbursementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateDisbursementUseCase handles the business logic for updating disbursements
@@ -47,7 +47,7 @@ func NewUpdateDisbursementUseCase(
 // transaction-aware behavior. See the matching collection.UpdateCollection
 // implementation for the rationale.
 func (uc *UpdateDisbursementUseCase) Execute(ctx context.Context, req *disbursementpb.UpdateDisbursementRequest) (*disbursementpb.UpdateDisbursementResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDisbursement, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -59,12 +59,12 @@ func (uc *UpdateDisbursementUseCase) Execute(ctx context.Context, req *disbursem
 		}
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if uc.services.Transactor.IsTransactionActive(ctx) {
 			return uc.executeCore(ctx, req)
 		}
 		var result *disbursementpb.UpdateDisbursementResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("disbursement update failed: %w", err)
@@ -83,7 +83,7 @@ func (uc *UpdateDisbursementUseCase) Execute(ctx context.Context, req *disbursem
 
 func (uc *UpdateDisbursementUseCase) executeCore(ctx context.Context, req *disbursementpb.UpdateDisbursementRequest) (*disbursementpb.UpdateDisbursementResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "disbursement.validation.id_required", "Disbursement ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "disbursement.validation.id_required", "Disbursement ID is required [DEFAULT]"))
 	}
 
 	// Set date_modified

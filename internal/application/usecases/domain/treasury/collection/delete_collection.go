@@ -17,9 +17,9 @@ type DeleteCollectionRepositories struct {
 
 // DeleteCollectionServices groups all business service dependencies
 type DeleteCollectionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteCollectionUseCase handles the business logic for deleting collections
@@ -41,13 +41,13 @@ func NewDeleteCollectionUseCase(
 
 // Execute performs the delete collection operation
 func (uc *DeleteCollectionUseCase) Execute(ctx context.Context, req *collectionpb.DeleteCollectionRequest) (*collectionpb.DeleteCollectionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityCollection, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Collection.DeleteCollection(ctx, req)

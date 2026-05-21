@@ -28,7 +28,7 @@ func createTestListLocationAttributesUseCase(businessType string) *ListLocationA
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListLocationAttributesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewListLocationAttributesUseCase(repositories, services)
 }
@@ -40,7 +40,7 @@ func TestListLocationAttributesUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockLocationAttributeRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListLocationAttributesUseCase(ListLocationAttributesRepositories{LocationAttribute: mockRepo}, ListLocationAttributesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/location-attribute has 2 entries
@@ -65,7 +65,7 @@ func TestListLocationAttributesUseCase_Execute_AfterDelete(t *testing.T) {
 	deleteRepositories := DeleteLocationAttributeRepositories{LocationAttribute: mockRepo}
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteLocationAttributeServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	deleteUseCase := NewDeleteLocationAttributeUseCase(deleteRepositories, deleteServices)
 
@@ -75,7 +75,7 @@ func TestListLocationAttributesUseCase_Execute_AfterDelete(t *testing.T) {
 
 	// --- Now list the location attributes ---
 	listUseCase := NewListLocationAttributesUseCase(ListLocationAttributesRepositories{LocationAttribute: mockRepo}, ListLocationAttributesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	listReq := &locationattributepb.ListLocationAttributesRequest{}

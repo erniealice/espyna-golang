@@ -17,8 +17,8 @@ type DeleteTaxRegistrationRepositories struct {
 
 // DeleteTaxRegistrationServices groups service dependencies.
 type DeleteTaxRegistrationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteTaxRegistrationUseCase handles deleting a tax_registration.
@@ -34,12 +34,12 @@ func NewDeleteTaxRegistrationUseCase(repositories DeleteTaxRegistrationRepositor
 
 // Execute performs the delete tax_registration operation.
 func (uc *DeleteTaxRegistrationUseCase) Execute(ctx context.Context, req *taxregistrationpb.DeleteTaxRegistrationRequest) (*taxregistrationpb.DeleteTaxRegistrationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRegistration, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.id_required", "Tax Registration ID is required [DEFAULT]"))
 	}
 	return uc.repositories.TaxRegistration.DeleteTaxRegistration(ctx, req)

@@ -17,9 +17,9 @@ type ListPlanSettingsRepositories struct {
 
 // ListPlanSettingsServices groups all business service dependencies
 type ListPlanSettingsServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService   // Current: Text translation and localization
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator // Current: Text translation and localization
 }
 
 // ListPlanSettingsUseCase handles the business logic for listing plan_settings
@@ -42,7 +42,7 @@ func NewListPlanSettingsUseCase(
 // Execute performs the list plan_settings operation
 func (uc *ListPlanSettingsUseCase) Execute(ctx context.Context, req *plansettingspb.ListPlanSettingsRequest) (*plansettingspb.ListPlanSettingsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlanSettings, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func (uc *ListPlanSettingsUseCase) getBusinessTypeFromContext(ctx context.Contex
 
 // getTranslatedMessage gets a translated message with fallback
 func (uc *ListPlanSettingsUseCase) getTranslatedMessage(ctx context.Context, businessType, key, fallback string) string {
-	if uc.services.TranslationService != nil {
-		return uc.services.TranslationService.GetWithDefault(ctx, businessType, key, fallback)
+	if uc.services.Translator != nil {
+		return uc.services.Translator.GetWithDefault(ctx, businessType, key, fallback)
 	}
 	return fallback
 }

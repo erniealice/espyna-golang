@@ -12,10 +12,10 @@ type AccruedExpenseSettlementRepositories struct {
 
 // AccruedExpenseSettlementServices groups all service dependencies.
 type AccruedExpenseSettlementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all accrued-expense-settlement use cases.
@@ -36,37 +36,37 @@ func NewUseCases(
 		CreateAccruedExpenseSettlement: NewCreateAccruedExpenseSettlementUseCase(
 			CreateAccruedExpenseSettlementRepositories{AccruedExpenseSettlement: repositories.AccruedExpenseSettlement},
 			CreateAccruedExpenseSettlementServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadAccruedExpenseSettlement: NewReadAccruedExpenseSettlementUseCase(
 			ReadAccruedExpenseSettlementRepositories{AccruedExpenseSettlement: repositories.AccruedExpenseSettlement},
 			ReadAccruedExpenseSettlementServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateAccruedExpenseSettlement: NewUpdateAccruedExpenseSettlementUseCase(
 			UpdateAccruedExpenseSettlementRepositories{AccruedExpenseSettlement: repositories.AccruedExpenseSettlement},
 			UpdateAccruedExpenseSettlementServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteAccruedExpenseSettlement: NewDeleteAccruedExpenseSettlementUseCase(
 			DeleteAccruedExpenseSettlementRepositories{AccruedExpenseSettlement: repositories.AccruedExpenseSettlement},
 			DeleteAccruedExpenseSettlementServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListAccruedExpenseSettlements: NewListAccruedExpenseSettlementsUseCase(
 			ListAccruedExpenseSettlementsRepositories{AccruedExpenseSettlement: repositories.AccruedExpenseSettlement},
 			ListAccruedExpenseSettlementsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

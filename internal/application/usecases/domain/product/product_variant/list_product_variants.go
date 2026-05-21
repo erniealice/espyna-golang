@@ -18,9 +18,9 @@ type ListProductVariantsRepositories struct {
 
 // ListProductVariantsServices groups all business service dependencies
 type ListProductVariantsServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListProductVariantsUseCase handles the business logic for listing product variants
@@ -43,7 +43,7 @@ func NewListProductVariantsUseCase(
 // Execute performs the list product variants operation
 func (uc *ListProductVariantsUseCase) Execute(ctx context.Context, req *productvariantpb.ListProductVariantsRequest) (*productvariantpb.ListProductVariantsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductVariant, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -51,31 +51,31 @@ func (uc *ListProductVariantsUseCase) Execute(ctx context.Context, req *productv
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.errors.authorization_failed", "Authorization failed for product variants [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant.errors.authorization_failed", "Authorization failed for product variants [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityProductVariant, ports.ActionList)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.errors.authorization_failed", "Authorization failed for product variants [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant.errors.authorization_failed", "Authorization failed for product variants [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.errors.authorization_failed", "Authorization failed for product variants [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant.errors.authorization_failed", "Authorization failed for product variants [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.ProductVariant.ListProductVariants(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.errors.list_failed", "Failed to retrieve product variants [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant.errors.list_failed", "Failed to retrieve product variants [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -84,7 +84,7 @@ func (uc *ListProductVariantsUseCase) Execute(ctx context.Context, req *productv
 // validateInput validates the input request
 func (uc *ListProductVariantsUseCase) validateInput(ctx context.Context, req *productvariantpb.ListProductVariantsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	// Additional validation can be added here if needed
 	return nil

@@ -15,10 +15,10 @@ type PlanSettingsRepositories struct {
 
 // PlanSettingsServices groups all business service dependencies for plan_settings use cases
 type PlanSettingsServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Only for CreatePlanSettings
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator // Only for CreatePlanSettings
 }
 
 // UseCases contains all plan_settings-related use cases
@@ -41,19 +41,19 @@ func NewUseCases(
 		Plan:         repositories.Plan,
 	}
 	createServices := CreatePlanSettingsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPlanSettingsRepositories{
 		PlanSettings: repositories.PlanSettings,
 	}
 	readServices := ReadPlanSettingsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePlanSettingsRepositories{
@@ -61,27 +61,27 @@ func NewUseCases(
 		Plan:         repositories.Plan,
 	}
 	updateServices := UpdatePlanSettingsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePlanSettingsRepositories{
 		PlanSettings: repositories.PlanSettings,
 	}
 	deleteServices := DeletePlanSettingsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPlanSettingsRepositories{
 		PlanSettings: repositories.PlanSettings,
 	}
 	listServices := ListPlanSettingsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

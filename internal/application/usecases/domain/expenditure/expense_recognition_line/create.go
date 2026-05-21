@@ -20,9 +20,9 @@ type CreateExpenseRecognitionLineRepositories struct {
 
 // CreateExpenseRecognitionLineServices groups service dependencies.
 type CreateExpenseRecognitionLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateExpenseRecognitionLineUseCase handles creating a new recognition-line.
@@ -41,17 +41,17 @@ func NewCreateExpenseRecognitionLineUseCase(
 
 // Execute performs the create operation.
 func (uc *CreateExpenseRecognitionLineUseCase) Execute(ctx context.Context, req *expenserecognitionlinepb.CreateExpenseRecognitionLineRequest) (*expenserecognitionlinepb.CreateExpenseRecognitionLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognitionLine, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition_line.validation.data_required", "Recognition line data is required [DEFAULT]"))
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

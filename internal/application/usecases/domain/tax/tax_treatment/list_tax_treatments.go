@@ -17,8 +17,8 @@ type ListTaxTreatmentsRepositories struct {
 
 // ListTaxTreatmentsServices groups service dependencies.
 type ListTaxTreatmentsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListTaxTreatmentsUseCase handles listing tax treatments.
@@ -34,12 +34,12 @@ func NewListTaxTreatmentsUseCase(repositories ListTaxTreatmentsRepositories, ser
 
 // Execute performs the list tax treatments operation.
 func (uc *ListTaxTreatmentsUseCase) Execute(ctx context.Context, req *taxtreatmentpb.ListTaxTreatmentsRequest) (*taxtreatmentpb.ListTaxTreatmentsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxTreatment, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_treatment.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return uc.repositories.TaxTreatment.ListTaxTreatments(ctx, req)

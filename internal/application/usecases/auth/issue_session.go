@@ -50,13 +50,13 @@ type IssueSessionRepositories struct {
 	Session sessionpb.SessionDomainServiceServer
 }
 
-// IssueSessionServices groups infrastructure deps. No AuthorizationService —
+// IssueSessionServices groups infrastructure deps. No Authorizer —
 // this use case establishes identity.
 type IssueSessionServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
-	IDService          ports.IDService
-	Expiry             SessionExpiryConfig
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
+	Expiry      SessionExpiryConfig
 }
 
 // IssueSessionUseCase mints a cryptographically random token and persists the
@@ -83,7 +83,7 @@ func (uc *IssueSessionUseCase) Execute(
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -94,11 +94,11 @@ func (uc *IssueSessionUseCase) executeWithTransaction(
 	req *IssueSessionRequest,
 ) (*IssueSessionResponse, error) {
 	var out *IssueSessionResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			translated := contextutil.GetTranslatedMessageWithContext(
-				txCtx, uc.services.TranslationService,
+				txCtx, uc.services.Translator,
 				"auth.errors.issue_session_failed", "Failed to issue session [DEFAULT]")
 			return fmt.Errorf("%s: %w", translated, err)
 		}
@@ -121,8 +121,8 @@ func (uc *IssueSessionUseCase) executeCore(
 	}
 
 	sessionID := ""
-	if uc.services.IDService != nil {
-		sessionID = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		sessionID = uc.services.IDGenerator.GenerateID()
 	}
 
 	ttl := defaultSessionExpiry
@@ -153,7 +153,7 @@ func (uc *IssueSessionUseCase) executeCore(
 	}
 	if resp == nil || len(resp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.issue_session_failed", "Failed to issue session [DEFAULT]"))
 	}
 	created := resp.Data[0]
@@ -175,12 +175,12 @@ func (uc *IssueSessionUseCase) executeCore(
 func (uc *IssueSessionUseCase) validateInput(ctx context.Context, req *IssueSessionRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.validation.request_required", "Session issuance request is required [DEFAULT]"))
 	}
 	if req.UserID == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.validation.user_required", "User ID is required to issue a session [DEFAULT]"))
 	}
 	return nil

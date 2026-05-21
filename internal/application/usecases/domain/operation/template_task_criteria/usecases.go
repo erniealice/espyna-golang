@@ -12,10 +12,10 @@ type TemplateTaskCriteriaRepositories struct {
 
 // TemplateTaskCriteriaServices groups all business service dependencies
 type TemplateTaskCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all template_task_criteria-related use cases
@@ -40,82 +40,82 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	createServices := CreateTemplateTaskCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	readServices := ReadTemplateTaskCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	updateServices := UpdateTemplateTaskCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	deleteServices := DeleteTemplateTaskCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listServices := ListTemplateTaskCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetTemplateTaskCriteriaListPageDataRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listPageDataServices := GetTemplateTaskCriteriaListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetTemplateTaskCriteriaItemPageDataRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	itemPageDataServices := GetTemplateTaskCriteriaItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByTemplateTaskRepos := ListByTemplateTaskRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listByTemplateTaskServices := ListByTemplateTaskServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByCriteriaRepos := ListByCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listByCriteriaServices := ListByCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

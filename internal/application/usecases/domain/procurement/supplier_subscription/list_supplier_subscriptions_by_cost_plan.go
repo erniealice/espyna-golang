@@ -19,9 +19,9 @@ type ListSupplierSubscriptionsByCostPlanRepositories struct {
 
 // ListSupplierSubscriptionsByCostPlanServices groups service dependencies.
 type ListSupplierSubscriptionsByCostPlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSupplierSubscriptionsByCostPlanUseCase resolves every supplier subscription whose
@@ -46,7 +46,7 @@ func (uc *ListSupplierSubscriptionsByCostPlanUseCase) Execute(
 	ctx context.Context,
 	req *suppliersubscriptionpb.ListSupplierSubscriptionsByCostPlanRequest,
 ) (*suppliersubscriptionpb.ListSupplierSubscriptionsByCostPlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierSubscription, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -55,9 +55,9 @@ func (uc *ListSupplierSubscriptionsByCostPlanUseCase) Execute(
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *suppliersubscriptionpb.ListSupplierSubscriptionsByCostPlanResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return err
@@ -82,7 +82,7 @@ func (uc *ListSupplierSubscriptionsByCostPlanUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"supplier_subscription.errors.list_by_cost_plan_failed",
 			"failed to list supplier subscriptions for cost plan: %w",
 		), err)
@@ -97,7 +97,7 @@ func (uc *ListSupplierSubscriptionsByCostPlanUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"supplier_subscription.validation.request_required",
 			"request is required",
 		))
@@ -105,7 +105,7 @@ func (uc *ListSupplierSubscriptionsByCostPlanUseCase) validateInput(
 	if req.CostPlanId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"supplier_subscription.validation.cost_plan_id_required",
 			"cost_plan_id is required",
 		))

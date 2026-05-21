@@ -16,10 +16,10 @@ type LocationAttributeRepositories struct {
 
 // LocationAttributeServices groups all business service dependencies for location attribute use cases
 type LocationAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all location attribute-related use cases
@@ -45,17 +45,17 @@ func NewUseCases(
 		Attribute:         repositories.Attribute,
 	}
 	createServices := CreateLocationAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
-		IDService:          services.IDService,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadLocationAttributeRepositories{
 		LocationAttribute: repositories.LocationAttribute,
 	}
 	readServices := ReadLocationAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateLocationAttributeRepositories{
@@ -64,40 +64,40 @@ func NewUseCases(
 		Attribute:         repositories.Attribute,
 	}
 	updateServices := UpdateLocationAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteLocationAttributeRepositories{
 		LocationAttribute: repositories.LocationAttribute,
 	}
 	deleteServices := DeleteLocationAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListLocationAttributesRepositories{
 		LocationAttribute: repositories.LocationAttribute,
 	}
 	listServices := ListLocationAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetLocationAttributeListPageDataRepositories{
 		LocationAttribute: repositories.LocationAttribute,
 	}
 	listPageDataServices := GetLocationAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetLocationAttributeItemPageDataRepositories{
 		LocationAttribute: repositories.LocationAttribute,
 	}
 	itemPageDataServices := GetLocationAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -126,10 +126,10 @@ func NewUseCasesUngrouped(
 	}
 
 	services := LocationAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewUseCases(repositories, services)

@@ -17,8 +17,8 @@ type ReadAccruedExpenseRepositories struct {
 
 // ReadAccruedExpenseServices groups service dependencies.
 type ReadAccruedExpenseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadAccruedExpenseUseCase handles reading an accrued-expense.
@@ -37,12 +37,12 @@ func NewReadAccruedExpenseUseCase(
 
 // Execute performs the read operation.
 func (uc *ReadAccruedExpenseUseCase) Execute(ctx context.Context, req *accruedexpensepb.ReadAccruedExpenseRequest) (*accruedexpensepb.ReadAccruedExpenseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpense, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.id_required", "Accrued expense ID is required [DEFAULT]"))
 	}
 	return uc.repositories.AccruedExpense.ReadAccruedExpense(ctx, req)

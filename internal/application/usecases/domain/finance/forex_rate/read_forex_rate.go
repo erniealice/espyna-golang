@@ -17,8 +17,8 @@ type ReadForexRateRepositories struct {
 
 // ReadForexRateServices groups service dependencies.
 type ReadForexRateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadForexRateUseCase handles reading a forex_rate.
@@ -34,12 +34,12 @@ func NewReadForexRateUseCase(repositories ReadForexRateRepositories, services Re
 
 // Execute performs the read forex_rate operation.
 func (uc *ReadForexRateUseCase) Execute(ctx context.Context, req *forexratepb.ReadForexRateRequest) (*forexratepb.ReadForexRateResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityForexRate, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.id_required", "Forex Rate ID is required [DEFAULT]"))
 	}
 	return uc.repositories.ForexRate.ReadForexRate(ctx, req)

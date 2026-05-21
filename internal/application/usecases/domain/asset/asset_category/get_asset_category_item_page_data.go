@@ -19,9 +19,9 @@ type GetAssetCategoryItemPageDataRepositories struct {
 
 // GetAssetCategoryItemPageDataServices groups all business service dependencies
 type GetAssetCategoryItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetAssetCategoryItemPageDataUseCase handles the business logic for getting asset category item page data
@@ -44,27 +44,27 @@ func NewGetAssetCategoryItemPageDataUseCase(
 // Execute performs the get asset category item page data operation
 func (uc *GetAssetCategoryItemPageDataUseCase) Execute(ctx context.Context, req *assetcategorypb.GetAssetCategoryItemPageDataRequest) (*assetcategorypb.GetAssetCategoryItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetCategory, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.AssetCategory.GetAssetCategoryItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load asset category details")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load asset category details")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -74,22 +74,22 @@ func (uc *GetAssetCategoryItemPageDataUseCase) Execute(ctx context.Context, req 
 // validateInput validates the input request
 func (uc *GetAssetCategoryItemPageDataUseCase) validateInput(ctx context.Context, req *assetcategorypb.GetAssetCategoryItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate asset category ID
 	if req.AssetCategoryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.asset_category_id_required", "[ERR-DEFAULT] Asset category ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.asset_category_id_required", "[ERR-DEFAULT] Asset category ID is required"))
 	}
 
 	// Basic ID format validation
 	if len(req.AssetCategoryId) < 3 || len(req.AssetCategoryId) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.invalid_asset_category_id_format", "[ERR-DEFAULT] Invalid asset category ID format"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.invalid_asset_category_id_format", "[ERR-DEFAULT] Invalid asset category ID format"))
 	}
 
 	// Ensure ID doesn't contain invalid characters
 	if strings.ContainsAny(req.AssetCategoryId, " \t\n\r") {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.asset_category_id_invalid_characters", "[ERR-DEFAULT] Asset category ID contains invalid characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.asset_category_id_invalid_characters", "[ERR-DEFAULT] Asset category ID contains invalid characters"))
 	}
 
 	return nil

@@ -18,9 +18,9 @@ type UpdateSupplierContractRepositories struct {
 
 // UpdateSupplierContractServices groups service dependencies.
 type UpdateSupplierContractServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateSupplierContractUseCase handles updating a supplier contract.
@@ -39,12 +39,12 @@ func NewUpdateSupplierContractUseCase(
 
 // Execute performs the update supplier contract operation.
 func (uc *UpdateSupplierContractUseCase) Execute(ctx context.Context, req *suppliercontractpb.UpdateSupplierContractRequest) (*suppliercontractpb.UpdateSupplierContractResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	now := time.Now()

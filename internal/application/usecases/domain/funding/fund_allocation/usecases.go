@@ -22,10 +22,10 @@ type FundAllocationRepositories struct {
 
 // FundAllocationServices groups service dependencies.
 type FundAllocationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all fund_allocation use cases.
@@ -55,7 +55,7 @@ type CreateFundAllocationUseCase struct {
 }
 
 func (uc *CreateFundAllocationUseCase) Execute(ctx context.Context, req *fundallocationpb.CreateFundAllocationRequest) (*fundallocationpb.CreateFundAllocationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFundAllocation, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *CreateFundAllocationUseCase) Execute(ctx context.Context, req *fundall
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -79,7 +79,7 @@ type ReadFundAllocationUseCase struct {
 }
 
 func (uc *ReadFundAllocationUseCase) Execute(ctx context.Context, req *fundallocationpb.ReadFundAllocationRequest) (*fundallocationpb.ReadFundAllocationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFundAllocation, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ type UpdateFundAllocationUseCase struct {
 }
 
 func (uc *UpdateFundAllocationUseCase) Execute(ctx context.Context, req *fundallocationpb.UpdateFundAllocationRequest) (*fundallocationpb.UpdateFundAllocationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFundAllocation, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ type DeleteFundAllocationUseCase struct {
 }
 
 func (uc *DeleteFundAllocationUseCase) Execute(ctx context.Context, req *fundallocationpb.DeleteFundAllocationRequest) (*fundallocationpb.DeleteFundAllocationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFundAllocation, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ type ListFundAllocationsUseCase struct {
 }
 
 func (uc *ListFundAllocationsUseCase) Execute(ctx context.Context, req *fundallocationpb.ListFundAllocationsRequest) (*fundallocationpb.ListFundAllocationsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFundAllocation, ports.ActionRead); err != nil {
 		return nil, err
 	}

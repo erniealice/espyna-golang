@@ -31,9 +31,9 @@ func createTestUpdateGroupUseCase(businessType string, supportsTransaction bool)
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := UpdateGroupServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateGroupUseCase(repositories, services)

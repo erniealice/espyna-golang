@@ -24,9 +24,9 @@ type UpdateSupplierAttributeRepositories struct {
 
 // UpdateSupplierAttributeServices groups all business service dependencies
 type UpdateSupplierAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateSupplierAttributeUseCase handles the business logic for updating supplier attributes
@@ -60,9 +60,9 @@ func NewUpdateSupplierAttributeUseCaseUngrouped(
 	}
 
 	services := UpdateSupplierAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateSupplierAttributeUseCase(repositories, services)
@@ -71,7 +71,7 @@ func NewUpdateSupplierAttributeUseCaseUngrouped(
 // Execute performs the update supplier attribute operation
 func (uc *UpdateSupplierAttributeUseCase) Execute(ctx context.Context, req *supplierattributepb.UpdateSupplierAttributeRequest) (*supplierattributepb.UpdateSupplierAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_attribute", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -83,13 +83,13 @@ func (uc *UpdateSupplierAttributeUseCase) Execute(ctx context.Context, req *supp
 
 	// Business logic and enrichment
 	if err := uc.enrichSupplierAttributeData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -101,7 +101,7 @@ func (uc *UpdateSupplierAttributeUseCase) Execute(ctx context.Context, req *supp
 	// Call repository
 	resp, err := uc.repositories.SupplierAttribute.UpdateSupplierAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.update_failed", "Supplier attribute update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.update_failed", "Supplier attribute update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -111,22 +111,22 @@ func (uc *UpdateSupplierAttributeUseCase) Execute(ctx context.Context, req *supp
 // validateInput validates the input request
 func (uc *UpdateSupplierAttributeUseCase) validateInput(ctx context.Context, req *supplierattributepb.UpdateSupplierAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.data_required", "Supplier attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.data_required", "Supplier attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.id_required", "Supplier attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.id_required", "Supplier attribute ID is required [DEFAULT]"))
 	}
 	if req.Data.SupplierId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.supplier_id_required", "Supplier ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.supplier_id_required", "Supplier ID is required [DEFAULT]"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.value_required", "Value is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.value_required", "Value is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -145,11 +145,11 @@ func (uc *UpdateSupplierAttributeUseCase) enrichSupplierAttributeData(supplierAt
 // validateBusinessRules enforces business constraints
 func (uc *UpdateSupplierAttributeUseCase) validateBusinessRules(ctx context.Context, supplierAttribute *supplierattributepb.SupplierAttribute) error {
 	if len(strings.TrimSpace(supplierAttribute.Value)) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
 	}
 
 	if len(supplierAttribute.Value) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	return nil
@@ -163,16 +163,16 @@ func (uc *UpdateSupplierAttributeUseCase) validateEntityReferences(ctx context.C
 			Data: &supplierpb.Supplier{Id: supplierAttribute.SupplierId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.supplier_reference_validation_failed", "Failed to validate supplier entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.supplier_reference_validation_failed", "Failed to validate supplier entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if supplier == nil || supplier.Data == nil || len(supplier.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.supplier_not_found", "Referenced supplier with ID '{supplierId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.supplier_not_found", "Referenced supplier with ID '{supplierId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{supplierId}", supplierAttribute.SupplierId)
 			return errors.New(translatedError)
 		}
 		if !supplier.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.supplier_not_active", "Referenced supplier with ID '{supplierId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.supplier_not_active", "Referenced supplier with ID '{supplierId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{supplierId}", supplierAttribute.SupplierId)
 			return errors.New(translatedError)
 		}
@@ -184,16 +184,16 @@ func (uc *UpdateSupplierAttributeUseCase) validateEntityReferences(ctx context.C
 			Data: &attributepb.Attribute{Id: supplierAttribute.AttributeId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.attribute_not_found", "Referenced attribute with ID '{attributeId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.attribute_not_found", "Referenced attribute with ID '{attributeId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", supplierAttribute.AttributeId)
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", supplierAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

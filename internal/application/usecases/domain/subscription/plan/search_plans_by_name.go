@@ -17,9 +17,9 @@ type SearchPlansByNameRepositories struct {
 
 // SearchPlansByNameServices groups all business service dependencies
 type SearchPlansByNameServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // SearchPlansByNameUseCase handles the business logic for searching plans by name
@@ -42,7 +42,7 @@ func NewSearchPlansByNameUseCase(
 // Execute performs the search plans by name operation
 func (uc *SearchPlansByNameUseCase) Execute(ctx context.Context, req *planpb.SearchPlansByNameRequest) (*planpb.SearchPlansByNameResponse, error) {
 	// Authorization check — search is a read/list operation
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (uc *SearchPlansByNameUseCase) Execute(ctx context.Context, req *planpb.Sea
 
 	result, err := uc.repositories.Plan.SearchPlansByName(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.search_failed", "plan search failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.errors.search_failed", "plan search failed [DEFAULT]"))
 	}
 
 	return result, nil

@@ -16,9 +16,9 @@ type GetLocationAttributeItemPageDataRepositories struct {
 }
 
 type GetLocationAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetLocationAttributeItemPageDataUseCase handles the business logic for getting location attribute item page data
@@ -44,7 +44,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) Execute(
 	req *locationattributepb.GetLocationAttributeItemPageDataRequest,
 ) (*locationattributepb.GetLocationAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLocationAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetLocationAttributeItemPageDataUseCase) executeWithTransaction(
 ) (*locationattributepb.GetLocationAttributeItemPageDataResponse, error) {
 	var result *locationattributepb.GetLocationAttributeItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"location_attribute.errors.item_page_data_failed",
 				"location attribute item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"location_attribute.errors.read_failed",
 			"failed to retrieve location attribute: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"location_attribute.errors.not_found",
 			"location attribute not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) executeCore(
 	if locationAttribute.Id != req.LocationAttributeId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"location_attribute.errors.id_mismatch",
 			"retrieved location attribute ID does not match requested ID",
 		))
@@ -161,7 +161,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"location_attribute.validation.request_required",
 			"request is required",
 		))
@@ -170,7 +170,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) validateInput(
 	if req.LocationAttributeId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"location_attribute.validation.id_required",
 			"location attribute ID is required",
 		))
@@ -188,7 +188,7 @@ func (uc *GetLocationAttributeItemPageDataUseCase) validateBusinessRules(
 	if len(locationAttributeId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"location_attribute.validation.id_too_short",
 			"location attribute ID is too short",
 		))

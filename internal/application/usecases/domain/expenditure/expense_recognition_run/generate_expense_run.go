@@ -82,10 +82,10 @@ type GenerateExpenseRunRepositories struct {
 
 // GenerateExpenseRunServices groups infra services.
 type GenerateExpenseRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // GenerateExpenseRunUseCase is the buying-side mirror of GenerateRevenueRun.
@@ -131,7 +131,7 @@ func (uc *GenerateExpenseRunUseCase) Execute(
 	ctx context.Context,
 	req *expenserecognitionrunpb.GenerateExpenseRunRequest,
 ) (*expenserecognitionrunpb.GenerateExpenseRunResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (uc *GenerateExpenseRunUseCase) Execute(
 	if s := req.GetSelections(); s != nil {
 		if s.GetFilterToken() != "" {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-				ctx, uc.services.TranslationService,
+				ctx, uc.services.Translator,
 				"expense_recognition.errors.filter_token_not_implemented",
 				"filter_token is not implemented [DEFAULT]",
 			))
@@ -170,7 +170,7 @@ func (uc *GenerateExpenseRunUseCase) Execute(
 	}
 	if len(selections) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"expense_recognition.validation.no_selections",
 			"At least one selection is required [DEFAULT]",
 		))
@@ -182,7 +182,7 @@ func (uc *GenerateExpenseRunUseCase) Execute(
 	}
 
 	initiator := contextutil.ExtractWorkspaceUserIDFromContext(ctx)
-	runID := uc.services.IDService.GenerateID()
+	runID := uc.services.IDGenerator.GenerateID()
 	now := time.Now().UTC().UnixMilli()
 
 	run := &expenserecognitionrunpb.ExpenseRecognitionRun{
@@ -213,7 +213,7 @@ func (uc *GenerateExpenseRunUseCase) Execute(
 	}
 	if createdRunResp == nil || len(createdRunResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"expense_recognition.errors.run_create_failed",
 			"Failed to create expense recognition run record [DEFAULT]",
 		))
@@ -228,7 +228,7 @@ func (uc *GenerateExpenseRunUseCase) Execute(
 		accumulator = append(accumulator, acc)
 
 		// INSERT attempt row.
-		attemptID := uc.services.IDService.GenerateID()
+		attemptID := uc.services.IDGenerator.GenerateID()
 		if attemptID == "" {
 			attemptID = "err-id-" + sel.SupplierSubscriptionID + sel.AdvanceDisbursementID
 		}

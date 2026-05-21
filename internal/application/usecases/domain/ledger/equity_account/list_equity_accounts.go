@@ -18,9 +18,9 @@ type ListEquityAccountsRepositories struct {
 
 // ListEquityAccountsServices groups all business service dependencies.
 type ListEquityAccountsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListEquityAccountsUseCase handles the business logic for listing equity accounts.
@@ -42,13 +42,13 @@ func NewListEquityAccountsUseCase(
 
 // Execute performs the list equity accounts operation.
 func (uc *ListEquityAccountsUseCase) Execute(ctx context.Context, req *equityaccountpb.ListEquityAccountsRequest) (*equityaccountpb.ListEquityAccountsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityEquityAccount, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if uc.repositories.EquityAccount == nil {
@@ -57,7 +57,7 @@ func (uc *ListEquityAccountsUseCase) Execute(ctx context.Context, req *equityacc
 
 	resp, err := uc.repositories.EquityAccount.ListEquityAccounts(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.errors.list_failed", "[ERR-DEFAULT] Failed to list equity accounts")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.errors.list_failed", "[ERR-DEFAULT] Failed to list equity accounts")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

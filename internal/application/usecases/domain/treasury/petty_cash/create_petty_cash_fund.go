@@ -22,10 +22,10 @@ type CreatePettyCashFundRepositories struct {
 
 // CreatePettyCashFundServices groups all business service dependencies
 type CreatePettyCashFundServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePettyCashFundUseCase handles the business logic for creating petty cash funds
@@ -47,17 +47,17 @@ func NewCreatePettyCashFundUseCase(
 
 // Execute performs the create petty cash fund operation
 func (uc *CreatePettyCashFundUseCase) Execute(ctx context.Context, req *pettycashfundpb.CreatePettyCashFundRequest) (*pettycashfundpb.CreatePettyCashFundResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPettyCashFund, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *pettycashfundpb.CreatePettyCashFundResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
-				translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "petty_cash_fund.errors.creation_failed", "Petty cash fund creation failed [DEFAULT]")
+				translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "petty_cash_fund.errors.creation_failed", "Petty cash fund creation failed [DEFAULT]")
 				return fmt.Errorf("%s: %w", translatedError, err)
 			}
 			result = res
@@ -89,18 +89,18 @@ func (uc *CreatePettyCashFundUseCase) executeCore(ctx context.Context, req *pett
 
 func (uc *CreatePettyCashFundUseCase) validateInput(ctx context.Context, req *pettycashfundpb.CreatePettyCashFundRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "petty_cash_fund.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "petty_cash_fund.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "petty_cash_fund.validation.data_required", "[ERR-DEFAULT] Petty cash fund data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "petty_cash_fund.validation.data_required", "[ERR-DEFAULT] Petty cash fund data is required"))
 	}
 
 	req.Data.Name = strings.TrimSpace(req.Data.Name)
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "petty_cash_fund.validation.name_required", "[ERR-DEFAULT] Fund name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "petty_cash_fund.validation.name_required", "[ERR-DEFAULT] Fund name is required"))
 	}
 	if req.Data.AuthorizedAmount <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "petty_cash_fund.validation.authorized_amount_required", "[ERR-DEFAULT] Authorized amount must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "petty_cash_fund.validation.authorized_amount_required", "[ERR-DEFAULT] Authorized amount must be greater than zero"))
 	}
 	return nil
 }
@@ -108,7 +108,7 @@ func (uc *CreatePettyCashFundUseCase) validateInput(ctx context.Context, req *pe
 func (uc *CreatePettyCashFundUseCase) enrichPettyCashFundData(pcf *pettycashfundpb.PettyCashFund) error {
 	now := time.Now()
 	if pcf.Id == "" {
-		pcf.Id = uc.services.IDService.GenerateID()
+		pcf.Id = uc.services.IDGenerator.GenerateID()
 	}
 	pcf.DateCreated = &[]int64{now.UnixMilli()}[0]
 	pcf.DateModified = &[]int64{now.UnixMilli()}[0]

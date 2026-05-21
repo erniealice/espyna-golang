@@ -16,9 +16,9 @@ type GetCollectionPlanItemPageDataRepositories struct {
 }
 
 type GetCollectionPlanItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetCollectionPlanItemPageDataUseCase handles the business logic for getting collection plan item page data
@@ -44,7 +44,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) Execute(
 	req *collectionplanpb.GetCollectionPlanItemPageDataRequest,
 ) (*collectionplanpb.GetCollectionPlanItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollectionPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetCollectionPlanItemPageDataUseCase) executeWithTransaction(
 ) (*collectionplanpb.GetCollectionPlanItemPageDataResponse, error) {
 	var result *collectionplanpb.GetCollectionPlanItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_plan.errors.item_page_data_failed",
 				"collection plan item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_plan.errors.read_failed",
 			"failed to retrieve collection plan: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_plan.errors.not_found",
 			"collection plan not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) executeCore(
 	if collectionPlan.Id != req.CollectionPlanId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_plan.errors.id_mismatch",
 			"retrieved collection plan ID does not match requested ID",
 		))
@@ -161,7 +161,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_plan.validation.request_required",
 			"request is required",
 		))
@@ -170,7 +170,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) validateInput(
 	if req.CollectionPlanId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_plan.validation.id_required",
 			"collection plan ID is required",
 		))
@@ -188,7 +188,7 @@ func (uc *GetCollectionPlanItemPageDataUseCase) validateBusinessRules(
 	if len(collectionPlanId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_plan.validation.id_too_short",
 			"collection plan ID is too short",
 		))

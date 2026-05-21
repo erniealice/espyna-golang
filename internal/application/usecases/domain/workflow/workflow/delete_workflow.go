@@ -19,9 +19,9 @@ type DeleteWorkflowRepositories struct {
 
 // DeleteWorkflowServices groups all business service dependencies
 type DeleteWorkflowServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteWorkflowUseCase handles the business logic for deleting workflows
@@ -49,9 +49,9 @@ func NewDeleteWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainSer
 	}
 
 	services := DeleteWorkflowServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteWorkflowUseCase(repositories, services)
@@ -60,14 +60,14 @@ func NewDeleteWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainSer
 // Execute performs the delete workflow operation
 func (uc *DeleteWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.DeleteWorkflowRequest) (*workflowpb.DeleteWorkflowResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow", ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
 	}
 
 	// Business validation
@@ -76,7 +76,7 @@ func (uc *DeleteWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.De
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req.Data)
 	}
 
@@ -88,10 +88,10 @@ func (uc *DeleteWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.De
 func (uc *DeleteWorkflowUseCase) executeWithTransaction(ctx context.Context, workflow *workflowpb.Workflow) (*workflowpb.DeleteWorkflowResponse, error) {
 	var result *workflowpb.DeleteWorkflowResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, workflow)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workflow.errors.deletion_failed", "Workflow deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workflow.errors.deletion_failed", "Workflow deletion failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -116,17 +116,17 @@ func (uc *DeleteWorkflowUseCase) executeCore(ctx context.Context, workflow *work
 func (uc *DeleteWorkflowUseCase) validateBusinessRules(ctx context.Context, workflow *workflowpb.Workflow) error {
 	// Business rule: Required data validation
 	if workflow == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.data_required", "Workflow data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.data_required", "Workflow data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for deleting
 	if workflow.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.id_required", "Workflow ID is required for delete operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.id_required", "Workflow ID is required for delete operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateWorkflowID(workflow.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.id_invalid", "Workflow ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.id_invalid", "Workflow ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

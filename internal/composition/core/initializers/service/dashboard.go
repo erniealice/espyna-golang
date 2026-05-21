@@ -27,8 +27,8 @@ import (
 // Fulfillment LANDED 2026-05-21.
 func initServiceDashboard(
 	db *sql.DB,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 	entityRepos *domain.EntityRepositories,
 	ledgerRepos *domain.LedgerRepositories,
 	payrollRepos *domain.PayrollRepositories,
@@ -41,8 +41,8 @@ func initServiceDashboard(
 ) *dashboardusecases.DashboardUseCases {
 	dashboardDeps := &dashboardusecases.Deps{
 		DB:                      db,
-		AuthorizationService:    authSvc,
-		TranslationService:      i18nSvc,
+		Authorizer:              authSvc,
+		Translator:              i18nSvc,
 		ScheduleEntityDashboard: scheduleEntityDash,
 	}
 

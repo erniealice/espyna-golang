@@ -18,9 +18,9 @@ type GetEventItemPageDataRepositories struct {
 }
 
 type GetEventItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetEventItemPageDataUseCase handles the business logic for getting event item page data
@@ -47,7 +47,7 @@ func (uc *GetEventItemPageDataUseCase) Execute(
 	req *eventpb.GetEventItemPageDataRequest,
 ) (*eventpb.GetEventItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEvent, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (uc *GetEventItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -78,12 +78,12 @@ func (uc *GetEventItemPageDataUseCase) executeWithTransaction(
 ) (*eventpb.GetEventItemPageDataResponse, error) {
 	var result *eventpb.GetEventItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.errors.item_page_data_failed",
 				"event item page data retrieval failed: %w",
 			), err)
@@ -115,7 +115,7 @@ func (uc *GetEventItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.errors.read_failed",
 			"failed to retrieve event: %w",
 		), err)
@@ -124,7 +124,7 @@ func (uc *GetEventItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.errors.not_found",
 			"event not found",
 		))
@@ -137,7 +137,7 @@ func (uc *GetEventItemPageDataUseCase) executeCore(
 	if event.Id != req.EventId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.errors.id_mismatch",
 			"retrieved event ID does not match requested ID",
 		))
@@ -148,7 +148,7 @@ func (uc *GetEventItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.errors.enhancement_failed",
 			"failed to enhance event with scheduling data: %w",
 		), err)
@@ -217,7 +217,7 @@ func (uc *GetEventItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.request_required",
 			"request is required",
 		))
@@ -226,7 +226,7 @@ func (uc *GetEventItemPageDataUseCase) validateInput(
 	if req.EventId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.id_required",
 			"event ID is required",
 		))
@@ -244,7 +244,7 @@ func (uc *GetEventItemPageDataUseCase) validateBusinessRules(
 	if len(eventId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.id_too_short",
 			"event ID is too short",
 		))

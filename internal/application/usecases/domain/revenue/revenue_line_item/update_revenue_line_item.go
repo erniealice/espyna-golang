@@ -19,9 +19,9 @@ type UpdateRevenueLineItemRepositories struct {
 
 // UpdateRevenueLineItemServices groups all business service dependencies
 type UpdateRevenueLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateRevenueLineItemUseCase handles the business logic for updating revenue line items
@@ -43,14 +43,14 @@ func NewUpdateRevenueLineItemUseCase(
 
 // Execute performs the update revenue line item operation
 func (uc *UpdateRevenueLineItemUseCase) Execute(ctx context.Context, req *pb.UpdateRevenueLineItemRequest) (*pb.UpdateRevenueLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueLineItem, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *pb.UpdateRevenueLineItemResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("revenue line item update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateRevenueLineItemUseCase) Execute(ctx context.Context, req *pb.Upd
 
 func (uc *UpdateRevenueLineItemUseCase) executeCore(ctx context.Context, req *pb.UpdateRevenueLineItemRequest) (*pb.UpdateRevenueLineItemResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue_line_item.validation.id_required", "Revenue line item ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_line_item.validation.id_required", "Revenue line item ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()

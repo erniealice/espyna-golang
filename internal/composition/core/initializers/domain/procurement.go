@@ -10,10 +10,10 @@ import (
 // This is composition logic — it wires infrastructure (providers) to application (use cases).
 func InitializeProcurement(
 	repos *domain.ProcurementRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*procurement.ProcurementUseCases, error) {
 	return procurement.NewUseCases(
 		procurement.ProcurementRepositories{

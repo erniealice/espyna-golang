@@ -18,9 +18,9 @@ type ReadLoanRepositories struct {
 
 // ReadLoanServices groups all business service dependencies.
 type ReadLoanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadLoanUseCase handles the business logic for reading a single loan.
@@ -42,13 +42,13 @@ func NewReadLoanUseCase(
 
 // Execute performs the read loan operation.
 func (uc *ReadLoanUseCase) Execute(ctx context.Context, req *loanpb.ReadLoanRequest) (*loanpb.ReadLoanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityLoan, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.id_required", "[ERR-DEFAULT] Loan ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.id_required", "[ERR-DEFAULT] Loan ID is required"))
 	}
 
 	if uc.repositories.Loan == nil {
@@ -57,7 +57,7 @@ func (uc *ReadLoanUseCase) Execute(ctx context.Context, req *loanpb.ReadLoanRequ
 
 	resp, err := uc.repositories.Loan.ReadLoan(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.errors.read_failed", "[ERR-DEFAULT] Failed to read loan")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.errors.read_failed", "[ERR-DEFAULT] Failed to read loan")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

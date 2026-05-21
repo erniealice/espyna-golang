@@ -14,10 +14,10 @@ type WithholdingCertificateRepositories struct {
 
 // WithholdingCertificateServices groups all business service dependencies.
 type WithholdingCertificateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all withholding_certificate use cases.
@@ -35,38 +35,38 @@ func NewUseCases(repositories WithholdingCertificateRepositories, services Withh
 		CreateWithholdingCertificate: NewCreateWithholdingCertificateUseCase(
 			CreateWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			CreateWithholdingCertificateServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadWithholdingCertificate: NewReadWithholdingCertificateUseCase(
 			ReadWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			ReadWithholdingCertificateServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateWithholdingCertificate: NewUpdateWithholdingCertificateUseCase(
 			UpdateWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			UpdateWithholdingCertificateServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteWithholdingCertificate: NewDeleteWithholdingCertificateUseCase(
 			DeleteWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			DeleteWithholdingCertificateServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListWithholdingCertificates: NewListWithholdingCertificatesUseCase(
 			ListWithholdingCertificatesRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			ListWithholdingCertificatesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

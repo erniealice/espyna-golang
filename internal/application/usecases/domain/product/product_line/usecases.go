@@ -16,10 +16,10 @@ type ProductLineRepositories struct {
 
 // ProductLineServices groups all business service dependencies for product line use cases
 type ProductLineServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all product line-related use cases
@@ -45,19 +45,19 @@ func NewUseCases(
 		Line:        repositories.Line,
 	}
 	createServices := CreateProductLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadProductLineRepositories{
 		ProductLine: repositories.ProductLine,
 	}
 	readServices := ReadProductLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateProductLineRepositories{
@@ -66,43 +66,43 @@ func NewUseCases(
 		Line:        repositories.Line,
 	}
 	updateServices := UpdateProductLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteProductLineRepositories{
 		ProductLine: repositories.ProductLine,
 	}
 	deleteServices := DeleteProductLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListProductLinesRepositories{
 		ProductLine: repositories.ProductLine,
 	}
 	listServices := ListProductLinesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetProductLineListPageDataRepositories{
 		ProductLine: repositories.ProductLine,
 	}
 	listPageDataServices := GetProductLineListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetProductLineItemPageDataRepositories{
 		ProductLine: repositories.ProductLine,
 	}
 	itemPageDataServices := GetProductLineItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

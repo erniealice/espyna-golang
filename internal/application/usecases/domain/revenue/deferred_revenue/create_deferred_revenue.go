@@ -22,10 +22,10 @@ type CreateDeferredRevenueRepositories struct {
 
 // CreateDeferredRevenueServices groups all business service dependencies
 type CreateDeferredRevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateDeferredRevenueUseCase handles the business logic for creating deferred revenue
@@ -47,17 +47,17 @@ func NewCreateDeferredRevenueUseCase(
 
 // Execute performs the create deferred revenue operation
 func (uc *CreateDeferredRevenueUseCase) Execute(ctx context.Context, req *deferredrevenuepb.CreateDeferredRevenueRequest) (*deferredrevenuepb.CreateDeferredRevenueResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDeferredRevenue, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *deferredrevenuepb.CreateDeferredRevenueResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
-				translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "deferred_revenue.errors.creation_failed", "Deferred revenue creation failed [DEFAULT]")
+				translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "deferred_revenue.errors.creation_failed", "Deferred revenue creation failed [DEFAULT]")
 				return fmt.Errorf("%s: %w", translatedError, err)
 			}
 			result = res
@@ -89,21 +89,21 @@ func (uc *CreateDeferredRevenueUseCase) executeCore(ctx context.Context, req *de
 
 func (uc *CreateDeferredRevenueUseCase) validateInput(ctx context.Context, req *deferredrevenuepb.CreateDeferredRevenueRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.data_required", "[ERR-DEFAULT] Deferred revenue data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.data_required", "[ERR-DEFAULT] Deferred revenue data is required"))
 	}
 
 	req.Data.Description = strings.TrimSpace(req.Data.Description)
 	if req.Data.Description == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.description_required", "[ERR-DEFAULT] Description is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.description_required", "[ERR-DEFAULT] Description is required"))
 	}
 	if req.Data.TotalAmount <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.total_amount_required", "[ERR-DEFAULT] Total amount must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.total_amount_required", "[ERR-DEFAULT] Total amount must be greater than zero"))
 	}
 	if req.Data.RecognitionMonths <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.recognition_months_required", "[ERR-DEFAULT] Recognition months must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.recognition_months_required", "[ERR-DEFAULT] Recognition months must be greater than zero"))
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func (uc *CreateDeferredRevenueUseCase) validateInput(ctx context.Context, req *
 func (uc *CreateDeferredRevenueUseCase) enrichDeferredRevenueData(dr *deferredrevenuepb.DeferredRevenue) error {
 	now := time.Now()
 	if dr.Id == "" {
-		dr.Id = uc.services.IDService.GenerateID()
+		dr.Id = uc.services.IDGenerator.GenerateID()
 	}
 	dr.DateCreated = &[]int64{now.UnixMilli()}[0]
 	dr.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

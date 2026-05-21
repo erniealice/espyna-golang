@@ -19,7 +19,7 @@ import (
 //   - errorKey: the translation key for the expected error message
 //   - translationService: service to get the translated message
 //   - ctx: context for translation
-func AssertTranslatedError(t *testing.T, err error, errorKey string, translationService ports.TranslationService, ctx context.Context) {
+func AssertTranslatedError(t *testing.T, err error, errorKey string, translationService ports.Translator, ctx context.Context) {
 	if err == nil {
 		t.Fatal("Expected error but got none")
 	}
@@ -49,7 +49,7 @@ func AssertTranslatedError(t *testing.T, err error, errorKey string, translation
 //   - ctx: context for translation
 //
 // Example: AssertTranslatedErrorWithContext(t, err, "admin.errors.not_found", "{\"id\": \"123\"}", service, ctx)
-func AssertTranslatedErrorWithContext(t *testing.T, err error, errorKey, contextData string, translationService ports.TranslationService, ctx context.Context) {
+func AssertTranslatedErrorWithContext(t *testing.T, err error, errorKey, contextData string, translationService ports.Translator, ctx context.Context) {
 	if err == nil {
 		t.Fatal("Expected error but got none")
 	}
@@ -99,7 +99,7 @@ func AssertTranslatedErrorWithContext(t *testing.T, err error, errorKey, context
 //   - ctx: context for translation
 //
 // Example: AssertTranslatedErrorWithTags(t, err, "admin.errors.not_found", map[string]any{"id": "123"}, service, ctx)
-func AssertTranslatedErrorWithTags(t *testing.T, err error, errorKey string, contextData map[string]any, translationService ports.TranslationService, ctx context.Context) {
+func AssertTranslatedErrorWithTags(t *testing.T, err error, errorKey string, contextData map[string]any, translationService ports.Translator, ctx context.Context) {
 	if err == nil {
 		t.Fatal("Expected error but got none")
 	}

@@ -18,8 +18,8 @@ type DeleteByRevenueRepositories struct {
 
 // DeleteByRevenueServices groups service dependencies.
 type DeleteByRevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteByRevenueRevenueTaxLineUseCase deletes all revenue_tax_line rows for a revenue.
@@ -39,12 +39,12 @@ func NewDeleteByRevenueRevenueTaxLineUseCase(
 
 // Execute deletes all revenue_tax_line rows for the given revenue.
 func (uc *DeleteByRevenueRevenueTaxLineUseCase) Execute(ctx context.Context, revenueID string) error {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueTaxLine, ports.ActionDelete); err != nil {
 		return err
 	}
 	if revenueID == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.revenue_id_required", "Revenue ID is required [DEFAULT]"))
 	}
 

@@ -19,10 +19,10 @@ type CreatePermissionRepositories struct {
 
 // CreatePermissionServices groups all business service dependencies
 type CreatePermissionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePermissionUseCase handles the business logic for creating permissions
@@ -51,10 +51,10 @@ func NewCreatePermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionD
 	}
 
 	services := CreatePermissionServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreatePermissionUseCase(repositories, services)
@@ -62,13 +62,13 @@ func NewCreatePermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionD
 
 func (uc *CreatePermissionUseCase) Execute(ctx context.Context, req *permissionpb.CreatePermissionRequest) (*permissionpb.CreatePermissionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPermissions, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -80,10 +80,10 @@ func (uc *CreatePermissionUseCase) Execute(ctx context.Context, req *permissionp
 func (uc *CreatePermissionUseCase) executeWithTransaction(ctx context.Context, req *permissionpb.CreatePermissionRequest) (*permissionpb.CreatePermissionResponse, error) {
 	var result *permissionpb.CreatePermissionResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "permission.errors.creation_failed", "Permission creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "permission.errors.creation_failed", "Permission creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -120,22 +120,22 @@ func (uc *CreatePermissionUseCase) executeCore(ctx context.Context, req *permiss
 // validateInput validates the input request
 func (uc *CreatePermissionUseCase) validateInput(ctx context.Context, req *permissionpb.CreatePermissionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.request_required", "Request is required for permissions [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.request_required", "Request is required for permissions [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.data_required", "Permission data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.data_required", "Permission data is required [DEFAULT]"))
 	}
 	if req.Data.WorkspaceId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.workspace_id_required", "Workspace ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.workspace_id_required", "Workspace ID is required [DEFAULT]"))
 	}
 	if req.Data.UserId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.user_id_required", "User ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.user_id_required", "User ID is required [DEFAULT]"))
 	}
 	if req.Data.GrantedByUserId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.granted_by_user_id_required", "Granted by user ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.granted_by_user_id_required", "Granted by user ID is required [DEFAULT]"))
 	}
 	if req.Data.PermissionCode == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.permission_code_required", "Permission code is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.permission_code_required", "Permission code is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -146,7 +146,7 @@ func (uc *CreatePermissionUseCase) enrichPermissionData(permission *permissionpb
 
 	// Generate Permission ID if not provided
 	if permission.Id == "" {
-		permission.Id = uc.services.IDService.GenerateID()
+		permission.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set default permission type if not specified
@@ -168,21 +168,21 @@ func (uc *CreatePermissionUseCase) enrichPermissionData(permission *permissionpb
 func (uc *CreatePermissionUseCase) validateBusinessRules(ctx context.Context, permission *permissionpb.Permission) error {
 	// Validate permission code format
 	if len(permission.PermissionCode) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.permission_code_too_short", "Permission code must be at least 3 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.permission_code_too_short", "Permission code must be at least 3 characters long [DEFAULT]"))
 	}
 
 	if len(permission.PermissionCode) > 50 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.permission_code_too_long", "Permission code cannot exceed 50 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.permission_code_too_long", "Permission code cannot exceed 50 characters [DEFAULT]"))
 	}
 
 	// Validate permission type
 	if permission.PermissionType == permissionpb.PermissionType_PERMISSION_TYPE_UNSPECIFIED {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.permission_type_unspecified", "Permission type must be specified [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.permission_type_unspecified", "Permission type must be specified [DEFAULT]"))
 	}
 
 	// Validate that user is not granting permission to themselves
 	if permission.UserId == permission.GrantedByUserId {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.validation.self_grant_not_allowed", "Users cannot grant permissions to themselves [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.self_grant_not_allowed", "Users cannot grant permissions to themselves [DEFAULT]"))
 	}
 
 	return nil

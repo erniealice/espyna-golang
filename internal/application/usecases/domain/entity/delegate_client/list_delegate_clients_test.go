@@ -31,8 +31,8 @@ func createTestListDelegateClientsUseCase(businessType string) *ListDelegateClie
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListDelegateClientsServices{
-		AuthorizationService: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
+		Translator: standardServices.Translator,
 	}
 	return NewListDelegateClientsUseCase(repositories, services)
 }
@@ -44,8 +44,8 @@ func TestListDelegateClientsUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockDelegateClientRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListDelegateClientsUseCase(ListDelegateClientsRepositories{DelegateClient: mockRepo}, ListDelegateClientsServices{
-		AuthorizationService: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/delegate-client has 2 entries

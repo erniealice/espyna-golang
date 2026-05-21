@@ -20,10 +20,10 @@ type CreateProductRepositories struct {
 
 // CreateProductServices groups all business service dependencies
 type CreateProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateProductUseCase handles the business logic for creating products
@@ -46,13 +46,13 @@ func NewCreateProductUseCase(
 // Execute performs the create product operation
 func (uc *CreateProductUseCase) Execute(ctx context.Context, req *productpb.CreateProductRequest) (*productpb.CreateProductResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProduct, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,7 +64,7 @@ func (uc *CreateProductUseCase) Execute(ctx context.Context, req *productpb.Crea
 func (uc *CreateProductUseCase) executeWithTransaction(ctx context.Context, req *productpb.CreateProductRequest) (*productpb.CreateProductResponse, error) {
 	var result *productpb.CreateProductResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("product creation failed: %w", err)
@@ -84,36 +84,36 @@ func (uc *CreateProductUseCase) executeCore(ctx context.Context, req *productpb.
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.authorization_failed", "Authorization failed for products [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.errors.authorization_failed", "Authorization failed for products [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityProduct, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.authorization_failed", "Authorization failed for products [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.errors.authorization_failed", "Authorization failed for products [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.authorization_failed", "Authorization failed for products [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.errors.authorization_failed", "Authorization failed for products [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichProductData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -124,13 +124,13 @@ func (uc *CreateProductUseCase) executeCore(ctx context.Context, req *productpb.
 // validateInput validates the input request
 func (uc *CreateProductUseCase) validateInput(ctx context.Context, req *productpb.CreateProductRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.data_required", "Product data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.validation.data_required", "Product data is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.name_required", "Product name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.validation.name_required", "Product name is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -141,7 +141,7 @@ func (uc *CreateProductUseCase) enrichProductData(product *productpb.Product) er
 
 	// Generate Product ID if not provided
 	if product.Id == "" {
-		product.Id = uc.services.IDService.GenerateID()
+		product.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -159,18 +159,18 @@ func (uc *CreateProductUseCase) validateBusinessRules(ctx context.Context, produ
 	// Validate product name length
 	name := strings.TrimSpace(product.Name)
 	if len(name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.name_min_length", "Product name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.validation.name_min_length", "Product name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.name_max_length", "Product name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.validation.name_max_length", "Product name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate description length if provided
 	if product.Description != nil && *product.Description != "" {
 		description := strings.TrimSpace(*product.Description)
 		if len(description) > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.description_max_length", "Product description cannot exceed 1000 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.validation.description_max_length", "Product description cannot exceed 1000 characters [DEFAULT]"))
 		}
 	}
 
@@ -197,7 +197,7 @@ func (uc *CreateProductUseCase) validateVariantModePriceRule(ctx context.Context
 		return nil
 	}
 	if product.Price == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product.validation.price_required_for_simple", "Price is required for simple products [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product.validation.price_required_for_simple", "Price is required for simple products [DEFAULT]")
 		return errors.New(msg)
 	}
 	return nil

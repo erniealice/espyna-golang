@@ -16,9 +16,9 @@ type GetProductPlanItemPageDataRepositories struct {
 }
 
 type GetProductPlanItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetProductPlanItemPageDataUseCase handles the business logic for getting product plan item page data
@@ -44,7 +44,7 @@ func (uc *GetProductPlanItemPageDataUseCase) Execute(
 	req *productplanpb.GetProductPlanItemPageDataRequest,
 ) (*productplanpb.GetProductPlanItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetProductPlanItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetProductPlanItemPageDataUseCase) executeWithTransaction(
 ) (*productplanpb.GetProductPlanItemPageDataResponse, error) {
 	var result *productplanpb.GetProductPlanItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"product_plan.errors.item_page_data_failed",
 				"product plan item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetProductPlanItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_plan.errors.read_failed",
 			"failed to retrieve product plan: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetProductPlanItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_plan.errors.not_found",
 			"product plan not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetProductPlanItemPageDataUseCase) executeCore(
 	if productPlan.Id != req.ProductPlanId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_plan.errors.id_mismatch",
 			"retrieved product plan ID does not match requested ID",
 		))
@@ -162,7 +162,7 @@ func (uc *GetProductPlanItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_plan.validation.request_required",
 			"request is required",
 		))
@@ -171,7 +171,7 @@ func (uc *GetProductPlanItemPageDataUseCase) validateInput(
 	if req.ProductPlanId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_plan.validation.id_required",
 			"product plan ID is required",
 		))
@@ -189,7 +189,7 @@ func (uc *GetProductPlanItemPageDataUseCase) validateBusinessRules(
 	if len(productPlanId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_plan.validation.id_too_short",
 			"product plan ID is too short",
 		))

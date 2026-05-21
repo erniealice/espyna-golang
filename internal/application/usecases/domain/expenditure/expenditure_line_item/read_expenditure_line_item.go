@@ -17,9 +17,9 @@ type ReadExpenditureLineItemRepositories struct {
 
 // ReadExpenditureLineItemServices groups all business service dependencies
 type ReadExpenditureLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadExpenditureLineItemUseCase handles the business logic for reading an expenditure line item
@@ -41,13 +41,13 @@ func NewReadExpenditureLineItemUseCase(
 
 // Execute performs the read expenditure line item operation
 func (uc *ReadExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb.ReadExpenditureLineItemRequest) (*pb.ReadExpenditureLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureLineItem, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_line_item.validation.id_required", "Expenditure line item ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_line_item.validation.id_required", "Expenditure line item ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.ExpenditureLineItem.ReadExpenditureLineItem(ctx, req)

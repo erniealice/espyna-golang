@@ -22,11 +22,11 @@ type PricePlanRepositories struct {
 
 // PricePlanServices groups all business service dependencies for price plan use cases
 type PricePlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService        // Only for CreatePricePlan
-	ReferenceChecker     ports.ReferenceChecker // §3.5 — UpdatePricePlan multi-engagement confirm gate
+	Authorizer       ports.Authorizer // Current: RBAC and permissions
+	Transactor       ports.Transactor // Current: Database transactions
+	Translator       ports.Translator
+	IDGenerator      ports.IDGenerator      // Only for CreatePricePlan
+	ReferenceChecker ports.ReferenceChecker // §3.5 — UpdatePricePlan multi-engagement confirm gate
 }
 
 // UseCases contains all price_plan-related use cases
@@ -48,64 +48,64 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreatePricePlanRepositories(repositories)
 	createServices := CreatePricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPricePlanRepositories{
 		PricePlan: repositories.PricePlan,
 	}
 	readServices := ReadPricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePricePlanRepositories(repositories)
 	updateServices := UpdatePricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		ReferenceChecker:     services.ReferenceChecker,
-		IDService:            services.IDService,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		ReferenceChecker: services.ReferenceChecker,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	deleteRepos := DeletePricePlanRepositories{
 		PricePlan: repositories.PricePlan,
 	}
 	deleteServices := DeletePricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPricePlansRepositories{
 		PricePlan: repositories.PricePlan,
 	}
 	listServices := ListPricePlansServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetPricePlanListPageDataRepositories{
 		PricePlan: repositories.PricePlan,
 	}
 	listPageDataServices := GetPricePlanListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetPricePlanItemPageDataRepositories{
 		PricePlan: repositories.PricePlan,
 	}
 	itemPageDataServices := GetPricePlanItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

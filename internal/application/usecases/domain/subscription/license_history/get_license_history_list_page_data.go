@@ -20,9 +20,9 @@ type GetLicenseHistoryListPageDataRepositories struct {
 
 // GetLicenseHistoryListPageDataServices groups all business service dependencies
 type GetLicenseHistoryListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetLicenseHistoryListPageDataUseCase handles the business logic for getting license history list page data
@@ -50,7 +50,7 @@ func (uc *GetLicenseHistoryListPageDataUseCase) Execute(
 	req *licensehistorypb.GetLicenseHistoryListPageDataRequest,
 ) (*licensehistorypb.GetLicenseHistoryListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicenseHistory, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *GetLicenseHistoryListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -76,12 +76,12 @@ func (uc *GetLicenseHistoryListPageDataUseCase) executeWithTransaction(
 ) (*licensehistorypb.GetLicenseHistoryListPageDataResponse, error) {
 	var result *licensehistorypb.GetLicenseHistoryListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"license_history.errors.list_page_data_failed",
 				"license history list page data retrieval failed: %w",
 			), err)
@@ -109,7 +109,7 @@ func (uc *GetLicenseHistoryListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license_history.errors.list_failed",
 			"failed to retrieve license history: %w",
 		), err)
@@ -137,7 +137,7 @@ func (uc *GetLicenseHistoryListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license_history.errors.processing_failed",
 			"failed to process license history list data: %w",
 		), err)
@@ -151,7 +151,7 @@ func (uc *GetLicenseHistoryListPageDataUseCase) executeCore(
 		} else {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"license_history.errors.type_conversion_failed",
 				"failed to convert item to license history type",
 			))
@@ -183,7 +183,7 @@ func (uc *GetLicenseHistoryListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license_history.validation.request_required",
 			"request is required",
 		))

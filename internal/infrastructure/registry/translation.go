@@ -19,17 +19,17 @@ type TranslationProviderConfig struct {
 // Translation Factory Registry Instance
 // =============================================================================
 
-var translationRegistry = NewFactoryRegistry[ports.TranslationService, *TranslationProviderConfig]("translation")
+var translationRegistry = NewFactoryRegistry[ports.Translator, *TranslationProviderConfig]("translation")
 
 // =============================================================================
 // Translation Provider Functions
 // =============================================================================
 
-func RegisterTranslationProviderFactory(name string, factory func() ports.TranslationService) {
+func RegisterTranslationProviderFactory(name string, factory func() ports.Translator) {
 	translationRegistry.RegisterFactory(name, factory)
 }
 
-func GetTranslationProviderFactory(name string) (func() ports.TranslationService, bool) {
+func GetTranslationProviderFactory(name string) (func() ports.Translator, bool) {
 	return translationRegistry.GetFactory(name)
 }
 
@@ -52,15 +52,15 @@ func TransformTranslationConfig(name string, rawConfig map[string]any) (*Transla
 	return translationRegistry.TransformConfig(name, rawConfig)
 }
 
-func RegisterTranslationBuildFromEnv(name string, builder func() (ports.TranslationService, error)) {
+func RegisterTranslationBuildFromEnv(name string, builder func() (ports.Translator, error)) {
 	translationRegistry.RegisterBuildFromEnv(name, builder)
 }
 
-func GetTranslationBuildFromEnv(name string) (func() (ports.TranslationService, error), bool) {
+func GetTranslationBuildFromEnv(name string) (func() (ports.Translator, error), bool) {
 	return translationRegistry.GetBuildFromEnv(name)
 }
 
-func BuildTranslationProviderFromEnv(name string) (ports.TranslationService, error) {
+func BuildTranslationProviderFromEnv(name string) (ports.Translator, error) {
 	return translationRegistry.BuildFromEnv(name)
 }
 
@@ -69,7 +69,7 @@ func ListAvailableTranslationBuildFromEnv() []string {
 }
 
 // RegisterTranslationProvider registers both factory and config transformer.
-func RegisterTranslationProvider(name string, factory func() ports.TranslationService, transformer TranslationConfigTransformer) {
+func RegisterTranslationProvider(name string, factory func() ports.Translator, transformer TranslationConfigTransformer) {
 	RegisterTranslationProviderFactory(name, factory)
 	if transformer != nil {
 		RegisterTranslationConfigTransformer(name, transformer)

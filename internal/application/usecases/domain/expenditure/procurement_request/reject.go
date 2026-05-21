@@ -18,8 +18,8 @@ type RejectProcurementRequestRepositories struct {
 
 // RejectProcurementRequestServices groups service dependencies.
 type RejectProcurementRequestServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // RejectProcurementRequestUseCase transitions a request from PENDING_APPROVAL → REJECTED.
@@ -39,17 +39,17 @@ func NewRejectProcurementRequestUseCase(
 
 // Execute performs the reject procurement request operation.
 func (uc *RejectProcurementRequestUseCase) Execute(ctx context.Context, req *procurementrequestpb.RejectProcurementRequestRequest) (*procurementrequestpb.RejectProcurementRequestResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequest, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetProcurementRequestId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.validation.id_required", "Procurement request ID is required [DEFAULT]"))
 	}
 	resp, err := uc.repositories.ProcurementRequest.RejectProcurementRequest(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.errors.reject_failed", "[ERR-DEFAULT] Failed to reject procurement request")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

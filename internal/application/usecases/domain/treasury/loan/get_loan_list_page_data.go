@@ -18,9 +18,9 @@ type GetLoanListPageDataRepositories struct {
 
 // GetLoanListPageDataServices groups all business service dependencies.
 type GetLoanListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetLoanListPageDataUseCase handles the business logic for getting loan list page data.
@@ -42,18 +42,18 @@ func NewGetLoanListPageDataUseCase(
 
 // Execute performs the get loan list page data operation.
 func (uc *GetLoanListPageDataUseCase) Execute(ctx context.Context, req *loanpb.GetLoanListPageDataRequest) (*loanpb.GetLoanListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityLoan, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate pagination parameters
 	if req.Pagination != nil && req.Pagination.Limit > 0 && req.Pagination.Limit > 100 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
 	}
 
 	if uc.repositories.Loan == nil {
@@ -62,7 +62,7 @@ func (uc *GetLoanListPageDataUseCase) Execute(ctx context.Context, req *loanpb.G
 
 	resp, err := uc.repositories.Loan.GetLoanListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load loan list")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load loan list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

@@ -21,10 +21,10 @@ type CreateEquityTransactionRepositories struct {
 
 // CreateEquityTransactionServices groups all business service dependencies.
 type CreateEquityTransactionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEquityTransactionUseCase handles the business logic for creating equity transactions.
@@ -55,12 +55,12 @@ func NewCreateEquityTransactionUseCase(
 
 // Execute performs the create equity transaction operation.
 func (uc *CreateEquityTransactionUseCase) Execute(ctx context.Context, req *equitytransactionpb.CreateEquityTransactionRequest) (*equitytransactionpb.CreateEquityTransactionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityEquityTransaction, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -70,10 +70,10 @@ func (uc *CreateEquityTransactionUseCase) Execute(ctx context.Context, req *equi
 func (uc *CreateEquityTransactionUseCase) executeWithTransaction(ctx context.Context, req *equitytransactionpb.CreateEquityTransactionRequest) (*equitytransactionpb.CreateEquityTransactionResponse, error) {
 	var result *equitytransactionpb.CreateEquityTransactionResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "equity_transaction.errors.creation_failed", "Equity transaction creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "equity_transaction.errors.creation_failed", "Equity transaction creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -107,19 +107,19 @@ func (uc *CreateEquityTransactionUseCase) executeCore(ctx context.Context, req *
 
 func (uc *CreateEquityTransactionUseCase) validateInput(ctx context.Context, req *equitytransactionpb.CreateEquityTransactionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.validation.data_required", "[ERR-DEFAULT] Equity transaction data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.validation.data_required", "[ERR-DEFAULT] Equity transaction data is required"))
 	}
 	if req.Data.EquityAccountId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.validation.account_required", "[ERR-DEFAULT] Equity account ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.validation.account_required", "[ERR-DEFAULT] Equity account ID is required"))
 	}
 	if req.Data.Amount <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.validation.amount_positive", "[ERR-DEFAULT] Amount must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.validation.amount_positive", "[ERR-DEFAULT] Amount must be greater than zero"))
 	}
 	if req.Data.TransactionType == equitytransactionpb.EquityTransactionType_EQUITY_TRANSACTION_TYPE_UNSPECIFIED {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.validation.type_required", "[ERR-DEFAULT] Transaction type is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.validation.type_required", "[ERR-DEFAULT] Transaction type is required"))
 	}
 	return nil
 }
@@ -128,7 +128,7 @@ func (uc *CreateEquityTransactionUseCase) enrichData(txn *equitytransactionpb.Eq
 	now := time.Now()
 
 	if txn.Id == "" {
-		txn.Id = uc.services.IDService.GenerateID()
+		txn.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set transaction date to now if not provided
@@ -146,7 +146,7 @@ func (uc *CreateEquityTransactionUseCase) enrichData(txn *equitytransactionpb.Eq
 
 func (uc *CreateEquityTransactionUseCase) validateBusinessRules(ctx context.Context, txn *equitytransactionpb.EquityTransaction) error {
 	if txn.Description != nil && len(*txn.Description) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 500 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 500 characters"))
 	}
 	return nil
 }

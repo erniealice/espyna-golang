@@ -36,7 +36,7 @@ type ResolveOrCreateClientScheduleRepos struct {
 func ResolveOrCreateClientPriceSchedule(
 	ctx context.Context,
 	repos *ResolveOrCreateClientScheduleRepos,
-	idSvc ports.IDService,
+	idSvc ports.IDGenerator,
 	workspaceID, locationID, clientID, derivedName string,
 	template *priceschedulepb.PriceSchedule,
 ) (*priceschedulepb.PriceSchedule, bool, error) {

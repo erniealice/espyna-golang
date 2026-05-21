@@ -16,10 +16,10 @@ type CreateJobTemplateTaskRepositories struct {
 }
 
 type CreateJobTemplateTaskServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateJobTemplateTaskUseCase handles the business logic for creating job template tasks
@@ -42,13 +42,13 @@ func NewCreateJobTemplateTaskUseCase(
 // Execute performs the create job template task operation
 func (uc *CreateJobTemplateTaskUseCase) Execute(ctx context.Context, req *pb.CreateJobTemplateTaskRequest) (*pb.CreateJobTemplateTaskResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplateTask, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.data_required", "[ERR-DEFAULT] Job template task data is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.data_required", "[ERR-DEFAULT] Job template task data is required"))
 	}
 
 	// Business validation
@@ -60,7 +60,7 @@ func (uc *CreateJobTemplateTaskUseCase) Execute(ctx context.Context, req *pb.Cre
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req, enrichedData)
 	}
 
@@ -71,7 +71,7 @@ func (uc *CreateJobTemplateTaskUseCase) Execute(ctx context.Context, req *pb.Cre
 // executeWithTransaction executes creation within a transaction
 func (uc *CreateJobTemplateTaskUseCase) executeWithTransaction(ctx context.Context, req *pb.CreateJobTemplateTaskRequest, enrichedData *pb.JobTemplateTask) (*pb.CreateJobTemplateTaskResponse, error) {
 	var result *pb.CreateJobTemplateTaskResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req, enrichedData)
 		if err != nil {
 			return err
@@ -92,7 +92,7 @@ func (uc *CreateJobTemplateTaskUseCase) executeCore(ctx context.Context, req *pb
 		Data: enrichedData,
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.errors.creation_failed", "[ERR-DEFAULT] Job template task creation failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.errors.creation_failed", "[ERR-DEFAULT] Job template task creation failed"))
 	}
 	return resp, nil
 }
@@ -103,7 +103,7 @@ func (uc *CreateJobTemplateTaskUseCase) applyBusinessLogic(data *pb.JobTemplateT
 
 	// Business logic: Generate ID if not provided
 	if data.Id == "" {
-		data.Id = uc.services.IDService.GenerateID()
+		data.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Business logic: Set active status for new tasks
@@ -121,16 +121,16 @@ func (uc *CreateJobTemplateTaskUseCase) applyBusinessLogic(data *pb.JobTemplateT
 // validateBusinessRules enforces business constraints
 func (uc *CreateJobTemplateTaskUseCase) validateBusinessRules(ctx context.Context, data *pb.JobTemplateTask) error {
 	if data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.data_required", "[ERR-DEFAULT] Job template task data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.data_required", "[ERR-DEFAULT] Job template task data is required"))
 	}
 	if data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.name_required", "[ERR-DEFAULT] Job template task name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.name_required", "[ERR-DEFAULT] Job template task name is required"))
 	}
 	if data.JobTemplatePhaseId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.phase_id_required", "[ERR-DEFAULT] Job template phase ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.phase_id_required", "[ERR-DEFAULT] Job template phase ID is required"))
 	}
 	if len(data.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.name_too_long", "[ERR-DEFAULT] Job template task name is too long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.name_too_long", "[ERR-DEFAULT] Job template task name is too long"))
 	}
 
 	return nil

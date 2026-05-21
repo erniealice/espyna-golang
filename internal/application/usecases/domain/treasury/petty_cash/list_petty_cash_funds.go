@@ -17,9 +17,9 @@ type ListPettyCashFundsRepositories struct {
 
 // ListPettyCashFundsServices groups all business service dependencies
 type ListPettyCashFundsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListPettyCashFundsUseCase handles the business logic for listing petty cash funds
@@ -41,13 +41,13 @@ func NewListPettyCashFundsUseCase(
 
 // Execute performs the list petty cash funds operation
 func (uc *ListPettyCashFundsUseCase) Execute(ctx context.Context, req *pettycashfundpb.ListPettyCashFundsRequest) (*pettycashfundpb.ListPettyCashFundsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPettyCashFund, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "petty_cash_fund.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "petty_cash_fund.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	if uc.repositories.PettyCashFund == nil {

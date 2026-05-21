@@ -119,13 +119,15 @@ providers.Registry (type retained; .InitializeAll umbrella method DELETED 202605
 ## 6. Accessing Providers
 
 ```go
-registry := providers.NewRegistry()
-registry.InitializeAll(config, dbTableConfig)
+// The Registry is owned by Manager; apps don't construct it directly.
+// Manager calls CreateAndRegisterDatabaseProvider / CreateAndRegisterAuthProvider /
+// CreateAndRegisterStorageProvider / CreateAndRegisterIDProvider one-by-one
+// (the umbrella InitializeAll method was deleted in 20260521-composition-reshape).
 
 // Infrastructure providers
 dbProvider := registry.GetDatabase()
 authProvider := registry.GetAuth()
-idService := registry.GetIDService()
+idGenerator := registry.GetIDService() // returns ports.IDGenerator
 
 // Domain repositories
 entityRepos, _ := registry.GetDomain().GetEntity()

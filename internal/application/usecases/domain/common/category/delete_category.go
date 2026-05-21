@@ -16,8 +16,8 @@ type DeleteCategoryRepositories struct {
 
 // DeleteCategoryServices groups all business service dependencies
 type DeleteCategoryServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteCategoryUseCase handles the business logic for deleting categories
@@ -45,8 +45,8 @@ func NewDeleteCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 	}
 
 	services := DeleteCategoryServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteCategoryUseCase(repositories, services)
@@ -55,7 +55,7 @@ func NewDeleteCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 // Execute performs the delete category operation
 func (uc *DeleteCategoryUseCase) Execute(ctx context.Context, req *categorypb.DeleteCategoryRequest) (*categorypb.DeleteCategoryResponse, error) {
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -67,7 +67,7 @@ func (uc *DeleteCategoryUseCase) Execute(ctx context.Context, req *categorypb.De
 func (uc *DeleteCategoryUseCase) executeWithTransaction(ctx context.Context, req *categorypb.DeleteCategoryRequest) (*categorypb.DeleteCategoryResponse, error) {
 	var result *categorypb.DeleteCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("category deletion failed: %w", err)

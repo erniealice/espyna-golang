@@ -19,9 +19,9 @@ type CreateCategoryRepositories struct {
 
 // CreateCategoryServices groups all business service dependencies
 type CreateCategoryServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
-	IDService          ports.IDService
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateCategoryUseCase handles the business logic for creating categories
@@ -50,9 +50,9 @@ func NewCreateCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 	}
 
 	services := CreateCategoryServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
-		IDService:          ports.NewNoOpIDService(),
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateCategoryUseCase(repositories, services)
@@ -61,7 +61,7 @@ func NewCreateCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 // Execute performs the create category operation
 func (uc *CreateCategoryUseCase) Execute(ctx context.Context, req *categorypb.CreateCategoryRequest) (*categorypb.CreateCategoryResponse, error) {
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -73,7 +73,7 @@ func (uc *CreateCategoryUseCase) Execute(ctx context.Context, req *categorypb.Cr
 func (uc *CreateCategoryUseCase) executeWithTransaction(ctx context.Context, req *categorypb.CreateCategoryRequest) (*categorypb.CreateCategoryResponse, error) {
 	var result *categorypb.CreateCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("category creation failed: %w", err)
@@ -135,7 +135,7 @@ func (uc *CreateCategoryUseCase) enrichCategoryData(category *categorypb.Categor
 
 	// Generate Category ID if not provided
 	if category.Id == "" {
-		category.Id = uc.services.IDService.GenerateID()
+		category.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set category audit fields

@@ -17,9 +17,9 @@ type GetUserListPageDataRepositories struct {
 
 // GetUserListPageDataServices groups all business service dependencies
 type GetUserListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetUserListPageDataUseCase handles the business logic for getting user list page data
@@ -48,9 +48,9 @@ func NewGetUserListPageDataUseCaseUngrouped(userRepo userpb.UserDomainServiceSer
 	}
 
 	services := GetUserListPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetUserListPageDataUseCase(repositories, services)
@@ -58,20 +58,20 @@ func NewGetUserListPageDataUseCaseUngrouped(userRepo userpb.UserDomainServiceSer
 
 func (uc *GetUserListPageDataUseCase) Execute(ctx context.Context, req *userpb.GetUserListPageDataRequest) (*userpb.GetUserListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityUser, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.request_required", "Request is required for user list page data [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.request_required", "Request is required for user list page data [DEFAULT]"))
 	}
 
 	// Validate pagination parameters
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 100 {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 100 [DEFAULT]"))
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 100 [DEFAULT]"))
 		}
 		if req.Pagination.Limit < 1 {
 			req.Pagination.Limit = 10 // Set default limit

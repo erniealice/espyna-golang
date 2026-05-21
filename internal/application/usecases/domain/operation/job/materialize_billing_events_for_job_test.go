@@ -191,9 +191,9 @@ func newMBEFixture(t *testing.T, opts mbeOpts) *mbeFixture {
 	}
 
 	uc := NewMaterializeBillingEventsForJobUseCase(repos, MaterializeBillingEventsForJobServices{
-		AuthorizationService: ports.NewNoOpAuthorizationService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  ports.NewNoOpAuthorizer(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	})
 	return &mbeFixture{uc: uc, billing: billing}
 }

@@ -61,10 +61,10 @@ type RecognizeRevenueFromSubscriptionRepositories struct {
 // RecognizeRevenueFromSubscriptionServices groups all business service
 // dependencies. Mirrors CreateRevenueServices.
 type RecognizeRevenueFromSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 
 	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — piggyback hook.
 	//
@@ -192,18 +192,18 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) Execute(
 	ctx context.Context,
 	req *revenuepb.CreateRevenueWithLineItemsRequest,
 ) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenue, ports.ActionCreate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySubscription, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.validation.request_required",
 			"Request is required [DEFAULT]",
 		))
@@ -212,17 +212,17 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) Execute(
 	subscriptionID := req.GetSubscriptionId()
 	if subscriptionID == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.validation.subscription_id_required",
 			"subscription_id is required [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil &&
-		uc.services.TransactionService.SupportsTransactions() &&
+	if uc.services.Transactor != nil &&
+		uc.services.Transactor.SupportsTransactions() &&
 		!req.GetDryRun() {
 		var result *revenuepb.CreateRevenueWithLineItemsResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return fmt.Errorf("revenue recognition failed: %w", execErr)
@@ -277,7 +277,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	logPhase("resolve_subscription")
 	if !sub.GetActive() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.subscription_inactive",
 			"Subscription is inactive [DEFAULT]",
 		))
@@ -287,7 +287,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	pricePlanID := sub.GetPricePlanId()
 	if pricePlanID == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.price_plan_required",
 			"Subscription has no price plan [DEFAULT]",
 		))
@@ -326,7 +326,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		}
 		if clientCurrency != "" && planCurrency != "" && clientCurrency != planCurrency {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-				ctx, uc.services.TranslationService,
+				ctx, uc.services.Translator,
 				"revenue.errors.currency_mismatch",
 				"Client billing currency does not match the rate card [DEFAULT]",
 			))
@@ -341,14 +341,14 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	case pricePlan.GetBillingKind() == priceplanpb.BillingKind_BILLING_KIND_MILESTONE:
 		if billingEventID == "" {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-				ctx, uc.services.TranslationService,
+				ctx, uc.services.Translator,
 				"revenue.errors.milestone_required",
 				"A billing event is required for milestone plans [DEFAULT]",
 			))
 		}
 	case billingEventID != "":
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.milestone_not_applicable",
 			"Billing event id is only valid on milestone plans [DEFAULT]",
 		))
@@ -367,7 +367,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	}
 	if clientCurrency != "" && planCurrency != "" && clientCurrency != planCurrency {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.currency_mismatch",
 			"Client billing currency does not match the rate card [DEFAULT]",
 		))
@@ -386,7 +386,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	}
 	if subClientID := sub.GetClientId(); subClientID != "" && resolvedClientID != "" && subClientID != resolvedClientID {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.subscriptionPlanClientDrift",
 			"Subscription and price plan belong to different clients — recognition blocked. [DEFAULT]",
 		))
@@ -419,7 +419,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 			errPb := &commonpb.Error{
 				Code: "period_already_invoiced",
 				Message: contextutil.GetTranslatedMessageWithContext(
-					ctx, uc.services.TranslationService,
+					ctx, uc.services.Translator,
 					"revenue.errors.period_already_invoiced",
 					"An invoice already exists for this period [DEFAULT]",
 				),
@@ -452,7 +452,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 	// an unbillable invoice.
 	if len(lines) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.no_lines_to_invoice",
 			"Cannot create an invoice with no line items [DEFAULT]",
 		))
@@ -496,7 +496,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 		existingRevenueID := req.GetExistingRevenueId()
 		if existingRevenueID == "" {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-				ctx, uc.services.TranslationService,
+				ctx, uc.services.Translator,
 				"revenue.validation.existing_revenue_id_required",
 				"existing_revenue_id is required when skip_header is true [DEFAULT]",
 			))
@@ -532,7 +532,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeCore(
 					Error: &commonpb.Error{
 						Code: "period_already_invoiced",
 						Message: contextutil.GetTranslatedMessageWithContext(
-							ctx, uc.services.TranslationService,
+							ctx, uc.services.Translator,
 							"revenue.errors.period_already_invoiced",
 							"An invoice already exists for this period [DEFAULT]",
 						),
@@ -669,7 +669,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) readSubscription(
 ) (*subscriptionpb.Subscription, error) {
 	if uc.repositories.Subscription == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.repository_unavailable",
 			"Subscription repository is not configured [DEFAULT]",
 		))
@@ -682,7 +682,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) readSubscription(
 	}
 	if resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.not_found",
 			"Subscription not found [DEFAULT]",
 		))
@@ -695,7 +695,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) readPricePlan(
 ) (*priceplanpb.PricePlan, error) {
 	if uc.repositories.PricePlan == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"price_plan.errors.repository_unavailable",
 			"Price plan repository is not configured [DEFAULT]",
 		))
@@ -708,7 +708,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) readPricePlan(
 	}
 	if resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"price_plan.errors.not_found",
 			"Price plan not found [DEFAULT]",
 		))
@@ -1174,8 +1174,8 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) persistRevenue(
 	ctx context.Context, header *revenuepb.Revenue,
 ) (*revenuepb.Revenue, error) {
 	now := time.Now()
-	if header.Id == "" && uc.services.IDService != nil {
-		header.Id = uc.services.IDService.GenerateID()
+	if header.Id == "" && uc.services.IDGenerator != nil {
+		header.Id = uc.services.IDGenerator.GenerateID()
 	}
 	created := now.UnixMilli()
 	createdStr := now.Format(time.RFC3339)
@@ -1193,7 +1193,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) persistRevenue(
 	}
 	if resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.create_failed",
 			"Failed to create revenue [DEFAULT]",
 		))
@@ -1208,14 +1208,14 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) persistLineItems(
 ) error {
 	if uc.repositories.RevenueLineItem == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue_line_item.errors.repository_unavailable",
 			"Revenue line item repository is not configured [DEFAULT]",
 		))
 	}
 	for _, l := range lines {
-		if l.Id == "" && uc.services.IDService != nil {
-			l.Id = uc.services.IDService.GenerateID()
+		if l.Id == "" && uc.services.IDGenerator != nil {
+			l.Id = uc.services.IDGenerator.GenerateID()
 		}
 		l.RevenueId = revenueID
 		l.Active = true
@@ -1348,7 +1348,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 ) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
 	if uc.repositories.BillingEvent == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_repository_unavailable",
 			"Billing event repository is not configured [DEFAULT]",
 		))
@@ -1362,7 +1362,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 	})
 	if err != nil || evResp == nil || len(evResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_not_found",
 			"Billing event not found [DEFAULT]",
 		))
@@ -1371,7 +1371,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 
 	if ev.GetSubscriptionId() != sub.GetId() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_mismatch",
 			"Billing event does not belong to this subscription [DEFAULT]",
 		))
@@ -1383,7 +1383,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 		// ok
 	default:
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_not_ready",
 			"Billing event is not ready to be invoiced [DEFAULT]",
 		))
@@ -1405,7 +1405,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 				Error: &commonpb.Error{
 					Code: "conflicting_revenue_id",
 					Message: contextutil.GetTranslatedMessageWithContext(
-						ctx, uc.services.TranslationService,
+						ctx, uc.services.Translator,
 						"revenue.errors.milestone_already_invoiced",
 						"This milestone has already been invoiced [DEFAULT]",
 					),
@@ -1423,14 +1423,14 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 	}
 	if target <= 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.invalid_target_amount",
 			"Bill amount must be greater than zero [DEFAULT]",
 		))
 	}
 	if target > originalEventAmount {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.target_exceeds_event",
 			"Bill amount cannot exceed the milestone amount [DEFAULT]",
 		))
@@ -1444,7 +1444,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 			otherSum := uc.sumBillableUnderPhase(ctx, sub.GetId(), jtpID, ev.GetId())
 			if otherSum+target > templateTotal {
 				return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-					ctx, uc.services.TranslationService,
+					ctx, uc.services.Translator,
 					"revenue.errors.over_billing_rejected",
 					"Total billed under this milestone would exceed the template amount [DEFAULT]",
 				))
@@ -1606,8 +1606,8 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeMilestone(
 		child.ParentEventId = &parent
 		seqLabel := nextPartialLabel(ev.GetSequenceLabel())
 		child.SequenceLabel = &seqLabel
-		if uc.services.IDService != nil {
-			child.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			child.Id = uc.services.IDGenerator.GenerateID()
 		}
 		now := time.Now()
 		dc := now.UnixMilli()
@@ -1669,7 +1669,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHoc(
 		return uc.executeAdHocPerCall(ctx, req, sub, pricePlan, priceSchedule, client, planCurrency, billingEventID)
 	default:
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.ad_hoc_invalid_basis",
 			"AD_HOC plans require amount_basis = TOTAL_PACKAGE or PER_OCCURRENCE [DEFAULT]",
 		))
@@ -1703,7 +1703,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPool(
 				Error: &commonpb.Error{
 					Code: "conflicting_revenue_id",
 					Message: contextutil.GetTranslatedMessageWithContext(
-						ctx, uc.services.TranslationService,
+						ctx, uc.services.Translator,
 						"revenue.errors.ad_hoc_pool_already_invoiced",
 						"This pool subscription has already been invoiced [DEFAULT]",
 					),
@@ -1716,7 +1716,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPool(
 	target := pricePlan.GetBillingAmount()
 	if target <= 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.invalid_target_amount",
 			"Bill amount must be greater than zero [DEFAULT]",
 		))
@@ -1806,14 +1806,14 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 ) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
 	if billingEventID == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.ad_hoc_per_call_event_required",
 			"A billing event is required for per-occurrence AD_HOC plans [DEFAULT]",
 		))
 	}
 	if uc.repositories.BillingEvent == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_repository_unavailable",
 			"Billing event repository is not configured [DEFAULT]",
 		))
@@ -1825,7 +1825,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 	})
 	if err != nil || evResp == nil || len(evResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_not_found",
 			"Billing event not found [DEFAULT]",
 		))
@@ -1833,21 +1833,21 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 	ev := evResp.GetData()[0]
 	if ev.GetSubscriptionId() != sub.GetId() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_mismatch",
 			"Billing event does not belong to this subscription [DEFAULT]",
 		))
 	}
 	if ev.GetTrigger() != billingeventpb.BillingEventTrigger_BILLING_EVENT_TRIGGER_VISIT_COMPLETED {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.ad_hoc_event_not_ready",
 			"Usage is not yet completed; cannot recognize revenue [DEFAULT]",
 		))
 	}
 	if ev.GetStatus() != billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_READY {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.billing_event_not_ready",
 			"Billing event is not ready to be invoiced [DEFAULT]",
 		))
@@ -1868,7 +1868,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 				Error: &commonpb.Error{
 					Code: "conflicting_revenue_id",
 					Message: contextutil.GetTranslatedMessageWithContext(
-						ctx, uc.services.TranslationService,
+						ctx, uc.services.Translator,
 						"revenue.errors.ad_hoc_per_call_already_invoiced",
 						"This usage has already been invoiced [DEFAULT]",
 					),
@@ -1884,7 +1884,7 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) executeAdHocPerCall(
 	}
 	if target <= 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.invalid_target_amount",
 			"Bill amount must be greater than zero [DEFAULT]",
 		))

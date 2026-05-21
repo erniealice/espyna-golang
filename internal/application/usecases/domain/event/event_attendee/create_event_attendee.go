@@ -20,10 +20,10 @@ type CreateEventAttendeeRepositories struct {
 
 // CreateEventAttendeeServices groups all business service dependencies
 type CreateEventAttendeeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventAttendeeUseCase handles the business logic for creating event attendee associations
@@ -56,10 +56,10 @@ func NewCreateEventAttendeeUseCaseUngrouped(
 	}
 
 	services := CreateEventAttendeeServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil, // Will be injected later if needed
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return &CreateEventAttendeeUseCase{
@@ -71,7 +71,7 @@ func NewCreateEventAttendeeUseCaseUngrouped(
 // Execute performs the create event attendee operation
 func (uc *CreateEventAttendeeUseCase) Execute(ctx context.Context, req *eventattendeepb.CreateEventAttendeeRequest) (*eventattendeepb.CreateEventAttendeeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventAttendee, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -98,14 +98,14 @@ func (uc *CreateEventAttendeeUseCase) Execute(ctx context.Context, req *eventatt
 // shouldUseTransaction determines if this operation should use a transaction
 func (uc *CreateEventAttendeeUseCase) shouldUseTransaction(ctx context.Context) bool {
 	// Use transaction if:
-	// 1. TransactionService is available, AND
+	// 1. Transactor is available, AND
 	// 2. We're not already in a transaction context
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
 
 	// Don't start a nested transaction if we're already in one
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 
@@ -116,7 +116,7 @@ func (uc *CreateEventAttendeeUseCase) shouldUseTransaction(ctx context.Context) 
 func (uc *CreateEventAttendeeUseCase) executeWithTransaction(ctx context.Context, req *eventattendeepb.CreateEventAttendeeRequest) (*eventattendeepb.CreateEventAttendeeResponse, error) {
 	var response *eventattendeepb.CreateEventAttendeeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		// All validations and operations within transaction
 
 		// Business rule validation (check first to avoid unnecessary DB calls)
@@ -182,7 +182,7 @@ func (uc *CreateEventAttendeeUseCase) enrichEventAttendeeData(eventAttendee *eve
 
 	// Generate EventAttendee ID if not provided
 	if eventAttendee.Id == "" {
-		eventAttendee.Id = uc.services.IDService.GenerateID()
+		eventAttendee.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields

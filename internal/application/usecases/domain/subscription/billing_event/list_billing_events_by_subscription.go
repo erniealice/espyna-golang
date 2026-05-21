@@ -17,8 +17,8 @@ type ListBillingEventsBySubscriptionRepositories struct {
 
 // ListBillingEventsBySubscriptionServices groups infra services.
 type ListBillingEventsBySubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListBillingEventsBySubscriptionUseCase wraps the proto-domain ListBySubscription
@@ -45,16 +45,16 @@ func NewListBillingEventsBySubscriptionUseCase(
 func (uc *ListBillingEventsBySubscriptionUseCase) Execute(
 	ctx context.Context, req *billingeventpb.ListBillingEventsBySubscriptionRequest,
 ) (*billingeventpb.ListBillingEventsBySubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"billing_event", ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"billing_event.validation.request_required", "request is required"))
 	}
 	if uc.repositories.BillingEvent == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"billing_event.errors.repository_unavailable", "billing event repository not configured"))
 	}
 	return uc.repositories.BillingEvent.ListBySubscription(ctx, req)

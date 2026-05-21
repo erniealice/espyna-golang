@@ -19,10 +19,10 @@ type SupplierPortalGrantRepositories struct {
 
 // SupplierPortalGrantServices groups service dependencies.
 type SupplierPortalGrantServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all supplier_portal_grant use cases.
@@ -52,7 +52,7 @@ type CreateSupplierPortalGrantUseCase struct {
 }
 
 func (uc *CreateSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.CreateSupplierPortalGrantRequest) (*supplierportalgrantpb.CreateSupplierPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierPortalGrant, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *CreateSupplierPortalGrantUseCase) Execute(ctx context.Context, req *su
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -76,7 +76,7 @@ type ReadSupplierPortalGrantUseCase struct {
 }
 
 func (uc *ReadSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.ReadSupplierPortalGrantRequest) (*supplierportalgrantpb.ReadSupplierPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierPortalGrant, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type UpdateSupplierPortalGrantUseCase struct {
 }
 
 func (uc *UpdateSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.UpdateSupplierPortalGrantRequest) (*supplierportalgrantpb.UpdateSupplierPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierPortalGrant, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ type DeleteSupplierPortalGrantUseCase struct {
 }
 
 func (uc *DeleteSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.DeleteSupplierPortalGrantRequest) (*supplierportalgrantpb.DeleteSupplierPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierPortalGrant, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ type ListSupplierPortalGrantsUseCase struct {
 }
 
 func (uc *ListSupplierPortalGrantsUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.ListSupplierPortalGrantsRequest) (*supplierportalgrantpb.ListSupplierPortalGrantsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierPortalGrant, ports.ActionRead); err != nil {
 		return nil, err
 	}

@@ -17,9 +17,9 @@ type ReadExpenditureCategoryRepositories struct {
 
 // ReadExpenditureCategoryServices groups all business service dependencies
 type ReadExpenditureCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadExpenditureCategoryUseCase handles the business logic for reading an expenditure category
@@ -41,13 +41,13 @@ func NewReadExpenditureCategoryUseCase(
 
 // Execute performs the read expenditure category operation
 func (uc *ReadExpenditureCategoryUseCase) Execute(ctx context.Context, req *pb.ReadExpenditureCategoryRequest) (*pb.ReadExpenditureCategoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureCategory, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_category.validation.id_required", "Expenditure category ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_category.validation.id_required", "Expenditure category ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.ExpenditureCategory.ReadExpenditureCategory(ctx, req)

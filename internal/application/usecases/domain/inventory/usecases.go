@@ -44,10 +44,10 @@ type InventoryUseCases struct {
 // NewUseCases creates all inventory use cases with proper constructor injection
 func NewUseCases(
 	repos InventoryRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *InventoryUseCases {
 	// Create inventory item use cases
 	inventoryItemUseCases := inventoryItemUC.NewUseCases(
@@ -55,10 +55,10 @@ func NewUseCases(
 			InventoryItem: repos.InventoryItem,
 		},
 		inventoryItemUC.InventoryItemServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -68,10 +68,10 @@ func NewUseCases(
 			InventorySerial: repos.InventorySerial,
 		},
 		inventorySerialUC.InventorySerialServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -81,10 +81,10 @@ func NewUseCases(
 			InventoryTransaction: repos.InventoryTransaction,
 		},
 		inventoryTransactionUC.InventoryTransactionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -94,10 +94,10 @@ func NewUseCases(
 			InventoryAttribute: repos.InventoryAttribute,
 		},
 		inventoryAttributeUC.InventoryAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -107,10 +107,10 @@ func NewUseCases(
 			InventoryDepreciation: repos.InventoryDepreciation,
 		},
 		inventoryDepreciationUC.InventoryDepreciationServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -120,10 +120,10 @@ func NewUseCases(
 			InventorySerialHistory: repos.InventorySerialHistory,
 		},
 		serialHistoryUC.InventorySerialHistoryServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 

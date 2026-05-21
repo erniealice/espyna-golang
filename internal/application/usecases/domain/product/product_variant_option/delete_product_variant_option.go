@@ -18,9 +18,9 @@ type DeleteProductVariantOptionRepositories struct {
 
 // DeleteProductVariantOptionServices groups all business service dependencies
 type DeleteProductVariantOptionServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteProductVariantOptionUseCase handles the business logic for deleting product variant options
@@ -43,13 +43,13 @@ func NewDeleteProductVariantOptionUseCase(
 // Execute performs the delete product variant option operation
 func (uc *DeleteProductVariantOptionUseCase) Execute(ctx context.Context, req *productvariantoptionpb.DeleteProductVariantOptionRequest) (*productvariantoptionpb.DeleteProductVariantOptionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductVariantOption, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -60,7 +60,7 @@ func (uc *DeleteProductVariantOptionUseCase) Execute(ctx context.Context, req *p
 // executeWithTransaction executes product variant option deletion within a transaction
 func (uc *DeleteProductVariantOptionUseCase) executeWithTransaction(ctx context.Context, req *productvariantoptionpb.DeleteProductVariantOptionRequest) (*productvariantoptionpb.DeleteProductVariantOptionResponse, error) {
 	var result *productvariantoptionpb.DeleteProductVariantOptionResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -70,7 +70,7 @@ func (uc *DeleteProductVariantOptionUseCase) executeWithTransaction(ctx context.
 	})
 
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -82,31 +82,31 @@ func (uc *DeleteProductVariantOptionUseCase) executeCore(ctx context.Context, re
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.errors.authorization_failed", "Authorization failed for product variant options [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.errors.authorization_failed", "Authorization failed for product variant options [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityProductVariantOption, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.errors.authorization_failed", "Authorization failed for product variant options [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.errors.authorization_failed", "Authorization failed for product variant options [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.errors.authorization_failed", "Authorization failed for product variant options [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.errors.authorization_failed", "Authorization failed for product variant options [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.ProductVariantOption.DeleteProductVariantOption(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.errors.deletion_failed", "Product variant option deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.errors.deletion_failed", "Product variant option deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -115,13 +115,13 @@ func (uc *DeleteProductVariantOptionUseCase) executeCore(ctx context.Context, re
 // validateInput validates the input request
 func (uc *DeleteProductVariantOptionUseCase) validateInput(ctx context.Context, req *productvariantoptionpb.DeleteProductVariantOptionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.validation.data_required", "Product variant option data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.validation.data_required", "Product variant option data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_option.validation.id_required", "Product variant option ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_option.validation.id_required", "Product variant option ID is required [DEFAULT]"))
 	}
 	return nil
 }

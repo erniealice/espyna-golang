@@ -23,10 +23,10 @@ type CreateClientRepositories struct {
 
 // CreateClientServices groups all business service dependencies
 type CreateClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Add this line
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator // Add this line
 }
 
 // CreateClientUseCase handles the business logic for creating clients
@@ -54,10 +54,10 @@ func NewCreateClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 	}
 
 	services := CreateClientServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(), // Add this line
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(), // Add this line
 	}
 
 	return NewCreateClientUseCase(repositories, services)
@@ -66,14 +66,14 @@ func NewCreateClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 // Execute performs the create client operation
 func (uc *CreateClientUseCase) Execute(ctx context.Context, req *clientpb.CreateClientRequest) (*clientpb.CreateClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
 	}
 
 	// Business validation
@@ -85,7 +85,7 @@ func (uc *CreateClientUseCase) Execute(ctx context.Context, req *clientpb.Create
 	enrichedClient := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedClient)
 	}
 
@@ -97,10 +97,10 @@ func (uc *CreateClientUseCase) Execute(ctx context.Context, req *clientpb.Create
 func (uc *CreateClientUseCase) executeWithTransaction(ctx context.Context, enrichedClient *clientpb.Client) (*clientpb.CreateClientResponse, error) {
 	var result *clientpb.CreateClientResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedClient)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "client.errors.creation_failed", "Client creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "client.errors.creation_failed", "Client creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -183,8 +183,8 @@ func (uc *CreateClientUseCase) applyBusinessLogic(client *clientpb.Client) *clie
 
 	// Business logic: Generate Client ID if not provided
 	if client.Id == "" {
-		if uc.services.IDService != nil {
-			client.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			client.Id = uc.services.IDGenerator.GenerateID()
 		} else {
 			// Fallback to timestamp-based ID for defensive programming
 			client.Id = fmt.Sprintf("client-%d", now.UnixNano())
@@ -194,8 +194,8 @@ func (uc *CreateClientUseCase) applyBusinessLogic(client *clientpb.Client) *clie
 	// Business logic: Generate User ID if not provided
 	if client.User != nil {
 		if client.User.Id == "" {
-			if uc.services.IDService != nil {
-				client.User.Id = uc.services.IDService.GenerateID()
+			if uc.services.IDGenerator != nil {
+				client.User.Id = uc.services.IDGenerator.GenerateID()
 			} else {
 				// Fallback to timestamp-based ID for defensive programming
 				client.User.Id = fmt.Sprintf("user-%d", now.UnixNano())
@@ -205,8 +205,8 @@ func (uc *CreateClientUseCase) applyBusinessLogic(client *clientpb.Client) *clie
 
 	// Business logic: Generate internal_id if not provided
 	if client.InternalId == "" {
-		if uc.services.IDService != nil {
-			client.InternalId = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			client.InternalId = uc.services.IDGenerator.GenerateID()
 		} else {
 			// Fallback to timestamp-based ID for defensive programming
 			client.InternalId = fmt.Sprintf("internal-%d", now.UnixNano())
@@ -245,52 +245,52 @@ func (uc *CreateClientUseCase) applyBusinessLogic(client *clientpb.Client) *clie
 func (uc *CreateClientUseCase) validateBusinessRules(ctx context.Context, client *clientpb.Client) error {
 	// Business rule: Required data validation
 	if client == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.data_required", "Client data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.data_required", "Client data is required [DEFAULT]"))
 	}
 	if client.User == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.user_data_required", "Client user data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.user_data_required", "Client user data is required [DEFAULT]"))
 	}
 	if client.User.FirstName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.first_name_required", "Client first name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.first_name_required", "Client first name is required [DEFAULT]"))
 	}
 	if client.User.LastName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.last_name_required", "Client last name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.last_name_required", "Client last name is required [DEFAULT]"))
 	}
 	if client.User.EmailAddress == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.email_required", "Client email address is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.email_required", "Client email address is required [DEFAULT]"))
 	}
 
 	// Business rule: Email format validation
 	if err := uc.validateEmail(client.User.EmailAddress); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.email_invalid", "Invalid email format [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.email_invalid", "Invalid email format [DEFAULT]"))
 	}
 
 	// Business rule: Name length constraints
 	fullName := client.User.FirstName + " " + client.User.LastName
 	if len(fullName) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.full_name_too_short", "Client full name must be at least 3 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.full_name_too_short", "Client full name must be at least 3 characters long [DEFAULT]"))
 	}
 
 	if len(fullName) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.full_name_too_long", "Client full name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.full_name_too_long", "Client full name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Business rule: Individual name part validation
 	if len(client.User.FirstName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
 	}
 
 	if len(client.User.LastName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
 	}
 
 	// Business rule: Internal ID format validation
 	if client.InternalId != "" {
 		if len(client.InternalId) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.internal_id_too_short", "Internal ID must be at least 3 characters long [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.internal_id_too_short", "Internal ID must be at least 3 characters long [DEFAULT]"))
 		}
 		if len(client.InternalId) > 50 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.internal_id_too_long", "Internal ID cannot exceed 50 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.internal_id_too_long", "Internal ID cannot exceed 50 characters [DEFAULT]"))
 		}
 	}
 

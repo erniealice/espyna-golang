@@ -118,7 +118,7 @@ func (uc *CreateSubscriptionWithPoolInvoiceUseCase) Execute(
 ) (*subscriptionpb.CreateSubscriptionResponse, error) {
 	if uc.subscription == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.create_with_pool_invoice_unwired",
 			"CreateSubscriptionWithPoolInvoice is not configured [DEFAULT]",
 		))
@@ -126,14 +126,14 @@ func (uc *CreateSubscriptionWithPoolInvoiceUseCase) Execute(
 
 	// Authorization mirrors the plain path; centralised so the wrapping use
 	// case is self-contained.
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.validation.data_required",
 			"[ERR-DEFAULT] Subscription data is required",
 		))
@@ -163,15 +163,15 @@ func (uc *CreateSubscriptionWithPoolInvoiceUseCase) Execute(
 	}
 
 	// AD_HOC × TOTAL_PACKAGE atomic path: BOTH writes inside one transaction.
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.transaction_required_for_pool_invoice",
 			"A transactional service is required for atomic pool-invoice subscription create [DEFAULT]",
 		))
 	}
 
-	err = uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err = uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		coreResp, coreErr := uc.subscription.executeCore(txCtx, req, enriched)
 		if coreErr != nil {
 			return coreErr

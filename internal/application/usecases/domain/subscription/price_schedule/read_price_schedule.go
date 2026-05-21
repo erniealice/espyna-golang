@@ -17,9 +17,9 @@ type ReadPriceScheduleRepositories struct {
 
 // ReadPriceScheduleServices groups all business service dependencies
 type ReadPriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadPriceScheduleUseCase handles the business logic for reading price_schedules
@@ -42,7 +42,7 @@ func NewReadPriceScheduleUseCase(
 // Execute performs the read price_schedule operation
 func (uc *ReadPriceScheduleUseCase) Execute(ctx context.Context, req *priceschedulepb.ReadPriceScheduleRequest) (*priceschedulepb.ReadPriceScheduleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceSchedule, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -68,15 +68,15 @@ func (uc *ReadPriceScheduleUseCase) Execute(ctx context.Context, req *pricesched
 // validateInput validates the input request
 func (uc *ReadPriceScheduleUseCase) validateInput(ctx context.Context, req *priceschedulepb.ReadPriceScheduleRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.request_required", "request is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.request_required", "request is required")
 		return errors.New(msg)
 	}
 	if req.Data == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.data_required", "price schedule data is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.data_required", "price schedule data is required")
 		return errors.New(msg)
 	}
 	if req.Data.Id == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.id_required", "price schedule ID is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.id_required", "price schedule ID is required")
 		return errors.New(msg)
 	}
 	return nil
@@ -86,7 +86,7 @@ func (uc *ReadPriceScheduleUseCase) validateInput(ctx context.Context, req *pric
 func (uc *ReadPriceScheduleUseCase) validateBusinessRules(ctx context.Context, req *priceschedulepb.ReadPriceScheduleRequest) error {
 	// Validate price schedule ID format
 	if req.Data != nil && len(req.Data.Id) < 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.id_min_length", "price schedule ID must be at least 3 characters long")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.id_min_length", "price schedule ID must be at least 3 characters long")
 		return errors.New(msg)
 	}
 

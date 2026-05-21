@@ -18,9 +18,9 @@ type DeleteClientRepositories struct {
 
 // DeleteClientServices groups all business service dependencies
 type DeleteClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteClientUseCase handles the business logic for deleting a client
@@ -49,9 +49,9 @@ func NewDeleteClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 	}
 
 	services := DeleteClientServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteClientUseCase(repositories, services)
@@ -60,24 +60,24 @@ func NewDeleteClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 // Execute performs the delete client operation
 func (uc *DeleteClientUseCase) Execute(ctx context.Context, req *clientpb.DeleteClientRequest) (*clientpb.DeleteClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.id_required", "Client ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.id_required", "Client ID is required [DEFAULT]"))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Client.DeleteClient(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.errors.deletion_failed", "Client deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.deletion_failed", "Client deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

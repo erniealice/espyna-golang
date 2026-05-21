@@ -19,9 +19,9 @@ type DeleteGroupAttributeRepositories struct {
 
 // DeleteGroupAttributeServices groups all business service dependencies
 type DeleteGroupAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteGroupAttributeUseCase handles the business logic for deleting group attributes
@@ -50,9 +50,9 @@ func NewDeleteGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb
 	}
 
 	services := DeleteGroupAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteGroupAttributeUseCase(repositories, services)
@@ -61,7 +61,7 @@ func NewDeleteGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb
 // Execute performs the delete group attribute operation
 func (uc *DeleteGroupAttributeUseCase) Execute(ctx context.Context, req *groupattributepb.DeleteGroupAttributeRequest) (*groupattributepb.DeleteGroupAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroupAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -73,14 +73,14 @@ func (uc *DeleteGroupAttributeUseCase) Execute(ctx context.Context, req *groupat
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.GroupAttribute.DeleteGroupAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.deletion_failed", "Group attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.deletion_failed", "Group attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -90,13 +90,13 @@ func (uc *DeleteGroupAttributeUseCase) Execute(ctx context.Context, req *groupat
 // validateInput validates the input request
 func (uc *DeleteGroupAttributeUseCase) validateInput(ctx context.Context, req *groupattributepb.DeleteGroupAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.request_required", "Request is required for group attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.request_required", "Request is required for group attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.data_required", "Group attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.data_required", "Group attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.id_required", "Group attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.id_required", "Group attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

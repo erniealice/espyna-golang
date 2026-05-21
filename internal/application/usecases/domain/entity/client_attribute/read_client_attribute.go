@@ -18,9 +18,9 @@ type ReadClientAttributeRepositories struct {
 
 // ReadClientAttributeServices groups all business service dependencies
 type ReadClientAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadClientAttributeUseCase handles the business logic for reading client attributes
@@ -49,9 +49,9 @@ func NewReadClientAttributeUseCaseUngrouped(clientAttributeRepo clientattributep
 	}
 
 	services := ReadClientAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadClientAttributeUseCase(repositories, services)
@@ -60,7 +60,7 @@ func NewReadClientAttributeUseCaseUngrouped(clientAttributeRepo clientattributep
 // Execute performs the read client attribute operation
 func (uc *ReadClientAttributeUseCase) Execute(ctx context.Context, req *clientattributepb.ReadClientAttributeRequest) (*clientattributepb.ReadClientAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClientAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -83,13 +83,13 @@ func (uc *ReadClientAttributeUseCase) Execute(ctx context.Context, req *clientat
 // validateInput validates the input request
 func (uc *ReadClientAttributeUseCase) validateInput(ctx context.Context, req *clientattributepb.ReadClientAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.data_required", "[ERR-DEFAULT] Client attribute data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.data_required", "[ERR-DEFAULT] Client attribute data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	return nil
 }

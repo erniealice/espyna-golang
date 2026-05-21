@@ -16,9 +16,9 @@ type ListTemplateTaskCriteriaRepositories struct {
 }
 
 type ListTemplateTaskCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListTemplateTaskCriteriaUseCase handles the business logic for listing template task criteria
@@ -41,7 +41,7 @@ func NewListTemplateTaskCriteriaUseCase(
 // Execute performs the list template task criteria operation
 func (uc *ListTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.ListTemplateTaskCriteriasRequest) (*pb.ListTemplateTaskCriteriasResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTemplateTaskCriteria, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.
 func (uc *ListTemplateTaskCriteriaUseCase) executeWithTransaction(ctx context.Context, req *pb.ListTemplateTaskCriteriasRequest) (*pb.ListTemplateTaskCriteriasResponse, error) {
 	var result *pb.ListTemplateTaskCriteriasResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "template_task_criteria.errors.list_failed", "template task criteria listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "template_task_criteria.errors.list_failed", "template task criteria listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListTemplateTaskCriteriaUseCase) executeWithTransaction(ctx context.Co
 func (uc *ListTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, req *pb.ListTemplateTaskCriteriasRequest) (*pb.ListTemplateTaskCriteriasResponse, error) {
 	resp, err := uc.repositories.TemplateTaskCriteria.ListTemplateTaskCriterias(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "template_task_criteria.errors.list_failed", "template task criteria listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.list_failed", "template task criteria listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *ListTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, req 
 // validateInput validates the input request
 func (uc *ListTemplateTaskCriteriaUseCase) validateInput(ctx context.Context, req *pb.ListTemplateTaskCriteriasRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "template_task_criteria.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.validation.request_required", "request is required"))
 	}
 
 	return nil

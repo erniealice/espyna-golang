@@ -23,10 +23,10 @@ type ProcurementRequestRepositories struct {
 // `ApprovalPolicyResolver` is HIGH-5 plumbing — nil falls back to
 // `DefaultRequireApprovalResolver` (fail-safe).
 type ProcurementRequestServices struct {
-	AuthorizationService   ports.AuthorizationService
-	TransactionService     ports.TransactionService
-	TranslationService     ports.TranslationService
-	IDService              ports.IDService
+	Authorizer             ports.Authorizer
+	Transactor             ports.Transactor
+	Translator             ports.Translator
+	IDGenerator            ports.IDGenerator
 	ApprovalPolicyResolver ApprovalPolicyResolver
 }
 
@@ -54,59 +54,59 @@ func NewUseCases(
 		CreateProcurementRequest: NewCreateProcurementRequestUseCase(
 			CreateProcurementRequestRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			CreateProcurementRequestServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadProcurementRequest: NewReadProcurementRequestUseCase(
 			ReadProcurementRequestRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			ReadProcurementRequestServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateProcurementRequest: NewUpdateProcurementRequestUseCase(
 			UpdateProcurementRequestRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			UpdateProcurementRequestServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteProcurementRequest: NewDeleteProcurementRequestUseCase(
 			DeleteProcurementRequestRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			DeleteProcurementRequestServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListProcurementRequests: NewListProcurementRequestsUseCase(
 			ListProcurementRequestsRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			ListProcurementRequestsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		GetProcurementRequestListPageData: NewGetProcurementRequestListPageDataUseCase(
 			GetProcurementRequestListPageDataRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			GetProcurementRequestListPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		GetProcurementRequestItemPageData: NewGetProcurementRequestItemPageDataUseCase(
 			GetProcurementRequestItemPageDataRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			GetProcurementRequestItemPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		SubmitProcurementRequest: NewSubmitProcurementRequestUseCase(
 			SubmitProcurementRequestRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			SubmitProcurementRequestServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ApproveProcurementRequest: NewApproveProcurementRequestUseCase(
@@ -116,26 +116,26 @@ func NewUseCases(
 				SpawnDispatcher:        repositories.SpawnDispatcher,
 			},
 			ApproveProcurementRequestServices{
-				AuthorizationService:   services.AuthorizationService,
-				TransactionService:     services.TransactionService,
-				TranslationService:     services.TranslationService,
-				IDService:              services.IDService,
+				Authorizer:             services.Authorizer,
+				Transactor:             services.Transactor,
+				Translator:             services.Translator,
+				IDGenerator:            services.IDGenerator,
 				ApprovalPolicyResolver: services.ApprovalPolicyResolver,
 			},
 		),
 		RejectProcurementRequest: NewRejectProcurementRequestUseCase(
 			RejectProcurementRequestRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			RejectProcurementRequestServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		SpawnPurchaseOrder: NewSpawnPurchaseOrderUseCase(
 			SpawnPurchaseOrderRepositories{ProcurementRequest: repositories.ProcurementRequest},
 			SpawnPurchaseOrderServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 	}

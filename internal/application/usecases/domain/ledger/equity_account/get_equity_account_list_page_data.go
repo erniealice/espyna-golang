@@ -18,9 +18,9 @@ type GetEquityAccountListPageDataRepositories struct {
 
 // GetEquityAccountListPageDataServices groups all business service dependencies.
 type GetEquityAccountListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetEquityAccountListPageDataUseCase handles the business logic for getting equity account list page data.
@@ -42,13 +42,13 @@ func NewGetEquityAccountListPageDataUseCase(
 
 // Execute performs the get equity account list page data operation.
 func (uc *GetEquityAccountListPageDataUseCase) Execute(ctx context.Context, req *equityaccountpb.GetEquityAccountListPageDataRequest) (*equityaccountpb.GetEquityAccountListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityEquityAccount, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if uc.repositories.EquityAccount == nil {
@@ -57,7 +57,7 @@ func (uc *GetEquityAccountListPageDataUseCase) Execute(ctx context.Context, req 
 
 	resp, err := uc.repositories.EquityAccount.GetEquityAccountListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load equity account list")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load equity account list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

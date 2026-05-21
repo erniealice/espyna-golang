@@ -24,8 +24,8 @@ type ListByRevenueRepositories struct {
 
 // ListByRevenueServices groups service dependencies.
 type ListByRevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListByRevenueRevenueTaxLineUseCase returns all revenue_tax_line rows for a revenue.
@@ -45,12 +45,12 @@ func NewListByRevenueRevenueTaxLineUseCase(
 
 // Execute returns all revenue_tax_line rows for the given revenue.
 func (uc *ListByRevenueRevenueTaxLineUseCase) Execute(ctx context.Context, revenueID string) ([]*revenuetaxlinepb.RevenueTaxLine, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueTaxLine, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if revenueID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.revenue_id_required", "Revenue ID is required [DEFAULT]"))
 	}
 

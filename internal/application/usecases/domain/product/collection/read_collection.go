@@ -18,9 +18,9 @@ type ReadCollectionRepositories struct {
 
 // ReadCollectionServices groups all business service dependencies
 type ReadCollectionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadCollectionUseCase handles the business logic for reading collections
@@ -43,7 +43,7 @@ func NewReadCollectionUseCase(
 // Execute performs the read collection operation
 func (uc *ReadCollectionUseCase) Execute(ctx context.Context, req *collectionpb.ReadCollectionRequest) (*collectionpb.ReadCollectionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollection, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *ReadCollectionUseCase) Execute(ctx context.Context, req *collectionpb.
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection.errors.not_found",
 				map[string]interface{}{"collectionId": req.Data.Id},
 				"Course collection not found [DEFAULT]",
@@ -79,13 +79,13 @@ func (uc *ReadCollectionUseCase) Execute(ctx context.Context, req *collectionpb.
 // validateInput validates the input request
 func (uc *ReadCollectionUseCase) validateInput(ctx context.Context, req *collectionpb.ReadCollectionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.request_required", "Request is required for course collections [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.request_required", "Request is required for course collections [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.data_required", "Course collection data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.data_required", "Course collection data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.id_required", "Course collection ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.id_required", "Course collection ID is required [DEFAULT]"))
 	}
 	return nil
 }

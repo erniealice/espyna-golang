@@ -14,8 +14,8 @@ type TaxAuthorityRepositories struct {
 
 // TaxAuthorityServices groups all business service dependencies.
 type TaxAuthorityServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UseCases contains all tax_authority use cases.
@@ -30,15 +30,15 @@ func NewUseCases(repositories TaxAuthorityRepositories, services TaxAuthoritySer
 		ReadTaxAuthority: NewReadTaxAuthorityUseCase(
 			ReadTaxAuthorityRepositories{TaxAuthority: repositories.TaxAuthority},
 			ReadTaxAuthorityServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListTaxAuthorities: NewListTaxAuthoritiesUseCase(
 			ListTaxAuthoritiesRepositories{TaxAuthority: repositories.TaxAuthority},
 			ListTaxAuthoritiesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

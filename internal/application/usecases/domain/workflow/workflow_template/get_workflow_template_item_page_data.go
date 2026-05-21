@@ -16,9 +16,9 @@ type GetWorkflowTemplateItemPageDataRepositories struct {
 }
 
 type GetWorkflowTemplateItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetWorkflowTemplateItemPageDataUseCase handles the business logic for getting workflow template item page data
@@ -44,7 +44,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) Execute(
 	req *workflow_templatepb.GetWorkflowTemplateItemPageDataRequest,
 ) (*workflow_templatepb.GetWorkflowTemplateItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow_template", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) executeWithTransaction(
 ) (*workflow_templatepb.GetWorkflowTemplateItemPageDataResponse, error) {
 	var result *workflow_templatepb.GetWorkflowTemplateItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workflow_template.errors.item_page_data_failed",
 				"workflow template item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow_template.errors.read_failed",
 			"failed to retrieve workflow template: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow_template.errors.not_found",
 			"workflow template not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) executeCore(
 	if workflowTemplate.Id != req.WorkflowTemplateId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow_template.errors.id_mismatch",
 			"retrieved workflow template ID does not match requested ID",
 		))
@@ -165,7 +165,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow_template.validation.request_required",
 			"request is required",
 		))
@@ -174,7 +174,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) validateInput(
 	if req.WorkflowTemplateId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow_template.validation.id_required",
 			"workflow template ID is required",
 		))
@@ -192,7 +192,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) validateBusinessRules(
 	if len(workflowTemplateId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow_template.validation.id_too_short",
 			"workflow template ID is too short",
 		))

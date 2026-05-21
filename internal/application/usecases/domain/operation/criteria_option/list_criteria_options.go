@@ -16,9 +16,9 @@ type ListCriteriaOptionsRepositories struct {
 }
 
 type ListCriteriaOptionsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListCriteriaOptionsUseCase handles the business logic for listing criteria options
@@ -41,7 +41,7 @@ func NewListCriteriaOptionsUseCase(
 // Execute performs the list criteria options operation
 func (uc *ListCriteriaOptionsUseCase) Execute(ctx context.Context, req *pb.ListCriteriaOptionsRequest) (*pb.ListCriteriaOptionsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCriteriaOption, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListCriteriaOptionsUseCase) Execute(ctx context.Context, req *pb.ListC
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListCriteriaOptionsUseCase) Execute(ctx context.Context, req *pb.ListC
 func (uc *ListCriteriaOptionsUseCase) executeWithTransaction(ctx context.Context, req *pb.ListCriteriaOptionsRequest) (*pb.ListCriteriaOptionsResponse, error) {
 	var result *pb.ListCriteriaOptionsResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "criteria_option.errors.list_failed", "criteria option listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "criteria_option.errors.list_failed", "criteria option listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListCriteriaOptionsUseCase) executeWithTransaction(ctx context.Context
 func (uc *ListCriteriaOptionsUseCase) executeCore(ctx context.Context, req *pb.ListCriteriaOptionsRequest) (*pb.ListCriteriaOptionsResponse, error) {
 	resp, err := uc.repositories.CriteriaOption.ListCriteriaOptions(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_option.errors.list_failed", "criteria option listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_option.errors.list_failed", "criteria option listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *ListCriteriaOptionsUseCase) executeCore(ctx context.Context, req *pb.L
 // validateInput validates the input request
 func (uc *ListCriteriaOptionsUseCase) validateInput(ctx context.Context, req *pb.ListCriteriaOptionsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_option.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_option.validation.request_required", "request is required"))
 	}
 
 	return nil

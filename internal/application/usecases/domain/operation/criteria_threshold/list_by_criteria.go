@@ -16,9 +16,9 @@ type ListByCriteriaRepositories struct {
 }
 
 type ListByCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListByCriteriaUseCase handles the business logic for listing thresholds by criteria
@@ -41,7 +41,7 @@ func NewListByCriteriaUseCase(
 // Execute performs the list by criteria operation
 func (uc *ListByCriteriaUseCase) Execute(ctx context.Context, req *pb.ListCriteriaThresholdsByCriteriaRequest) (*pb.ListCriteriaThresholdsByCriteriaResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCriteriaThreshold, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListByCriteriaUseCase) Execute(ctx context.Context, req *pb.ListCriter
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListByCriteriaUseCase) Execute(ctx context.Context, req *pb.ListCriter
 func (uc *ListByCriteriaUseCase) executeWithTransaction(ctx context.Context, req *pb.ListCriteriaThresholdsByCriteriaRequest) (*pb.ListCriteriaThresholdsByCriteriaResponse, error) {
 	var result *pb.ListCriteriaThresholdsByCriteriaResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "criteria_threshold.errors.list_by_criteria_failed", "criteria threshold listing by criteria failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "criteria_threshold.errors.list_by_criteria_failed", "criteria threshold listing by criteria failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListByCriteriaUseCase) executeWithTransaction(ctx context.Context, req
 func (uc *ListByCriteriaUseCase) executeCore(ctx context.Context, req *pb.ListCriteriaThresholdsByCriteriaRequest) (*pb.ListCriteriaThresholdsByCriteriaResponse, error) {
 	resp, err := uc.repositories.CriteriaThreshold.ListByCriteria(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.errors.list_by_criteria_failed", "failed to list criteria thresholds by criteria: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.errors.list_by_criteria_failed", "failed to list criteria thresholds by criteria: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *ListByCriteriaUseCase) executeCore(ctx context.Context, req *pb.ListCr
 // validateInput validates the input request
 func (uc *ListByCriteriaUseCase) validateInput(ctx context.Context, req *pb.ListCriteriaThresholdsByCriteriaRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.request_required", "request is required"))
 	}
 	if req.OutcomeCriteriaId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.criteria_id_required", "outcome criteria ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.criteria_id_required", "outcome criteria ID is required"))
 	}
 
 	return nil

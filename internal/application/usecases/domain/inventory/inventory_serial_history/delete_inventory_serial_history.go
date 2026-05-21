@@ -18,9 +18,9 @@ type DeleteInventorySerialHistoryRepositories struct {
 
 // DeleteInventorySerialHistoryServices groups all business service dependencies
 type DeleteInventorySerialHistoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteInventorySerialHistoryUseCase handles the business logic for deleting inventory serial history entries
@@ -42,12 +42,12 @@ func NewDeleteInventorySerialHistoryUseCase(
 
 // Execute performs the delete inventory serial history operation
 func (uc *DeleteInventorySerialHistoryUseCase) Execute(ctx context.Context, req *serialhistorypb.DeleteInventorySerialHistoryRequest) (*serialhistorypb.DeleteInventorySerialHistoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInventorySerialHistory, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -55,7 +55,7 @@ func (uc *DeleteInventorySerialHistoryUseCase) Execute(ctx context.Context, req 
 
 func (uc *DeleteInventorySerialHistoryUseCase) executeWithTransaction(ctx context.Context, req *serialhistorypb.DeleteInventorySerialHistoryRequest) (*serialhistorypb.DeleteInventorySerialHistoryResponse, error) {
 	var result *serialhistorypb.DeleteInventorySerialHistoryResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ func (uc *DeleteInventorySerialHistoryUseCase) executeWithTransaction(ctx contex
 		return nil
 	})
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return result, nil
@@ -73,29 +73,29 @@ func (uc *DeleteInventorySerialHistoryUseCase) executeWithTransaction(ctx contex
 func (uc *DeleteInventorySerialHistoryUseCase) executeCore(ctx context.Context, req *serialhistorypb.DeleteInventorySerialHistoryRequest) (*serialhistorypb.DeleteInventorySerialHistoryResponse, error) {
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityInventorySerialHistory, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	resp, err := uc.repositories.InventorySerialHistory.DeleteInventorySerialHistory(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.errors.deletion_failed", "Inventory serial history deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.deletion_failed", "Inventory serial history deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -103,13 +103,13 @@ func (uc *DeleteInventorySerialHistoryUseCase) executeCore(ctx context.Context, 
 
 func (uc *DeleteInventorySerialHistoryUseCase) validateInput(ctx context.Context, req *serialhistorypb.DeleteInventorySerialHistoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.validation.data_required", "Inventory serial history data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.validation.data_required", "Inventory serial history data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_serial_history.validation.id_required", "Inventory serial history ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.validation.id_required", "Inventory serial history ID is required [DEFAULT]"))
 	}
 	return nil
 }

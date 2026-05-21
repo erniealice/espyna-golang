@@ -30,12 +30,12 @@ func NewDeleteProductPricePlanUseCase(
 
 // Execute performs the delete product price plan operation
 func (uc *DeleteProductPricePlanUseCase) Execute(ctx context.Context, req *productpriceplanpb.DeleteProductPricePlanRequest) (*productpriceplanpb.DeleteProductPricePlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -44,7 +44,7 @@ func (uc *DeleteProductPricePlanUseCase) Execute(ctx context.Context, req *produ
 
 func (uc *DeleteProductPricePlanUseCase) executeWithTransaction(ctx context.Context, req *productpriceplanpb.DeleteProductPricePlanRequest) (*productpriceplanpb.DeleteProductPricePlanResponse, error) {
 	var result *productpriceplanpb.DeleteProductPricePlanResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -54,7 +54,7 @@ func (uc *DeleteProductPricePlanUseCase) executeWithTransaction(ctx context.Cont
 	})
 
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -75,13 +75,13 @@ func (uc *DeleteProductPricePlanUseCase) executeCore(ctx context.Context, req *p
 
 func (uc *DeleteProductPricePlanUseCase) validateInput(ctx context.Context, req *productpriceplanpb.DeleteProductPricePlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.data_required", "Product price plan data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.validation.data_required", "Product price plan data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.id_required", "Product price plan ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.validation.id_required", "Product price plan ID is required [DEFAULT]"))
 	}
 	return nil
 }

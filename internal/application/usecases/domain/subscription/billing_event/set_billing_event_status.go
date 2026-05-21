@@ -17,9 +17,9 @@ type SetBillingEventStatusRepositories struct {
 
 // SetBillingEventStatusServices groups infra services.
 type SetBillingEventStatusServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // SetBillingEventStatusUseCase wraps the proto-domain SetStatus RPC behind a
@@ -44,16 +44,16 @@ func NewSetBillingEventStatusUseCase(
 func (uc *SetBillingEventStatusUseCase) Execute(
 	ctx context.Context, req *billingeventpb.SetBillingEventStatusRequest,
 ) (*billingeventpb.SetBillingEventStatusResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"billing_event", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"billing_event.validation.request_required", "request is required"))
 	}
 	if uc.repositories.BillingEvent == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"billing_event.errors.repository_unavailable", "billing event repository not configured"))
 	}
 	return uc.repositories.BillingEvent.SetStatus(ctx, req)

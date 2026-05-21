@@ -20,10 +20,10 @@ type CreateCollectionRepositories struct {
 
 // CreateCollectionServices groups all business service dependencies
 type CreateCollectionServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Transaction management
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Transaction management
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateCollectionUseCase handles the business logic for creating collections
@@ -46,13 +46,13 @@ func NewCreateCollectionUseCase(
 // Execute performs the create collection operation
 func (uc *CreateCollectionUseCase) Execute(ctx context.Context, req *collectionpb.CreateCollectionRequest) (*collectionpb.CreateCollectionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollection, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *CreateCollectionUseCase) Execute(ctx context.Context, req *collectionp
 func (uc *CreateCollectionUseCase) executeWithTransaction(ctx context.Context, req *collectionpb.CreateCollectionRequest) (*collectionpb.CreateCollectionResponse, error) {
 	var result *collectionpb.CreateCollectionResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "collection.errors.creation_failed", "Collection creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "collection.errors.creation_failed", "Collection creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -85,18 +85,18 @@ func (uc *CreateCollectionUseCase) executeCore(ctx context.Context, req *collect
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityCollection, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -122,13 +122,13 @@ func (uc *CreateCollectionUseCase) executeCore(ctx context.Context, req *collect
 // validateInput validates the input request
 func (uc *CreateCollectionUseCase) validateInput(ctx context.Context, req *collectionpb.CreateCollectionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.request_required", "Request is required for collections [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.request_required", "Request is required for collections [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.data_required", "Collection data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.data_required", "Collection data is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.name_required", "Collection name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.name_required", "Collection name is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -139,7 +139,7 @@ func (uc *CreateCollectionUseCase) enrichCollectionData(collection *collectionpb
 
 	// Generate Collection ID if not provided
 	if collection.Id == "" {
-		collection.Id = uc.services.IDService.GenerateID()
+		collection.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -157,18 +157,18 @@ func (uc *CreateCollectionUseCase) validateBusinessRules(ctx context.Context, co
 	// Validate collection name length
 	name := strings.TrimSpace(collection.Name)
 	if len(name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.name_too_short", "Collection name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.name_too_short", "Collection name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.name_too_long", "Collection name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.name_too_long", "Collection name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate description length if provided
 	if collection.Description != "" {
 		description := strings.TrimSpace(collection.Description)
 		if len(description) > 500 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.description_too_long", "Collection description cannot exceed 500 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.description_too_long", "Collection description cannot exceed 500 characters [DEFAULT]"))
 		}
 	}
 

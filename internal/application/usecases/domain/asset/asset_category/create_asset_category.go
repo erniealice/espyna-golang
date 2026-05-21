@@ -22,10 +22,10 @@ type CreateAssetCategoryRepositories struct {
 
 // CreateAssetCategoryServices groups all business service dependencies
 type CreateAssetCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateAssetCategoryUseCase handles the business logic for creating asset categories
@@ -53,10 +53,10 @@ func NewCreateAssetCategoryUseCaseUngrouped(assetCategoryRepo assetcategorypb.As
 	}
 
 	services := CreateAssetCategoryServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateAssetCategoryUseCase(repositories, services)
@@ -65,13 +65,13 @@ func NewCreateAssetCategoryUseCaseUngrouped(assetCategoryRepo assetcategorypb.As
 // Execute performs the create asset category operation
 func (uc *CreateAssetCategoryUseCase) Execute(ctx context.Context, req *assetcategorypb.CreateAssetCategoryRequest) (*assetcategorypb.CreateAssetCategoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetCategory, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -83,10 +83,10 @@ func (uc *CreateAssetCategoryUseCase) Execute(ctx context.Context, req *assetcat
 func (uc *CreateAssetCategoryUseCase) executeWithTransaction(ctx context.Context, req *assetcategorypb.CreateAssetCategoryRequest) (*assetcategorypb.CreateAssetCategoryResponse, error) {
 	var result *assetcategorypb.CreateAssetCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "asset_category.errors.creation_failed", "Asset category creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "asset_category.errors.creation_failed", "Asset category creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -123,10 +123,10 @@ func (uc *CreateAssetCategoryUseCase) executeCore(ctx context.Context, req *asse
 // validateInput validates the input request
 func (uc *CreateAssetCategoryUseCase) validateInput(ctx context.Context, req *assetcategorypb.CreateAssetCategoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.data_required", "[ERR-DEFAULT] Asset category data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.data_required", "[ERR-DEFAULT] Asset category data is required"))
 	}
 
 	// Trim leading and trailing spaces
@@ -138,10 +138,10 @@ func (uc *CreateAssetCategoryUseCase) validateInput(ctx context.Context, req *as
 	}
 
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.name_required", "[ERR-DEFAULT] Name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.name_required", "[ERR-DEFAULT] Name is required"))
 	}
 	if req.Data.Code == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.code_required", "[ERR-DEFAULT] Code is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.code_required", "[ERR-DEFAULT] Code is required"))
 	}
 	return nil
 }
@@ -152,7 +152,7 @@ func (uc *CreateAssetCategoryUseCase) enrichAssetCategoryData(category *assetcat
 
 	// Generate AssetCategory ID if not provided
 	if category.Id == "" {
-		category.Id = uc.services.IDService.GenerateID()
+		category.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -169,27 +169,27 @@ func (uc *CreateAssetCategoryUseCase) enrichAssetCategoryData(category *assetcat
 func (uc *CreateAssetCategoryUseCase) validateBusinessRules(ctx context.Context, category *assetcategorypb.AssetCategory) error {
 	// Validate name length
 	if len(category.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 100 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 100 characters"))
 	}
 
 	// Validate code length
 	if len(category.Code) > 50 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.code_too_long", "[ERR-DEFAULT] Code must not exceed 50 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.code_too_long", "[ERR-DEFAULT] Code must not exceed 50 characters"))
 	}
 
 	// Validate description length if provided
 	if category.Description != nil && len(*category.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 1000 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 1000 characters"))
 	}
 
 	// Validate default salvage value percent is between 0 and 100
 	if category.DefaultSalvageValuePercent < 0 || category.DefaultSalvageValuePercent > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.salvage_percent_invalid", "[ERR-DEFAULT] Default salvage value percent must be between 0 and 100"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.salvage_percent_invalid", "[ERR-DEFAULT] Default salvage value percent must be between 0 and 100"))
 	}
 
 	// Validate default useful life months is not negative
 	if category.DefaultUsefulLifeMonths < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset_category.validation.useful_life_negative", "[ERR-DEFAULT] Default useful life months must not be negative"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset_category.validation.useful_life_negative", "[ERR-DEFAULT] Default useful life months must not be negative"))
 	}
 
 	return nil

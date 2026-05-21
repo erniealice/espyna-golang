@@ -19,9 +19,9 @@ type DeleteEventAttributeRepositories struct {
 
 // DeleteEventAttributeServices groups all business service dependencies
 type DeleteEventAttributeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteEventAttributeUseCase handles the business logic for deleting event attributes
@@ -44,13 +44,13 @@ func NewDeleteEventAttributeUseCase(
 // Execute performs the delete event attribute operation
 func (uc *DeleteEventAttributeUseCase) Execute(ctx context.Context, req *eventattributepb.DeleteEventAttributeRequest) (*eventattributepb.DeleteEventAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -61,7 +61,7 @@ func (uc *DeleteEventAttributeUseCase) Execute(ctx context.Context, req *eventat
 // executeWithTransaction executes event attribute deletion within a transaction
 func (uc *DeleteEventAttributeUseCase) executeWithTransaction(ctx context.Context, req *eventattributepb.DeleteEventAttributeRequest) (*eventattributepb.DeleteEventAttributeResponse, error) {
 	var result *eventattributepb.DeleteEventAttributeResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -71,7 +71,7 @@ func (uc *DeleteEventAttributeUseCase) executeWithTransaction(ctx context.Contex
 	})
 
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -83,37 +83,37 @@ func (uc *DeleteEventAttributeUseCase) executeCore(ctx context.Context, req *eve
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventAttribute, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.EventAttribute.DeleteEventAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.deletion_failed", "Event attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.deletion_failed", "Event attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -122,13 +122,13 @@ func (uc *DeleteEventAttributeUseCase) executeCore(ctx context.Context, req *eve
 // validateInput validates the input request
 func (uc *DeleteEventAttributeUseCase) validateInput(ctx context.Context, req *eventattributepb.DeleteEventAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.data_required", "Event attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.data_required", "Event attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.id_required", "Event attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.id_required", "Event attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func (uc *DeleteEventAttributeUseCase) validateBusinessRules(ctx context.Context
 	// Additional business rule validation can be added here
 	// For example: check if event attribute is referenced by other entities
 	if uc.isEventAttributeInUse(ctx, req.Data.EventId, req.Data.AttributeId) {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.in_use", "Event attribute is currently in use and cannot be deleted [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.in_use", "Event attribute is currently in use and cannot be deleted [DEFAULT]"))
 	}
 	return nil
 }

@@ -17,9 +17,9 @@ type GetEventOccurrenceItemPageDataRepositories struct {
 
 // GetEventOccurrenceItemPageDataServices groups all business service dependencies
 type GetEventOccurrenceItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetEventOccurrenceItemPageDataUseCase handles the business logic for getting event occurrence item page data
@@ -42,7 +42,7 @@ func NewGetEventOccurrenceItemPageDataUseCase(
 // Execute performs the get event occurrence item page data operation
 func (uc *GetEventOccurrenceItemPageDataUseCase) Execute(ctx context.Context, req *eventoccurrencepb.GetEventOccurrenceItemPageDataRequest) (*eventoccurrencepb.GetEventOccurrenceItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventOccurrence, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *GetEventOccurrenceItemPageDataUseCase) validateInput(ctx context.Conte
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_occurrence.validation.request_required",
 			"request is required",
 		))
@@ -70,7 +70,7 @@ func (uc *GetEventOccurrenceItemPageDataUseCase) validateInput(ctx context.Conte
 	if req.EventOccurrenceId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_occurrence.validation.id_required",
 			"event occurrence ID is required",
 		))

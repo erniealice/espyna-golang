@@ -18,9 +18,9 @@ type GetPriceListItemPageDataRepositories struct {
 }
 
 type GetPriceListItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPriceListItemPageDataUseCase handles the business logic for getting price list item page data
@@ -46,7 +46,7 @@ func (uc *GetPriceListItemPageDataUseCase) Execute(
 	req *pricelistpb.GetPriceListItemPageDataRequest,
 ) (*pricelistpb.GetPriceListItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceList, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *GetPriceListItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -77,12 +77,12 @@ func (uc *GetPriceListItemPageDataUseCase) executeWithTransaction(
 ) (*pricelistpb.GetPriceListItemPageDataResponse, error) {
 	var result *pricelistpb.GetPriceListItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"price_list.errors.item_page_data_failed",
 				"price list item page data retrieval failed: %w",
 			), err)
@@ -114,7 +114,7 @@ func (uc *GetPriceListItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.errors.read_failed",
 			"failed to retrieve price list: %w",
 		), err)
@@ -123,7 +123,7 @@ func (uc *GetPriceListItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.errors.not_found",
 			"price list not found",
 		))
@@ -136,7 +136,7 @@ func (uc *GetPriceListItemPageDataUseCase) executeCore(
 	if priceList.Id != req.PriceListId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.errors.id_mismatch",
 			"retrieved price list ID does not match requested ID",
 		))
@@ -148,7 +148,7 @@ func (uc *GetPriceListItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.errors.price_products_failed",
 			"failed to retrieve price products for price list: %w",
 		), err)
@@ -179,7 +179,7 @@ func (uc *GetPriceListItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.validation.request_required",
 			"request is required",
 		))
@@ -188,7 +188,7 @@ func (uc *GetPriceListItemPageDataUseCase) validateInput(
 	if req.PriceListId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.validation.id_required",
 			"price list ID is required",
 		))
@@ -205,7 +205,7 @@ func (uc *GetPriceListItemPageDataUseCase) validateBusinessRules(
 	if len(priceListId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.validation.id_too_short",
 			"price list ID is too short",
 		))

@@ -34,9 +34,9 @@ func createTestUpdateRolePermissionUseCase(businessType string) *UpdateRolePermi
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := UpdateRolePermissionServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateRolePermissionUseCase(repositories, services)
@@ -53,9 +53,9 @@ func TestUpdateRolePermissionUseCase_Execute_Success(t *testing.T) {
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := UpdateRolePermissionServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	useCase := NewUpdateRolePermissionUseCase(repositories, services)

@@ -20,10 +20,10 @@ type CreateDelegateRepositories struct {
 
 // CreateDelegateServices groups all business service dependencies
 type CreateDelegateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateDelegateUseCase handles the business logic for creating delegates
@@ -52,10 +52,10 @@ func NewCreateDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 	}
 
 	services := CreateDelegateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateDelegateUseCase(repositories, services)
@@ -64,13 +64,13 @@ func NewCreateDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 // Execute performs the create delegate operation
 func (uc *CreateDelegateUseCase) Execute(ctx context.Context, req *delegatepb.CreateDelegateRequest) (*delegatepb.CreateDelegateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegate, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *CreateDelegateUseCase) Execute(ctx context.Context, req *delegatepb.Cr
 func (uc *CreateDelegateUseCase) executeWithTransaction(ctx context.Context, req *delegatepb.CreateDelegateRequest) (*delegatepb.CreateDelegateResponse, error) {
 	var result *delegatepb.CreateDelegateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "delegate.errors.creation_failed", "Delegate creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "delegate.errors.creation_failed", "Delegate creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -122,22 +122,22 @@ func (uc *CreateDelegateUseCase) executeCore(ctx context.Context, req *delegatep
 // validateInput validates the input request
 func (uc *CreateDelegateUseCase) validateInput(ctx context.Context, req *delegatepb.CreateDelegateRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.request_required", "Request is required for delegates [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.request_required", "Request is required for delegates [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.data_required", "Delegate data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.data_required", "Delegate data is required [DEFAULT]"))
 	}
 	if req.Data.User == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.user_data_required", "Delegate user data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.user_data_required", "Delegate user data is required [DEFAULT]"))
 	}
 	if req.Data.User.FirstName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.first_name_required", "Delegate first name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.first_name_required", "Delegate first name is required [DEFAULT]"))
 	}
 	if req.Data.User.LastName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.last_name_required", "Delegate last name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.last_name_required", "Delegate last name is required [DEFAULT]"))
 	}
 	if req.Data.User.EmailAddress == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.email_required", "Delegate email address is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.email_required", "Delegate email address is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -148,12 +148,12 @@ func (uc *CreateDelegateUseCase) enrichDelegateData(delegate *delegatepb.Delegat
 
 	// Generate Delegate ID if not provided
 	if delegate.Id == "" {
-		delegate.Id = uc.services.IDService.GenerateID()
+		delegate.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Generate User ID if not provided
 	if delegate.User != nil && delegate.User.Id == "" {
-		delegate.User.Id = uc.services.IDService.GenerateID()
+		delegate.User.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set delegate audit fields
@@ -181,31 +181,31 @@ func (uc *CreateDelegateUseCase) enrichDelegateData(delegate *delegatepb.Delegat
 // validateBusinessRules enforces business constraints
 func (uc *CreateDelegateUseCase) validateBusinessRules(ctx context.Context, delegate *delegatepb.Delegate) error {
 	if delegate.User == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.user_data_required", "User data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.user_data_required", "User data is required [DEFAULT]"))
 	}
 
 	// Validate email format
 	if err := uc.validateEmail(delegate.User.EmailAddress); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.email_invalid", "Invalid email format [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.email_invalid", "Invalid email format [DEFAULT]"))
 	}
 
 	// Validate name length
 	fullName := delegate.User.FirstName + " " + delegate.User.LastName
 	if len(fullName) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.full_name_too_short", "Delegate full name must be at least 3 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.full_name_too_short", "Delegate full name must be at least 3 characters long [DEFAULT]"))
 	}
 
 	if len(fullName) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.full_name_too_long", "Delegate full name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.full_name_too_long", "Delegate full name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate individual name parts
 	if len(delegate.User.FirstName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
 	}
 
 	if len(delegate.User.LastName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
 	}
 
 	return nil

@@ -17,9 +17,9 @@ type ListPlanAttributesRepositories struct {
 
 // ListPlanAttributesServices groups all business service dependencies
 type ListPlanAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListPlanAttributesUseCase handles the business logic for listing plan attributes
@@ -42,7 +42,7 @@ func NewListPlanAttributesUseCase(
 // Execute performs the list plan attributes operation
 func (uc *ListPlanAttributesUseCase) Execute(ctx context.Context, req *planattributepb.ListPlanAttributesRequest) (*planattributepb.ListPlanAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlanAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *ListPlanAttributesUseCase) Execute(ctx context.Context, req *planattri
 // validateInput validates the input request
 func (uc *ListPlanAttributesUseCase) validateInput(ctx context.Context, req *planattributepb.ListPlanAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return nil
 }

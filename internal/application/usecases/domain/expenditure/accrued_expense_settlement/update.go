@@ -18,8 +18,8 @@ type UpdateAccruedExpenseSettlementRepositories struct {
 
 // UpdateAccruedExpenseSettlementServices groups service dependencies.
 type UpdateAccruedExpenseSettlementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UpdateAccruedExpenseSettlementUseCase handles updating a settlement.
@@ -38,12 +38,12 @@ func NewUpdateAccruedExpenseSettlementUseCase(
 
 // Execute performs the update operation.
 func (uc *UpdateAccruedExpenseSettlementUseCase) Execute(ctx context.Context, req *accruedexpensepb.UpdateAccruedExpenseSettlementRequest) (*accruedexpensepb.UpdateAccruedExpenseSettlementResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpenseSettlement, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense_settlement.validation.id_required", "Settlement ID is required [DEFAULT]"))
 	}
 	now := time.Now()

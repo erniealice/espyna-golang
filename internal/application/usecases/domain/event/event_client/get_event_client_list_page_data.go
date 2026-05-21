@@ -21,9 +21,9 @@ type GetEventClientListPageDataRepositories struct {
 
 // GetEventClientListPageDataServices groups all business service dependencies
 type GetEventClientListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // GetEventClientListPageDataUseCase handles the business logic for getting event client list page data
@@ -46,7 +46,7 @@ func NewGetEventClientListPageDataUseCase(
 // Execute performs the get event client list page data operation
 func (uc *GetEventClientListPageDataUseCase) Execute(ctx context.Context, req *eventclientpb.GetEventClientListPageDataRequest) (*eventclientpb.GetEventClientListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventClient, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -54,18 +54,18 @@ func (uc *GetEventClientListPageDataUseCase) Execute(ctx context.Context, req *e
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventClient, ports.ActionList)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
 		return nil, errors.New(translatedError)
 	}
 

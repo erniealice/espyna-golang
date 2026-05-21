@@ -36,10 +36,10 @@ type CustomizePlanForClientRepositories struct {
 
 // CustomizePlanForClientServices groups all business service dependencies.
 type CustomizePlanForClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CustomizePlanForClientRequest carries the inputs to the customize flow.
@@ -70,7 +70,7 @@ type CustomizePlanForClientResponse struct {
 // The entire 8-step flow (read source → resolve-or-create schedule → insert
 // Plan → ProductPlan rows + remap → PricePlan → ProductPricePlan rows with
 // remap → optional subscription repoint) runs in a single
-// TransactionService.ExecuteInTransaction.
+// Transactor.ExecuteInTransaction.
 type CustomizePlanForClientUseCase struct {
 	repositories CustomizePlanForClientRepositories
 	services     CustomizePlanForClientServices
@@ -98,11 +98,11 @@ func (uc *CustomizePlanForClientUseCase) Execute(
 	// Authorization — revenue:create OR (plan:create + price_plan:create).
 	// We require both plan:create AND price_plan:create; revenue:create is
 	// not consulted here because the use case never writes Revenue rows.
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlan, ports.ActionCreate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -124,9 +124,9 @@ func (uc *CustomizePlanForClientUseCase) Execute(
 	// every insert (including a freshly-created PriceSchedule), preventing
 	// orphan rows.
 	var coreResult *CustomizePlanForClientResponse
-	if uc.services.TransactionService != nil &&
-		uc.services.TransactionService.SupportsTransactions() {
-		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	if uc.services.Transactor != nil &&
+		uc.services.Transactor.SupportsTransactions() {
+		if err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, internalReq)
 			if execErr != nil {
 				return execErr
@@ -171,28 +171,28 @@ func wrapCustomizePlanResponse(r *CustomizePlanForClientResponse) *planpb.Custom
 func (uc *CustomizePlanForClientUseCase) validateInput(ctx context.Context, req *CustomizePlanForClientRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"plan.validation.request_required",
 			"request is required [DEFAULT]",
 		))
 	}
 	if req.SourcePlanID == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"plan.validation.source_plan_id_required",
 			"source plan ID is required [DEFAULT]",
 		))
 	}
 	if req.SourcePricePlanID == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"plan.validation.source_price_plan_id_required",
 			"source price plan ID is required [DEFAULT]",
 		))
 	}
 	if req.ClientID == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"plan.validation.client_id_required",
 			"client ID is required [DEFAULT]",
 		))
@@ -219,7 +219,7 @@ func (uc *CustomizePlanForClientUseCase) executeCore(
 	// 2. Defense — sourcePricePlan.plan_id MUST match sourcePlan.id.
 	if sourcePricePlan.GetPlanId() != sourcePlan.GetId() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"plan.errors.source_mismatch",
 			"source price plan does not belong to source plan [DEFAULT]",
 		))
@@ -229,7 +229,7 @@ func (uc *CustomizePlanForClientUseCase) executeCore(
 	// rather than producing a duplicate clone (per plan §11 risk row).
 	if sourcePricePlan.GetClientId() != "" && sourcePricePlan.GetClientId() == req.ClientID {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"plan.errors.already_customized",
 			"this package is already customized for the target client [DEFAULT]",
 		))
@@ -250,7 +250,7 @@ func (uc *CustomizePlanForClientUseCase) executeCore(
 		}
 		if existingSub.GetClientId() != req.ClientID {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-				ctx, uc.services.TranslationService,
+				ctx, uc.services.Translator,
 				"plan.errors.subscription_client_mismatch",
 				"subscription belongs to a different client [DEFAULT]",
 			))
@@ -270,7 +270,7 @@ func (uc *CustomizePlanForClientUseCase) executeCore(
 	resolvedSchedule, reused, err := ResolveOrCreateClientPriceSchedule(
 		ctx,
 		&ResolveOrCreateClientScheduleRepos{PriceSchedule: uc.repositories.PriceSchedule},
-		uc.services.IDService,
+		uc.services.IDGenerator,
 		workspaceID,
 		scheduleLocationID(sourceSchedule),
 		req.ClientID,
@@ -334,7 +334,7 @@ func (uc *CustomizePlanForClientUseCase) readPlan(ctx context.Context, id string
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"plan.errors.not_found",
 			"plan not found [DEFAULT]",
 		))
@@ -348,7 +348,7 @@ func (uc *CustomizePlanForClientUseCase) readPricePlan(ctx context.Context, id s
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"price_plan.errors.not_found",
 			"price plan not found [DEFAULT]",
 		))
@@ -362,14 +362,14 @@ func (uc *CustomizePlanForClientUseCase) readClient(ctx context.Context, id stri
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"client.errors.not_found",
 			"client not found [DEFAULT]",
 		))
 	}
 	if !resp.GetData()[0].GetActive() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"client.errors.not_active",
 			"client is not active [DEFAULT]",
 		))
@@ -383,7 +383,7 @@ func (uc *CustomizePlanForClientUseCase) readSubscription(ctx context.Context, i
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.not_found",
 			"subscription not found [DEFAULT]",
 		))
@@ -593,8 +593,8 @@ func (uc *CustomizePlanForClientUseCase) cloneProductPricePlans(
 }
 
 func (uc *CustomizePlanForClientUseCase) generateID() string {
-	if uc.services.IDService != nil {
-		return uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		return uc.services.IDGenerator.GenerateID()
 	}
 	return fmt.Sprintf("custom-%d", time.Now().UnixNano())
 }

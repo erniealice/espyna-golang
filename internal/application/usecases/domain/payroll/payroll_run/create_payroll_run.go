@@ -26,10 +26,10 @@ func newCreatePayrollRunRepositories(r Repositories) CreatePayrollRunRepositorie
 
 // CreatePayrollRunServices groups all business service dependencies.
 type CreatePayrollRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePayrollRunUseCase handles the business logic for creating a payroll run.
@@ -52,12 +52,12 @@ func NewCreatePayrollRunUseCase(
 // Execute performs the create payroll run operation.
 func (uc *CreatePayrollRunUseCase) Execute(ctx context.Context, req *payrollrunpb.CreatePayrollRunRequest) (*payrollrunpb.CreatePayrollRunResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPayrollRun, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -67,10 +67,10 @@ func (uc *CreatePayrollRunUseCase) Execute(ctx context.Context, req *payrollrunp
 func (uc *CreatePayrollRunUseCase) executeWithTransaction(ctx context.Context, req *payrollrunpb.CreatePayrollRunRequest) (*payrollrunpb.CreatePayrollRunResponse, error) {
 	var result *payrollrunpb.CreatePayrollRunResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "payroll_run.errors.creation_failed", "Payroll run creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "payroll_run.errors.creation_failed", "Payroll run creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -104,16 +104,16 @@ func (uc *CreatePayrollRunUseCase) executeCore(ctx context.Context, req *payroll
 
 func (uc *CreatePayrollRunUseCase) validateInput(ctx context.Context, req *payrollrunpb.CreatePayrollRunRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.data_required", "[ERR-DEFAULT] Payroll run data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.data_required", "[ERR-DEFAULT] Payroll run data is required"))
 	}
 	if req.Data.PayPeriodStart == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.pay_period_start_required", "[ERR-DEFAULT] Pay period start date is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.pay_period_start_required", "[ERR-DEFAULT] Pay period start date is required"))
 	}
 	if req.Data.PayPeriodEnd == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.pay_period_end_required", "[ERR-DEFAULT] Pay period end date is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.pay_period_end_required", "[ERR-DEFAULT] Pay period end date is required"))
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func (uc *CreatePayrollRunUseCase) enrichPayrollRunData(run *payrollrunpb.Payrol
 	now := time.Now()
 
 	if run.Id == "" {
-		run.Id = uc.services.IDService.GenerateID()
+		run.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Default status: Draft
@@ -139,7 +139,7 @@ func (uc *CreatePayrollRunUseCase) enrichPayrollRunData(run *payrollrunpb.Payrol
 func (uc *CreatePayrollRunUseCase) validateBusinessRules(ctx context.Context, run *payrollrunpb.PayrollRun) error {
 	// Pay period end must be after pay period start
 	if run.PayPeriodEnd != "" && run.PayPeriodStart != "" && run.PayPeriodEnd <= run.PayPeriodStart {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.pay_period_end_before_start", "[ERR-DEFAULT] Pay period end must be after pay period start"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.pay_period_end_before_start", "[ERR-DEFAULT] Pay period end must be after pay period start"))
 	}
 	return nil
 }

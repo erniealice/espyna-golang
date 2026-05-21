@@ -19,9 +19,9 @@ type UpdateJobTemplateRepositories struct {
 
 // UpdateJobTemplateServices groups all business service dependencies
 type UpdateJobTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateJobTemplateUseCase handles the business logic for updating job templates
@@ -44,7 +44,7 @@ func NewUpdateJobTemplateUseCase(
 // Execute performs the update job template operation
 func (uc *UpdateJobTemplateUseCase) Execute(ctx context.Context, req *pb.UpdateJobTemplateRequest) (*pb.UpdateJobTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job_template", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (uc *UpdateJobTemplateUseCase) Execute(ctx context.Context, req *pb.UpdateJ
 	// Call repository
 	_, err := uc.repositories.JobTemplate.UpdateJobTemplate(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.errors.update_failed", "job template update failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.errors.update_failed", "job template update failed [DEFAULT]"))
 	}
 
 	return &pb.UpdateJobTemplateResponse{
@@ -77,10 +77,10 @@ func (uc *UpdateJobTemplateUseCase) Execute(ctx context.Context, req *pb.UpdateJ
 // validateInput validates the input request
 func (uc *UpdateJobTemplateUseCase) validateInput(ctx context.Context, req *pb.UpdateJobTemplateRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.request_required", "request is required"))
 	}
 	if req.Data == nil || req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.id_required", "job template ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.id_required", "job template ID is required"))
 	}
 	return nil
 }
@@ -97,10 +97,10 @@ func (uc *UpdateJobTemplateUseCase) enrichData(data *pb.JobTemplate) {
 // validateBusinessRules enforces business constraints
 func (uc *UpdateJobTemplateUseCase) validateBusinessRules(ctx context.Context, data *pb.JobTemplate) error {
 	if strings.TrimSpace(data.Name) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.name_required", "job template name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.name_required", "job template name is required"))
 	}
 	if len(data.Name) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.name_too_long", "job template name cannot exceed 200 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.name_too_long", "job template name cannot exceed 200 characters"))
 	}
 	return nil
 }

@@ -22,9 +22,9 @@ type SettleUnscheduledAdvanceRepositories struct {
 
 // SettleUnscheduledAdvanceServices groups infra services.
 type SettleUnscheduledAdvanceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // SettleUnscheduledAdvanceUseCase records the settlement and flips status.
@@ -58,28 +58,28 @@ func (uc *SettleUnscheduledAdvanceUseCase) Execute(
 	if req == nil {
 		req = &collectionpb.SettleUnscheduledAdvanceCollectionRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTreasuryCollection, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryCollectionId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.validation.id_required",
 			"treasury_collection_id is required [DEFAULT]",
 		))
 	}
 	if req.GetAmount() <= 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.validation.settle_amount_required",
 			"settle amount must be > 0 [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *collectionpb.SettleUnscheduledAdvanceCollectionResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return execErr
@@ -107,7 +107,7 @@ func (uc *SettleUnscheduledAdvanceUseCase) executeCore(
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.not_found",
 			"treasury_collection not found [DEFAULT]",
 		))
@@ -116,7 +116,7 @@ func (uc *SettleUnscheduledAdvanceUseCase) executeCore(
 
 	if adv.GetAdvanceKind() != advancekindpb.AdvanceKind_ADVANCE_KIND_UNSCHEDULED {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.settle_requires_unscheduled",
 			"settle is only valid for advance_kind=UNSCHEDULED [DEFAULT]",
 		))
@@ -124,7 +124,7 @@ func (uc *SettleUnscheduledAdvanceUseCase) executeCore(
 	if adv.GetAdvanceStatus() != advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE &&
 		adv.GetAdvanceStatus() != advancekindpb.AdvanceStatus_ADVANCE_STATUS_PARTIALLY_SETTLED {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.settle_requires_active_or_partial",
 			"settle requires advance_status=ACTIVE or PARTIALLY_SETTLED [DEFAULT]",
 		))
@@ -133,7 +133,7 @@ func (uc *SettleUnscheduledAdvanceUseCase) executeCore(
 	remaining := adv.GetAdvanceRemainingAmount()
 	if req.GetAmount() > remaining {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.settle_amount_exceeds_remaining",
 			"settle amount exceeds advance_remaining_amount [DEFAULT]",
 		))

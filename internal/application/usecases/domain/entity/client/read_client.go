@@ -18,9 +18,9 @@ type ReadClientRepositories struct {
 
 // ReadClientServices groups all business service dependencies
 type ReadClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadClientUseCase handles the business logic for reading a client
@@ -49,9 +49,9 @@ func NewReadClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServer
 	}
 
 	services := ReadClientServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadClientUseCase(repositories, services)
@@ -60,18 +60,18 @@ func NewReadClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServer
 // Execute performs the read client operation
 func (uc *ReadClientUseCase) Execute(ctx context.Context, req *clientpb.ReadClientRequest) (*clientpb.ReadClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.id_required", "Client ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.id_required", "Client ID is required [DEFAULT]"))
 	}
 
 	// Call repository
@@ -82,7 +82,7 @@ func (uc *ReadClientUseCase) Execute(ctx context.Context, req *clientpb.ReadClie
 
 	// Not found error
 	if len(resp.Data) == 0 || resp.Data[0].Id == "" { // Assuming resp.Data will be nil or have empty ID if not found
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.errors.not_found", "Client with ID \"{clientId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.not_found", "Client with ID \"{clientId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{clientId}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}

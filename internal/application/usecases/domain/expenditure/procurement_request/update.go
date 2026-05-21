@@ -17,8 +17,8 @@ type UpdateProcurementRequestRepositories struct {
 
 // UpdateProcurementRequestServices groups service dependencies.
 type UpdateProcurementRequestServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UpdateProcurementRequestUseCase handles updating a procurement request.
@@ -37,12 +37,12 @@ func NewUpdateProcurementRequestUseCase(
 
 // Execute performs the update procurement request operation.
 func (uc *UpdateProcurementRequestUseCase) Execute(ctx context.Context, req *procurementrequestpb.UpdateProcurementRequestRequest) (*procurementrequestpb.UpdateProcurementRequestResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequest, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.validation.id_required", "Procurement request ID is required [DEFAULT]"))
 	}
 	return uc.repositories.ProcurementRequest.UpdateProcurementRequest(ctx, req)

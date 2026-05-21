@@ -17,9 +17,9 @@ type GetSubscriptionListPageDataRepositories struct {
 }
 
 type GetSubscriptionListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSubscriptionListPageDataUseCase handles the business logic for getting subscription list page data
@@ -45,7 +45,7 @@ func (uc *GetSubscriptionListPageDataUseCase) Execute(
 	req *subscriptionpb.GetSubscriptionListPageDataRequest,
 ) (*subscriptionpb.GetSubscriptionListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *GetSubscriptionListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -71,12 +71,12 @@ func (uc *GetSubscriptionListPageDataUseCase) executeWithTransaction(
 ) (*subscriptionpb.GetSubscriptionListPageDataResponse, error) {
 	var result *subscriptionpb.GetSubscriptionListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.errors.list_page_data_failed",
 				"subscription list page data retrieval failed: %w",
 			), err)
@@ -102,7 +102,7 @@ func (uc *GetSubscriptionListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.errors.list_page_data_failed",
 			"failed to retrieve subscription list page data: %w",
 		), err)
@@ -118,7 +118,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.request_required",
 			"request is required",
 		))
@@ -163,7 +163,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))
@@ -175,7 +175,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validatePagination(
 		if method.Offset.Page < 1 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.validation.invalid_page",
 				"page number must be greater than 0",
 			))
@@ -185,7 +185,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validatePagination(
 		if method.Cursor.Token == "" {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.validation.invalid_cursor",
 				"cursor token cannot be empty",
 			))
@@ -203,7 +203,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateFilters(
 	if len(filters.Filters) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.empty_filters",
 			"filters cannot be empty when filter request is provided",
 		))
@@ -214,7 +214,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateFilters(
 		if filter.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.validation.filter_field_required",
 				"filter field is required for filter %d",
 			), i)
@@ -224,7 +224,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateFilters(
 		if !uc.isValidSubscriptionField(filter.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.validation.invalid_filter_field",
 				"invalid filter field: %s",
 			), filter.Field)
@@ -242,7 +242,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateSort(
 	if len(sort.Fields) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.empty_sort_fields",
 			"sort fields cannot be empty when sort request is provided",
 		))
@@ -253,7 +253,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateSort(
 		if sortField.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.validation.sort_field_required",
 				"sort field is required for sort field %d",
 			), i)
@@ -263,7 +263,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateSort(
 		if !uc.isValidSubscriptionField(sortField.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.validation.invalid_sort_field",
 				"invalid sort field: %s",
 			), sortField.Field)
@@ -281,7 +281,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateSearch(
 	if search.Query == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.empty_search_query",
 			"search query cannot be empty when search request is provided",
 		))
@@ -293,7 +293,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateSearch(
 			if !uc.isValidSubscriptionField(field) {
 				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 					ctx,
-					uc.services.TranslationService,
+					uc.services.Translator,
 					"subscription.validation.invalid_search_field",
 					"invalid search field: %s",
 				), field)
@@ -304,7 +304,7 @@ func (uc *GetSubscriptionListPageDataUseCase) validateSearch(
 		if search.Options.MaxResults < 0 || search.Options.MaxResults > 1000 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.validation.invalid_max_results",
 				"max results must be between 0 and 1000",
 			))

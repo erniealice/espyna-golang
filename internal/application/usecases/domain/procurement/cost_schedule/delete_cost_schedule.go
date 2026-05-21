@@ -16,9 +16,9 @@ type DeleteCostScheduleRepositories struct {
 }
 
 type DeleteCostScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type DeleteCostScheduleUseCase struct {
@@ -34,16 +34,16 @@ func NewDeleteCostScheduleUseCase(
 }
 
 func (uc *DeleteCostScheduleUseCase) Execute(ctx context.Context, req *costschedulepb.DeleteCostScheduleRequest) (*costschedulepb.DeleteCostScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCostSchedule, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.id_required", "cost schedule ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.id_required", "cost schedule ID is required"))
 	}
 	result, err := uc.repositories.CostSchedule.DeleteCostSchedule(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.errors.deletion_failed", "cost schedule deletion failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.errors.deletion_failed", "cost schedule deletion failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil

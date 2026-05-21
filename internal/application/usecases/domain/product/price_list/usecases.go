@@ -26,10 +26,10 @@ type PriceListRepositories struct {
 
 // PriceListServices groups all business service dependencies for price list use cases
 type PriceListServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of price list use cases
@@ -42,55 +42,55 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	createServices := CreatePriceListServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Transactor:  services.Transactor,
+		Authorizer:  services.Authorizer,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPriceListRepositories{
 		PriceList: repositories.PriceList,
 	}
 	readServices := ReadPriceListServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePriceListRepositories{
 		PriceList: repositories.PriceList,
 	}
 	updateServices := UpdatePriceListServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePriceListRepositories{
 		PriceList: repositories.PriceList,
 	}
 	deleteServices := DeletePriceListServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPriceListsRepositories{
 		PriceList: repositories.PriceList,
 	}
 	listServices := ListPriceListsServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetPriceListListPageDataRepositories{
 		PriceList: repositories.PriceList,
 	}
 	listPageDataServices := GetPriceListListPageDataServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetPriceListItemPageDataRepositories{
@@ -98,18 +98,18 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	itemPageDataServices := GetPriceListItemPageDataServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	findApplicableRepos := FindApplicablePriceListRepositories{
 		PriceList: repositories.PriceList,
 	}
 	findApplicableServices := FindApplicablePriceListServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

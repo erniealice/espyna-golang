@@ -17,9 +17,9 @@ type ListInvoiceAttributesRepositories struct {
 
 // ListInvoiceAttributesServices groups all business service dependencies
 type ListInvoiceAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListInvoiceAttributesUseCase handles the business logic for listing invoice attributes
@@ -42,7 +42,7 @@ func NewListInvoiceAttributesUseCase(
 // Execute performs the list invoice attributes operation
 func (uc *ListInvoiceAttributesUseCase) Execute(ctx context.Context, req *invoiceattributepb.ListInvoiceAttributesRequest) (*invoiceattributepb.ListInvoiceAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInvoiceAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *ListInvoiceAttributesUseCase) Execute(ctx context.Context, req *invoic
 // validateInput validates the input request
 func (uc *ListInvoiceAttributesUseCase) validateInput(ctx context.Context, req *invoiceattributepb.ListInvoiceAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return nil
 }

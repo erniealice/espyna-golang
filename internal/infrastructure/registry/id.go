@@ -18,17 +18,17 @@ type IDProviderConfig struct {
 // ID Factory Registry Instance
 // =============================================================================
 
-var idRegistry = NewFactoryRegistry[ports.IDService, *IDProviderConfig]("id")
+var idRegistry = NewFactoryRegistry[ports.IDGenerator, *IDProviderConfig]("id")
 
 // =============================================================================
 // ID Provider Functions
 // =============================================================================
 
-func RegisterIDProviderFactory(name string, factory func() ports.IDService) {
+func RegisterIDProviderFactory(name string, factory func() ports.IDGenerator) {
 	idRegistry.RegisterFactory(name, factory)
 }
 
-func GetIDProviderFactory(name string) (func() ports.IDService, bool) {
+func GetIDProviderFactory(name string) (func() ports.IDGenerator, bool) {
 	return idRegistry.GetFactory(name)
 }
 
@@ -51,15 +51,15 @@ func TransformIDConfig(name string, rawConfig map[string]any) (*IDProviderConfig
 	return idRegistry.TransformConfig(name, rawConfig)
 }
 
-func RegisterIDBuildFromEnv(name string, builder func() (ports.IDService, error)) {
+func RegisterIDBuildFromEnv(name string, builder func() (ports.IDGenerator, error)) {
 	idRegistry.RegisterBuildFromEnv(name, builder)
 }
 
-func GetIDBuildFromEnv(name string) (func() (ports.IDService, error), bool) {
+func GetIDBuildFromEnv(name string) (func() (ports.IDGenerator, error), bool) {
 	return idRegistry.GetBuildFromEnv(name)
 }
 
-func BuildIDProviderFromEnv(name string) (ports.IDService, error) {
+func BuildIDProviderFromEnv(name string) (ports.IDGenerator, error) {
 	return idRegistry.BuildFromEnv(name)
 }
 
@@ -68,7 +68,7 @@ func ListAvailableIDBuildFromEnv() []string {
 }
 
 // RegisterIDProvider registers both factory and config transformer.
-func RegisterIDProvider(name string, factory func() ports.IDService, transformer IDConfigTransformer) {
+func RegisterIDProvider(name string, factory func() ports.IDGenerator, transformer IDConfigTransformer) {
 	RegisterIDProviderFactory(name, factory)
 	if transformer != nil {
 		RegisterIDConfigTransformer(name, transformer)

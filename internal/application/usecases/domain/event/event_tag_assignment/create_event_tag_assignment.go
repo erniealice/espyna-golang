@@ -22,10 +22,10 @@ type CreateEventTagAssignmentRepositories struct {
 
 // CreateEventTagAssignmentServices groups all business service dependencies
 type CreateEventTagAssignmentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventTagAssignmentUseCase handles the business logic for creating event_tag_assignment associations
@@ -47,7 +47,7 @@ func NewCreateEventTagAssignmentUseCase(
 
 // Execute performs the create event_tag_assignment operation
 func (uc *CreateEventTagAssignmentUseCase) Execute(ctx context.Context, req *eventtagassignmentpb.CreateEventTagAssignmentRequest) (*eventtagassignmentpb.CreateEventTagAssignmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventTagAssignment, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -68,10 +68,10 @@ func (uc *CreateEventTagAssignmentUseCase) Execute(ctx context.Context, req *eve
 }
 
 func (uc *CreateEventTagAssignmentUseCase) shouldUseTransaction(ctx context.Context) bool {
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 	return true
@@ -80,7 +80,7 @@ func (uc *CreateEventTagAssignmentUseCase) shouldUseTransaction(ctx context.Cont
 func (uc *CreateEventTagAssignmentUseCase) executeWithTransaction(ctx context.Context, req *eventtagassignmentpb.CreateEventTagAssignmentRequest) (*eventtagassignmentpb.CreateEventTagAssignmentResponse, error) {
 	var response *eventtagassignmentpb.CreateEventTagAssignmentResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		if err := uc.validateBusinessRules(req.Data); err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func (uc *CreateEventTagAssignmentUseCase) enrichAssignmentData(assignment *even
 	now := time.Now()
 
 	if assignment.Id == "" {
-		assignment.Id = uc.services.IDService.GenerateID()
+		assignment.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	assignment.DateCreated = &[]int64{now.UnixMilli()}[0]

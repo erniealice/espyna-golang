@@ -17,9 +17,9 @@ type ListEventsRepositories struct {
 
 // ListEventsServices groups all business service dependencies
 type ListEventsServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListEventsUseCase handles the business logic for listing events
@@ -48,9 +48,9 @@ func NewListEventsUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) *
 	}
 
 	services := ListEventsServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &ListEventsUseCase{
@@ -62,7 +62,7 @@ func NewListEventsUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) *
 // Execute performs the list events operation
 func (uc *ListEventsUseCase) Execute(ctx context.Context, req *eventpb.ListEventsRequest) (*eventpb.ListEventsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEvent, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (uc *ListEventsUseCase) Execute(ctx context.Context, req *eventpb.ListEvent
 	// Call repository
 	resp, err := uc.repositories.Event.ListEvents(ctx, req)
 	if err != nil {
-		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.errors.list_failed", "Failed to retrieve events [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.errors.list_failed", "Failed to retrieve events [DEFAULT]")
 		return nil, errors.New(errorMessage)
 	}
 

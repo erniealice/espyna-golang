@@ -22,9 +22,9 @@ type DeleteDelegateClientRepositories struct {
 
 // DeleteDelegateClientServices groups all business service dependencies
 type DeleteDelegateClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteDelegateClientUseCase handles the business logic for deleting delegate clients
@@ -57,9 +57,9 @@ func NewDeleteDelegateClientUseCaseUngrouped(
 	}
 
 	services := DeleteDelegateClientServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteDelegateClientUseCase(repositories, services)
@@ -69,29 +69,29 @@ func NewDeleteDelegateClientUseCaseUngrouped(
 func (uc *DeleteDelegateClientUseCase) Execute(ctx context.Context, req *delegateclientpb.DeleteDelegateClientRequest) (*delegateclientpb.DeleteDelegateClientResponse, error) {
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
 	}
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateClient, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Business logic pre-processing
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.DelegateClient.DeleteDelegateClient(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.deletion_failed", "Delegate-Client relationship deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.deletion_failed", "Delegate-Client relationship deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -101,13 +101,13 @@ func (uc *DeleteDelegateClientUseCase) Execute(ctx context.Context, req *delegat
 // validateInput validates the input request
 func (uc *DeleteDelegateClientUseCase) validateInput(ctx context.Context, req *delegateclientpb.DeleteDelegateClientRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.data_required", "Delegate-Client relationship data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.data_required", "Delegate-Client relationship data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
 	}
 	return nil
 }

@@ -17,9 +17,9 @@ type ListSupplierCategoriesRepositories struct {
 
 // ListSupplierCategoriesServices groups all business service dependencies
 type ListSupplierCategoriesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSupplierCategoriesUseCase handles the business logic for listing supplier categories
@@ -47,9 +47,9 @@ func NewListSupplierCategoriesUseCaseUngrouped(supplierCategoryRepo suppliercate
 	}
 
 	services := ListSupplierCategoriesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListSupplierCategoriesUseCase(repositories, services)
@@ -57,7 +57,7 @@ func NewListSupplierCategoriesUseCaseUngrouped(supplierCategoryRepo suppliercate
 
 func (uc *ListSupplierCategoriesUseCase) Execute(ctx context.Context, req *suppliercategorypb.ListSupplierCategoriesRequest) (*suppliercategorypb.ListSupplierCategoriesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_category", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (uc *ListSupplierCategoriesUseCase) Execute(ctx context.Context, req *suppl
 
 func (uc *ListSupplierCategoriesUseCase) validateInput(ctx context.Context, req *suppliercategorypb.ListSupplierCategoriesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
 	}
 	return nil
 }

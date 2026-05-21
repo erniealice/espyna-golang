@@ -22,9 +22,9 @@ type ReadWorkspaceUserRoleRepositories struct {
 
 // ReadWorkspaceUserRoleServices groups all business service dependencies
 type ReadWorkspaceUserRoleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadWorkspaceUserRoleUseCase handles the business logic for reading a workspace user role
@@ -47,24 +47,24 @@ func NewReadWorkspaceUserRoleUseCase(
 // Execute performs the read workspace user role operation
 func (uc *ReadWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *workspaceuserrolepb.ReadWorkspaceUserRoleRequest) (*workspaceuserrolepb.ReadWorkspaceUserRoleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspaceUserRole, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.id_required", "Workspace-User-Role ID is required "))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.id_required", "Workspace-User-Role ID is required "))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.WorkspaceUserRole.ReadWorkspaceUserRole(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.read_failed", "Failed to read workspace user role ")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.read_failed", "Failed to read workspace user role ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

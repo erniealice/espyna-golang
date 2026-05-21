@@ -17,8 +17,8 @@ type ListWithholdingCertificatesRepositories struct {
 
 // ListWithholdingCertificatesServices groups service dependencies.
 type ListWithholdingCertificatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListWithholdingCertificatesUseCase handles listing withholding certificates.
@@ -34,12 +34,12 @@ func NewListWithholdingCertificatesUseCase(repositories ListWithholdingCertifica
 
 // Execute performs the list withholding_certificates operation.
 func (uc *ListWithholdingCertificatesUseCase) Execute(ctx context.Context, req *withholdingcertificatepb.ListWithholdingCertificatesRequest) (*withholdingcertificatepb.ListWithholdingCertificatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityWithholdingCertificate, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"withholding_certificate.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return uc.repositories.WithholdingCertificate.ListWithholdingCertificates(ctx, req)

@@ -27,10 +27,10 @@ type GroupAttributeRepositories struct {
 
 // GroupAttributeServices groups all business service dependencies for group attribute use cases
 type GroupAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of group attribute use cases
@@ -41,18 +41,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateGroupAttributeRepositories(repositories)
 	createServices := CreateGroupAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadGroupAttributeRepositories{
 		GroupAttribute: repositories.GroupAttribute,
 	}
 	readServices := ReadGroupAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateGroupAttributeRepositories{
@@ -61,40 +61,40 @@ func NewUseCases(
 		Attribute:      repositories.Attribute,
 	}
 	updateServices := UpdateGroupAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteGroupAttributeRepositories{
 		GroupAttribute: repositories.GroupAttribute,
 	}
 	deleteServices := DeleteGroupAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListGroupAttributesRepositories{
 		GroupAttribute: repositories.GroupAttribute,
 	}
 	listServices := ListGroupAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetGroupAttributeListPageDataRepositories{
 		GroupAttribute: repositories.GroupAttribute,
 	}
 	getListPageDataServices := GetGroupAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetGroupAttributeItemPageDataRepositories{
 		GroupAttribute: repositories.GroupAttribute,
 	}
 	getItemPageDataServices := GetGroupAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -114,7 +114,7 @@ func NewUseCasesUngrouped(
 	groupAttributeRepo groupattributepb.GroupAttributeDomainServiceServer,
 	groupRepo grouppb.GroupDomainServiceServer,
 	attributeRepo attributepb.AttributeDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := GroupAttributeRepositories{
@@ -124,9 +124,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := GroupAttributeServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

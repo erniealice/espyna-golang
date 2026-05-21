@@ -18,9 +18,9 @@ type ReadSupplierRepositories struct {
 
 // ReadSupplierServices groups all business service dependencies
 type ReadSupplierServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadSupplierUseCase handles the business logic for reading a supplier
@@ -48,9 +48,9 @@ func NewReadSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServi
 	}
 
 	services := ReadSupplierServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadSupplierUseCase(repositories, services)
@@ -59,18 +59,18 @@ func NewReadSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServi
 // Execute performs the read supplier operation
 func (uc *ReadSupplierUseCase) Execute(ctx context.Context, req *supplierpb.ReadSupplierRequest) (*supplierpb.ReadSupplierResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.request_required", "Request is required for suppliers [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.request_required", "Request is required for suppliers [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.id_required", "Supplier ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.id_required", "Supplier ID is required [DEFAULT]"))
 	}
 
 	// Call repository
@@ -81,7 +81,7 @@ func (uc *ReadSupplierUseCase) Execute(ctx context.Context, req *supplierpb.Read
 
 	// Not found error
 	if len(resp.Data) == 0 || resp.Data[0].Id == "" {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.errors.not_found", "Supplier with ID \"{supplierId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.errors.not_found", "Supplier with ID \"{supplierId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{supplierId}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}

@@ -17,9 +17,9 @@ type ReadSupplierAttributeRepositories struct {
 
 // ReadSupplierAttributeServices groups all business service dependencies
 type ReadSupplierAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadSupplierAttributeUseCase handles the business logic for reading supplier attributes
@@ -47,9 +47,9 @@ func NewReadSupplierAttributeUseCaseUngrouped(supplierAttributeRepo supplierattr
 	}
 
 	services := ReadSupplierAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadSupplierAttributeUseCase(repositories, services)
@@ -58,7 +58,7 @@ func NewReadSupplierAttributeUseCaseUngrouped(supplierAttributeRepo supplierattr
 // Execute performs the read supplier attribute operation
 func (uc *ReadSupplierAttributeUseCase) Execute(ctx context.Context, req *supplierattributepb.ReadSupplierAttributeRequest) (*supplierattributepb.ReadSupplierAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_attribute", ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -80,13 +80,13 @@ func (uc *ReadSupplierAttributeUseCase) Execute(ctx context.Context, req *suppli
 // validateInput validates the input request
 func (uc *ReadSupplierAttributeUseCase) validateInput(ctx context.Context, req *supplierattributepb.ReadSupplierAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.data_required", "[ERR-DEFAULT] Supplier attribute data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.data_required", "[ERR-DEFAULT] Supplier attribute data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	return nil
 }

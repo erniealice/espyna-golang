@@ -11,10 +11,10 @@ import (
 // revenue and tax initializers have run (see usecases.go for the wiring step).
 func InitializeRevenue(
 	repos *domain.RevenueRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*revenue.RevenueUseCases, error) {
 	return revenue.NewUseCases(
 		revenue.RevenueRepositories{

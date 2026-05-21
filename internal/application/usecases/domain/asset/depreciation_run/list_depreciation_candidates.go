@@ -30,8 +30,8 @@ type ListDepreciationCandidatesRepositories struct {
 
 // ListDepreciationCandidatesServices groups all business service dependencies.
 type ListDepreciationCandidatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListDepreciationCandidatesUseCase is the dry-run (no writes) engine.
@@ -58,7 +58,7 @@ func (uc *ListDepreciationCandidatesUseCase) Execute(
 	ctx context.Context,
 	req *deprunpb.ListDepreciationCandidatesRequest,
 ) (*deprunpb.ListDepreciationCandidatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetDepreciationRun, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (uc *ListDepreciationCandidatesUseCase) Execute(
 	ctxWorkspaceID := contextutil.ExtractWorkspaceIDFromContext(ctx)
 	reqWorkspaceID := strings.TrimSpace(req.GetWorkspaceId())
 	if ctxWorkspaceID != "" && reqWorkspaceID != "" && ctxWorkspaceID != reqWorkspaceID {
-		// TODO: translate via TranslationService (Phase 7.3/8.2 owns lyngua wiring).
+		// TODO: translate via Translator (Phase 7.3/8.2 owns lyngua wiring).
 		return nil, fmt.Errorf("list_depreciation_candidates: workspace context and request do not match")
 	}
 	workspaceID := reqWorkspaceID
@@ -265,7 +265,7 @@ func (uc *ListDepreciationCandidatesUseCase) resolveAssets(
 		workspaceID = contextutil.ExtractWorkspaceIDFromContext(ctx)
 	}
 	if workspaceID == "" {
-		// TODO: translate via TranslationService (Fix #4 deferred — codex L1).
+		// TODO: translate via Translator (Fix #4 deferred — codex L1).
 		// Suggested key: asset.assetDetail.depreciationRun.errors.workspaceRequired
 		return nil, errors.New("list_depreciation_candidates: Workspace context required")
 	}

@@ -17,9 +17,9 @@ type ReadAssetRepositories struct {
 
 // ReadAssetServices groups all business service dependencies
 type ReadAssetServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadAssetUseCase handles the business logic for reading assets
@@ -41,7 +41,7 @@ func NewReadAssetUseCase(
 
 func (uc *ReadAssetUseCase) Execute(ctx context.Context, req *assetpb.ReadAssetRequest) (*assetpb.ReadAssetResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAsset, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -64,13 +64,13 @@ func (uc *ReadAssetUseCase) Execute(ctx context.Context, req *assetpb.ReadAssetR
 // validateInput validates the input request
 func (uc *ReadAssetUseCase) validateInput(ctx context.Context, req *assetpb.ReadAssetRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

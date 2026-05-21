@@ -17,8 +17,8 @@ type DeleteExpenseRecognitionRepositories struct {
 
 // DeleteExpenseRecognitionServices groups service dependencies.
 type DeleteExpenseRecognitionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteExpenseRecognitionUseCase handles deleting a recognition.
@@ -37,12 +37,12 @@ func NewDeleteExpenseRecognitionUseCase(
 
 // Execute performs the delete operation.
 func (uc *DeleteExpenseRecognitionUseCase) Execute(ctx context.Context, req *expenserecognitionpb.DeleteExpenseRecognitionRequest) (*expenserecognitionpb.DeleteExpenseRecognitionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition.validation.id_required", "Expense recognition ID is required [DEFAULT]"))
 	}
 	return uc.repositories.ExpenseRecognition.DeleteExpenseRecognition(ctx, req)

@@ -24,10 +24,10 @@ type CreateCollectionPlanRepositories struct {
 
 // CreateCollectionPlanServices groups all business service dependencies
 type CreateCollectionPlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateCollectionPlanUseCase handles the business logic for creating collection plans
@@ -50,7 +50,7 @@ func NewCreateCollectionPlanUseCase(
 // Execute performs the create collection plan operation
 func (uc *CreateCollectionPlanUseCase) Execute(ctx context.Context, req *collectionplanpb.CreateCollectionPlanRequest) (*collectionplanpb.CreateCollectionPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollectionPlan, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -58,47 +58,47 @@ func (uc *CreateCollectionPlanUseCase) Execute(ctx context.Context, req *collect
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityCollectionPlan, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichCollectionPlanData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Entity reference validation
 	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -110,7 +110,7 @@ func (uc *CreateCollectionPlanUseCase) Execute(ctx context.Context, req *collect
 func (uc *CreateCollectionPlanUseCase) executeWithTransaction(ctx context.Context, req *collectionplanpb.CreateCollectionPlanRequest) (*collectionplanpb.CreateCollectionPlanResponse, error) {
 	var result *collectionplanpb.CreateCollectionPlanResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("collection plan creation failed: %w", err)
@@ -129,32 +129,32 @@ func (uc *CreateCollectionPlanUseCase) executeWithTransaction(ctx context.Contex
 func (uc *CreateCollectionPlanUseCase) executeCore(ctx context.Context, req *collectionplanpb.CreateCollectionPlanRequest) (*collectionplanpb.CreateCollectionPlanResponse, error) {
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichCollectionPlanData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Entity reference validation
 	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.CollectionPlan.CreateCollectionPlan(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.creation_failed", "Collection Plan creation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.creation_failed", "Collection Plan creation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -164,16 +164,16 @@ func (uc *CreateCollectionPlanUseCase) executeCore(ctx context.Context, req *col
 // validateInput validates the input request
 func (uc *CreateCollectionPlanUseCase) validateInput(ctx context.Context, req *collectionplanpb.CreateCollectionPlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.request_required", "Request is required for collection plans [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.request_required", "Request is required for collection plans [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.data_required", "Collection Plan data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.data_required", "Collection Plan data is required [DEFAULT]"))
 	}
 	if req.Data.CollectionId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.collection_id_required", "Collection ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.collection_id_required", "Collection ID is required [DEFAULT]"))
 	}
 	if req.Data.PlanId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.plan_id_required", "Plan ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.plan_id_required", "Plan ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -184,7 +184,7 @@ func (uc *CreateCollectionPlanUseCase) enrichCollectionPlanData(collectionPlan *
 
 	// Generate CollectionPlan ID if not provided
 	if collectionPlan.Id == "" {
-		collectionPlan.Id = uc.services.IDService.GenerateID()
+		collectionPlan.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -205,16 +205,16 @@ func (uc *CreateCollectionPlanUseCase) validateEntityReferences(ctx context.Cont
 			Data: &collectionpb.Collection{Id: collectionPlan.CollectionId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.collection_reference_validation_failed", "Failed to validate collection entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.collection_reference_validation_failed", "Failed to validate collection entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if collection == nil || collection.Data == nil || len(collection.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.collection_not_found", "Referenced collection with ID '{collectionId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.collection_not_found", "Referenced collection with ID '{collectionId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{collectionId}", collectionPlan.CollectionId)
 			return errors.New(translatedError)
 		}
 		if !collection.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.collection_not_active", "Referenced collection with ID '{collectionId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.collection_not_active", "Referenced collection with ID '{collectionId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{collectionId}", collectionPlan.CollectionId)
 			return errors.New(translatedError)
 		}
@@ -227,16 +227,16 @@ func (uc *CreateCollectionPlanUseCase) validateEntityReferences(ctx context.Cont
 			Data: &planpb.Plan{Id: &planId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.plan_reference_validation_failed", "Failed to validate plan entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.plan_reference_validation_failed", "Failed to validate plan entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if plan == nil || plan.Data == nil || len(plan.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.plan_not_found", "Referenced plan with ID '{planId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.plan_not_found", "Referenced plan with ID '{planId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{planId}", collectionPlan.PlanId)
 			return errors.New(translatedError)
 		}
 		if !plan.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.plan_not_active", "Referenced plan with ID '{planId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.plan_not_active", "Referenced plan with ID '{planId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{planId}", collectionPlan.PlanId)
 			return errors.New(translatedError)
 		}
@@ -249,7 +249,7 @@ func (uc *CreateCollectionPlanUseCase) validateEntityReferences(ctx context.Cont
 func (uc *CreateCollectionPlanUseCase) validateBusinessRules(ctx context.Context, collectionPlan *collectionplanpb.CollectionPlan) error {
 	// Check for duplicate collection-plan association
 	if err := uc.validateUniqueAssociation(ctx, collectionPlan.CollectionId, collectionPlan.PlanId); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.duplicate_association", "Duplicate collection-plan association [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.duplicate_association", "Duplicate collection-plan association [DEFAULT]")
 		return errors.New(translatedError)
 	}
 
@@ -262,7 +262,7 @@ func (uc *CreateCollectionPlanUseCase) validateCollectionExists(ctx context.Cont
 	// For now, we'll implement a placeholder
 	// TODO: Implement actual collection existence check
 	if collectionID == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.collection_id_empty", "Collection ID cannot be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.collection_id_empty", "Collection ID cannot be empty [DEFAULT]"))
 	}
 	return nil
 }
@@ -273,7 +273,7 @@ func (uc *CreateCollectionPlanUseCase) validatePlanExists(ctx context.Context, p
 	// For now, we'll implement a placeholder
 	// TODO: Implement actual plan existence check
 	if planID == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.plan_id_empty", "Plan ID cannot be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.plan_id_empty", "Plan ID cannot be empty [DEFAULT]"))
 	}
 	return nil
 }

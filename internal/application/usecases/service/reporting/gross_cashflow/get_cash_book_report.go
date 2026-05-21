@@ -16,18 +16,18 @@ import (
 // report — a chronological list of receipts + expenses.
 type GetCashBookReportUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetCashBookReportUseCase wires the use case with nil-safe deps.
 func NewGetCashBookReportUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetCashBookReportUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetCashBookReportUseCase{
 		reporter:             r,

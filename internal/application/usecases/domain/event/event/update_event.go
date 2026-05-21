@@ -19,9 +19,9 @@ type UpdateEventRepositories struct {
 
 // UpdateEventServices groups all business service dependencies
 type UpdateEventServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateEventUseCase handles the business logic for updating events
@@ -50,9 +50,9 @@ func NewUpdateEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 	}
 
 	services := UpdateEventServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &UpdateEventUseCase{
@@ -64,13 +64,13 @@ func NewUpdateEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 // Execute performs the update event operation
 func (uc *UpdateEventUseCase) Execute(ctx context.Context, req *eventpb.UpdateEventRequest) (*eventpb.UpdateEventResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEvent, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *UpdateEventUseCase) Execute(ctx context.Context, req *eventpb.UpdateEv
 func (uc *UpdateEventUseCase) executeWithTransaction(ctx context.Context, req *eventpb.UpdateEventRequest) (*eventpb.UpdateEventResponse, error) {
 	var result *eventpb.UpdateEventResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "event.errors.update_failed", "Event update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "event.errors.update_failed", "Event update failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -131,13 +131,13 @@ func (uc *UpdateEventUseCase) executeCore(ctx context.Context, req *eventpb.Upda
 // validateInput validates the input request
 func (uc *UpdateEventUseCase) validateInput(ctx context.Context, req *eventpb.UpdateEventRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.id_required", "Event ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.id_required", "Event ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -146,7 +146,7 @@ func (uc *UpdateEventUseCase) validateInput(ctx context.Context, req *eventpb.Up
 func (uc *UpdateEventUseCase) validateBasicFields(ctx context.Context, event *eventpb.Event) error {
 	// Validate required fields first
 	if event.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.name_required", "Class name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.name_required", "Class name is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -161,14 +161,14 @@ func (uc *UpdateEventUseCase) getExistingEvent(ctx context.Context, eventID stri
 	if err != nil {
 		// Check if this is a not found error from repository
 		if contains := contextutil.Contains(err.Error(), "not found"); contains {
-			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
 			return nil, errors.New(errorMessage)
 		}
 		return nil, err
 	}
 
 	if len(resp.Data) == 0 {
-		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
 		return nil, errors.New(errorMessage)
 	}
 
@@ -184,7 +184,7 @@ func (uc *UpdateEventUseCase) validateUpdateRules(ctx context.Context, existing,
 	} else if existing.StartDateTimeUtc > 0 && existing.StartDateTimeUtc < time.Now().UnixMilli() {
 		// Only block if existing event has started and we're not moving it to the future
 		if updated.StartDateTimeUtc == 0 || updated.StartDateTimeUtc <= time.Now().UnixMilli() {
-			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.cannot_update_started", "Cannot update classes that have already started [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.cannot_update_started", "Cannot update classes that have already started [DEFAULT]")
 			return errors.New(errorMessage)
 		}
 	}
@@ -192,19 +192,19 @@ func (uc *UpdateEventUseCase) validateUpdateRules(ctx context.Context, existing,
 	// Validate new timing if both times are provided and they're non-zero
 	if updated.StartDateTimeUtc > 0 && updated.EndDateTimeUtc > 0 {
 		if updated.StartDateTimeUtc >= updated.EndDateTimeUtc {
-			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.invalid_time_range", "Class start time must be before end time [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.invalid_time_range", "Class start time must be before end time [DEFAULT]")
 			return errors.New(errorMessage)
 		}
 
 		// Validate event duration constraints
 		duration := updated.EndDateTimeUtc - updated.StartDateTimeUtc
 		if duration < 300*1000 { // 5 minutes minimum
-			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.minimum_duration", "Class must be at least 5 minutes long [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.minimum_duration", "Class must be at least 5 minutes long [DEFAULT]")
 			return errors.New(errorMessage)
 		}
 
 		if duration > 86400*7*1000 { // 7 days maximum
-			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.maximum_duration", "Class cannot be longer than 7 days [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.maximum_duration", "Class cannot be longer than 7 days [DEFAULT]")
 			return errors.New(errorMessage)
 		}
 	}

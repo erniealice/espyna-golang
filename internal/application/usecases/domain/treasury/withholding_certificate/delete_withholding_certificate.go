@@ -17,8 +17,8 @@ type DeleteWithholdingCertificateRepositories struct {
 
 // DeleteWithholdingCertificateServices groups service dependencies.
 type DeleteWithholdingCertificateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteWithholdingCertificateUseCase handles deleting a withholding_certificate.
@@ -34,12 +34,12 @@ func NewDeleteWithholdingCertificateUseCase(repositories DeleteWithholdingCertif
 
 // Execute performs the delete withholding_certificate operation.
 func (uc *DeleteWithholdingCertificateUseCase) Execute(ctx context.Context, req *withholdingcertificatepb.DeleteWithholdingCertificateRequest) (*withholdingcertificatepb.DeleteWithholdingCertificateResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityWithholdingCertificate, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"withholding_certificate.validation.id_required", "Withholding Certificate ID is required [DEFAULT]"))
 	}
 	return uc.repositories.WithholdingCertificate.DeleteWithholdingCertificate(ctx, req)

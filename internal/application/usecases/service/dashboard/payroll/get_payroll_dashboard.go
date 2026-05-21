@@ -62,13 +62,13 @@ type GetPayrollDashboardRepositories struct {
 	PayrollRemittance PayrollRemittanceDashboardRepository
 }
 
-// GetPayrollDashboardServices groups application services. TranslationService
-// formats error messages. No AuthorizationService — the dashboard is rendered
+// GetPayrollDashboardServices groups application services. Translator
+// formats error messages. No Authorizer — the dashboard is rendered
 // for the active workspace context and the upstream HTTP route is gated by
 // session middleware rather than per-entity authcheck (matches the Admin
 // pilot at `service/dashboard/admin/`).
 type GetPayrollDashboardServices struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // GetPayrollDashboardUseCase composes the two payroll aggregates

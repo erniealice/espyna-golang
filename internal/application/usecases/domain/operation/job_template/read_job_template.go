@@ -17,9 +17,9 @@ type ReadJobTemplateRepositories struct {
 
 // ReadJobTemplateServices groups all business service dependencies
 type ReadJobTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadJobTemplateUseCase handles the business logic for reading job templates
@@ -42,7 +42,7 @@ func NewReadJobTemplateUseCase(
 // Execute performs the read job template operation
 func (uc *ReadJobTemplateUseCase) Execute(ctx context.Context, req *pb.ReadJobTemplateRequest) (*pb.ReadJobTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job_template", ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (uc *ReadJobTemplateUseCase) Execute(ctx context.Context, req *pb.ReadJobTe
 	// Call repository
 	result, err := uc.repositories.JobTemplate.ReadJobTemplate(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.errors.not_found", "job template not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.errors.not_found", "job template not found [DEFAULT]"))
 	}
 
 	return result, nil
@@ -64,10 +64,10 @@ func (uc *ReadJobTemplateUseCase) Execute(ctx context.Context, req *pb.ReadJobTe
 // validateInput validates the input request
 func (uc *ReadJobTemplateUseCase) validateInput(ctx context.Context, req *pb.ReadJobTemplateRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.request_required", "request is required"))
 	}
 	if req.Data == nil || req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.id_required", "job template ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.id_required", "job template ID is required"))
 	}
 	return nil
 }

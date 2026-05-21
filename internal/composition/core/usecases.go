@@ -761,10 +761,10 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				ProductPricePlan: subscriptionRepos.ProductPricePlan,
 			},
 			jobUseCase.MaterializeBillingEventsForJobServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idSvc,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idSvc,
 			},
 		)
 		mjfs := subscriptionUseCase.NewMaterializeJobsForSubscriptionUseCase(
@@ -781,10 +781,10 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				JobTask:             operationRepos.JobTask,
 			},
 			subscriptionUseCase.MaterializeJobsForSubscriptionServices{
-				AuthorizationService:           authSvc,
-				TransactionService:             txSvc,
-				TranslationService:             i18nSvc,
-				IDService:                      idSvc,
+				Authorizer:                     authSvc,
+				Transactor:                     txSvc,
+				Translator:                     i18nSvc,
+				IDGenerator:                    idSvc,
 				MaterializeBillingEventsForJob: &materializeBillingEventsAdapter{uc: mbeFor},
 			},
 		)
@@ -816,10 +816,10 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				BillingEvent: subscriptionRepos.BillingEvent,
 			},
 			subscriptionUseCase.MaterializeInstanceJobsForSubscriptionServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idSvc,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idSvc,
 			},
 		)
 		fmt.Printf("✅ MaterializeInstanceJobsForSubscription wired\n")
@@ -1078,10 +1078,10 @@ func (uci *UseCaseInitializer) initializeProcurementUseCases(container *Containe
 // getServices is a helper to extract services from container with proper type checking
 // Returns nil services gracefully when not initialized (services are optional for now)
 func (uci *UseCaseInitializer) getServices(container *Container) (
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 	err error,
 ) {
 	// Services are optional - translation service handles nil gracefully by returning fallback strings
@@ -1089,7 +1089,7 @@ func (uci *UseCaseInitializer) getServices(container *Container) (
 
 	// Get auth service from provider manager or create mock service as fallback
 	if authProvider := uci.providerManager.GetAuthProvider(); authProvider != nil {
-		if authService, ok := authProvider.(ports.AuthorizationService); ok {
+		if authService, ok := authProvider.(ports.Authorizer); ok {
 			authSvc = authService
 			fmt.Printf("🔐 Using authorization service from provider: %T\n", authSvc)
 		} else {
@@ -1106,31 +1106,31 @@ func (uci *UseCaseInitializer) getServices(container *Container) (
 	// Get ID service from provider manager
 	if idProvider := uci.providerManager.GetIDProvider(); idProvider != nil {
 		// Check if the provider has a GetIDService method (IDProviderWrapper)
-		if idWrapper, ok := idProvider.(interface{ GetIDService() ports.IDService }); ok {
+		if idWrapper, ok := idProvider.(interface{ GetIDService() ports.IDGenerator }); ok {
 			idSvc = idWrapper.GetIDService()
 			// fmt.Printf("🆔 Using ID service from provider: %T - %s\n", idSvc, idSvc.GetProviderInfo())
-		} else if idService, ok := idProvider.(ports.IDService); ok {
-			// Fallback: provider directly implements IDService
+		} else if idService, ok := idProvider.(ports.IDGenerator); ok {
+			// Fallback: provider directly implements IDGenerator
 			idSvc = idService
 			fmt.Printf("🆔 Using ID service (direct): %T - %s\n", idSvc, idSvc.GetProviderInfo())
 		} else {
 			// Fallback to noop if provider doesn't implement the interface
-			idSvc = ports.NewNoOpIDService()
+			idSvc = ports.NewNoOpIDGenerator()
 			fmt.Printf("🆔 Created NoOp ID service (provider fallback): %T\n", idSvc)
 		}
 	} else {
 		// No ID provider configured, use noop service
-		idSvc = ports.NewNoOpIDService()
+		idSvc = ports.NewNoOpIDGenerator()
 		fmt.Printf("🆔 Created NoOp ID service (no provider): %T\n", idSvc)
 	}
 
-	txSvc, _ = container.services.Transaction.(ports.TransactionService)
+	txSvc, _ = container.services.Transaction.(ports.Transactor)
 
-	// Extract TranslationService from wrapper or direct assignment
+	// Extract Translator from wrapper or direct assignment
 	if wrapper, ok := container.services.Translation.(*translationServiceWrapper); ok {
 		i18nSvc = wrapper.svc
 	} else {
-		i18nSvc, _ = container.services.Translation.(ports.TranslationService)
+		i18nSvc, _ = container.services.Translation.(ports.Translator)
 	}
 
 	return authSvc, txSvc, i18nSvc, idSvc, nil

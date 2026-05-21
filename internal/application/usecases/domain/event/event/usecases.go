@@ -12,10 +12,10 @@ type EventRepositories struct {
 
 // EventServices groups all business service dependencies for event use cases
 type EventServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all event-related use cases
@@ -33,59 +33,59 @@ type UseCases struct {
 func NewUseCases(
 	repositories EventRepositories,
 	services EventServices,
-	transactionService ports.TransactionService,
+	transactionService ports.Transactor,
 ) *UseCases {
 	// Build individual grouped parameters for each use case
 	createRepos := CreateEventRepositories(repositories)
 	createServices := CreateEventServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  transactionService,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadEventRepositories(repositories)
 	readServices := ReadEventServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateEventRepositories(repositories)
 	updateServices := UpdateEventServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteEventRepositories(repositories)
 	deleteServices := DeleteEventServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListEventsRepositories(repositories)
 	listServices := ListEventsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetEventListPageDataRepositories{
 		Event: repositories.Event,
 	}
 	listPageDataServices := GetEventListPageDataServices{
-		TransactionService: transactionService,
-		TranslationService: services.TranslationService,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetEventItemPageDataRepositories{
 		Event: repositories.Event,
 	}
 	itemPageDataServices := GetEventItemPageDataServices{
-		TransactionService: transactionService,
-		TranslationService: services.TranslationService,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -101,16 +101,16 @@ func NewUseCases(
 
 // NewUseCasesUngrouped creates a new collection of event use cases with individual parameters
 // Deprecated: Use NewUseCases with grouped parameters instead
-func NewUseCasesUngrouped(eventRepo eventpb.EventDomainServiceServer, transactionService ports.TransactionService) *UseCases {
+func NewUseCasesUngrouped(eventRepo eventpb.EventDomainServiceServer, transactionService ports.Transactor) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := EventRepositories{
 		Event: eventRepo,
 	}
 
 	services := EventServices{
-		AuthorizationService: nil, // Will be injected later by container
-		TransactionService:   transactionService,
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later by container
+		Transactor: transactionService,
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services, transactionService)

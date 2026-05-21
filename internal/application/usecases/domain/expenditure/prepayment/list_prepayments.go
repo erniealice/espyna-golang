@@ -17,9 +17,9 @@ type ListPrepaymentsRepositories struct {
 
 // ListPrepaymentsServices groups all business service dependencies
 type ListPrepaymentsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListPrepaymentsUseCase handles the business logic for listing prepayments
@@ -41,13 +41,13 @@ func NewListPrepaymentsUseCase(
 
 // Execute performs the list prepayments operation
 func (uc *ListPrepaymentsUseCase) Execute(ctx context.Context, req *prepaymentpb.ListPrepaymentsRequest) (*prepaymentpb.ListPrepaymentsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPrepayment, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	if uc.repositories.Prepayment == nil {

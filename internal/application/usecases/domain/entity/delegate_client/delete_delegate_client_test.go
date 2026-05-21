@@ -32,9 +32,9 @@ func createTestDeleteDelegateClientUseCase(businessType string, supportsTransact
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := DeleteDelegateClientServices{
-		AuthorizationService: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	return NewDeleteDelegateClientUseCase(repositories, services)
 }
@@ -79,7 +79,7 @@ func TestDeleteDelegateClientUseCase_Execute_NotFound(t *testing.T) {
 
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "delegate_client.errors.deletion_failed", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "delegate_client.errors.deletion_failed", useCase.services.Translator, ctx)
 }
 
 func TestDeleteDelegateClientUseCase_Execute_EmptyId(t *testing.T) {
@@ -92,5 +92,5 @@ func TestDeleteDelegateClientUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "delegate_client.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "delegate_client.validation.id_required", useCase.services.Translator, ctx)
 }

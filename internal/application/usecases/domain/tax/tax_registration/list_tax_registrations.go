@@ -17,8 +17,8 @@ type ListTaxRegistrationsRepositories struct {
 
 // ListTaxRegistrationsServices groups service dependencies.
 type ListTaxRegistrationsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListTaxRegistrationsUseCase handles listing tax registrations.
@@ -34,12 +34,12 @@ func NewListTaxRegistrationsUseCase(repositories ListTaxRegistrationsRepositorie
 
 // Execute performs the list tax_registrations operation.
 func (uc *ListTaxRegistrationsUseCase) Execute(ctx context.Context, req *taxregistrationpb.ListTaxRegistrationsRequest) (*taxregistrationpb.ListTaxRegistrationsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRegistration, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return uc.repositories.TaxRegistration.ListTaxRegistrations(ctx, req)

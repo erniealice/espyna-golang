@@ -175,7 +175,7 @@ type fakeAssetCategoryRepo struct {
 	assetcategorypb.UnimplementedAssetCategoryDomainServiceServer
 }
 
-// We use ports.NewNoOpIDService() for tests — the IDs are not asserted on
+// We use ports.NewNoOpIDGenerator() for tests — the IDs are not asserted on
 // (assertions target money values + outcomes, which are deterministic).
 
 func itoa(n int) string {
@@ -218,10 +218,10 @@ func newTestUseCase(
 			DepreciationRun:      run,
 		},
 		GenerateDepreciationRunServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TransactionService:   ports.NewNoOpTransactionService(),
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            ports.NewNoOpIDService(),
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Transactor:  ports.NewNoOpTransactor(),
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: ports.NewNoOpIDGenerator(),
 		},
 	)
 }
@@ -509,10 +509,10 @@ func TestGenerate_SchedulePersistFailureOnPeriod5_RollsBackAndContinues(t *testi
 		t.Errorf("expected skipped=0, got %d", res.SkippedCount)
 	}
 
-	// Note on tx count: the NoOp TransactionService does NOT actually roll back
+	// Note on tx count: the NoOp Transactor does NOT actually roll back
 	// the asset_transaction insert when the schedule insert fails inside the
 	// closure (NoOp executes inline, no real BEGIN/ROLLBACK). With a real
-	// PostgreSQL TransactionService the 5th asset_transaction would be rolled
+	// PostgreSQL Transactor the 5th asset_transaction would be rolled
 	// back. The test here exercises the use case's CONTROL FLOW: ERRORED
 	// outcome, run continues, running balance preserved. A live-DB integration
 	// test (Phase 2 acceptance gate) covers the actual rollback.

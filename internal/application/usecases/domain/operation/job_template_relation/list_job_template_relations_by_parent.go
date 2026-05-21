@@ -17,8 +17,8 @@ type ListByParentRepositories struct {
 
 // ListByParentServices groups infra services.
 type ListByParentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListByParentUseCase wraps the proto-domain ListByParent RPC behind a Layer-7
@@ -45,16 +45,16 @@ func NewListByParentUseCase(
 func (uc *ListByParentUseCase) Execute(
 	ctx context.Context, req *jobtemplaterelationpb.ListJobTemplateRelationsByParentRequest,
 ) (*jobtemplaterelationpb.ListJobTemplateRelationsByParentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job_template_relation", ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"job_template_relation.validation.request_required", "request is required"))
 	}
 	if uc.repositories.JobTemplateRelation == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"job_template_relation.errors.repository_unavailable", "job template relation repository not configured"))
 	}
 	return uc.repositories.JobTemplateRelation.ListByParent(ctx, req)

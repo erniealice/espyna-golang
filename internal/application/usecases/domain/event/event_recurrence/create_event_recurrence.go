@@ -19,10 +19,10 @@ type CreateEventRecurrenceRepositories struct {
 
 // CreateEventRecurrenceServices groups all business service dependencies
 type CreateEventRecurrenceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventRecurrenceUseCase handles the business logic for creating event recurrences
@@ -51,10 +51,10 @@ func NewCreateEventRecurrenceUseCaseUngrouped(eventRecurrenceRepo eventrecurrenc
 	}
 
 	services := CreateEventRecurrenceServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil, // Will be injected later if needed
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return &CreateEventRecurrenceUseCase{
@@ -66,13 +66,13 @@ func NewCreateEventRecurrenceUseCaseUngrouped(eventRecurrenceRepo eventrecurrenc
 // Execute performs the create event recurrence operation
 func (uc *CreateEventRecurrenceUseCase) Execute(ctx context.Context, req *eventrecurrencepb.CreateEventRecurrenceRequest) (*eventrecurrencepb.CreateEventRecurrenceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"event_recurrence", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -84,10 +84,10 @@ func (uc *CreateEventRecurrenceUseCase) Execute(ctx context.Context, req *eventr
 func (uc *CreateEventRecurrenceUseCase) executeWithTransaction(ctx context.Context, req *eventrecurrencepb.CreateEventRecurrenceRequest) (*eventrecurrencepb.CreateEventRecurrenceResponse, error) {
 	var result *eventrecurrencepb.CreateEventRecurrenceResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "event_recurrence.errors.creation_failed", "Event recurrence creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "event_recurrence.errors.creation_failed", "Event recurrence creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -104,10 +104,10 @@ func (uc *CreateEventRecurrenceUseCase) executeWithTransaction(ctx context.Conte
 func (uc *CreateEventRecurrenceUseCase) executeCore(ctx context.Context, req *eventrecurrencepb.CreateEventRecurrenceRequest) (*eventrecurrencepb.CreateEventRecurrenceResponse, error) {
 	// Business rule: Required fields validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.data_required", "Event recurrence data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.data_required", "Event recurrence data is required [DEFAULT]"))
 	}
 
 	// Business enrichment (must happen before validation to auto-generate timestamps)
@@ -130,8 +130,8 @@ func (uc *CreateEventRecurrenceUseCase) applyBusinessLogic(eventRecurrence *even
 
 	// Business logic: Generate ID if not provided
 	if eventRecurrence.Id == "" {
-		if uc.services.IDService != nil {
-			eventRecurrence.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			eventRecurrence.Id = uc.services.IDGenerator.GenerateID()
 		} else {
 			// Fallback ID generation when service is not available
 			eventRecurrence.Id = fmt.Sprintf("event_recurrence-%d", now.UnixNano())
@@ -156,17 +156,17 @@ func (uc *CreateEventRecurrenceUseCase) applyBusinessLogic(eventRecurrence *even
 func (uc *CreateEventRecurrenceUseCase) validateBusinessRules(ctx context.Context, eventRecurrence *eventrecurrencepb.EventRecurrence) error {
 	// Business rule: name is required
 	if eventRecurrence.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.name_required", "Event recurrence name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.name_required", "Event recurrence name is required [DEFAULT]"))
 	}
 
 	// Business rule: rrule_string is required (source of truth for the recurrence pattern)
 	if eventRecurrence.RruleString == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.rrule_string_required", "RRULE string is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.rrule_string_required", "RRULE string is required [DEFAULT]"))
 	}
 
 	// Business rule: workspace_id is required (tenant scope)
 	if eventRecurrence.WorkspaceId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.workspace_id_required", "Workspace ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.workspace_id_required", "Workspace ID is required [DEFAULT]"))
 	}
 
 	return nil

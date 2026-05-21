@@ -20,9 +20,9 @@ type ReadStageTemplateRepositories struct {
 
 // ReadStageTemplateServices groups all business service dependencies
 type ReadStageTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadStageTemplateUseCase handles the business logic for reading stage templates
@@ -50,9 +50,9 @@ func NewReadStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.Stag
 	}
 
 	services := ReadStageTemplateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadStageTemplateUseCase(repositories, services)
@@ -61,14 +61,14 @@ func NewReadStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.Stag
 // Execute performs the read stage template operation
 func (uc *ReadStageTemplateUseCase) Execute(ctx context.Context, req *stageTemplatepb.ReadStageTemplateRequest) (*stageTemplatepb.ReadStageTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage_template", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.request_required", "Request is required for stage templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.request_required", "Request is required for stage templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -77,7 +77,7 @@ func (uc *ReadStageTemplateUseCase) Execute(ctx context.Context, req *stageTempl
 	}
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req.Data)
 	}
 
@@ -89,10 +89,10 @@ func (uc *ReadStageTemplateUseCase) Execute(ctx context.Context, req *stageTempl
 func (uc *ReadStageTemplateUseCase) executeWithTransaction(ctx context.Context, stageTemplate *stageTemplatepb.StageTemplate) (*stageTemplatepb.ReadStageTemplateResponse, error) {
 	var result *stageTemplatepb.ReadStageTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, stageTemplate)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "stage_template.errors.read_failed", "Stage template read failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "stage_template.errors.read_failed", "Stage template read failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -117,17 +117,17 @@ func (uc *ReadStageTemplateUseCase) executeCore(ctx context.Context, stageTempla
 func (uc *ReadStageTemplateUseCase) validateBusinessRules(ctx context.Context, stageTemplate *stageTemplatepb.StageTemplate) error {
 	// Business rule: Required data validation
 	if stageTemplate == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.data_required", "Stage template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.data_required", "Stage template data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for reading
 	if stageTemplate.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.id_required", "Stage template ID is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.id_required", "Stage template ID is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateStageTemplateID(stageTemplate.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.id_invalid", "Stage template ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.id_invalid", "Stage template ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

@@ -19,9 +19,9 @@ type UpdateRevenueRepositories struct {
 
 // UpdateRevenueServices groups all business service dependencies
 type UpdateRevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateRevenueUseCase handles the business logic for updating revenues
@@ -43,14 +43,14 @@ func NewUpdateRevenueUseCase(
 
 // Execute performs the update revenue operation
 func (uc *UpdateRevenueUseCase) Execute(ctx context.Context, req *revenuepb.UpdateRevenueRequest) (*revenuepb.UpdateRevenueResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenue, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *revenuepb.UpdateRevenueResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("revenue update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateRevenueUseCase) Execute(ctx context.Context, req *revenuepb.Upda
 
 func (uc *UpdateRevenueUseCase) executeCore(ctx context.Context, req *revenuepb.UpdateRevenueRequest) (*revenuepb.UpdateRevenueResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue.validation.id_required", "Revenue ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue.validation.id_required", "Revenue ID is required [DEFAULT]"))
 	}
 
 	// Set date_modified

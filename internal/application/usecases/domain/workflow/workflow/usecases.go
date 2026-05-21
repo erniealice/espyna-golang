@@ -12,10 +12,10 @@ type WorkflowRepositories struct {
 
 // WorkflowServices groups all business service dependencies for workflow use cases
 type WorkflowServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Required for Create use case
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator // Required for Create use case
 }
 
 // UseCases contains all workflow-related use cases
@@ -52,57 +52,57 @@ func NewUseCases(
 
 	createServices := CreateWorkflowServices{
 
-		AuthorizationService: services.AuthorizationService,
+		Authorizer: services.Authorizer,
 
-		TransactionService: services.TransactionService,
+		Transactor: services.Transactor,
 
-		TranslationService: services.TranslationService,
+		Translator: services.Translator,
 
-		IDService: services.IDService,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadWorkflowRepositories(repositories)
 
 	readServices := ReadWorkflowServices{
 
-		AuthorizationService: services.AuthorizationService,
+		Authorizer: services.Authorizer,
 
-		TransactionService: services.TransactionService,
+		Transactor: services.Transactor,
 
-		TranslationService: services.TranslationService,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateWorkflowRepositories(repositories)
 
 	updateServices := UpdateWorkflowServices{
 
-		AuthorizationService: services.AuthorizationService,
+		Authorizer: services.Authorizer,
 
-		TransactionService: services.TransactionService,
+		Transactor: services.Transactor,
 
-		TranslationService: services.TranslationService,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteWorkflowRepositories(repositories)
 
 	deleteServices := DeleteWorkflowServices{
 
-		AuthorizationService: services.AuthorizationService,
+		Authorizer: services.Authorizer,
 
-		TransactionService: services.TransactionService,
+		Transactor: services.Transactor,
 
-		TranslationService: services.TranslationService,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListWorkflowsRepositories(repositories)
 
 	listServices := ListWorkflowsServices{
 
-		AuthorizationService: services.AuthorizationService,
+		Authorizer: services.Authorizer,
 
-		TransactionService: services.TransactionService,
+		Transactor: services.Transactor,
 
-		TranslationService: services.TranslationService,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetWorkflowListPageDataRepositories{
@@ -112,9 +112,9 @@ func NewUseCases(
 
 	getListPageDataServices := GetWorkflowListPageDataServices{
 
-		TransactionService: services.TransactionService,
+		Transactor: services.Transactor,
 
-		TranslationService: services.TranslationService,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetWorkflowItemPageDataRepositories{
@@ -124,9 +124,9 @@ func NewUseCases(
 
 	getItemPageDataServices := GetWorkflowItemPageDataServices{
 
-		TransactionService: services.TransactionService,
+		Transactor: services.Transactor,
 
-		TranslationService: services.TranslationService,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

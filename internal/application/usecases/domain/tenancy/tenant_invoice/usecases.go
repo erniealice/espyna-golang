@@ -19,10 +19,10 @@ type TenantInvoiceRepositories struct {
 
 // TenantInvoiceServices groups service dependencies.
 type TenantInvoiceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all tenant_invoice use cases.
@@ -52,7 +52,7 @@ type CreateTenantInvoiceUseCase struct {
 }
 
 func (uc *CreateTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.CreateTenantInvoiceRequest) (*tenantinvoicepb.CreateTenantInvoiceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantInvoice, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *CreateTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantin
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -76,7 +76,7 @@ type ReadTenantInvoiceUseCase struct {
 }
 
 func (uc *ReadTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.ReadTenantInvoiceRequest) (*tenantinvoicepb.ReadTenantInvoiceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantInvoice, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type UpdateTenantInvoiceUseCase struct {
 }
 
 func (uc *UpdateTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.UpdateTenantInvoiceRequest) (*tenantinvoicepb.UpdateTenantInvoiceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantInvoice, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ type DeleteTenantInvoiceUseCase struct {
 }
 
 func (uc *DeleteTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.DeleteTenantInvoiceRequest) (*tenantinvoicepb.DeleteTenantInvoiceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantInvoice, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ type ListTenantInvoicesUseCase struct {
 }
 
 func (uc *ListTenantInvoicesUseCase) Execute(ctx context.Context, req *tenantinvoicepb.ListTenantInvoicesRequest) (*tenantinvoicepb.ListTenantInvoicesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantInvoice, ports.ActionRead); err != nil {
 		return nil, err
 	}

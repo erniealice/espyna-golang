@@ -16,10 +16,10 @@ type WorkspaceUserRoleRepositories struct {
 
 // WorkspaceUserRoleServices groups all business service dependencies for workspace user role use cases
 type WorkspaceUserRoleServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all workspace user role-related use cases
@@ -41,54 +41,54 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateWorkspaceUserRoleRepositories(repositories)
 	createServices := CreateWorkspaceUserRoleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadWorkspaceUserRoleRepositories(repositories)
 	readServices := ReadWorkspaceUserRoleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateWorkspaceUserRoleRepositories(repositories)
 	updateServices := UpdateWorkspaceUserRoleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteWorkspaceUserRoleRepositories(repositories)
 	deleteServices := DeleteWorkspaceUserRoleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListWorkspaceUserRolesRepositories(repositories)
 	listServices := ListWorkspaceUserRolesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetWorkspaceUserRoleListPageDataRepositories{
 		WorkspaceUserRole: repositories.WorkspaceUserRole,
 	}
 	listPageDataServices := GetWorkspaceUserRoleListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetWorkspaceUserRoleItemPageDataRepositories{
 		WorkspaceUserRole: repositories.WorkspaceUserRole,
 	}
 	itemPageDataServices := GetWorkspaceUserRoleItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

@@ -21,10 +21,10 @@ type CreateTaxRegistrationRepositories struct {
 
 // CreateTaxRegistrationServices groups service dependencies.
 type CreateTaxRegistrationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateTaxRegistrationUseCase handles creating a tax_registration.
@@ -41,14 +41,14 @@ func NewCreateTaxRegistrationUseCase(repositories CreateTaxRegistrationRepositor
 // Execute performs the create tax_registration operation.
 // It copies compute_path and party_role from the registration kind as a snapshot denorm.
 func (uc *CreateTaxRegistrationUseCase) Execute(ctx context.Context, req *taxregistrationpb.CreateTaxRegistrationRequest) (*taxregistrationpb.CreateTaxRegistrationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRegistration, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *taxregistrationpb.CreateTaxRegistrationResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("tax_registration creation failed: %w", err)
@@ -67,18 +67,18 @@ func (uc *CreateTaxRegistrationUseCase) Execute(ctx context.Context, req *taxreg
 
 func (uc *CreateTaxRegistrationUseCase) executeCore(ctx context.Context, req *taxregistrationpb.CreateTaxRegistrationRequest) (*taxregistrationpb.CreateTaxRegistrationResponse, error) {
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.data_required", "Tax Registration data is required [DEFAULT]"))
 	}
 	if req.Data.TaxRegistrationKindId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.kind_id_required", "Tax Registration Kind is required [DEFAULT]"))
 	}
 
 	// Enrich with ID and audit fields
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

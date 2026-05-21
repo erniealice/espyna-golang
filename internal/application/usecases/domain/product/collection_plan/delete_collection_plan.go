@@ -18,9 +18,9 @@ type DeleteCollectionPlanRepositories struct {
 
 // DeleteCollectionPlanServices groups all business service dependencies
 type DeleteCollectionPlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteCollectionPlanUseCase handles the business logic for deleting collection plans
@@ -43,13 +43,13 @@ func NewDeleteCollectionPlanUseCase(
 // Execute performs the delete collection plan operation
 func (uc *DeleteCollectionPlanUseCase) Execute(ctx context.Context, req *collectionplanpb.DeleteCollectionPlanRequest) (*collectionplanpb.DeleteCollectionPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollectionPlan, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -60,7 +60,7 @@ func (uc *DeleteCollectionPlanUseCase) Execute(ctx context.Context, req *collect
 // executeWithTransaction executes collection plan deletion within a transaction
 func (uc *DeleteCollectionPlanUseCase) executeWithTransaction(ctx context.Context, req *collectionplanpb.DeleteCollectionPlanRequest) (*collectionplanpb.DeleteCollectionPlanResponse, error) {
 	var result *collectionplanpb.DeleteCollectionPlanResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -70,7 +70,7 @@ func (uc *DeleteCollectionPlanUseCase) executeWithTransaction(ctx context.Contex
 	})
 
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -82,37 +82,37 @@ func (uc *DeleteCollectionPlanUseCase) executeCore(ctx context.Context, req *col
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityCollectionPlan, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.CollectionPlan.DeleteCollectionPlan(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.deletion_failed", "Collection Plan deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.deletion_failed", "Collection Plan deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -121,13 +121,13 @@ func (uc *DeleteCollectionPlanUseCase) executeCore(ctx context.Context, req *col
 // validateInput validates the input request
 func (uc *DeleteCollectionPlanUseCase) validateInput(ctx context.Context, req *collectionplanpb.DeleteCollectionPlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.data_required", "Collection Plan data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.data_required", "Collection Plan data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.validation.id_required", "Collection Plan ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.validation.id_required", "Collection Plan ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -136,10 +136,10 @@ func (uc *DeleteCollectionPlanUseCase) validateInput(ctx context.Context, req *c
 func (uc *DeleteCollectionPlanUseCase) validateBusinessRules(ctx context.Context, collectionPlan *collectionplanpb.CollectionPlan) error {
 	// Check if there are active subscriptions using this collection plan
 	if hasActiveSubscriptions, err := uc.hasActiveSubscriptions(ctx, collectionPlan.Id); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.active_subscriptions_check_failed", "Failed to check for active subscriptions [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.active_subscriptions_check_failed", "Failed to check for active subscriptions [DEFAULT]")
 		return fmt.Errorf("%s: %w", translatedError, err)
 	} else if hasActiveSubscriptions {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_plan.errors.cannot_delete_active_subscriptions", "Cannot delete collection plan with active subscriptions [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.cannot_delete_active_subscriptions", "Cannot delete collection plan with active subscriptions [DEFAULT]"))
 	}
 
 	return nil

@@ -28,7 +28,7 @@ func createTestListClientAttributesUseCase(businessType string) *ListClientAttri
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListClientAttributesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewListClientAttributesUseCase(repositories, services)
 }
@@ -40,7 +40,7 @@ func TestListClientAttributesUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockClientAttributeRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListClientAttributesUseCase(ListClientAttributesRepositories{ClientAttribute: mockRepo}, ListClientAttributesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/client-attribute has 3 entries
@@ -64,7 +64,7 @@ func TestListClientAttributesUseCase_Execute_AfterDelete(t *testing.T) {
 	// --- Delete a client attribute first ---
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteUseCase := NewDeleteClientAttributeUseCase(DeleteClientAttributeRepositories{ClientAttribute: mockRepo}, DeleteClientAttributeServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	deleteReq := &clientattributepb.DeleteClientAttributeRequest{Data: &clientattributepb.ClientAttribute{Id: "client-attr-002"}}
@@ -73,7 +73,7 @@ func TestListClientAttributesUseCase_Execute_AfterDelete(t *testing.T) {
 
 	// --- Now list the client attributes ---
 	listUseCase := NewListClientAttributesUseCase(ListClientAttributesRepositories{ClientAttribute: mockRepo}, ListClientAttributesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	listReq := &clientattributepb.ListClientAttributesRequest{}

@@ -17,9 +17,9 @@ type ReadAdminRepositories struct {
 
 // ReadAdminServices groups all business service dependencies
 type ReadAdminServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadAdminUseCase handles the business logic for reading an admin
@@ -42,22 +42,22 @@ func NewReadAdminUseCase(
 // Execute performs the read admin operation
 func (uc *ReadAdminUseCase) Execute(ctx context.Context, req *adminpb.ReadAdminRequest) (*adminpb.ReadAdminResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityAdmin, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.data_required", "[ERR-DEFAULT] Admin data is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.data_required", "[ERR-DEFAULT] Admin data is required"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.id_required", "[ERR-DEFAULT] Admin ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.id_required", "[ERR-DEFAULT] Admin ID is required"))
 	}
 
 	// Call repository

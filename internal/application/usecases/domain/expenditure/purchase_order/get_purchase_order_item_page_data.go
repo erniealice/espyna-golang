@@ -18,9 +18,9 @@ type GetPurchaseOrderItemPageDataRepositories struct {
 
 // GetPurchaseOrderItemPageDataServices groups all business service dependencies
 type GetPurchaseOrderItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPurchaseOrderItemPageDataUseCase handles fetching full item detail page data for a purchase order
@@ -42,13 +42,13 @@ func NewGetPurchaseOrderItemPageDataUseCase(
 
 // Execute performs the get purchase order item page data operation
 func (uc *GetPurchaseOrderItemPageDataUseCase) Execute(ctx context.Context, req *purchaseorderpb.GetPurchaseOrderItemPageDataRequest) (*purchaseorderpb.GetPurchaseOrderItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrder, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -57,7 +57,7 @@ func (uc *GetPurchaseOrderItemPageDataUseCase) Execute(ctx context.Context, req 
 	}
 	resp, err := uc.repositories.PurchaseOrder.GetPurchaseOrderItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load purchase order item")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load purchase order item")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -65,10 +65,10 @@ func (uc *GetPurchaseOrderItemPageDataUseCase) Execute(ctx context.Context, req 
 
 func (uc *GetPurchaseOrderItemPageDataUseCase) validateInput(ctx context.Context, req *purchaseorderpb.GetPurchaseOrderItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.PurchaseOrderId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.id_required", "[ERR-DEFAULT] Purchase order ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.id_required", "[ERR-DEFAULT] Purchase order ID is required"))
 	}
 	return nil
 }

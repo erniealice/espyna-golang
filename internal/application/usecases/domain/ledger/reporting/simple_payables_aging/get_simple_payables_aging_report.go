@@ -12,8 +12,8 @@ import (
 // simplified payables aging report grouped by supplier name.
 type GetSimplePayablesAgingReportUseCase struct {
 	reportingService     ports.LedgerReportingService
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetSimplePayablesAgingReportUseCase creates a new use case with its reporting service dependency.
@@ -21,7 +21,7 @@ func NewGetSimplePayablesAgingReportUseCase(svc ports.LedgerReportingService) *G
 	return &GetSimplePayablesAgingReportUseCase{
 		reportingService:     svc,
 		authorizationService: nil,
-		translationService:   ports.NewNoOpTranslationService(),
+		translationService:   ports.NewNoOpTranslator(),
 	}
 }
 

@@ -12,10 +12,10 @@ type DisbursementScheduleRepositories struct {
 
 // DisbursementScheduleServices groups all business service dependencies for disbursement schedule use cases.
 type DisbursementScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all disbursement-schedule-related use cases.
@@ -30,9 +30,9 @@ func NewUseCases(
 ) *UseCases {
 	listRepos := ListDisbursementSchedulesRepositories(repositories)
 	listSvcs := ListDisbursementSchedulesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

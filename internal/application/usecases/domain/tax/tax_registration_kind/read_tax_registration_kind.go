@@ -17,8 +17,8 @@ type ReadTaxRegistrationKindRepositories struct {
 
 // ReadTaxRegistrationKindServices groups service dependencies.
 type ReadTaxRegistrationKindServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadTaxRegistrationKindUseCase handles reading a tax_registration_kind.
@@ -34,12 +34,12 @@ func NewReadTaxRegistrationKindUseCase(repositories ReadTaxRegistrationKindRepos
 
 // Execute performs the read tax_registration_kind operation.
 func (uc *ReadTaxRegistrationKindUseCase) Execute(ctx context.Context, req *taxregistrationkindpb.ReadTaxRegistrationKindRequest) (*taxregistrationkindpb.ReadTaxRegistrationKindResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRegistrationKind, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration_kind.validation.id_required", "Tax Registration Kind ID is required [DEFAULT]"))
 	}
 	return uc.repositories.TaxRegistrationKind.ReadTaxRegistrationKind(ctx, req)

@@ -14,10 +14,10 @@ type Repositories struct {
 
 // Services groups all business service dependencies
 type Services struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all cost_plan-related use cases
@@ -36,31 +36,31 @@ func NewUseCases(repos Repositories, svcs Services) *UseCases {
 	return &UseCases{
 		CreateCostPlan: NewCreateCostPlanUseCase(
 			CreateCostPlanRepositories{CostPlan: repos.CostPlan, Workspace: repos.Workspace},
-			CreateCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService, IDService: svcs.IDService},
+			CreateCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
 		),
 		ReadCostPlan: NewReadCostPlanUseCase(
 			ReadCostPlanRepositories{CostPlan: repos.CostPlan},
-			ReadCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ReadCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		UpdateCostPlan: NewUpdateCostPlanUseCase(
 			UpdateCostPlanRepositories{CostPlan: repos.CostPlan},
-			UpdateCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			UpdateCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		DeleteCostPlan: NewDeleteCostPlanUseCase(
 			DeleteCostPlanRepositories{CostPlan: repos.CostPlan},
-			DeleteCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			DeleteCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		ListCostPlans: NewListCostPlansUseCase(
 			ListCostPlansRepositories{CostPlan: repos.CostPlan},
-			ListCostPlansServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ListCostPlansServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetCostPlanListPageData: NewGetCostPlanListPageDataUseCase(
 			GetCostPlanListPageDataRepositories{CostPlan: repos.CostPlan},
-			GetCostPlanListPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetCostPlanListPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetCostPlanItemPageData: NewGetCostPlanItemPageDataUseCase(
 			GetCostPlanItemPageDataRepositories{CostPlan: repos.CostPlan},
-			GetCostPlanItemPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetCostPlanItemPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 	}
 }

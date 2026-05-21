@@ -27,10 +27,10 @@ type ClientAttributeRepositories struct {
 
 // ClientAttributeServices groups all business service dependencies for client attribute use cases
 type ClientAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of client attribute use cases
@@ -41,18 +41,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateClientAttributeRepositories(repositories)
 	createServices := CreateClientAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadClientAttributeRepositories{
 		ClientAttribute: repositories.ClientAttribute,
 	}
 	readServices := ReadClientAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateClientAttributeRepositories{
@@ -61,40 +61,40 @@ func NewUseCases(
 		Attribute:       repositories.Attribute,
 	}
 	updateServices := UpdateClientAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteClientAttributeRepositories{
 		ClientAttribute: repositories.ClientAttribute,
 	}
 	deleteServices := DeleteClientAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListClientAttributesRepositories{
 		ClientAttribute: repositories.ClientAttribute,
 	}
 	listServices := ListClientAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetClientAttributeListPageDataRepositories{
 		ClientAttribute: repositories.ClientAttribute,
 	}
 	getListPageDataServices := GetClientAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetClientAttributeItemPageDataRepositories{
 		ClientAttribute: repositories.ClientAttribute,
 	}
 	getItemPageDataServices := GetClientAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -114,7 +114,7 @@ func NewUseCasesUngrouped(
 	clientAttributeRepo clientattributepb.ClientAttributeDomainServiceServer,
 	clientRepo clientpb.ClientDomainServiceServer,
 	attributeRepo attributepb.AttributeDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := ClientAttributeRepositories{
@@ -124,9 +124,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := ClientAttributeServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

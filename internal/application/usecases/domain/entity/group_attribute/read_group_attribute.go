@@ -18,9 +18,9 @@ type ReadGroupAttributeRepositories struct {
 
 // ReadGroupAttributeServices groups all business service dependencies
 type ReadGroupAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadGroupAttributeUseCase handles the business logic for reading group attributes
@@ -49,9 +49,9 @@ func NewReadGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb.G
 	}
 
 	services := ReadGroupAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadGroupAttributeUseCase(repositories, services)
@@ -60,7 +60,7 @@ func NewReadGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb.G
 // Execute performs the read group attribute operation
 func (uc *ReadGroupAttributeUseCase) Execute(ctx context.Context, req *groupattributepb.ReadGroupAttributeRequest) (*groupattributepb.ReadGroupAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroupAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -83,13 +83,13 @@ func (uc *ReadGroupAttributeUseCase) Execute(ctx context.Context, req *groupattr
 // validateInput validates the input request
 func (uc *ReadGroupAttributeUseCase) validateInput(ctx context.Context, req *groupattributepb.ReadGroupAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.data_required", "[ERR-DEFAULT] Group attribute data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.data_required", "[ERR-DEFAULT] Group attribute data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	return nil
 }

@@ -19,9 +19,9 @@ type UpdateGroupRepositories struct {
 
 // UpdateGroupServices groups all business service dependencies
 type UpdateGroupServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateGroupUseCase handles the business logic for updating groups
@@ -50,9 +50,9 @@ func NewUpdateGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) 
 	}
 
 	services := UpdateGroupServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateGroupUseCase(repositories, services)
@@ -60,33 +60,33 @@ func NewUpdateGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) 
 
 func (uc *UpdateGroupUseCase) Execute(ctx context.Context, req *grouppb.UpdateGroupRequest) (*grouppb.UpdateGroupResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroup, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichGroupData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Group.UpdateGroup(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.update_failed", "Group update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.update_failed", "Group update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -96,16 +96,16 @@ func (uc *UpdateGroupUseCase) Execute(ctx context.Context, req *grouppb.UpdateGr
 // validateInput validates the input request
 func (uc *UpdateGroupUseCase) validateInput(ctx context.Context, req *grouppb.UpdateGroupRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.data_required", "Group data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.data_required", "Group data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.id_required", "Group ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.id_required", "Group ID is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.name_required", "Group name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.name_required", "Group name is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -125,16 +125,16 @@ func (uc *UpdateGroupUseCase) enrichGroupData(group *grouppb.Group) error {
 func (uc *UpdateGroupUseCase) validateBusinessRules(ctx context.Context, group *grouppb.Group) error {
 	// Validate name length
 	if len(group.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.name_too_short", "Group name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.name_too_short", "Group name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(group.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.name_too_long", "Group name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.name_too_long", "Group name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate description length if provided
 	if group.Description != "" && len(group.Description) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.description_too_long", "Group description cannot exceed 500 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.description_too_long", "Group description cannot exceed 500 characters [DEFAULT]"))
 	}
 
 	return nil

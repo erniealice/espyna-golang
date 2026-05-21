@@ -60,10 +60,10 @@ type AdvanceCollectionAmortizer interface {
 
 // GenerateRevenueRunServices groups all business service dependencies.
 type GenerateRevenueRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // runAttemptRecord holds the in-memory outcome for one selection.
@@ -145,7 +145,7 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 	req *revenuerunpb.GenerateRevenueRunRequest,
 ) (*revenuerunpb.GenerateRevenueRunResponse, error) {
 	// Auth check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenue, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 	// error. Signed-token impl deferred per v1 progress.md decision log.
 	if selections.FilterToken != "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.filter_token_not_implemented",
 			"filter_token is not implemented [DEFAULT]",
 		))
@@ -202,7 +202,7 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 	sels := selections.ExplicitList
 	if len(sels) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.validation.no_selections",
 			"At least one selection is required [DEFAULT]",
 		))
@@ -221,7 +221,7 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 	scopeKind := uc.resolveScopeKind(scope)
 
 	// Step 1: INSERT parent run row (status=PENDING, counts all 0)
-	runID := uc.services.IDService.GenerateID()
+	runID := uc.services.IDGenerator.GenerateID()
 	now := time.Now().UTC().UnixMilli()
 	run := &revenuerunpb.RevenueRun{
 		Id:             runID,
@@ -252,7 +252,7 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 	}
 	if createdRunResp == nil || len(createdRunResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"revenue.errors.run_create_failed",
 			"Failed to create revenue run record [DEFAULT]",
 		))
@@ -285,7 +285,7 @@ func (uc *GenerateRevenueRunUseCase) Execute(
 		accumulator = append(accumulator, acc)
 
 		// INSERT attempt row
-		attemptID := uc.services.IDService.GenerateID()
+		attemptID := uc.services.IDGenerator.GenerateID()
 		if attemptID == "" {
 			attemptID = "err-id-" + sel.SubscriptionID
 		}

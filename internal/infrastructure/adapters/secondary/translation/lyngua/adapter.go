@@ -20,7 +20,7 @@ import (
 func init() {
 	registry.RegisterTranslationProvider(
 		"lyngua",
-		func() ports.TranslationService {
+		func() ports.Translator {
 			return NewLynguaTranslationAdapter()
 		},
 		transformConfig,
@@ -29,7 +29,7 @@ func init() {
 }
 
 // buildFromEnv creates and initializes a lyngua translation service from environment variables.
-func buildFromEnv() (ports.TranslationService, error) {
+func buildFromEnv() (ports.Translator, error) {
 	// Lyngua uses workspace-based path resolution by default
 	translationsPath := os.Getenv("LEAPFOR_TRANSLATION_PATH")
 	if translationsPath == "" {
@@ -68,7 +68,7 @@ func transformConfig(rawConfig map[string]any) (*registry.TranslationProviderCon
 // Adapter Implementation
 // =============================================================================
 
-// LynguaTranslationAdapter adapts the lyngua TranslationProvider to implement ports.TranslationService.
+// LynguaTranslationAdapter adapts the lyngua TranslationProvider to implement ports.Translator.
 // This avoids circular dependencies by keeping the adaptation in espyna.
 type LynguaTranslationAdapter struct {
 	provider *lynguaV1.TranslationProvider
@@ -101,7 +101,7 @@ func (a *LynguaTranslationAdapter) Initialize(config *registry.TranslationProvid
 	return nil
 }
 
-// Get implements ports.TranslationService.
+// Get implements ports.Translator.
 func (a *LynguaTranslationAdapter) Get(ctx context.Context, businessType, key string, params ...any) string {
 	if !a.enabled || a.provider == nil {
 		return key
@@ -131,7 +131,7 @@ func (a *LynguaTranslationAdapter) Get(ctx context.Context, businessType, key st
 	return a.formatMessage(translated, params...)
 }
 
-// GetWithDefault implements ports.TranslationService.
+// GetWithDefault implements ports.Translator.
 func (a *LynguaTranslationAdapter) GetWithDefault(ctx context.Context, businessType, key, defaultMessage string, params ...any) string {
 	translated := a.Get(ctx, businessType, key, params...)
 	if translated == key {
@@ -157,4 +157,4 @@ func (a *LynguaTranslationAdapter) IsEnabled() bool {
 	return a.enabled
 }
 
-var _ ports.TranslationService = (*LynguaTranslationAdapter)(nil)
+var _ ports.Translator = (*LynguaTranslationAdapter)(nil)

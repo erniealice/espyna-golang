@@ -27,10 +27,10 @@ type JobPhaseRepositories struct {
 
 // JobPhaseServices groups all business service dependencies
 type JobPhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all job-phase-related use cases
@@ -54,18 +54,18 @@ func NewUseCases(
 		CreateJobPhase: &CreateJobPhaseUseCase{
 			repositories: CreateJobPhaseRepositories{JobPhase: repositories.JobPhase},
 			services: CreateJobPhaseServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		},
 		ReadJobPhase: &ReadJobPhaseUseCase{
 			repositories: ReadJobPhaseRepositories{JobPhase: repositories.JobPhase},
 			services: ReadJobPhaseServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		},
 		UpdateJobPhase: &UpdateJobPhaseUseCase{
@@ -74,48 +74,48 @@ func NewUseCases(
 				BillingEvent: repositories.BillingEvent,
 			},
 			services: UpdateJobPhaseServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		},
 		DeleteJobPhase: &DeleteJobPhaseUseCase{
 			repositories: DeleteJobPhaseRepositories{JobPhase: repositories.JobPhase},
 			services: DeleteJobPhaseServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		},
 		ListJobPhases: &ListJobPhasesUseCase{
 			repositories: ListJobPhasesRepositories{JobPhase: repositories.JobPhase},
 			services: ListJobPhasesServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		},
 		GetJobPhaseListPageData: &GetJobPhaseListPageDataUseCase{
 			repositories: GetJobPhaseListPageDataRepositories{JobPhase: repositories.JobPhase},
 			services: GetJobPhaseListPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		},
 		GetJobPhaseItemPageData: &GetJobPhaseItemPageDataUseCase{
 			repositories: GetJobPhaseItemPageDataRepositories{JobPhase: repositories.JobPhase},
 			services: GetJobPhaseItemPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		},
 		ListByJob: &ListByJobUseCase{
 			repositories: ListByJobRepositories{JobPhase: repositories.JobPhase},
 			services: ListByJobServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		},
 	}
@@ -127,10 +127,10 @@ type CreateJobPhaseRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type CreateJobPhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 type CreateJobPhaseUseCase struct {
 	repositories CreateJobPhaseRepositories
@@ -138,22 +138,22 @@ type CreateJobPhaseUseCase struct {
 }
 
 func (uc *CreateJobPhaseUseCase) Execute(ctx context.Context, req *pb.CreateJobPhaseRequest) (*pb.CreateJobPhaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionCreate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.data_required", "job phase data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.data_required", "job phase data is required [DEFAULT]"))
 	}
 	if strings.TrimSpace(req.Data.Name) == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.name_required", "job phase name is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.name_required", "job phase name is required [DEFAULT]"))
 	}
 	if req.Data.JobId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.job_id_required", "job ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.job_id_required", "job ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()
-	if uc.services.IDService != nil {
-		req.Data.Id = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	} else {
 		req.Data.Id = fmt.Sprintf("job_phase-%d", now.UnixNano())
 	}
@@ -165,9 +165,9 @@ func (uc *CreateJobPhaseUseCase) Execute(ctx context.Context, req *pb.CreateJobP
 	req.Data.DateModifiedString = &dcs
 	req.Data.Active = true
 
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		var result *pb.CreateJobPhaseResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.JobPhase.CreateJobPhase(txCtx, req)
 			if err != nil {
 				return err
@@ -189,9 +189,9 @@ type ReadJobPhaseRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type ReadJobPhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 type ReadJobPhaseUseCase struct {
 	repositories ReadJobPhaseRepositories
@@ -199,15 +199,15 @@ type ReadJobPhaseUseCase struct {
 }
 
 func (uc *ReadJobPhaseUseCase) Execute(ctx context.Context, req *pb.ReadJobPhaseRequest) (*pb.ReadJobPhaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.id_required", "job phase ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.id_required", "job phase ID is required"))
 	}
 	result, err := uc.repositories.JobPhase.ReadJobPhase(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.errors.not_found", "job phase not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.errors.not_found", "job phase not found [DEFAULT]"))
 	}
 	return result, nil
 }
@@ -219,9 +219,9 @@ type UpdateJobPhaseRepositories struct {
 	BillingEvent billingeventpb.BillingEventDomainServiceServer
 }
 type UpdateJobPhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 type UpdateJobPhaseUseCase struct {
 	repositories UpdateJobPhaseRepositories
@@ -229,14 +229,14 @@ type UpdateJobPhaseUseCase struct {
 }
 
 func (uc *UpdateJobPhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobPhaseRequest) (*pb.UpdateJobPhaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionUpdate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.id_required", "job phase ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.id_required", "job phase ID is required"))
 	}
 	if strings.TrimSpace(req.Data.Name) == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.name_required", "job phase name is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.name_required", "job phase name is required"))
 	}
 
 	// Snapshot the prior status so we can detect the PHASE_COMPLETED transition
@@ -255,7 +255,7 @@ func (uc *UpdateJobPhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobP
 
 	_, err := uc.repositories.JobPhase.UpdateJobPhase(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.errors.update_failed", "job phase update failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.errors.update_failed", "job phase update failed [DEFAULT]"))
 	}
 
 	// OnJobPhaseCompleted hook — one-way (revert does NOT roll back any
@@ -357,9 +357,9 @@ type DeleteJobPhaseRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type DeleteJobPhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 type DeleteJobPhaseUseCase struct {
 	repositories DeleteJobPhaseRepositories
@@ -367,15 +367,15 @@ type DeleteJobPhaseUseCase struct {
 }
 
 func (uc *DeleteJobPhaseUseCase) Execute(ctx context.Context, req *pb.DeleteJobPhaseRequest) (*pb.DeleteJobPhaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionDelete); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.id_required", "job phase ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.id_required", "job phase ID is required"))
 	}
 	result, err := uc.repositories.JobPhase.DeleteJobPhase(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.errors.deletion_failed", "job phase deletion failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.errors.deletion_failed", "job phase deletion failed [DEFAULT]"))
 	}
 	return result, nil
 }
@@ -386,9 +386,9 @@ type ListJobPhasesRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type ListJobPhasesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 type ListJobPhasesUseCase struct {
 	repositories ListJobPhasesRepositories
@@ -396,15 +396,15 @@ type ListJobPhasesUseCase struct {
 }
 
 func (uc *ListJobPhasesUseCase) Execute(ctx context.Context, req *pb.ListJobPhasesRequest) (*pb.ListJobPhasesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.request_required", "request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.request_required", "request is required"))
 	}
 	result, err := uc.repositories.JobPhase.ListJobPhases(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.errors.list_failed", "job phase listing failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.errors.list_failed", "job phase listing failed [DEFAULT]"))
 	}
 	return result, nil
 }
@@ -415,9 +415,9 @@ type GetJobPhaseListPageDataRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type GetJobPhaseListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 type GetJobPhaseListPageDataUseCase struct {
 	repositories GetJobPhaseListPageDataRepositories
@@ -425,11 +425,11 @@ type GetJobPhaseListPageDataUseCase struct {
 }
 
 func (uc *GetJobPhaseListPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobPhaseListPageDataRequest) (*pb.GetJobPhaseListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.request_required", "request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.request_required", "request is required"))
 	}
 	return uc.repositories.JobPhase.GetJobPhaseListPageData(ctx, req)
 }
@@ -440,9 +440,9 @@ type GetJobPhaseItemPageDataRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type GetJobPhaseItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 type GetJobPhaseItemPageDataUseCase struct {
 	repositories GetJobPhaseItemPageDataRepositories
@@ -450,11 +450,11 @@ type GetJobPhaseItemPageDataUseCase struct {
 }
 
 func (uc *GetJobPhaseItemPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobPhaseItemPageDataRequest) (*pb.GetJobPhaseItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.JobPhaseId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.id_required", "job phase ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.id_required", "job phase ID is required"))
 	}
 	return uc.repositories.JobPhase.GetJobPhaseItemPageData(ctx, req)
 }
@@ -465,8 +465,8 @@ type ListByJobRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type ListByJobServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 type ListByJobUseCase struct {
 	repositories ListByJobRepositories
@@ -474,11 +474,11 @@ type ListByJobUseCase struct {
 }
 
 func (uc *ListByJobUseCase) Execute(ctx context.Context, req *pb.ListJobPhasesByJobRequest) (*pb.ListJobPhasesByJobResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "job_phase", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_phase", ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil || req.JobId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_phase.validation.job_id_required", "job ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.job_id_required", "job ID is required"))
 	}
 	return uc.repositories.JobPhase.ListByJob(ctx, req)
 }

@@ -21,9 +21,9 @@ type ReactivateLicenseRepositories struct {
 
 // ReactivateLicenseServices groups all business service dependencies
 type ReactivateLicenseServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
+	Authorizer ports.Authorizer // RBAC and permissions
+	Transactor ports.Transactor // Database transactions
+	Translator ports.Translator // i18n error messages
 }
 
 // ReactivateLicenseUseCase handles the business logic for reactivating suspended licenses
@@ -49,13 +49,13 @@ func NewReactivateLicenseUseCase(
 // Execute performs the reactivate license operation
 func (uc *ReactivateLicenseUseCase) Execute(ctx context.Context, req *licensepb.ReactivateLicenseRequest) (*licensepb.ReactivateLicenseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicense, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -64,11 +64,11 @@ func (uc *ReactivateLicenseUseCase) Execute(ctx context.Context, req *licensepb.
 // executeWithTransaction performs the reactivate license operation within a transaction
 func (uc *ReactivateLicenseUseCase) executeWithTransaction(ctx context.Context, req *licensepb.ReactivateLicenseRequest) (*licensepb.ReactivateLicenseResponse, error) {
 	var result *licensepb.ReactivateLicenseResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(ctx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(ctx context.Context) error {
 		var txErr error
 		result, txErr = uc.executeCore(ctx, req)
 		if txErr != nil {
-			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.reactivation_failed", "license reactivation failed [DEFAULT]")
+			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.reactivation_failed", "license reactivation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", errMsg, txErr)
 		}
 		return nil
@@ -92,14 +92,14 @@ func (uc *ReactivateLicenseUseCase) executeCore(ctx context.Context, req *licens
 		Data: &licensepb.License{Id: req.LicenseId},
 	})
 	if err != nil || readResp == nil || len(readResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.not_found", "license not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.not_found", "license not found [DEFAULT]"))
 	}
 
 	license := readResp.Data[0]
 
 	// Check if license is suspended
 	if license.Status != licensepb.LicenseStatus_LICENSE_STATUS_SUSPENDED {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.not_suspended", "license is not suspended [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.not_suspended", "license is not suspended [DEFAULT]"))
 	}
 
 	// Store previous status for history
@@ -159,13 +159,13 @@ func (uc *ReactivateLicenseUseCase) executeCore(ctx context.Context, req *licens
 // validateInput validates the input request
 func (uc *ReactivateLicenseUseCase) validateInput(ctx context.Context, req *licensepb.ReactivateLicenseRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.LicenseId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.id_required", "license ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.id_required", "license ID is required [DEFAULT]"))
 	}
 	if req.PerformedBy == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.performed_by_required", "performed_by is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.performed_by_required", "performed_by is required [DEFAULT]"))
 	}
 	return nil
 }

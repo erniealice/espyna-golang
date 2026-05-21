@@ -17,9 +17,9 @@ type ListByScopeRepositories struct {
 }
 
 type ListByScopeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListByScopeUseCase handles the business logic for listing outcome criteria by scope
@@ -42,7 +42,7 @@ func NewListByScopeUseCase(
 // Execute performs the list by scope operation
 func (uc *ListByScopeUseCase) Execute(ctx context.Context, req *pb.ListOutcomeCriteriasByScopeRequest) (*pb.ListOutcomeCriteriasByScopeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityOutcomeCriteria, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (uc *ListByScopeUseCase) Execute(ctx context.Context, req *pb.ListOutcomeCr
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -65,10 +65,10 @@ func (uc *ListByScopeUseCase) Execute(ctx context.Context, req *pb.ListOutcomeCr
 func (uc *ListByScopeUseCase) executeWithTransaction(ctx context.Context, req *pb.ListOutcomeCriteriasByScopeRequest) (*pb.ListOutcomeCriteriasByScopeResponse, error) {
 	var result *pb.ListOutcomeCriteriasByScopeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "outcome_criteria.errors.list_by_scope_failed", "outcome criteria listing by scope failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "outcome_criteria.errors.list_by_scope_failed", "outcome criteria listing by scope failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -84,7 +84,7 @@ func (uc *ListByScopeUseCase) executeWithTransaction(ctx context.Context, req *p
 func (uc *ListByScopeUseCase) executeCore(ctx context.Context, req *pb.ListOutcomeCriteriasByScopeRequest) (*pb.ListOutcomeCriteriasByScopeResponse, error) {
 	resp, err := uc.repositories.OutcomeCriteria.ListByScope(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.list_by_scope_failed", "failed to list outcome criteria by scope: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.list_by_scope_failed", "failed to list outcome criteria by scope: %w"), err)
 	}
 	return resp, nil
 }
@@ -92,10 +92,10 @@ func (uc *ListByScopeUseCase) executeCore(ctx context.Context, req *pb.ListOutco
 // validateInput validates the input request
 func (uc *ListByScopeUseCase) validateInput(ctx context.Context, req *pb.ListOutcomeCriteriasByScopeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.request_required", "request is required"))
 	}
 	if req.Scope == enumspb.CriteriaScope_CRITERIA_SCOPE_UNSPECIFIED {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.scope_required", "scope is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.scope_required", "scope is required"))
 	}
 
 	return nil

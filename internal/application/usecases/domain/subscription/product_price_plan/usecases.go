@@ -16,10 +16,10 @@ type ProductPricePlanRepositories struct {
 
 // ProductPricePlanServices groups all business service dependencies for product price plan use cases
 type ProductPricePlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // ReadProductPricePlanRepositories groups all repository dependencies
@@ -29,9 +29,9 @@ type ReadProductPricePlanRepositories struct {
 
 // ReadProductPricePlanServices groups all business service dependencies
 type ReadProductPricePlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteProductPricePlanRepositories groups all repository dependencies
@@ -41,9 +41,9 @@ type DeleteProductPricePlanRepositories struct {
 
 // DeleteProductPricePlanServices groups all business service dependencies
 type DeleteProductPricePlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListProductPricePlansRepositories groups all repository dependencies
@@ -53,9 +53,9 @@ type ListProductPricePlansRepositories struct {
 
 // ListProductPricePlansServices groups all business service dependencies
 type ListProductPricePlansServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UseCases contains all product price plan-related use cases
@@ -80,19 +80,19 @@ func NewUseCases(
 		ProductPlan:      repositories.ProductPlan,
 	}
 	createServices := CreateProductPricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadProductPricePlanRepositories{
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	readServices := ReadProductPricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateProductPricePlanRepositories{
@@ -101,45 +101,45 @@ func NewUseCases(
 		ProductPlan:      repositories.ProductPlan,
 	}
 	updateServices := UpdateProductPricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteProductPricePlanRepositories{
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	deleteServices := DeleteProductPricePlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListProductPricePlansRepositories{
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	listServices := ListProductPricePlansServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetProductPricePlanListPageDataRepositories{
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	listPageDataServices := GetProductPricePlanListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetProductPricePlanItemPageDataRepositories{
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	itemPageDataServices := GetProductPricePlanItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

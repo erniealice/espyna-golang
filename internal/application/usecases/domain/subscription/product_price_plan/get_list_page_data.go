@@ -18,9 +18,9 @@ type GetProductPricePlanListPageDataRepositories struct {
 }
 
 type GetProductPricePlanListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetProductPricePlanListPageDataUseCase handles the business logic for getting product price plan list page data
@@ -47,7 +47,7 @@ func (uc *GetProductPricePlanListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *productpriceplanpb.GetProductPricePlanListPageDataRequest,
 ) (*productpriceplanpb.GetProductPricePlanListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *GetProductPricePlanListPageDataUseCase) Execute(
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -69,12 +69,12 @@ func (uc *GetProductPricePlanListPageDataUseCase) executeWithTransaction(
 ) (*productpriceplanpb.GetProductPricePlanListPageDataResponse, error) {
 	var result *productpriceplanpb.GetProductPricePlanListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"product_price_plan.errors.list_page_data_failed",
 				"product price plan list page data retrieval failed: %w",
 			), err)
@@ -98,7 +98,7 @@ func (uc *GetProductPricePlanListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_price_plan.errors.list_failed",
 			"failed to retrieve product price plans: %w",
 		), err)
@@ -124,7 +124,7 @@ func (uc *GetProductPricePlanListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_price_plan.errors.processing_failed",
 			"failed to process product price plan list data: %w",
 		), err)
@@ -137,7 +137,7 @@ func (uc *GetProductPricePlanListPageDataUseCase) executeCore(
 		} else {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"product_price_plan.errors.type_conversion_failed",
 				"failed to convert item to product price plan type",
 			))
@@ -167,7 +167,7 @@ func (uc *GetProductPricePlanListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_price_plan.validation.request_required",
 			"request is required",
 		))

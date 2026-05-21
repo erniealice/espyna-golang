@@ -17,9 +17,9 @@ type ReadPrepaymentRepositories struct {
 
 // ReadPrepaymentServices groups all business service dependencies
 type ReadPrepaymentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadPrepaymentUseCase handles the business logic for reading a prepayment
@@ -41,7 +41,7 @@ func NewReadPrepaymentUseCase(
 
 // Execute performs the read prepayment operation
 func (uc *ReadPrepaymentUseCase) Execute(ctx context.Context, req *prepaymentpb.ReadPrepaymentRequest) (*prepaymentpb.ReadPrepaymentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPrepayment, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -58,13 +58,13 @@ func (uc *ReadPrepaymentUseCase) Execute(ctx context.Context, req *prepaymentpb.
 
 func (uc *ReadPrepaymentUseCase) validateInput(ctx context.Context, req *prepaymentpb.ReadPrepaymentRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "prepayment.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "prepayment.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

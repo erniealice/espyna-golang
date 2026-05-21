@@ -30,9 +30,9 @@ func createTestDeleteRolePermissionUseCase(businessType string) *DeleteRolePermi
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := DeleteRolePermissionServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	return NewDeleteRolePermissionUseCase(repositories, services)
 }
@@ -91,5 +91,5 @@ func TestDeleteRolePermissionUseCase_Execute_EmptyId(t *testing.T) {
 		Data: &rolepermissionpb.RolePermission{Id: ""},
 	}
 	_, err := useCase.Execute(ctx, req)
-	testutil.AssertTranslatedError(t, err, "role_permission.validation.id_required_with_prefix", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "role_permission.validation.id_required_with_prefix", useCase.services.Translator, ctx)
 }

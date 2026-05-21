@@ -15,18 +15,18 @@ import (
 // for Q-SDM-MAP-SHAPES rationale.
 type ListExpensesUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewListExpensesUseCase wires the use case with nil-safe deps.
 func NewListExpensesUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *ListExpensesUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &ListExpensesUseCase{
 		reporter:             r,

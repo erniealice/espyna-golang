@@ -18,9 +18,9 @@ type DeleteBalanceAttributeRepositories struct {
 
 // DeleteBalanceAttributeServices groups all business service dependencies
 type DeleteBalanceAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteBalanceAttributeUseCase handles the business logic for deleting balance attributes
@@ -43,7 +43,7 @@ func NewDeleteBalanceAttributeUseCase(
 // Execute performs the delete balance attribute operation
 func (uc *DeleteBalanceAttributeUseCase) Execute(ctx context.Context, req *balanceattributepb.DeleteBalanceAttributeRequest) (*balanceattributepb.DeleteBalanceAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalanceAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *DeleteBalanceAttributeUseCase) Execute(ctx context.Context, req *balan
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"balance_attribute.errors.not_found",
 				map[string]interface{}{"balanceAttributeId": req.Data.Id},
 				"Balance attribute not found [DEFAULT]",
@@ -70,7 +70,7 @@ func (uc *DeleteBalanceAttributeUseCase) Execute(ctx context.Context, req *balan
 			return nil, errors.New(translatedError)
 		}
 		// Handle other repository errors
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.errors.deletion_failed", "Balance attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.errors.deletion_failed", "Balance attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -80,13 +80,13 @@ func (uc *DeleteBalanceAttributeUseCase) Execute(ctx context.Context, req *balan
 // validateInput validates the input request
 func (uc *DeleteBalanceAttributeUseCase) validateInput(ctx context.Context, req *balanceattributepb.DeleteBalanceAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.id_required", "Balance attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.id_required", "Balance attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

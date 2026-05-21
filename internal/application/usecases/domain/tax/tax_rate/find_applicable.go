@@ -24,8 +24,8 @@ type FindApplicableTaxRateRepositories struct {
 
 // FindApplicableTaxRateServices groups service dependencies.
 type FindApplicableTaxRateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // FindApplicableTaxRateRequest is the input for finding an applicable tax rate.
@@ -56,16 +56,16 @@ func NewFindApplicableTaxRateUseCase(
 
 // Execute returns the most applicable TaxRate for the given parameters.
 func (uc *FindApplicableTaxRateUseCase) Execute(ctx context.Context, req *FindApplicableTaxRateRequest) (*taxratepb.TaxRate, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRate, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_rate.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Kind == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_rate.validation.kind_required", "Rate kind is required [DEFAULT]"))
 	}
 

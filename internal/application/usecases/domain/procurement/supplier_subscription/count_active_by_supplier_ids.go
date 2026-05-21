@@ -17,8 +17,8 @@ type CountActiveBySupplierIdsRepositories struct {
 // CountActiveBySupplierIdsServices groups service dependencies for
 // the CountActiveBySupplierIds use case.
 type CountActiveBySupplierIdsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // CountActiveBySupplierIdsUseCase counts active supplier subscriptions grouped by supplier ID.
@@ -40,7 +40,7 @@ func NewCountActiveBySupplierIdsUseCase(
 
 // Execute performs an authorization check then delegates to the repository.
 func (uc *CountActiveBySupplierIdsUseCase) Execute(ctx context.Context, req *suppliersubscriptionpb.CountActiveBySupplierIdsRequest) (*suppliersubscriptionpb.CountActiveBySupplierIdsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierSubscription, ports.ActionList); err != nil {
 		return nil, err
 	}

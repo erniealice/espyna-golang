@@ -18,9 +18,9 @@ type GetPricePlanItemPageDataRepositories struct {
 
 // GetPricePlanItemPageDataServices groups all business service dependencies
 type GetPricePlanItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPricePlanItemPageDataUseCase handles the business logic for getting price plan item page data
@@ -43,14 +43,14 @@ func NewGetPricePlanItemPageDataUseCase(
 // Execute performs the get price plan item page data operation
 func (uc *GetPricePlanItemPageDataUseCase) Execute(ctx context.Context, req *priceplanpb.GetPricePlanItemPageDataRequest) (*priceplanpb.GetPricePlanItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", "Request is required for price plan item page data"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.request_required", "Request is required for price plan item page data"))
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
@@ -63,7 +63,7 @@ func (uc *GetPricePlanItemPageDataUseCase) Execute(ctx context.Context, req *pri
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,10 +75,10 @@ func (uc *GetPricePlanItemPageDataUseCase) Execute(ctx context.Context, req *pri
 func (uc *GetPricePlanItemPageDataUseCase) executeWithTransaction(ctx context.Context, req *priceplanpb.GetPricePlanItemPageDataRequest) (*priceplanpb.GetPricePlanItemPageDataResponse, error) {
 	var result *priceplanpb.GetPricePlanItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "price_plan.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load price plan details")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "price_plan.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load price plan details")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -100,16 +100,16 @@ func (uc *GetPricePlanItemPageDataUseCase) executeCore(ctx context.Context, req 
 // validateInput validates the input request
 func (uc *GetPricePlanItemPageDataUseCase) validateInput(ctx context.Context, req *priceplanpb.GetPricePlanItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.PricePlanId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.id_required", "Price plan ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.id_required", "Price plan ID is required"))
 	}
 
 	// Validate ID format (basic validation)
 	if len(req.PricePlanId) > 255 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.id_too_long", "Price plan ID cannot exceed 255 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.id_too_long", "Price plan ID cannot exceed 255 characters"))
 	}
 
 	return nil

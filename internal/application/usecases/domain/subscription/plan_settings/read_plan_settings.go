@@ -16,9 +16,9 @@ type ReadPlanSettingsRepositories struct {
 
 // ReadPlanSettingsServices groups all business service dependencies
 type ReadPlanSettingsServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadPlanSettingsUseCase handles the business logic for reading plan_settings
@@ -41,7 +41,7 @@ func NewReadPlanSettingsUseCase(
 // Execute performs the read plan_settings operation
 func (uc *ReadPlanSettingsUseCase) Execute(ctx context.Context, req *plansettingspb.ReadPlanSettingsRequest) (*plansettingspb.ReadPlanSettingsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlanSettings, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -70,8 +70,8 @@ func (uc *ReadPlanSettingsUseCase) getBusinessTypeFromContext(ctx context.Contex
 
 // getTranslatedMessage gets a translated message with fallback
 func (uc *ReadPlanSettingsUseCase) getTranslatedMessage(ctx context.Context, businessType, key, fallback string) string {
-	if uc.services.TranslationService != nil {
-		return uc.services.TranslationService.GetWithDefault(ctx, businessType, key, fallback)
+	if uc.services.Translator != nil {
+		return uc.services.Translator.GetWithDefault(ctx, businessType, key, fallback)
 	}
 	return fallback
 }

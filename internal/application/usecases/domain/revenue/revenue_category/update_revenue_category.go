@@ -19,9 +19,9 @@ type UpdateRevenueCategoryRepositories struct {
 
 // UpdateRevenueCategoryServices groups all business service dependencies
 type UpdateRevenueCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateRevenueCategoryUseCase handles the business logic for updating revenue categories
@@ -43,14 +43,14 @@ func NewUpdateRevenueCategoryUseCase(
 
 // Execute performs the update revenue category operation
 func (uc *UpdateRevenueCategoryUseCase) Execute(ctx context.Context, req *pb.UpdateRevenueCategoryRequest) (*pb.UpdateRevenueCategoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueCategory, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *pb.UpdateRevenueCategoryResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("revenue category update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateRevenueCategoryUseCase) Execute(ctx context.Context, req *pb.Upd
 
 func (uc *UpdateRevenueCategoryUseCase) executeCore(ctx context.Context, req *pb.UpdateRevenueCategoryRequest) (*pb.UpdateRevenueCategoryResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue_category.validation.id_required", "Revenue category ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_category.validation.id_required", "Revenue category ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()

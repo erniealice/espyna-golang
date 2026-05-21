@@ -18,9 +18,9 @@ type SwitchWorkspaceRepositories struct {
 
 // SwitchWorkspaceServices groups all business service dependencies
 type SwitchWorkspaceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // SwitchWorkspaceUseCase handles the business logic for switching workspaces
@@ -42,20 +42,20 @@ func NewSwitchWorkspaceUseCase(
 
 func (uc *SwitchWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.SwitchWorkspaceRequest) (*workspacepb.SwitchWorkspaceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspace, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.errors.switch_request_required", "switch workspace request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.errors.switch_request_required", "switch workspace request is required"))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Workspace.SwitchWorkspace(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.errors.switch_failed", "Failed to switch workspace [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.errors.switch_failed", "Failed to switch workspace [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

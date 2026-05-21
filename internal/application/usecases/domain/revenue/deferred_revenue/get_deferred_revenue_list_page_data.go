@@ -18,9 +18,9 @@ type GetDeferredRevenueListPageDataRepositories struct {
 
 // GetDeferredRevenueListPageDataServices groups all business service dependencies
 type GetDeferredRevenueListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetDeferredRevenueListPageDataUseCase handles fetching paginated, searchable deferred revenue list data
@@ -42,13 +42,13 @@ func NewGetDeferredRevenueListPageDataUseCase(
 
 // Execute performs the get deferred revenue list page data operation
 func (uc *GetDeferredRevenueListPageDataUseCase) Execute(ctx context.Context, req *deferredrevenuepb.GetDeferredRevenueListPageDataRequest) (*deferredrevenuepb.GetDeferredRevenueListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDeferredRevenue, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -57,7 +57,7 @@ func (uc *GetDeferredRevenueListPageDataUseCase) Execute(ctx context.Context, re
 	}
 	resp, err := uc.repositories.DeferredRevenue.GetDeferredRevenueListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load deferred revenue list")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load deferred revenue list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -65,13 +65,13 @@ func (uc *GetDeferredRevenueListPageDataUseCase) Execute(ctx context.Context, re
 
 func (uc *GetDeferredRevenueListPageDataUseCase) validateInput(ctx context.Context, req *deferredrevenuepb.GetDeferredRevenueListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Pagination != nil && req.Pagination.Limit > 0 && req.Pagination.Limit > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
 	}
 	if req.Search != nil && len(req.Search.Query) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
 	}
 	return nil
 }

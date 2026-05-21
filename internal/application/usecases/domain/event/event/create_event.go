@@ -19,10 +19,10 @@ type CreateEventRepositories struct {
 
 // CreateEventServices groups all business service dependencies
 type CreateEventServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventUseCase handles the business logic for creating events
@@ -51,10 +51,10 @@ func NewCreateEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 	}
 
 	services := CreateEventServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil, // Will be injected later if needed
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return &CreateEventUseCase{
@@ -66,13 +66,13 @@ func NewCreateEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 // Execute performs the create event operation
 func (uc *CreateEventUseCase) Execute(ctx context.Context, req *eventpb.CreateEventRequest) (*eventpb.CreateEventResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEvent, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -84,10 +84,10 @@ func (uc *CreateEventUseCase) Execute(ctx context.Context, req *eventpb.CreateEv
 func (uc *CreateEventUseCase) executeWithTransaction(ctx context.Context, req *eventpb.CreateEventRequest) (*eventpb.CreateEventResponse, error) {
 	var result *eventpb.CreateEventResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "event.errors.creation_failed", "Event creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "event.errors.creation_failed", "Event creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -104,10 +104,10 @@ func (uc *CreateEventUseCase) executeWithTransaction(ctx context.Context, req *e
 func (uc *CreateEventUseCase) executeCore(ctx context.Context, req *eventpb.CreateEventRequest) (*eventpb.CreateEventResponse, error) {
 	// Business rule: Required fields validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.request_required", "Request is required for academic events [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.request_required", "Request is required for academic events [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
 	}
 
 	// Business enrichment (must happen before validation to auto-generate timestamps)
@@ -130,8 +130,8 @@ func (uc *CreateEventUseCase) applyBusinessLogic(event *eventpb.Event) *eventpb.
 
 	// Business logic: Generate ID if not provided
 	if event.Id == "" {
-		if uc.services.IDService != nil {
-			event.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			event.Id = uc.services.IDGenerator.GenerateID()
 		} else {
 			// Fallback ID generation when service is not available
 			event.Id = fmt.Sprintf("event-%d", now.UnixNano())
@@ -169,38 +169,38 @@ func (uc *CreateEventUseCase) applyBusinessLogic(event *eventpb.Event) *eventpb.
 func (uc *CreateEventUseCase) validateBusinessRules(ctx context.Context, event *eventpb.Event) error {
 	// Business rule: Required fields validation
 	if event.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.name_required", "Event name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.name_required", "Event name is required [DEFAULT]"))
 	}
 
 	// Business rule: Event timing logic
 	if event.StartDateTimeUtc >= event.EndDateTimeUtc {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.invalid_time_range", "Event start time must be before end time [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.invalid_time_range", "Event start time must be before end time [DEFAULT]"))
 	}
 
 	// Business rule: No past events allowed (use current time for consistency)
 	now := time.Now()
 	if event.StartDateTimeUtc < now.UnixMilli() {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.no_past_events", "Cannot create events in the past [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.no_past_events", "Cannot create events in the past [DEFAULT]"))
 	}
 
 	// Business rule: Event duration constraints
 	duration := event.EndDateTimeUtc - event.StartDateTimeUtc
 	if duration < 300*1000 { // 5 minutes minimum
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.minimum_duration", "Event must be at least 5 minutes long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.minimum_duration", "Event must be at least 5 minutes long [DEFAULT]"))
 	}
 
 	if duration > 86400*7*1000 { // 7 days maximum
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.maximum_duration", "Event cannot be longer than 7 days [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.maximum_duration", "Event cannot be longer than 7 days [DEFAULT]"))
 	}
 
 	// Business rule: Name length constraints
 	if len(event.Name) > 255 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.name_too_long", "Event name cannot exceed 255 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.name_too_long", "Event name cannot exceed 255 characters [DEFAULT]"))
 	}
 
 	// Business rule: Description length constraints (if provided)
 	if event.Description != nil && len(*event.Description) > 2000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.description_too_long", "Event description cannot exceed 2000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.description_too_long", "Event description cannot exceed 2000 characters [DEFAULT]"))
 	}
 
 	return nil

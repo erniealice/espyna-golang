@@ -30,9 +30,9 @@ type RecordOperatorRateRepositories struct {
 
 // RecordOperatorRateServices groups service dependencies.
 type RecordOperatorRateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // RecordOperatorRateRequest is the input for recording a new operator-sourced forex rate.
@@ -68,19 +68,19 @@ func NewRecordOperatorRateUseCase(repositories RecordOperatorRateRepositories, s
 // See docs/plan/20260509-tax-integration/codex-review-phase2.md C4 for the decision.
 func (uc *RecordOperatorRateUseCase) Execute(ctx context.Context, req *RecordOperatorRateRequest) (*forexratepb.ForexRate, error) {
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.WorkspaceID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.workspace_id_required", "Workspace ID is required [DEFAULT]"))
 	}
 	if req.FromCurrency == "" || req.ToCurrency == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.currency_pair_required", "Currency pair is required [DEFAULT]"))
 	}
 	if req.RateMicroUnits <= 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.rate_required", "Rate must be positive [DEFAULT]"))
 	}
 
@@ -109,7 +109,7 @@ func (uc *RecordOperatorRateUseCase) Execute(ctx context.Context, req *RecordOpe
 
 	// Build the new ACTIVE row.
 	newRate := &forexratepb.ForexRate{
-		Id:                 uc.services.IDService.GenerateID(),
+		Id:                 uc.services.IDGenerator.GenerateID(),
 		WorkspaceId:        req.WorkspaceID,
 		FromCurrency:       req.FromCurrency,
 		ToCurrency:         req.ToCurrency,

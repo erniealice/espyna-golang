@@ -29,7 +29,7 @@ func createTestReadClientAttributeUseCase(businessType string) *ReadClientAttrib
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadClientAttributeServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewReadClientAttributeUseCase(repositories, services)
 }
@@ -87,5 +87,5 @@ func TestReadClientAttributeUseCase_Execute_EmptyId(t *testing.T) {
 		Data: &clientattributepb.ClientAttribute{Id: ""},
 	}
 	_, err := useCase.Execute(ctx, req)
-	testutil.AssertTranslatedError(t, err, "client_attribute.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "client_attribute.validation.id_required", useCase.services.Translator, ctx)
 }

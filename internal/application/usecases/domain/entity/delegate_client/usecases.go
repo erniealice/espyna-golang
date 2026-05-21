@@ -16,10 +16,10 @@ type DelegateClientRepositories struct {
 
 // DelegateClientServices groups all business service dependencies for delegate client use cases
 type DelegateClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all delegate client-related use cases
@@ -39,38 +39,38 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateDelegateClientRepositories(repositories)
 	createServices := CreateDelegateClientServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadDelegateClientRepositories(repositories)
 	readServices := ReadDelegateClientServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateDelegateClientRepositories(repositories)
 	updateServices := UpdateDelegateClientServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteDelegateClientRepositories(repositories)
 	deleteServices := DeleteDelegateClientServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListDelegateClientsRepositories(repositories)
 	listServices := ListDelegateClientsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -88,7 +88,7 @@ func NewUseCasesUngrouped(
 	delegateClientRepo delegateclientpb.DelegateClientDomainServiceServer,
 	delegateRepo delegatepb.DelegateDomainServiceServer,
 	clientRepo clientpb.ClientDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := DelegateClientRepositories{
@@ -98,9 +98,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := DelegateClientServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

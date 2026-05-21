@@ -17,9 +17,9 @@ type ListSecurityDepositsRepositories struct {
 
 // ListSecurityDepositsServices groups all business service dependencies
 type ListSecurityDepositsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSecurityDepositsUseCase handles the business logic for listing security deposits
@@ -41,13 +41,13 @@ func NewListSecurityDepositsUseCase(
 
 // Execute performs the list security deposits operation
 func (uc *ListSecurityDepositsUseCase) Execute(ctx context.Context, req *securitydepositpb.ListSecurityDepositsRequest) (*securitydepositpb.ListSecurityDepositsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySecurityDeposit, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "security_deposit.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "security_deposit.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	if uc.repositories.SecurityDeposit == nil {

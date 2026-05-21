@@ -18,9 +18,9 @@ type ListAccountsRepositories struct {
 
 // ListAccountsServices groups all business service dependencies
 type ListAccountsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListAccountsUseCase handles the business logic for listing accounts
@@ -43,20 +43,20 @@ func NewListAccountsUseCase(
 // Execute performs the list accounts operation
 func (uc *ListAccountsUseCase) Execute(ctx context.Context, req *accountpb.ListAccountsRequest) (*accountpb.ListAccountsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccount, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -66,7 +66,7 @@ func (uc *ListAccountsUseCase) Execute(ctx context.Context, req *accountpb.ListA
 	}
 	resp, err := uc.repositories.Account.ListAccounts(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.errors.list_failed", "[ERR-DEFAULT] Failed to list accounts")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.errors.list_failed", "[ERR-DEFAULT] Failed to list accounts")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -76,7 +76,7 @@ func (uc *ListAccountsUseCase) Execute(ctx context.Context, req *accountpb.ListA
 // validateInput validates the input request
 func (uc *ListAccountsUseCase) validateInput(ctx context.Context, req *accountpb.ListAccountsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	return nil
 }

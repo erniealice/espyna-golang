@@ -16,10 +16,10 @@ type JobActivityRepositories struct {
 
 // JobActivityServices groups all business service dependencies
 type JobActivityServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all job activity use cases
@@ -48,77 +48,77 @@ func NewUseCases(
 	return &UseCases{
 		CreateJobActivity: &CreateJobActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
-			IDSvc:   services.IDService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
+			IDSvc:   services.IDGenerator,
 		},
 		ReadJobActivity: &ReadJobActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
+			AuthSvc: services.Authorizer,
 		},
 		UpdateJobActivity: &UpdateJobActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
 		},
 		DeleteJobActivity: &DeleteJobActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
 		},
 		ListJobActivities: &ListJobActivitiesUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
+			AuthSvc: services.Authorizer,
 		},
 		GetJobActivityListPageData: &GetJobActivityListPageDataUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
+			AuthSvc: services.Authorizer,
 		},
 		GetJobActivityItemPageData: &GetJobActivityItemPageDataUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
+			AuthSvc: services.Authorizer,
 		},
 		ListByJob: &ListByJobUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
+			AuthSvc: services.Authorizer,
 		},
 		GetJobActivityRollup: &GetJobActivityRollupUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
+			AuthSvc: services.Authorizer,
 		},
 		SubmitForApproval: &SubmitForApprovalUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
 		},
 		ApproveActivity: &ApproveActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
 		},
 		RejectActivity: &RejectActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
 		},
 		PostActivity: &PostActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
 		},
 		ReverseActivity: &ReverseActivityUseCase{
 			Repo:    repositories.JobActivity,
-			AuthSvc: services.AuthorizationService,
-			TxSvc:   services.TransactionService,
-			I18nSvc: services.TranslationService,
-			IDSvc:   services.IDService,
+			AuthSvc: services.Authorizer,
+			TxSvc:   services.Transactor,
+			I18nSvc: services.Translator,
+			IDSvc:   services.IDGenerator,
 		},
 	}
 }
@@ -130,10 +130,10 @@ func NewUseCases(
 // CreateJobActivityUseCase handles creating a new job activity
 type CreateJobActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
-	IDSvc   ports.IDService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
+	IDSvc   ports.IDGenerator
 }
 
 // Execute creates a new job activity
@@ -168,7 +168,7 @@ func (uc *CreateJobActivityUseCase) Execute(ctx context.Context, req *pb.CreateJ
 // ReadJobActivityUseCase handles reading a single job activity
 type ReadJobActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
+	AuthSvc ports.Authorizer
 }
 
 // Execute reads a job activity by ID
@@ -183,9 +183,9 @@ func (uc *ReadJobActivityUseCase) Execute(ctx context.Context, req *pb.ReadJobAc
 // UpdateJobActivityUseCase handles updating a job activity
 type UpdateJobActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
 }
 
 // Execute updates a job activity
@@ -203,9 +203,9 @@ func (uc *UpdateJobActivityUseCase) Execute(ctx context.Context, req *pb.UpdateJ
 // DeleteJobActivityUseCase handles deleting a job activity
 type DeleteJobActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
 }
 
 // Execute deletes a job activity (soft delete)
@@ -223,7 +223,7 @@ func (uc *DeleteJobActivityUseCase) Execute(ctx context.Context, req *pb.DeleteJ
 // ListJobActivitiesUseCase handles listing job activities
 type ListJobActivitiesUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
+	AuthSvc ports.Authorizer
 }
 
 // Execute lists job activities with optional filters
@@ -238,7 +238,7 @@ func (uc *ListJobActivitiesUseCase) Execute(ctx context.Context, req *pb.ListJob
 // GetJobActivityListPageDataUseCase handles paginated list page data
 type GetJobActivityListPageDataUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
+	AuthSvc ports.Authorizer
 }
 
 // Execute retrieves paginated job activity list page data
@@ -253,7 +253,7 @@ func (uc *GetJobActivityListPageDataUseCase) Execute(ctx context.Context, req *p
 // GetJobActivityItemPageDataUseCase handles single item page data
 type GetJobActivityItemPageDataUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
+	AuthSvc ports.Authorizer
 }
 
 // Execute retrieves a single job activity with all related data
@@ -268,7 +268,7 @@ func (uc *GetJobActivityItemPageDataUseCase) Execute(ctx context.Context, req *p
 // ListByJobUseCase handles listing activities for a specific job
 type ListByJobUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
+	AuthSvc ports.Authorizer
 }
 
 // Execute lists all activities for a given job
@@ -286,7 +286,7 @@ func (uc *ListByJobUseCase) Execute(ctx context.Context, req *pb.ListJobActiviti
 // GetJobActivityRollupUseCase handles aggregated cost rollup by entry type
 type GetJobActivityRollupUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
+	AuthSvc ports.Authorizer
 }
 
 // Execute returns aggregated costs grouped by entry_type for a job
@@ -304,9 +304,9 @@ func (uc *GetJobActivityRollupUseCase) Execute(ctx context.Context, req *pb.GetJ
 // SubmitForApprovalUseCase handles transitioning activity from DRAFT to SUBMITTED
 type SubmitForApprovalUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
 }
 
 // Execute transitions activity from DRAFT to SUBMITTED
@@ -341,9 +341,9 @@ func (uc *SubmitForApprovalUseCase) Execute(ctx context.Context, req *pb.SubmitF
 // ApproveActivityUseCase handles transitioning activity from SUBMITTED to APPROVED
 type ApproveActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
 }
 
 // Execute transitions activity from SUBMITTED to APPROVED
@@ -378,9 +378,9 @@ func (uc *ApproveActivityUseCase) Execute(ctx context.Context, req *pb.ApproveJo
 // RejectActivityUseCase handles transitioning activity from SUBMITTED to REJECTED
 type RejectActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
 }
 
 // Execute transitions activity from SUBMITTED to REJECTED with reason
@@ -418,9 +418,9 @@ func (uc *RejectActivityUseCase) Execute(ctx context.Context, req *pb.RejectJobA
 // PostActivityUseCase handles transitioning posting_status from UNPOSTED to POSTED
 type PostActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
 }
 
 // Execute transitions posting_status from UNPOSTED to POSTED
@@ -476,10 +476,10 @@ func (uc *PostActivityUseCase) Execute(ctx context.Context, req *pb.PostJobActiv
 // ReverseActivityUseCase handles creating a reversal entry and marking original as REVERSED
 type ReverseActivityUseCase struct {
 	Repo    pb.JobActivityDomainServiceServer
-	AuthSvc ports.AuthorizationService
-	TxSvc   ports.TransactionService
-	I18nSvc ports.TranslationService
-	IDSvc   ports.IDService
+	AuthSvc ports.Authorizer
+	TxSvc   ports.Transactor
+	I18nSvc ports.Translator
+	IDSvc   ports.IDGenerator
 }
 
 // Execute creates a reversal entry and marks original as REVERSED

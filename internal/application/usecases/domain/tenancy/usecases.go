@@ -36,28 +36,28 @@ type TenancyUseCases struct {
 // NewUseCases creates all tenancy use cases with proper constructor injection.
 func NewUseCases(
 	repos TenancyRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *TenancyUseCases {
 	svcSub := tenantSubscriptionUseCases.TenantSubscriptionServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idService,
+		Authorizer:  authSvc,
+		Transactor:  txSvc,
+		Translator:  i18nSvc,
+		IDGenerator: idService,
 	}
 	svcPM := tenantPaymentMethodUseCases.TenantPaymentMethodServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idService,
+		Authorizer:  authSvc,
+		Transactor:  txSvc,
+		Translator:  i18nSvc,
+		IDGenerator: idService,
 	}
 	svcInv := tenantInvoiceUseCases.TenantInvoiceServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idService,
+		Authorizer:  authSvc,
+		Transactor:  txSvc,
+		Translator:  i18nSvc,
+		IDGenerator: idService,
 	}
 
 	return &TenancyUseCases{

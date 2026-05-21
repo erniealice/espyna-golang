@@ -85,10 +85,10 @@ func newCreateFixture(t *testing.T) (*CreatePricePlanUseCase, *mockPlanRepoForCr
 	uc := NewCreatePricePlanUseCase(
 		CreatePricePlanRepositories{PricePlan: ppRepo, Plan: planRepo},
 		CreatePricePlanServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TransactionService:   noTxnCreate{},
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            &stubIDSvc{},
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Transactor:  noTxnCreate{},
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: &stubIDSvc{},
 		},
 	)
 	return uc, planRepo, ppRepo

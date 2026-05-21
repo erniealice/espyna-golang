@@ -35,10 +35,10 @@ type ComputeTaxesRepositories struct {
 
 // ComputeTaxesServices groups all service dependencies.
 type ComputeTaxesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains the compute taxes use case.

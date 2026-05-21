@@ -58,10 +58,10 @@ func createTestUseCaseWithAuth(businessType string, supportsTransaction bool, sh
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, shouldAuthorize)
 	services := CreateWorkspaceUserServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
-		IDService:            standardServices.IDService,
+		Authorizer:  mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
+		Transactor:  standardServices.Transactor,
+		Translator:  standardServices.Translator,
+		IDGenerator: standardServices.IDGenerator,
 	}
 
 	return NewCreateWorkspaceUserUseCase(repositories, services)
@@ -283,9 +283,9 @@ func TestCreateWorkspaceUserUseCase_Execute_TableDriven(t *testing.T) {
 				testutil.AssertError(t, err)
 				if tc.ExpectedError != "" {
 					if tc.ErrorTags != nil {
-						testutil.AssertTranslatedErrorWithTags(t, err, tc.ExpectedError, tc.ErrorTags, useCase.services.TranslationService, ctx)
+						testutil.AssertTranslatedErrorWithTags(t, err, tc.ExpectedError, tc.ErrorTags, useCase.services.Translator, ctx)
 					} else {
-						testutil.AssertTranslatedError(t, err, tc.ExpectedError, useCase.services.TranslationService, ctx)
+						testutil.AssertTranslatedError(t, err, tc.ExpectedError, useCase.services.Translator, ctx)
 					}
 				}
 			}

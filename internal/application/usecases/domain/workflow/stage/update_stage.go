@@ -20,9 +20,9 @@ type UpdateStageRepositories struct {
 
 // UpdateStageServices groups all business service dependencies
 type UpdateStageServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateStageUseCase handles the business logic for updating stages
@@ -50,9 +50,9 @@ func NewUpdateStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) 
 	}
 
 	services := UpdateStageServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateStageUseCase(repositories, services)
@@ -61,14 +61,14 @@ func NewUpdateStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) 
 // Execute performs the update stage operation
 func (uc *UpdateStageUseCase) Execute(ctx context.Context, req *stagepb.UpdateStageRequest) (*stagepb.UpdateStageResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
 	}
 
 	// Business validation
@@ -85,7 +85,7 @@ func (uc *UpdateStageUseCase) Execute(ctx context.Context, req *stagepb.UpdateSt
 	enrichedStage := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedStage)
 	}
 
@@ -97,10 +97,10 @@ func (uc *UpdateStageUseCase) Execute(ctx context.Context, req *stagepb.UpdateSt
 func (uc *UpdateStageUseCase) executeWithTransaction(ctx context.Context, enrichedStage *stagepb.Stage) (*stagepb.UpdateStageResponse, error) {
 	var result *stagepb.UpdateStageResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedStage)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "stage.errors.update_failed", "Stage update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "stage.errors.update_failed", "Stage update failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -142,15 +142,15 @@ func (uc *UpdateStageUseCase) validateStageExists(ctx context.Context, stageID s
 	}
 	stageRes, err := uc.repositories.Stage.ReadStage(ctx, stageReadReq)
 	if err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
 	}
 	if stageRes == nil || len(stageRes.Data) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
 	}
 
 	// Business rule: Cannot update inactive stage
 	if !stageRes.Data[0].Active {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.errors.stage_inactive", "Cannot update inactive stage [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.errors.stage_inactive", "Cannot update inactive stage [DEFAULT]"))
 	}
 
 	return nil
@@ -160,44 +160,44 @@ func (uc *UpdateStageUseCase) validateStageExists(ctx context.Context, stageID s
 func (uc *UpdateStageUseCase) validateBusinessRules(ctx context.Context, stage *stagepb.Stage) error {
 	// Business rule: Required data validation
 	if stage == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.data_required", "Stage data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.data_required", "Stage data is required [DEFAULT]"))
 	}
 
 	// Business rule: Stage ID is required
 	if stage.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.id_required", "Stage ID is required for update operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.id_required", "Stage ID is required for update operations [DEFAULT]"))
 	}
 
 	// Business rule: Name validation if provided
 	if stage.Name != "" {
 		if len(stage.Name) < 2 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.name_too_short", "Stage name must be at least 2 characters long [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.name_too_short", "Stage name must be at least 2 characters long [DEFAULT]"))
 		}
 		if len(stage.Name) > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.name_too_long", "Stage name cannot exceed 100 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.name_too_long", "Stage name cannot exceed 100 characters [DEFAULT]"))
 		}
 		// Business rule: Name format validation
 		if err := uc.validateStageName(stage.Name); err != nil {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.name_invalid", "Stage name contains invalid characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.name_invalid", "Stage name contains invalid characters [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Description length constraints if provided
 	if stage.Description != nil && len(*stage.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.description_too_long", "Stage description cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.description_too_long", "Stage description cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// Business rule: Assigned to format validation if provided
 	if stage.AssignedTo != nil && *stage.AssignedTo != "" {
 		if len(*stage.AssignedTo) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.assigned_to_invalid", "Assigned to field is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.assigned_to_invalid", "Assigned to field is invalid [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Completed by format validation if provided
 	if stage.CompletedBy != nil && *stage.CompletedBy != "" {
 		if len(*stage.CompletedBy) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.completed_by_invalid", "Completed by field is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.completed_by_invalid", "Completed by field is invalid [DEFAULT]"))
 		}
 	}
 
@@ -206,43 +206,43 @@ func (uc *UpdateStageUseCase) validateBusinessRules(ctx context.Context, stage *
 		// Allow past due dates for updates (might be delayed due to legitimate reasons)
 		// But prevent obviously invalid dates
 		if *stage.DateDue < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.due_date_invalid", "Due date is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.due_date_invalid", "Due date is invalid [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Date validation if provided
 	if stage.DateStarted != nil && *stage.DateStarted > 0 {
 		if *stage.DateStarted < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.date_started_invalid", "Date started is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.date_started_invalid", "Date started is invalid [DEFAULT]"))
 		}
 	}
 
 	if stage.DateCompleted != nil && *stage.DateCompleted > 0 {
 		if *stage.DateCompleted < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.date_completed_invalid", "Date completed is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.date_completed_invalid", "Date completed is invalid [DEFAULT]"))
 		}
 
 		// Business rule: Completion date cannot be before start date
 		if stage.DateStarted != nil && *stage.DateStarted > 0 && *stage.DateCompleted < *stage.DateStarted {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.completion_before_start", "Completion date cannot be before start date [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.completion_before_start", "Completion date cannot be before start date [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Completion percentage validation if provided
 	if stage.CompletionPercentage != nil {
 		if *stage.CompletionPercentage < 0 || *stage.CompletionPercentage > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.completion_percentage_invalid", "Completion percentage must be between 0 and 100 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.completion_percentage_invalid", "Completion percentage must be between 0 and 100 [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Error message length validation if provided
 	if stage.ErrorMessage != nil && len(*stage.ErrorMessage) > 2000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.error_message_too_long", "Error message cannot exceed 2000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.error_message_too_long", "Error message cannot exceed 2000 characters [DEFAULT]"))
 	}
 
 	// Business rule: Result JSON length validation if provided
 	if stage.ResultJson != nil && len(*stage.ResultJson) > 10000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.result_json_too_long", "Result JSON cannot exceed 10000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.result_json_too_long", "Result JSON cannot exceed 10000 characters [DEFAULT]"))
 	}
 
 	return nil

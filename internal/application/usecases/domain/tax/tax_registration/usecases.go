@@ -16,10 +16,10 @@ type TaxRegistrationRepositories struct {
 
 // TaxRegistrationServices groups all business service dependencies.
 type TaxRegistrationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all tax_registration use cases.
@@ -46,17 +46,17 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 				TaxRegistrationKind: repositories.TaxRegistrationKind,
 			},
 			CreateTaxRegistrationServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadTaxRegistration: NewReadTaxRegistrationUseCase(
 			ReadTaxRegistrationRepositories{TaxRegistration: repositories.TaxRegistration},
 			ReadTaxRegistrationServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		SupersedeTaxRegistration: NewSupersedeTaxRegistrationUseCase(
@@ -65,32 +65,32 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 				TaxRegistrationKind: repositories.TaxRegistrationKind,
 			},
 			SupersedeTaxRegistrationServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		RevokeTaxRegistration: NewRevokeTaxRegistrationUseCase(
 			RevokeTaxRegistrationRepositories{TaxRegistration: repositories.TaxRegistration},
 			RevokeTaxRegistrationServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		FindActiveTaxRegistration: NewFindActiveTaxRegistrationUseCase(
 			FindActiveTaxRegistrationRepositories{TaxRegistration: repositories.TaxRegistration},
 			FindActiveTaxRegistrationServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListTaxRegistrations: NewListTaxRegistrationsUseCase(
 			ListTaxRegistrationsRepositories{TaxRegistration: repositories.TaxRegistration},
 			ListTaxRegistrationsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

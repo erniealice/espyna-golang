@@ -37,7 +37,7 @@ import (
 // error (key `price_plan.validation.milestoneCyclicBlock`) when blocked.
 func validateMilestoneCyclicBlock(
 	ctx context.Context,
-	translationService ports.TranslationService,
+	translationService ports.Translator,
 	pricePlan *priceplanpb.PricePlan,
 	plan *planpb.Plan,
 ) error {

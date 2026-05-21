@@ -12,10 +12,10 @@ type Repositories struct {
 
 // Services groups all business service dependencies for payroll remittance use cases.
 type Services struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all payroll remittance-related use cases.
@@ -32,24 +32,24 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := newCreatePayrollRemittanceRepositories(repositories)
 	createServices := CreatePayrollRemittanceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	listRepos := newListPayrollRemittancesRepositories(repositories)
 	listServices := ListPayrollRemittancesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := newGetPayrollRemittanceListPageDataRepositories(repositories)
 	getListPageDataServices := GetPayrollRemittanceListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

@@ -15,9 +15,9 @@ type DeleteOutcomeCriteriaRepositories struct {
 }
 
 type DeleteOutcomeCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteOutcomeCriteriaUseCase handles the business logic for deleting outcome criteria
@@ -40,7 +40,7 @@ func NewDeleteOutcomeCriteriaUseCase(
 // Execute performs the delete outcome criteria operation
 func (uc *DeleteOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.DeleteOutcomeCriteriaRequest) (*pb.DeleteOutcomeCriteriaResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityOutcomeCriteria, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *DeleteOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.Del
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -63,7 +63,7 @@ func (uc *DeleteOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.Del
 func (uc *DeleteOutcomeCriteriaUseCase) executeWithTransaction(ctx context.Context, req *pb.DeleteOutcomeCriteriaRequest) (*pb.DeleteOutcomeCriteriaResponse, error) {
 	var result *pb.DeleteOutcomeCriteriaResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -85,12 +85,12 @@ func (uc *DeleteOutcomeCriteriaUseCase) executeCore(ctx context.Context, req *pb
 		Data: &pb.OutcomeCriteria{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.not_found", "[ERR-DEFAULT] Outcome criteria not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.not_found", "[ERR-DEFAULT] Outcome criteria not found"))
 	}
 
 	resp, err := uc.repositories.OutcomeCriteria.DeleteOutcomeCriteria(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.deletion_failed", "[ERR-DEFAULT] Outcome criteria deletion failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.deletion_failed", "[ERR-DEFAULT] Outcome criteria deletion failed"))
 	}
 	return resp, nil
 }
@@ -98,13 +98,13 @@ func (uc *DeleteOutcomeCriteriaUseCase) executeCore(ctx context.Context, req *pb
 // validateInput validates the input request
 func (uc *DeleteOutcomeCriteriaUseCase) validateInput(ctx context.Context, req *pb.DeleteOutcomeCriteriaRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.data_required", "[ERR-DEFAULT] Outcome criteria data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.data_required", "[ERR-DEFAULT] Outcome criteria data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
 	}
 	return nil
 }

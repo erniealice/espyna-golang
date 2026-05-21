@@ -24,9 +24,9 @@ type UpdateProductAttributeRepositories struct {
 
 // UpdateProductAttributeServices groups all business service dependencies
 type UpdateProductAttributeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // UpdateProductAttributeUseCase handles the business logic for updating product attributes
@@ -49,13 +49,13 @@ func NewUpdateProductAttributeUseCase(
 // Execute performs the update product attribute operation
 func (uc *UpdateProductAttributeUseCase) Execute(ctx context.Context, req *productattributepb.UpdateProductAttributeRequest) (*productattributepb.UpdateProductAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductAttribute, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -67,7 +67,7 @@ func (uc *UpdateProductAttributeUseCase) Execute(ctx context.Context, req *produ
 func (uc *UpdateProductAttributeUseCase) executeWithTransaction(ctx context.Context, req *productattributepb.UpdateProductAttributeRequest) (*productattributepb.UpdateProductAttributeResponse, error) {
 	var result *productattributepb.UpdateProductAttributeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -87,18 +87,18 @@ func (uc *UpdateProductAttributeUseCase) executeCore(ctx context.Context, req *p
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityProductAttribute, ports.ActionUpdate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -133,22 +133,22 @@ func (uc *UpdateProductAttributeUseCase) executeCore(ctx context.Context, req *p
 // validateInput validates the input request
 func (uc *UpdateProductAttributeUseCase) validateInput(ctx context.Context, req *productattributepb.UpdateProductAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.data_required", "Product attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.data_required", "Product attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.id_required", "Course attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.id_required", "Course attribute ID is required"))
 	}
 	if req.Data.ProductId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.product_id_required", "Product ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.product_id_required", "Product ID is required [DEFAULT]"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.value_required", "Attribute value is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.value_required", "Attribute value is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -168,22 +168,22 @@ func (uc *UpdateProductAttributeUseCase) enrichProductAttributeData(productAttri
 func (uc *UpdateProductAttributeUseCase) validateBusinessRules(ctx context.Context, productAttribute *productattributepb.ProductAttribute) error {
 	// Validate product ID format
 	if len(productAttribute.ProductId) < 5 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.product_id_min_length", "Product ID must be at least 5 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.product_id_min_length", "Product ID must be at least 5 characters long [DEFAULT]"))
 	}
 
 	// Validate attribute ID format
 	if len(productAttribute.AttributeId) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.attribute_id_min_length", "Attribute ID must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.attribute_id_min_length", "Attribute ID must be at least 2 characters long [DEFAULT]"))
 	}
 
 	// Validate attribute value length
 	value := strings.TrimSpace(productAttribute.Value)
 	if len(value) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.value_not_empty", "Attribute value must not be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.value_not_empty", "Attribute value must not be empty [DEFAULT]"))
 	}
 
 	if len(value) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.value_max_length", "Attribute value cannot exceed 500 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.value_max_length", "Attribute value cannot exceed 500 characters [DEFAULT]"))
 	}
 
 	// Normalize value (trim spaces)
@@ -191,7 +191,7 @@ func (uc *UpdateProductAttributeUseCase) validateBusinessRules(ctx context.Conte
 
 	// Business constraint: Product attribute must be associated with a valid product
 	if productAttribute.ProductId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.product_association_required", "Product attribute must be associated with a product [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.product_association_required", "Product attribute must be associated with a product [DEFAULT]"))
 	}
 
 	return nil
@@ -208,11 +208,11 @@ func (uc *UpdateProductAttributeUseCase) validateEntityReferences(ctx context.Co
 			return err
 		}
 		if product == nil || product.Data == nil || len(product.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "product_attribute.errors.product_not_found", map[string]interface{}{"productId": productAttribute.ProductId}, "Referenced product not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_attribute.errors.product_not_found", map[string]interface{}{"productId": productAttribute.ProductId}, "Referenced product not found")
 			return errors.New(translatedError)
 		}
 		if !product.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "product_attribute.errors.product_not_active", map[string]interface{}{"productId": productAttribute.ProductId}, "Referenced product not active")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_attribute.errors.product_not_active", map[string]interface{}{"productId": productAttribute.ProductId}, "Referenced product not active")
 			return errors.New(translatedError)
 		}
 	}
@@ -226,11 +226,11 @@ func (uc *UpdateProductAttributeUseCase) validateEntityReferences(ctx context.Co
 			return err
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "product_attribute.errors.attribute_not_found", map[string]interface{}{"attributeId": productAttribute.AttributeId}, "Referenced attribute not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_attribute.errors.attribute_not_found", map[string]interface{}{"attributeId": productAttribute.AttributeId}, "Referenced attribute not found")
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "product_attribute.errors.attribute_not_active", map[string]interface{}{"attributeId": productAttribute.AttributeId}, "Referenced attribute not active")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_attribute.errors.attribute_not_active", map[string]interface{}{"attributeId": productAttribute.AttributeId}, "Referenced attribute not active")
 			return errors.New(translatedError)
 		}
 	}

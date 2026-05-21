@@ -262,10 +262,10 @@ func newRevalueUseCaseWithRepos(
 			AssetRevaluation: rev,
 		},
 		revaluationuc.RevalueAssetServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TransactionService:   ports.NewNoOpTransactionService(),
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            ports.NewNoOpIDService(),
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Transactor:  ports.NewNoOpTransactor(),
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: ports.NewNoOpIDGenerator(),
 		},
 	)
 }

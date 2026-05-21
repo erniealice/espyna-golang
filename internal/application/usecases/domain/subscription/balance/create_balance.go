@@ -19,10 +19,10 @@ type CreateBalanceRepositories struct {
 
 // CreateBalanceServices groups all business service dependencies
 type CreateBalanceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateBalanceUseCase handles the business logic for creating balances
@@ -45,13 +45,13 @@ func NewCreateBalanceUseCase(
 // Execute performs the create balance operation
 func (uc *CreateBalanceUseCase) Execute(ctx context.Context, req *balancepb.CreateBalanceRequest) (*balancepb.CreateBalanceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalance, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -60,11 +60,11 @@ func (uc *CreateBalanceUseCase) Execute(ctx context.Context, req *balancepb.Crea
 // executeWithTransaction performs the create balance operation within a transaction
 func (uc *CreateBalanceUseCase) executeWithTransaction(ctx context.Context, req *balancepb.CreateBalanceRequest) (*balancepb.CreateBalanceResponse, error) {
 	var result *balancepb.CreateBalanceResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(ctx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(ctx context.Context) error {
 		var txErr error
 		result, txErr = uc.executeCore(ctx, req)
 		if txErr != nil {
-			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.creation_failed", "balance creation failed [DEFAULT]")
+			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.creation_failed", "balance creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", errMsg, txErr)
 		}
 		return nil
@@ -80,18 +80,18 @@ func (uc *CreateBalanceUseCase) executeCore(ctx context.Context, req *balancepb.
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityBalance, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -122,10 +122,10 @@ func (uc *CreateBalanceUseCase) executeCore(ctx context.Context, req *balancepb.
 // validateInput validates the input request
 func (uc *CreateBalanceUseCase) validateInput(ctx context.Context, req *balancepb.CreateBalanceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.data_required", "balance data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.data_required", "balance data is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func (uc *CreateBalanceUseCase) enrichBalanceData(balance *balancepb.Balance) er
 
 	// Generate Balance ID if not provided
 	if balance.Id == "" {
-		balance.Id = uc.services.IDService.GenerateID()
+		balance.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields

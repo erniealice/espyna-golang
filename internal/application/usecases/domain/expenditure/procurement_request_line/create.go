@@ -21,10 +21,10 @@ type CreateProcurementRequestLineRepositories struct {
 
 // CreateProcurementRequestLineServices groups service dependencies.
 type CreateProcurementRequestLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateProcurementRequestLineUseCase handles creating a procurement request line.
@@ -43,30 +43,30 @@ func NewCreateProcurementRequestLineUseCase(
 
 // Execute performs the create procurement request line operation.
 func (uc *CreateProcurementRequestLineUseCase) Execute(ctx context.Context, req *procurementrequestlinepb.CreateProcurementRequestLineRequest) (*procurementrequestlinepb.CreateProcurementRequestLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequestLine, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request_line.validation.data_required", "Procurement request line data is required [DEFAULT]"))
 	}
 	if req.Data.ProcurementRequestId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request_line.validation.request_id_required", "Procurement request ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
 	req.Data.Active = true
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *procurementrequestlinepb.CreateProcurementRequestLineResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.ProcurementRequestLine.CreateProcurementRequestLine(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("procurement request line creation failed: %w", err)

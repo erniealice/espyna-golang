@@ -17,9 +17,9 @@ type ReadEventRepositories struct {
 
 // ReadEventServices groups all business service dependencies
 type ReadEventServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadEventUseCase handles the business logic for reading a single event
@@ -48,9 +48,9 @@ func NewReadEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) *R
 	}
 
 	services := ReadEventServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &ReadEventUseCase{
@@ -62,7 +62,7 @@ func NewReadEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) *R
 // Execute performs the read event operation
 func (uc *ReadEventUseCase) Execute(ctx context.Context, req *eventpb.ReadEventRequest) (*eventpb.ReadEventResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEvent, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (uc *ReadEventUseCase) Execute(ctx context.Context, req *eventpb.ReadEventR
 	if err != nil {
 		// Check if this is a not found error from repository
 		if contains := contextutil.Contains(err.Error(), "not found"); contains {
-			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event.errors.not_found", map[string]interface{}{"eventId": req.Data.Id}, "Event not found [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event.errors.not_found", map[string]interface{}{"eventId": req.Data.Id}, "Event not found [DEFAULT]")
 			return nil, errors.New(errorMessage)
 		}
 		return nil, err
@@ -85,7 +85,7 @@ func (uc *ReadEventUseCase) Execute(ctx context.Context, req *eventpb.ReadEventR
 
 	// Business logic validation
 	if len(resp.Data) == 0 {
-		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event.errors.not_found", map[string]interface{}{"eventId": req.Data.Id}, "Event not found [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event.errors.not_found", map[string]interface{}{"eventId": req.Data.Id}, "Event not found [DEFAULT]")
 		return nil, errors.New(errorMessage)
 	}
 
@@ -95,13 +95,13 @@ func (uc *ReadEventUseCase) Execute(ctx context.Context, req *eventpb.ReadEventR
 // validateInput validates the input request
 func (uc *ReadEventUseCase) validateInput(ctx context.Context, req *eventpb.ReadEventRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.id_required", "Event ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.id_required", "Event ID is required [DEFAULT]"))
 	}
 	return nil
 }

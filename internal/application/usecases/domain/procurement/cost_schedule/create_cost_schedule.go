@@ -19,10 +19,10 @@ type CreateCostScheduleRepositories struct {
 
 // CreateCostScheduleServices groups all business service dependencies
 type CreateCostScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateCostScheduleUseCase handles the business logic for creating cost_schedules
@@ -44,7 +44,7 @@ func NewCreateCostScheduleUseCase(
 
 // Execute performs the create cost_schedule operation
 func (uc *CreateCostScheduleUseCase) Execute(ctx context.Context, req *costschedulepb.CreateCostScheduleRequest) (*costschedulepb.CreateCostScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCostSchedule, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (uc *CreateCostScheduleUseCase) Execute(ctx context.Context, req *costsched
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -62,16 +62,16 @@ func (uc *CreateCostScheduleUseCase) Execute(ctx context.Context, req *costsched
 
 func (uc *CreateCostScheduleUseCase) validateInput(ctx context.Context, req *costschedulepb.CreateCostScheduleRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.request_required", "request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.data_required", "cost schedule data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.data_required", "cost schedule data is required"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.name_required", "cost schedule name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.name_required", "cost schedule name is required"))
 	}
 	if req.Data.GetDateTimeStart() == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.date_time_start_required", "date time start is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.date_time_start_required", "date time start is required"))
 	}
 	return nil
 }
@@ -79,7 +79,7 @@ func (uc *CreateCostScheduleUseCase) validateInput(ctx context.Context, req *cos
 func (uc *CreateCostScheduleUseCase) enrichData(cs *costschedulepb.CostSchedule) {
 	now := time.Now()
 	if cs.Id == "" {
-		cs.Id = uc.services.IDService.GenerateID()
+		cs.Id = uc.services.IDGenerator.GenerateID()
 	}
 	cs.Active = true
 	cs.DateCreated = &[]int64{now.UnixMilli()}[0]
@@ -90,10 +90,10 @@ func (uc *CreateCostScheduleUseCase) enrichData(cs *costschedulepb.CostSchedule)
 
 func (uc *CreateCostScheduleUseCase) executeWithTransaction(ctx context.Context, req *costschedulepb.CreateCostScheduleRequest) (*costschedulepb.CreateCostScheduleResponse, error) {
 	var result *costschedulepb.CreateCostScheduleResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.errors.creation_failed", "cost schedule creation failed")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.errors.creation_failed", "cost schedule creation failed")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		result = res
@@ -107,10 +107,10 @@ func (uc *CreateCostScheduleUseCase) executeWithTransaction(ctx context.Context,
 
 func (uc *CreateCostScheduleUseCase) executeCore(ctx context.Context, req *costschedulepb.CreateCostScheduleRequest) (*costschedulepb.CreateCostScheduleResponse, error) {
 	if len(req.Data.Name) < 3 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.name_min_length", "cost schedule name must be at least 3 characters long"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.name_min_length", "cost schedule name must be at least 3 characters long"))
 	}
 	if len(req.Data.Name) > 100 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.name_max_length", "cost schedule name cannot exceed 100 characters"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.name_max_length", "cost schedule name cannot exceed 100 characters"))
 	}
 	uc.enrichData(req.Data)
 	return uc.repositories.CostSchedule.CreateCostSchedule(ctx, req)

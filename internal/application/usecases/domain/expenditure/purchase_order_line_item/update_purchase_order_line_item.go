@@ -19,9 +19,9 @@ type UpdatePurchaseOrderLineItemRepositories struct {
 
 // UpdatePurchaseOrderLineItemServices groups all business service dependencies
 type UpdatePurchaseOrderLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdatePurchaseOrderLineItemUseCase handles the business logic for updating purchase order line items
@@ -43,14 +43,14 @@ func NewUpdatePurchaseOrderLineItemUseCase(
 
 // Execute performs the update purchase order line item operation
 func (uc *UpdatePurchaseOrderLineItemUseCase) Execute(ctx context.Context, req *purchaseorderlineitempb.UpdatePurchaseOrderLineItemRequest) (*purchaseorderlineitempb.UpdatePurchaseOrderLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrderLineItem, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *purchaseorderlineitempb.UpdatePurchaseOrderLineItemResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("purchase order line item update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdatePurchaseOrderLineItemUseCase) Execute(ctx context.Context, req *
 
 func (uc *UpdatePurchaseOrderLineItemUseCase) executeCore(ctx context.Context, req *purchaseorderlineitempb.UpdatePurchaseOrderLineItemRequest) (*purchaseorderlineitempb.UpdatePurchaseOrderLineItemResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.id_required", "Purchase order line item ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.id_required", "Purchase order line item ID is required [DEFAULT]"))
 	}
 
 	// Set date_modified

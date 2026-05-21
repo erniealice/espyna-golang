@@ -12,10 +12,10 @@ type SupplierContractPriceScheduleRepositories struct {
 
 // SupplierContractPriceScheduleServices groups all service dependencies.
 type SupplierContractPriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all supplier contract price schedule use cases.
@@ -45,54 +45,54 @@ func NewUseCases(
 		CreateSupplierContractPriceSchedule: NewCreateSupplierContractPriceScheduleUseCase(
 			CreateSupplierContractPriceScheduleRepositories{SupplierContractPriceSchedule: repositories.SupplierContractPriceSchedule},
 			CreateSupplierContractPriceScheduleServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadSupplierContractPriceSchedule: NewReadSupplierContractPriceScheduleUseCase(
 			ReadSupplierContractPriceScheduleRepositories{SupplierContractPriceSchedule: repositories.SupplierContractPriceSchedule},
 			ReadSupplierContractPriceScheduleServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateSupplierContractPriceSchedule: NewUpdateSupplierContractPriceScheduleUseCase(
 			UpdateSupplierContractPriceScheduleRepositories{SupplierContractPriceSchedule: repositories.SupplierContractPriceSchedule},
 			UpdateSupplierContractPriceScheduleServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		DeleteSupplierContractPriceSchedule: NewDeleteSupplierContractPriceScheduleUseCase(
 			DeleteSupplierContractPriceScheduleRepositories{SupplierContractPriceSchedule: repositories.SupplierContractPriceSchedule},
 			DeleteSupplierContractPriceScheduleServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListSupplierContractPriceSchedules: NewListSupplierContractPriceSchedulesUseCase(
 			ListSupplierContractPriceSchedulesRepositories{SupplierContractPriceSchedule: repositories.SupplierContractPriceSchedule},
 			ListSupplierContractPriceSchedulesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ActivateSupplierContractPriceSchedule: NewActivateSupplierContractPriceScheduleUseCase(
 			ActivateSupplierContractPriceScheduleRepositories{SupplierContractPriceSchedule: repositories.SupplierContractPriceSchedule},
 			ActivateSupplierContractPriceScheduleServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		SupersedeSupplierContractPriceSchedule: NewSupersedeSupplierContractPriceScheduleUseCase(
 			SupersedeSupplierContractPriceScheduleRepositories{SupplierContractPriceSchedule: repositories.SupplierContractPriceSchedule},
 			SupersedeSupplierContractPriceScheduleServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

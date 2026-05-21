@@ -24,8 +24,8 @@ type FindActiveTaxRegistrationRepositories struct {
 
 // FindActiveTaxRegistrationServices groups service dependencies.
 type FindActiveTaxRegistrationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // FindActiveTaxRegistrationRequest is the input for finding active registrations.
@@ -49,12 +49,12 @@ func NewFindActiveTaxRegistrationUseCase(repositories FindActiveTaxRegistrationR
 
 // Execute returns all ACTIVE tax_registrations for (partyType, partyID) valid at asOf.
 func (uc *FindActiveTaxRegistrationUseCase) Execute(ctx context.Context, req *FindActiveTaxRegistrationRequest) ([]*taxregistrationpb.TaxRegistration, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRegistration, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil || req.PartyID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.party_id_required", "Party ID is required [DEFAULT]"))
 	}
 

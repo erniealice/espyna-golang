@@ -12,10 +12,10 @@ type PaymentTermRepositories struct {
 
 // PaymentTermServices groups all business service dependencies for payment term use cases
 type PaymentTermServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all payment-term-related use cases
@@ -38,64 +38,64 @@ func NewUseCases(
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	createServices := CreatePaymentTermServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPaymentTermRepositories{
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	readServices := ReadPaymentTermServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePaymentTermRepositories{
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	updateServices := UpdatePaymentTermServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePaymentTermRepositories{
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	deleteServices := DeletePaymentTermServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPaymentTermsRepositories{
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	listServices := ListPaymentTermsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetPaymentTermListPageDataRepositories{
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	getListPageDataServices := GetPaymentTermListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetPaymentTermItemPageDataRepositories{
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	getItemPageDataServices := GetPaymentTermItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -117,10 +117,10 @@ func NewUseCasesUngrouped(paymentTermRepo paymenttermpb.PaymentTermDomainService
 	}
 
 	services := PaymentTermServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewUseCases(repositories, services)

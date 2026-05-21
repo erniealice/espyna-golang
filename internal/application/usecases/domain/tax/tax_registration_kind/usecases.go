@@ -14,8 +14,8 @@ type TaxRegistrationKindRepositories struct {
 
 // TaxRegistrationKindServices groups all business service dependencies.
 type TaxRegistrationKindServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UseCases contains all tax_registration_kind use cases.
@@ -31,22 +31,22 @@ func NewUseCases(repositories TaxRegistrationKindRepositories, services TaxRegis
 		ReadTaxRegistrationKind: NewReadTaxRegistrationKindUseCase(
 			ReadTaxRegistrationKindRepositories{TaxRegistrationKind: repositories.TaxRegistrationKind},
 			ReadTaxRegistrationKindServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListTaxRegistrationKinds: NewListTaxRegistrationKindsUseCase(
 			ListTaxRegistrationKindsRepositories{TaxRegistrationKind: repositories.TaxRegistrationKind},
 			ListTaxRegistrationKindsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		FindByPartyTypeTaxRegistrationKind: NewFindByPartyTypeTaxRegistrationKindUseCase(
 			FindByPartyTypeTaxRegistrationKindRepositories{TaxRegistrationKind: repositories.TaxRegistrationKind},
 			FindByPartyTypeTaxRegistrationKindServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

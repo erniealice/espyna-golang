@@ -16,9 +16,9 @@ type ListBySupplierPlanRepositories struct {
 }
 
 type ListBySupplierPlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type ListBySupplierPlanUseCase struct {
@@ -34,19 +34,19 @@ func NewListBySupplierPlanUseCase(
 }
 
 func (uc *ListBySupplierPlanUseCase) Execute(ctx context.Context, req *supplierproductplanpb.ListSupplierProductPlansBySupplierPlanRequest) (*supplierproductplanpb.ListSupplierProductPlansBySupplierPlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierProductPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_plan.validation.request_required", "request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_plan.validation.request_required", "request is required"))
 	}
 	if req.SupplierPlanId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_plan.validation.supplier_plan_id_required", "supplier plan ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_plan.validation.supplier_plan_id_required", "supplier plan ID is required"))
 	}
 	result, err := uc.repositories.SupplierProductPlan.ListBySupplierPlan(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_plan.errors.list_by_supplier_plan_failed", "listing supplier product plans by supplier plan failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_plan.errors.list_by_supplier_plan_failed", "listing supplier product plans by supplier plan failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil

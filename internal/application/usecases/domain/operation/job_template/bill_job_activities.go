@@ -32,8 +32,8 @@ type BillJobActivitiesRepositories struct {
 
 // BillJobActivitiesServices groups all business service dependencies.
 type BillJobActivitiesServices struct {
-	TransactionService ports.TransactionService
-	IDService          ports.IDService
+	Transactor  ports.Transactor
+	IDGenerator ports.IDGenerator
 }
 
 // BillJobActivitiesRequest specifies which activities to bill and billing context.
@@ -181,8 +181,8 @@ func (uc *BillJobActivitiesUseCase) BillJobActivities(
 
 	// 6. Generate IDs.
 	generateID := func() string {
-		if uc.services.IDService != nil {
-			return uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			return uc.services.IDGenerator.GenerateID()
 		}
 		return fmt.Sprintf("id-%d", time.Now().UnixNano())
 	}
@@ -296,8 +296,8 @@ func (uc *BillJobActivitiesUseCase) BillJobActivities(
 		return nil
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, writeFunc); err != nil {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if err := uc.services.Transactor.ExecuteInTransaction(ctx, writeFunc); err != nil {
 			return nil, err
 		}
 	} else {

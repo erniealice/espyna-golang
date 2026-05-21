@@ -18,9 +18,9 @@ type ReadPaymentTermRepositories struct {
 
 // ReadPaymentTermServices groups all business service dependencies
 type ReadPaymentTermServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadPaymentTermUseCase handles the business logic for reading a payment term
@@ -48,9 +48,9 @@ func NewReadPaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentTer
 	}
 
 	services := ReadPaymentTermServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadPaymentTermUseCase(repositories, services)
@@ -59,18 +59,18 @@ func NewReadPaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentTer
 // Execute performs the read payment term operation
 func (uc *ReadPaymentTermUseCase) Execute(ctx context.Context, req *paymenttermpb.ReadPaymentTermRequest) (*paymenttermpb.ReadPaymentTermResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"payment_term", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.request_required", "Request is required for payment terms [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.request_required", "Request is required for payment terms [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.id_required", "Payment term ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.id_required", "Payment term ID is required [DEFAULT]"))
 	}
 
 	// Call repository
@@ -81,7 +81,7 @@ func (uc *ReadPaymentTermUseCase) Execute(ctx context.Context, req *paymenttermp
 
 	// Not found error
 	if len(resp.Data) == 0 || resp.Data[0].Id == "" {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.errors.not_found", "Payment term with ID \"{paymentTermId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.errors.not_found", "Payment term with ID \"{paymentTermId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{paymentTermId}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}

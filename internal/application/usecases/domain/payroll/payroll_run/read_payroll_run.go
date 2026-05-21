@@ -22,9 +22,9 @@ func newReadPayrollRunRepositories(r Repositories) ReadPayrollRunRepositories {
 
 // ReadPayrollRunServices groups all business service dependencies.
 type ReadPayrollRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadPayrollRunUseCase handles the business logic for reading a payroll run.
@@ -46,7 +46,7 @@ func NewReadPayrollRunUseCase(
 
 // Execute performs the read payroll run operation.
 func (uc *ReadPayrollRunUseCase) Execute(ctx context.Context, req *payrollrunpb.ReadPayrollRunRequest) (*payrollrunpb.ReadPayrollRunResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPayrollRun, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -69,13 +69,13 @@ func (uc *ReadPayrollRunUseCase) Execute(ctx context.Context, req *payrollrunpb.
 
 func (uc *ReadPayrollRunUseCase) validateInput(ctx context.Context, req *payrollrunpb.ReadPayrollRunRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.id_required", "[ERR-DEFAULT] Payroll run ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.id_required", "[ERR-DEFAULT] Payroll run ID is required"))
 	}
 	return nil
 }

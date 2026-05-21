@@ -16,18 +16,18 @@ import (
 // chronological invoice + collection ledger.
 type GetClientStatementUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetClientStatementUseCase wires the use case with nil-safe deps.
 func NewGetClientStatementUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetClientStatementUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetClientStatementUseCase{
 		reporter:             r,

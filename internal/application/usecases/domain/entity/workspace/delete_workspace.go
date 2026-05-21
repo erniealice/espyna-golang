@@ -18,9 +18,9 @@ type DeleteWorkspaceRepositories struct {
 
 // DeleteWorkspaceServices groups all business service dependencies
 type DeleteWorkspaceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteWorkspaceUseCase handles the business logic for deleting a workspace
@@ -49,9 +49,9 @@ func NewDeleteWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomai
 	}
 
 	services := DeleteWorkspaceServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteWorkspaceUseCase(repositories, services)
@@ -59,24 +59,24 @@ func NewDeleteWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomai
 
 func (uc *DeleteWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.DeleteWorkspaceRequest) (*workspacepb.DeleteWorkspaceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspace, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Workspace.DeleteWorkspace(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.errors.deletion_failed", "Workspace deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.errors.deletion_failed", "Workspace deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

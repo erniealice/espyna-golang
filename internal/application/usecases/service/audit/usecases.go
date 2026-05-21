@@ -19,8 +19,8 @@ type Repositories struct {
 
 // Services groups application services.
 type Services struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // NewUseCases wires every audit service use case from shared
@@ -30,8 +30,8 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 		ListAuditEntries: NewListAuditEntriesUseCase(
 			ListAuditEntriesRepositories{AuditService: repositories.AuditService},
 			ListAuditEntriesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

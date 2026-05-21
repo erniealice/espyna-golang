@@ -19,9 +19,9 @@ type UpdateCollectionRepositories struct {
 
 // UpdateCollectionServices groups all business service dependencies
 type UpdateCollectionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateCollectionUseCase handles the business logic for updating collections
@@ -50,7 +50,7 @@ func NewUpdateCollectionUseCase(
 // ExecuteInTransaction(...), so starting a nested tx here would decouple
 // commit/rollback from the outer scope.
 func (uc *UpdateCollectionUseCase) Execute(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityCollection, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -65,12 +65,12 @@ func (uc *UpdateCollectionUseCase) Execute(ctx context.Context, req *collectionp
 		}
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if uc.services.Transactor.IsTransactionActive(ctx) {
 			return uc.executeCore(ctx, req)
 		}
 		var result *collectionpb.UpdateCollectionResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("collection update failed: %w", err)
@@ -89,7 +89,7 @@ func (uc *UpdateCollectionUseCase) Execute(ctx context.Context, req *collectionp
 
 func (uc *UpdateCollectionUseCase) executeCore(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
 	}
 
 	// Set date_modified

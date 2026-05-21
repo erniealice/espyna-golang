@@ -12,10 +12,10 @@ type SupplierCategoryRepositories struct {
 
 // SupplierCategoryServices groups all business service dependencies for supplier_category use cases
 type SupplierCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all supplier_category-related use cases
@@ -36,55 +36,55 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateSupplierCategoryRepositories(repositories)
 	createServices := CreateSupplierCategoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadSupplierCategoryRepositories(repositories)
 	readServices := ReadSupplierCategoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateSupplierCategoryRepositories(repositories)
 	updateServices := UpdateSupplierCategoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	deleteRepos := DeleteSupplierCategoryRepositories(repositories)
 	deleteServices := DeleteSupplierCategoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListSupplierCategoriesRepositories(repositories)
 	listServices := ListSupplierCategoriesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetSupplierCategoryListPageDataRepositories{
 		SupplierCategory: repositories.SupplierCategory,
 	}
 	getListPageDataServices := GetSupplierCategoryListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetSupplierCategoryItemPageDataRepositories{
 		SupplierCategory: repositories.SupplierCategory,
 	}
 	getItemPageDataServices := GetSupplierCategoryItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -106,10 +106,10 @@ func NewUseCasesUngrouped(supplierCategoryRepo suppliercategorypb.SupplierCatego
 	}
 
 	services := SupplierCategoryServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewUseCases(repositories, services)

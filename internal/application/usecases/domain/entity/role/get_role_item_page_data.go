@@ -18,9 +18,9 @@ type GetRoleItemPageDataRepositories struct {
 
 // GetRoleItemPageDataServices groups all business service dependencies
 type GetRoleItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetRoleItemPageDataUseCase handles the business logic for retrieving role item page data
@@ -49,9 +49,9 @@ func NewGetRoleItemPageDataUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceSer
 	}
 
 	services := GetRoleItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetRoleItemPageDataUseCase(repositories, services)
@@ -60,13 +60,13 @@ func NewGetRoleItemPageDataUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceSer
 // Execute performs the get role item page data operation
 func (uc *GetRoleItemPageDataUseCase) Execute(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) (*rolepb.GetRoleItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRole, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -78,10 +78,10 @@ func (uc *GetRoleItemPageDataUseCase) Execute(ctx context.Context, req *rolepb.G
 func (uc *GetRoleItemPageDataUseCase) executeWithTransaction(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) (*rolepb.GetRoleItemPageDataResponse, error) {
 	var result *rolepb.GetRoleItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "role.errors.item_page_data_retrieval_failed", "Role item page data retrieval failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "role.errors.item_page_data_retrieval_failed", "Role item page data retrieval failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -108,11 +108,11 @@ func (uc *GetRoleItemPageDataUseCase) executeCore(ctx context.Context, req *role
 // validateInput validates the input request
 func (uc *GetRoleItemPageDataUseCase) validateInput(ctx context.Context, req *rolepb.GetRoleItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.request_required", "Request is required for role item page data [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.request_required", "Request is required for role item page data [DEFAULT]"))
 	}
 
 	if req.RoleId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.role_id_required", "Role ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.role_id_required", "Role ID is required [DEFAULT]"))
 	}
 
 	return nil

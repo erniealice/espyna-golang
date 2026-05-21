@@ -18,9 +18,9 @@ type DeleteSubscriptionAttributeRepositories struct {
 
 // DeleteSubscriptionAttributeServices groups all business service dependencies
 type DeleteSubscriptionAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteSubscriptionAttributeUseCase handles the business logic for deleting subscription attributes
@@ -43,7 +43,7 @@ func NewDeleteSubscriptionAttributeUseCase(
 // Execute performs the delete subscription attribute operation
 func (uc *DeleteSubscriptionAttributeUseCase) Execute(ctx context.Context, req *subscriptionattributepb.DeleteSubscriptionAttributeRequest) (*subscriptionattributepb.DeleteSubscriptionAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscriptionAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *DeleteSubscriptionAttributeUseCase) Execute(ctx context.Context, req *
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription_attribute.errors.not_found",
 				map[string]interface{}{"subscriptionAttributeId": req.Data.Id},
 				"Subscription attribute not found [DEFAULT]",
@@ -70,7 +70,7 @@ func (uc *DeleteSubscriptionAttributeUseCase) Execute(ctx context.Context, req *
 			return nil, errors.New(translatedError)
 		}
 		// Handle other repository errors
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.deletion_failed", "Subscription attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.deletion_failed", "Subscription attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -80,13 +80,13 @@ func (uc *DeleteSubscriptionAttributeUseCase) Execute(ctx context.Context, req *
 // validateInput validates the input request
 func (uc *DeleteSubscriptionAttributeUseCase) validateInput(ctx context.Context, req *subscriptionattributepb.DeleteSubscriptionAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.id_required", "Subscription attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.id_required", "Subscription attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

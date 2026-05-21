@@ -22,10 +22,10 @@ type DepreciationRunRepositories struct {
 
 // DepreciationRunServices groups all service dependencies.
 type DepreciationRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all depreciation-run-related use cases.
@@ -50,10 +50,10 @@ func NewUseCases(
 		DepreciationRun:      repositories.DepreciationRun,
 	}
 	generateServices := GenerateDepreciationRunServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	candidatesRepos := ListDepreciationCandidatesRepositories{
@@ -62,32 +62,32 @@ func NewUseCases(
 		DepreciationSchedule: repositories.DepreciationSchedule,
 	}
 	candidatesServices := ListDepreciationCandidatesServices{
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	listRunsRepos := ListDepreciationRunsRepositories{
 		DepreciationRun: repositories.DepreciationRun,
 	}
 	listRunsServices := ListDepreciationRunsServices{
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	readRunRepos := ReadDepreciationRunRepositories{
 		DepreciationRun: repositories.DepreciationRun,
 	}
 	readRunServices := ReadDepreciationRunServices{
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	listEntriesRepos := ListDepreciationRunEntriesRepositories{
 		DepreciationSchedule: repositories.DepreciationSchedule,
 	}
 	listEntriesServices := ListDepreciationRunEntriesServices{
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

@@ -20,10 +20,10 @@ type CreateAttributeRepositories struct {
 
 // CreateAttributeServices groups all business service dependencies
 type CreateAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateAttributeUseCase handles the business logic for creating attributes
@@ -52,9 +52,9 @@ func NewCreateAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 	}
 
 	services := CreateAttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
-		IDService:          ports.NewNoOpIDService(),
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateAttributeUseCase(repositories, services)
@@ -63,13 +63,13 @@ func NewCreateAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 // Execute performs the create attribute operation
 func (uc *CreateAttributeUseCase) Execute(ctx context.Context, req *attributepb.CreateAttributeRequest) (*attributepb.CreateAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"attribute", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -81,7 +81,7 @@ func (uc *CreateAttributeUseCase) Execute(ctx context.Context, req *attributepb.
 func (uc *CreateAttributeUseCase) executeWithTransaction(ctx context.Context, req *attributepb.CreateAttributeRequest) (*attributepb.CreateAttributeResponse, error) {
 	var result *attributepb.CreateAttributeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("attribute creation failed: %w", err)
@@ -137,7 +137,7 @@ func (uc *CreateAttributeUseCase) enrichAttributeData(attribute *attributepb.Att
 
 	// Generate Attribute ID if not provided
 	if attribute.Id == "" {
-		attribute.Id = uc.services.IDService.GenerateID()
+		attribute.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set attribute audit fields

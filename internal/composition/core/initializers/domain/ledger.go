@@ -9,10 +9,10 @@ import (
 // InitializeLedger creates all ledger use cases from provider repositories
 func InitializeLedger(
 	repos *domain.LedgerRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*ledger.LedgerUseCases, error) {
 	return ledger.NewUseCases(
 		ledger.LedgerRepositories{

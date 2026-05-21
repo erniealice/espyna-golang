@@ -18,9 +18,9 @@ type FindApplicablePriceListRepositories struct {
 
 // FindApplicablePriceListServices groups all business service dependencies
 type FindApplicablePriceListServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // FindApplicablePriceListUseCase handles the business logic for finding the
@@ -47,7 +47,7 @@ func (uc *FindApplicablePriceListUseCase) Execute(
 	req *pricelistpb.FindApplicablePriceListRequest,
 ) (*pricelistpb.FindApplicablePriceListResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceList, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (uc *FindApplicablePriceListUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -72,12 +72,12 @@ func (uc *FindApplicablePriceListUseCase) executeWithTransaction(
 ) (*pricelistpb.FindApplicablePriceListResponse, error) {
 	var result *pricelistpb.FindApplicablePriceListResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"price_list.errors.find_applicable_failed",
 				"find applicable price list failed: %w",
 			), err)
@@ -101,7 +101,7 @@ func (uc *FindApplicablePriceListUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.errors.find_applicable_failed",
 			"failed to find applicable price list: %w",
 		), err)
@@ -117,7 +117,7 @@ func (uc *FindApplicablePriceListUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.validation.request_required",
 			"request is required",
 		))
@@ -125,7 +125,7 @@ func (uc *FindApplicablePriceListUseCase) validateInput(
 	if req.LocationId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.validation.location_id_required",
 			"location_id is required",
 		))
@@ -133,7 +133,7 @@ func (uc *FindApplicablePriceListUseCase) validateInput(
 	if req.Date == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_list.validation.date_required",
 			"date is required",
 		))

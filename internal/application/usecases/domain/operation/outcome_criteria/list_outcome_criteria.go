@@ -16,9 +16,9 @@ type ListOutcomeCriteriaRepositories struct {
 }
 
 type ListOutcomeCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListOutcomeCriteriaUseCase handles the business logic for listing outcome criteria
@@ -41,7 +41,7 @@ func NewListOutcomeCriteriaUseCase(
 // Execute performs the list outcome criteria operation
 func (uc *ListOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.ListOutcomeCriteriasRequest) (*pb.ListOutcomeCriteriasResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityOutcomeCriteria, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.ListO
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.ListO
 func (uc *ListOutcomeCriteriaUseCase) executeWithTransaction(ctx context.Context, req *pb.ListOutcomeCriteriasRequest) (*pb.ListOutcomeCriteriasResponse, error) {
 	var result *pb.ListOutcomeCriteriasResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "outcome_criteria.errors.list_failed", "outcome criteria listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "outcome_criteria.errors.list_failed", "outcome criteria listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListOutcomeCriteriaUseCase) executeWithTransaction(ctx context.Context
 func (uc *ListOutcomeCriteriaUseCase) executeCore(ctx context.Context, req *pb.ListOutcomeCriteriasRequest) (*pb.ListOutcomeCriteriasResponse, error) {
 	resp, err := uc.repositories.OutcomeCriteria.ListOutcomeCriterias(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.list_failed", "outcome criteria listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.list_failed", "outcome criteria listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *ListOutcomeCriteriaUseCase) executeCore(ctx context.Context, req *pb.L
 // validateInput validates the input request
 func (uc *ListOutcomeCriteriaUseCase) validateInput(ctx context.Context, req *pb.ListOutcomeCriteriasRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.request_required", "request is required"))
 	}
 
 	return nil

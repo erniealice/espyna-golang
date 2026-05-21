@@ -16,8 +16,8 @@ type ReadDepreciationRunRepositories struct {
 
 // ReadDepreciationRunServices groups service dependencies.
 type ReadDepreciationRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadDepreciationRunUseCase reads a single depreciation run by ID.
@@ -42,7 +42,7 @@ func (uc *ReadDepreciationRunUseCase) Execute(
 	ctx context.Context,
 	req *deprunpb.ReadDepreciationRunRequest,
 ) (*deprunpb.ReadDepreciationRunResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetDepreciationRun, ports.ActionRead); err != nil {
 		return nil, err
 	}

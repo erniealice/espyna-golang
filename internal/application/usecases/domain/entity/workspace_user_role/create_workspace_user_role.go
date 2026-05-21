@@ -25,10 +25,10 @@ type CreateWorkspaceUserRoleRepositories struct {
 
 // CreateWorkspaceUserRoleServices groups all business service dependencies
 type CreateWorkspaceUserRoleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateWorkspaceUserRoleUseCase handles the business logic for creating workspace user roles
@@ -51,13 +51,13 @@ func NewCreateWorkspaceUserRoleUseCase(
 // Execute performs the create workspace user role operation
 func (uc *CreateWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *workspaceuserrolepb.CreateWorkspaceUserRoleRequest) (*workspaceuserrolepb.CreateWorkspaceUserRoleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspaceUserRole, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -69,10 +69,10 @@ func (uc *CreateWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *work
 func (uc *CreateWorkspaceUserRoleUseCase) executeWithTransaction(ctx context.Context, req *workspaceuserrolepb.CreateWorkspaceUserRoleRequest) (*workspaceuserrolepb.CreateWorkspaceUserRoleResponse, error) {
 	var result *workspaceuserrolepb.CreateWorkspaceUserRoleResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workspace_user_role.errors.creation_failed", "Workspace-User-Role creation failed ")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workspace_user_role.errors.creation_failed", "Workspace-User-Role creation failed ")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -94,7 +94,7 @@ func (uc *CreateWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *
 
 	// Business logic and enrichment
 	if err := uc.enrichWorkspaceUserRoleData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.enrichment_failed", "Business logic enrichment failed ")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.enrichment_failed", "Business logic enrichment failed ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -107,14 +107,14 @@ func (uc *CreateWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.business_rule_validation_failed", "Business rule validation failed ")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.business_rule_validation_failed", "Business rule validation failed ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.WorkspaceUserRole.CreateWorkspaceUserRole(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.creation_failed", "Workspace-User-Role creation failed ")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.creation_failed", "Workspace-User-Role creation failed ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -126,16 +126,16 @@ func (uc *CreateWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *
 // validateInput validates the input request
 func (uc *CreateWorkspaceUserRoleUseCase) validateInput(ctx context.Context, req *workspaceuserrolepb.CreateWorkspaceUserRoleRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.data_required", "Workspace-User-Role data is required "))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.data_required", "Workspace-User-Role data is required "))
 	}
 	if req.Data.WorkspaceUserId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.workspace_user_id_required", "Workspace-User ID is required "))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.workspace_user_id_required", "Workspace-User ID is required "))
 	}
 	if req.Data.RoleId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.role_id_required", "Role ID is required "))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.role_id_required", "Role ID is required "))
 	}
 	return nil
 }
@@ -146,7 +146,7 @@ func (uc *CreateWorkspaceUserRoleUseCase) enrichWorkspaceUserRoleData(workspaceU
 
 	// Generate WorkspaceUserRole ID if not provided
 	if workspaceUserRole.Id == "" {
-		workspaceUserRole.Id = uc.services.IDService.GenerateID()
+		workspaceUserRole.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -163,7 +163,7 @@ func (uc *CreateWorkspaceUserRoleUseCase) enrichWorkspaceUserRoleData(workspaceU
 func (uc *CreateWorkspaceUserRoleUseCase) validateBusinessRules(ctx context.Context, workspaceUserRole *workspaceuserrolepb.WorkspaceUserRole) error {
 	// Validate workspace user and role relationship
 	if workspaceUserRole.WorkspaceUserId == workspaceUserRole.RoleId {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.same_id", "Workspace user ID and role ID cannot be the same "))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.same_id", "Workspace user ID and role ID cannot be the same "))
 	}
 
 	return nil
@@ -180,7 +180,7 @@ func (uc *CreateWorkspaceUserRoleUseCase) validateEntityReferences(ctx context.C
 			// Check if this is a "not found" error - if so, create our own translated message
 			// Otherwise, return the error as-is for the calling function to handle
 			if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "does not exist") {
-				translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.workspace_user_not_found", "Referenced workspace user with ID \"{workspaceUserId}\" not found ")
+				translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.workspace_user_not_found", "Referenced workspace user with ID \"{workspaceUserId}\" not found ")
 				translatedError = strings.ReplaceAll(translatedError, "{workspaceUserId}", workspaceUserRole.WorkspaceUserId)
 				return errors.New(translatedError)
 			}
@@ -188,12 +188,12 @@ func (uc *CreateWorkspaceUserRoleUseCase) validateEntityReferences(ctx context.C
 			return err
 		}
 		if workspaceUser == nil || workspaceUser.Data == nil || len(workspaceUser.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.workspace_user_not_found", "Referenced workspace user with ID \"{workspaceUserId}\" not found ")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.workspace_user_not_found", "Referenced workspace user with ID \"{workspaceUserId}\" not found ")
 			translatedError = strings.ReplaceAll(translatedError, "{workspaceUserId}", workspaceUserRole.WorkspaceUserId)
 			return errors.New(translatedError)
 		}
 		if !workspaceUser.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.workspace_user_not_active", "Referenced workspace user with ID \"{workspaceUserId}\" is not active ")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.workspace_user_not_active", "Referenced workspace user with ID \"{workspaceUserId}\" is not active ")
 			translatedError = strings.ReplaceAll(translatedError, "{workspaceUserId}", workspaceUserRole.WorkspaceUserId)
 			return errors.New(translatedError)
 		}
@@ -209,12 +209,12 @@ func (uc *CreateWorkspaceUserRoleUseCase) validateEntityReferences(ctx context.C
 			return err
 		}
 		if role == nil || role.Data == nil || len(role.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.role_not_found", "Referenced role with ID \"{roleId}\" does not exist ")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.role_not_found", "Referenced role with ID \"{roleId}\" does not exist ")
 			translatedError = strings.ReplaceAll(translatedError, "{roleId}", workspaceUserRole.RoleId)
 			return errors.New(translatedError)
 		}
 		if !role.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.role_not_active", "Referenced role with ID \"{roleId}\" is not active ")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.role_not_active", "Referenced role with ID \"{roleId}\" is not active ")
 			translatedError = strings.ReplaceAll(translatedError, "{roleId}", workspaceUserRole.RoleId)
 			return errors.New(translatedError)
 		}

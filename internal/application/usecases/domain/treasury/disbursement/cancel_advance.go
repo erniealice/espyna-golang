@@ -21,9 +21,9 @@ type CancelAdvanceRepositories struct {
 
 // CancelAdvanceServices groups infra services.
 type CancelAdvanceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // CancelAdvanceUseCase — buying-side mirror.
@@ -56,28 +56,28 @@ func (uc *CancelAdvanceUseCase) Execute(
 	if req == nil {
 		req = &disbursementpb.CancelAdvanceDisbursementRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTreasuryDisbursement, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryDisbursementId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.validation.id_required",
 			"treasury_disbursement_id is required [DEFAULT]",
 		))
 	}
 	if strings.TrimSpace(req.GetReason()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.validation.cancel_reason_required",
 			"cancel reason is required [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *disbursementpb.CancelAdvanceDisbursementResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return execErr
@@ -105,7 +105,7 @@ func (uc *CancelAdvanceUseCase) executeCore(
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.not_found",
 			"treasury_disbursement not found [DEFAULT]",
 		))
@@ -114,7 +114,7 @@ func (uc *CancelAdvanceUseCase) executeCore(
 
 	if adv.GetAdvanceKind() == advancekindpb.AdvanceKind_ADVANCE_KIND_NONE {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.cancel_requires_advance",
 			"cancel is only valid when advance_kind != NONE [DEFAULT]",
 		))
@@ -125,7 +125,7 @@ func (uc *CancelAdvanceUseCase) executeCore(
 		// proceed
 	default:
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.cancel_requires_open_advance",
 			"cancel requires advance_status=ACTIVE or PARTIALLY_SETTLED [DEFAULT]",
 		))

@@ -86,10 +86,10 @@ type ProductUseCases struct {
 // NewUseCases creates all product use cases with proper constructor injection
 func NewUseCases(
 	repos ProductRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *ProductUseCases {
 	// Create product use cases with proper constructors
 	lineUC := lineUseCases.NewUseCases(
@@ -97,10 +97,10 @@ func NewUseCases(
 			Line: repos.Line,
 		},
 		lineUseCases.LineServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -110,10 +110,10 @@ func NewUseCases(
 			PriceProduct: repos.PriceProduct,
 		},
 		priceListUseCases.PriceListServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -122,10 +122,10 @@ func NewUseCases(
 			PriceProduct: repos.PriceProduct,
 		},
 		priceProductUseCases.PriceProductServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -134,10 +134,10 @@ func NewUseCases(
 			Product: repos.Product,
 		},
 		productUseCases.ProductServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -146,10 +146,10 @@ func NewUseCases(
 			ProductAttribute: repos.ProductAttribute,
 		},
 		productAttributeUseCases.ProductAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -160,10 +160,10 @@ func NewUseCases(
 			Line:        repos.Line,
 		},
 		productLineUseCases.ProductLineServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -172,10 +172,10 @@ func NewUseCases(
 			ProductOption: repos.ProductOption,
 		},
 		productOptionUC.ProductOptionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -184,10 +184,10 @@ func NewUseCases(
 			ProductOptionValue: repos.ProductOptionValue,
 		},
 		productOptionValueUC.ProductOptionValueServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -198,10 +198,10 @@ func NewUseCases(
 			ProductVariant: repos.ProductVariant,
 		},
 		productPlanUseCases.ProductPlanServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -210,10 +210,10 @@ func NewUseCases(
 			ProductVariant: repos.ProductVariant,
 		},
 		productVariantUC.ProductVariantServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -222,10 +222,10 @@ func NewUseCases(
 			ProductVariantImage: repos.ProductVariantImage,
 		},
 		productVariantImageUC.ProductVariantImageServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -234,10 +234,10 @@ func NewUseCases(
 			ProductVariantOption: repos.ProductVariantOption,
 		},
 		productVariantOptionUC.ProductVariantOptionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -246,10 +246,10 @@ func NewUseCases(
 			Resource: repos.Resource,
 		},
 		resourceUseCases.ResourceServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 

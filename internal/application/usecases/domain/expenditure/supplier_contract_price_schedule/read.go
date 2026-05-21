@@ -17,8 +17,8 @@ type ReadSupplierContractPriceScheduleRepositories struct {
 
 // ReadSupplierContractPriceScheduleServices groups service dependencies.
 type ReadSupplierContractPriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadSupplierContractPriceScheduleUseCase handles reading a schedule.
@@ -37,12 +37,12 @@ func NewReadSupplierContractPriceScheduleUseCase(
 
 // Execute performs the read schedule operation.
 func (uc *ReadSupplierContractPriceScheduleUseCase) Execute(ctx context.Context, req *scpspb.ReadSupplierContractPriceScheduleRequest) (*scpspb.ReadSupplierContractPriceScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceSchedule, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.validation.id_required", "Supplier contract price schedule ID is required [DEFAULT]"))
 	}
 	return uc.repositories.SupplierContractPriceSchedule.ReadSupplierContractPriceSchedule(ctx, req)

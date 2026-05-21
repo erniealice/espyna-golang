@@ -17,9 +17,9 @@ type DeleteRevenueRepositories struct {
 
 // DeleteRevenueServices groups all business service dependencies
 type DeleteRevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteRevenueUseCase handles the business logic for deleting revenues
@@ -41,13 +41,13 @@ func NewDeleteRevenueUseCase(
 
 // Execute performs the delete revenue operation
 func (uc *DeleteRevenueUseCase) Execute(ctx context.Context, req *revenuepb.DeleteRevenueRequest) (*revenuepb.DeleteRevenueResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenue, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue.validation.id_required", "Revenue ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue.validation.id_required", "Revenue ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Revenue.DeleteRevenue(ctx, req)

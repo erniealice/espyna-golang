@@ -22,9 +22,9 @@ type ReadWorkflowTemplateRepositories struct {
 
 // ReadWorkflowTemplateServices groups all business service dependencies
 type ReadWorkflowTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadWorkflowTemplateUseCase handles the business logic for reading workflow templates
@@ -54,9 +54,9 @@ func NewReadWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_templ
 	}
 
 	services := ReadWorkflowTemplateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadWorkflowTemplateUseCase(repositories, services)
@@ -65,14 +65,14 @@ func NewReadWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_templ
 // Execute performs the read workflow template operation
 func (uc *ReadWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.ReadWorkflowTemplateRequest) (*workflow_templatepb.ReadWorkflowTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow_template", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.request_required", "Request is required for workflow templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.request_required", "Request is required for workflow templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -81,7 +81,7 @@ func (uc *ReadWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflo
 	}
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req.Data)
 	}
 
@@ -93,10 +93,10 @@ func (uc *ReadWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflo
 func (uc *ReadWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.ReadWorkflowTemplateResponse, error) {
 	var result *workflow_templatepb.ReadWorkflowTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, workflowTemplate)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workflow_template.errors.read_failed", "Workflow template read failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workflow_template.errors.read_failed", "Workflow template read failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -121,17 +121,17 @@ func (uc *ReadWorkflowTemplateUseCase) executeCore(ctx context.Context, workflow
 func (uc *ReadWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) error {
 	// Business rule: Required data validation
 	if workflowTemplate == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for reading
 	if workflowTemplate.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.id_required", "Workflow template ID is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.id_required", "Workflow template ID is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateWorkflowTemplateID(workflowTemplate.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.id_invalid", "Workflow template ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.id_invalid", "Workflow template ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

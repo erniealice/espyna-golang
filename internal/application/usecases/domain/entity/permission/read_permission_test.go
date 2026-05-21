@@ -30,7 +30,7 @@ func createTestReadPermissionUseCase(businessType string) *ReadPermissionUseCase
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadPermissionServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewReadPermissionUseCase(repositories, services)
 }
@@ -99,5 +99,5 @@ func TestReadPermissionUseCase_Execute_EmptyId(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected an error for an empty ID, but got none")
 	}
-	testutil.AssertTranslatedError(t, err, "permission.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "permission.validation.id_required", useCase.services.Translator, ctx)
 }

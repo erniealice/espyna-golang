@@ -18,8 +18,8 @@ type UpdateExpenseRecognitionLineRepositories struct {
 
 // UpdateExpenseRecognitionLineServices groups service dependencies.
 type UpdateExpenseRecognitionLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UpdateExpenseRecognitionLineUseCase handles updating a recognition-line.
@@ -38,12 +38,12 @@ func NewUpdateExpenseRecognitionLineUseCase(
 
 // Execute performs the update operation.
 func (uc *UpdateExpenseRecognitionLineUseCase) Execute(ctx context.Context, req *expenserecognitionlinepb.UpdateExpenseRecognitionLineRequest) (*expenserecognitionlinepb.UpdateExpenseRecognitionLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognitionLine, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition_line.validation.id_required", "Recognition line ID is required [DEFAULT]"))
 	}
 	now := time.Now()

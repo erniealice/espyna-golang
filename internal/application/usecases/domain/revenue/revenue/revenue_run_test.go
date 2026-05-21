@@ -196,9 +196,9 @@ func TestEnumeratePeriods_ManilaTimezoneStart(t *testing.T) {
 func TestGenerateRevenueRun_FilterTokenStubReturnsNotImplemented(t *testing.T) {
 	uc := &GenerateRevenueRunUseCase{
 		services: GenerateRevenueRunServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            ports.NewNoOpIDService(),
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: ports.NewNoOpIDGenerator(),
 		},
 	}
 	ws := "ws-1"
@@ -221,9 +221,9 @@ func TestGenerateRevenueRun_FilterTokenStubReturnsNotImplemented(t *testing.T) {
 func TestGenerateRevenueRun_EmptySelectionsReturnsError(t *testing.T) {
 	uc := &GenerateRevenueRunUseCase{
 		services: GenerateRevenueRunServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            ports.NewNoOpIDService(),
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: ports.NewNoOpIDGenerator(),
 		},
 	}
 	ws := "ws-1"

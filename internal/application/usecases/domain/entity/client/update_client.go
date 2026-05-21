@@ -18,9 +18,9 @@ type UpdateClientRepositories struct {
 
 // UpdateClientServices groups all business service dependencies
 type UpdateClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateClientUseCase handles the business logic for updating a client
@@ -49,9 +49,9 @@ func NewUpdateClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 	}
 
 	services := UpdateClientServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateClientUseCase(repositories, services)
@@ -60,23 +60,23 @@ func NewUpdateClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 // Execute performs the update client operation
 func (uc *UpdateClientUseCase) Execute(ctx context.Context, req *clientpb.UpdateClientRequest) (*clientpb.UpdateClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.request_required", "Request is required for clients [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.id_required", "Client ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.id_required", "Client ID is required [DEFAULT]"))
 	}
 
 	// Business logic validation
 	if req.Data.User != nil && req.Data.User.EmailAddress == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.email_required", "Client email is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.email_required", "Client email is required [DEFAULT]"))
 	}
 
 	// 2026-05-03 — Preserve active flags when the payload does not carry
@@ -106,7 +106,7 @@ func (uc *UpdateClientUseCase) Execute(ctx context.Context, req *clientpb.Update
 	// Call repository
 	resp, err := uc.repositories.Client.UpdateClient(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.errors.update_failed", "Client update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.update_failed", "Client update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

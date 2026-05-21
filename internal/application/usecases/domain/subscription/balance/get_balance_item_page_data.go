@@ -16,9 +16,9 @@ type GetBalanceItemPageDataRepositories struct {
 }
 
 type GetBalanceItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetBalanceItemPageDataUseCase handles the business logic for getting balance item page data
@@ -44,7 +44,7 @@ func (uc *GetBalanceItemPageDataUseCase) Execute(
 	req *balancepb.GetBalanceItemPageDataRequest,
 ) (*balancepb.GetBalanceItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalance, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetBalanceItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetBalanceItemPageDataUseCase) executeWithTransaction(
 ) (*balancepb.GetBalanceItemPageDataResponse, error) {
 	var result *balancepb.GetBalanceItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"balance.errors.item_page_data_failed",
 				"balance item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetBalanceItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.errors.read_failed",
 			"failed to retrieve balance: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetBalanceItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.errors.not_found",
 			"balance not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetBalanceItemPageDataUseCase) executeCore(
 	if balance.Id != req.BalanceId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.errors.id_mismatch",
 			"retrieved balance ID does not match requested ID",
 		))
@@ -170,7 +170,7 @@ func (uc *GetBalanceItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.validation.request_required",
 			"request is required",
 		))
@@ -179,7 +179,7 @@ func (uc *GetBalanceItemPageDataUseCase) validateInput(
 	if req.BalanceId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.validation.id_required",
 			"balance ID is required",
 		))
@@ -197,7 +197,7 @@ func (uc *GetBalanceItemPageDataUseCase) validateBusinessRules(
 	if len(balanceId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.validation.id_too_short",
 			"balance ID is too short",
 		))
@@ -225,7 +225,7 @@ func (uc *GetBalanceItemPageDataUseCase) validateFinancialData(
 		if balance.Amount != balance.Amount { // NaN check
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"balance.validation.invalid_amount",
 				"balance amount is not a valid number",
 			))
@@ -235,7 +235,7 @@ func (uc *GetBalanceItemPageDataUseCase) validateFinancialData(
 		if balance.Amount > 1e15 || balance.Amount < -1e15 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"balance.validation.amount_out_of_range",
 				"balance amount is out of valid range",
 			))
@@ -246,7 +246,7 @@ func (uc *GetBalanceItemPageDataUseCase) validateFinancialData(
 	if balance.Currency != "" && len(balance.Currency) != 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.validation.invalid_currency",
 			"currency code must be 3 characters",
 		))
@@ -263,7 +263,7 @@ func (uc *GetBalanceItemPageDataUseCase) validateFinancialData(
 	if balance.BalanceType != "" && !validBalanceTypes[balance.BalanceType] {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"balance.validation.invalid_balance_type",
 			"invalid balance type",
 		))

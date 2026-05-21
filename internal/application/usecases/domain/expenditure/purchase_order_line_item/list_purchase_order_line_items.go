@@ -17,9 +17,9 @@ type ListPurchaseOrderLineItemsRepositories struct {
 
 // ListPurchaseOrderLineItemsServices groups all business service dependencies
 type ListPurchaseOrderLineItemsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListPurchaseOrderLineItemsUseCase handles the business logic for listing purchase order line items
@@ -41,13 +41,13 @@ func NewListPurchaseOrderLineItemsUseCase(
 
 // Execute performs the list purchase order line items operation
 func (uc *ListPurchaseOrderLineItemsUseCase) Execute(ctx context.Context, req *purchaseorderlineitempb.ListPurchaseOrderLineItemsRequest) (*purchaseorderlineitempb.ListPurchaseOrderLineItemsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrderLineItem, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	if uc.repositories.PurchaseOrderLineItem == nil {

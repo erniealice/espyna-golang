@@ -17,9 +17,9 @@ type ReadCollectionRepositories struct {
 
 // ReadCollectionServices groups all business service dependencies
 type ReadCollectionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadCollectionUseCase handles the business logic for reading a collection
@@ -41,13 +41,13 @@ func NewReadCollectionUseCase(
 
 // Execute performs the read collection operation
 func (uc *ReadCollectionUseCase) Execute(ctx context.Context, req *collectionpb.ReadCollectionRequest) (*collectionpb.ReadCollectionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityCollection, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Collection.ReadCollection(ctx, req)

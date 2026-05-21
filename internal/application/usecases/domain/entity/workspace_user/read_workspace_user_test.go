@@ -30,7 +30,7 @@ func createTestReadWorkspaceUserUseCase(businessType string) *ReadWorkspaceUserU
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadWorkspaceUserServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewReadWorkspaceUserUseCase(repositories, services)
 }
@@ -84,7 +84,7 @@ func TestReadWorkspaceUserUseCase_Execute_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected an error for a non-existent workspace-user, but got none")
 	}
-	testutil.AssertTranslatedErrorWithContext(t, err, "workspace_user.errors.not_found", "{\"workspaceUserId\": \"workspace-user-999\"}", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedErrorWithContext(t, err, "workspace_user.errors.not_found", "{\"workspaceUserId\": \"workspace-user-999\"}", useCase.services.Translator, ctx)
 }
 
 func TestReadWorkspaceUserUseCase_Execute_EmptyId(t *testing.T) {
@@ -99,5 +99,5 @@ func TestReadWorkspaceUserUseCase_Execute_EmptyId(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected an error for an empty ID, but got none")
 	}
-	testutil.AssertTranslatedError(t, err, "workspace_user.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user.validation.id_required", useCase.services.Translator, ctx)
 }

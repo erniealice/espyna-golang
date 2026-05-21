@@ -46,9 +46,9 @@ func createTestReadAdminUseCase(businessType string, supportsTransaction bool) *
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := ReadAdminServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewReadAdminUseCase(repositories, services)
@@ -114,7 +114,7 @@ func TestReadAdminUseCase_Execute_NilRequest(t *testing.T) {
 	_, err := useCase.Execute(ctx, nil)
 	testutil.AssertErrorForNilRequest(t, err)
 
-	testutil.AssertTranslatedError(t, err, "admin.validation.request_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "admin.validation.request_required", useCase.services.Translator, ctx)
 }
 
 func TestReadAdminUseCase_Execute_NilData(t *testing.T) {
@@ -126,7 +126,7 @@ func TestReadAdminUseCase_Execute_NilData(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertErrorForNilData(t, err)
 
-	testutil.AssertTranslatedError(t, err, "admin.validation.data_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "admin.validation.data_required", useCase.services.Translator, ctx)
 }
 
 func TestReadAdminUseCase_Execute_EmptyId(t *testing.T) {
@@ -139,5 +139,5 @@ func TestReadAdminUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "admin.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "admin.validation.id_required", useCase.services.Translator, ctx)
 }

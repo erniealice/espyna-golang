@@ -17,8 +17,8 @@ type DeleteSupplierContractPriceScheduleLineRepositories struct {
 
 // DeleteSupplierContractPriceScheduleLineServices groups service dependencies.
 type DeleteSupplierContractPriceScheduleLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteSupplierContractPriceScheduleLineUseCase handles deleting a schedule-line.
@@ -37,12 +37,12 @@ func NewDeleteSupplierContractPriceScheduleLineUseCase(
 
 // Execute performs the delete operation.
 func (uc *DeleteSupplierContractPriceScheduleLineUseCase) Execute(ctx context.Context, req *scpslpb.DeleteSupplierContractPriceScheduleLineRequest) (*scpslpb.DeleteSupplierContractPriceScheduleLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceScheduleLine, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule_line.validation.id_required", "Schedule line ID is required [DEFAULT]"))
 	}
 	return uc.repositories.SupplierContractPriceScheduleLine.DeleteSupplierContractPriceScheduleLine(ctx, req)

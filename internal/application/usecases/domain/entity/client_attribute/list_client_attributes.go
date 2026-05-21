@@ -19,9 +19,9 @@ type ListClientAttributesRepositories struct {
 
 // ListClientAttributesServices groups all business service dependencies
 type ListClientAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListClientAttributesUseCase handles the business logic for listing client attributes
@@ -50,9 +50,9 @@ func NewListClientAttributesUseCaseUngrouped(clientAttributeRepo clientattribute
 	}
 
 	services := ListClientAttributesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListClientAttributesUseCase(repositories, services)
@@ -61,27 +61,27 @@ func NewListClientAttributesUseCaseUngrouped(clientAttributeRepo clientattribute
 // Execute performs the list client attributes operation
 func (uc *ListClientAttributesUseCase) Execute(ctx context.Context, req *clientattributepb.ListClientAttributesRequest) (*clientattributepb.ListClientAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClientAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Apply default values for pagination
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.ClientAttribute.ListClientAttributes(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.list_failed", "Failed to retrieve client attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.list_failed", "Failed to retrieve client attributes [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -91,7 +91,7 @@ func (uc *ListClientAttributesUseCase) Execute(ctx context.Context, req *clienta
 // validateInput validates the input request
 func (uc *ListClientAttributesUseCase) validateInput(ctx context.Context, req *clientattributepb.ListClientAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
 	}
 
 	// No additional business rules for listing client attributes

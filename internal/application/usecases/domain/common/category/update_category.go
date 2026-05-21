@@ -17,8 +17,8 @@ type UpdateCategoryRepositories struct {
 
 // UpdateCategoryServices groups all business service dependencies
 type UpdateCategoryServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateCategoryUseCase handles the business logic for updating categories
@@ -46,8 +46,8 @@ func NewUpdateCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 	}
 
 	services := UpdateCategoryServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateCategoryUseCase(repositories, services)
@@ -56,7 +56,7 @@ func NewUpdateCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 // Execute performs the update category operation
 func (uc *UpdateCategoryUseCase) Execute(ctx context.Context, req *categorypb.UpdateCategoryRequest) (*categorypb.UpdateCategoryResponse, error) {
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -68,7 +68,7 @@ func (uc *UpdateCategoryUseCase) Execute(ctx context.Context, req *categorypb.Up
 func (uc *UpdateCategoryUseCase) executeWithTransaction(ctx context.Context, req *categorypb.UpdateCategoryRequest) (*categorypb.UpdateCategoryResponse, error) {
 	var result *categorypb.UpdateCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("category update failed: %w", err)

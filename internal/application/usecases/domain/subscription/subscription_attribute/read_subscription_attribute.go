@@ -18,9 +18,9 @@ type ReadSubscriptionAttributeRepositories struct {
 
 // ReadSubscriptionAttributeServices groups all business service dependencies
 type ReadSubscriptionAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadSubscriptionAttributeUseCase handles the business logic for reading subscription attributes
@@ -43,7 +43,7 @@ func NewReadSubscriptionAttributeUseCase(
 // Execute performs the read subscription attribute operation
 func (uc *ReadSubscriptionAttributeUseCase) Execute(ctx context.Context, req *subscriptionattributepb.ReadSubscriptionAttributeRequest) (*subscriptionattributepb.ReadSubscriptionAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscriptionAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *ReadSubscriptionAttributeUseCase) Execute(ctx context.Context, req *su
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription_attribute.errors.not_found",
 				map[string]interface{}{"subscriptionAttributeId": req.Data.Id},
 				"Subscription attribute not found [DEFAULT]",
@@ -79,13 +79,13 @@ func (uc *ReadSubscriptionAttributeUseCase) Execute(ctx context.Context, req *su
 // validateInput validates the input request
 func (uc *ReadSubscriptionAttributeUseCase) validateInput(ctx context.Context, req *subscriptionattributepb.ReadSubscriptionAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.id_required", "Subscription attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.id_required", "Subscription attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

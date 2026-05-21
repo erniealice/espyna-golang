@@ -17,8 +17,8 @@ type ListByClientRepositories struct {
 // ListByClientServices groups service dependencies for
 // the ListByClient use case.
 type ListByClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListByClientUseCase lists collections for a given client.
@@ -40,7 +40,7 @@ func NewListByClientUseCase(
 
 // Execute performs an authorization check then delegates to the repository.
 func (uc *ListByClientUseCase) Execute(ctx context.Context, req *collectionpb.ListByClientRequest) (*collectionpb.ListByClientResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityCollection, ports.ActionList); err != nil {
 		return nil, err
 	}

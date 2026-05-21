@@ -24,10 +24,10 @@ type CreateGroupAttributeRepositories struct {
 
 // CreateGroupAttributeServices groups all business service dependencies
 type CreateGroupAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateGroupAttributeUseCase handles the business logic for creating group attributes
@@ -53,7 +53,7 @@ func NewCreateGroupAttributeUseCaseUngrouped(
 	groupAttributeRepo groupattributepb.GroupAttributeDomainServiceServer,
 	groupRepo grouppb.GroupDomainServiceServer,
 	attributeRepo attributepb.AttributeDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *CreateGroupAttributeUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := CreateGroupAttributeRepositories{
@@ -63,10 +63,10 @@ func NewCreateGroupAttributeUseCaseUngrouped(
 	}
 
 	services := CreateGroupAttributeServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  authorizationService,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateGroupAttributeUseCase(repositories, services)
@@ -83,14 +83,14 @@ func (uc *CreateGroupAttributeUseCase) Execute(ctx context.Context, req *groupat
 	}
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroupAttribute, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichGroupAttributeData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -102,7 +102,7 @@ func (uc *CreateGroupAttributeUseCase) Execute(ctx context.Context, req *groupat
 	// Call repository
 	resp, err := uc.repositories.GroupAttribute.CreateGroupAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.creation_failed", "Group attribute creation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.creation_failed", "Group attribute creation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -112,19 +112,19 @@ func (uc *CreateGroupAttributeUseCase) Execute(ctx context.Context, req *groupat
 // validateInput validates the input request
 func (uc *CreateGroupAttributeUseCase) validateInput(ctx context.Context, req *groupattributepb.CreateGroupAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.data_required", "[ERR-DEFAULT] Group attribute data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.data_required", "[ERR-DEFAULT] Group attribute data is required"))
 	}
 	if req.Data.GroupId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.group_id_required", "[ERR-DEFAULT] Group ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.group_id_required", "[ERR-DEFAULT] Group ID is required"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.attribute_id_required", "[ERR-DEFAULT] Attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.attribute_id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.value_required", "[ERR-DEFAULT] Attribute value is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.value_required", "[ERR-DEFAULT] Attribute value is required"))
 	}
 	return nil
 }
@@ -135,7 +135,7 @@ func (uc *CreateGroupAttributeUseCase) enrichGroupAttributeData(groupAttribute *
 
 	// Generate GroupAttribute ID
 	if groupAttribute.Id == "" {
-		groupAttribute.Id = uc.services.IDService.GenerateID()
+		groupAttribute.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set group attribute audit fields
@@ -152,11 +152,11 @@ func (uc *CreateGroupAttributeUseCase) enrichGroupAttributeData(groupAttribute *
 func (uc *CreateGroupAttributeUseCase) validateBusinessRules(ctx context.Context, groupAttribute *groupattributepb.GroupAttribute) error {
 	// Validate value length
 	if len(strings.TrimSpace(groupAttribute.Value)) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
 	}
 
 	if len(groupAttribute.Value) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// TODO: Additional business rules
@@ -175,16 +175,16 @@ func (uc *CreateGroupAttributeUseCase) validateEntityReferences(ctx context.Cont
 			Data: &grouppb.Group{Id: groupAttribute.GroupId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.group_reference_validation_failed", "Failed to validate group entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.group_reference_validation_failed", "Failed to validate group entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if group == nil || group.Data == nil || len(group.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.group_not_found", "[ERR-DEFAULT] Group not found")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.group_not_found", "[ERR-DEFAULT] Group not found")
 			translatedError = strings.ReplaceAll(translatedError, "{groupId}", groupAttribute.GroupId)
 			return errors.New(translatedError)
 		}
 		if !group.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.group_not_active", "Referenced group with ID '{groupId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.group_not_active", "Referenced group with ID '{groupId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{groupId}", groupAttribute.GroupId)
 			return errors.New(translatedError)
 		}
@@ -196,16 +196,16 @@ func (uc *CreateGroupAttributeUseCase) validateEntityReferences(ctx context.Cont
 			Data: &attributepb.Attribute{Id: groupAttribute.AttributeId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.attribute_not_found", "[ERR-DEFAULT] Attribute not found")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.attribute_not_found", "[ERR-DEFAULT] Attribute not found")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", groupAttribute.AttributeId)
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", groupAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

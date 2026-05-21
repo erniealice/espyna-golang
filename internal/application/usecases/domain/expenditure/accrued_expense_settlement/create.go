@@ -20,9 +20,9 @@ type CreateAccruedExpenseSettlementRepositories struct {
 
 // CreateAccruedExpenseSettlementServices groups service dependencies.
 type CreateAccruedExpenseSettlementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateAccruedExpenseSettlementUseCase handles creating a settlement row.
@@ -46,25 +46,25 @@ func NewCreateAccruedExpenseSettlementUseCase(
 
 // Execute performs the create operation.
 func (uc *CreateAccruedExpenseSettlementUseCase) Execute(ctx context.Context, req *accruedexpensepb.CreateAccruedExpenseSettlementRequest) (*accruedexpensepb.CreateAccruedExpenseSettlementResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpenseSettlement, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense_settlement.validation.data_required", "Settlement data is required [DEFAULT]"))
 	}
 	if req.Data.AccruedExpenseId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense_settlement.validation.accrued_expense_id_required", "Accrued expense ID is required [DEFAULT]"))
 	}
 	if req.Data.ExpenditureId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense_settlement.validation.expenditure_id_required", "Expenditure ID is required [DEFAULT]"))
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

@@ -14,8 +14,8 @@ type TaxRateRepositories struct {
 
 // TaxRateServices groups all business service dependencies.
 type TaxRateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UseCases contains all tax_rate use cases.
@@ -31,22 +31,22 @@ func NewUseCases(repositories TaxRateRepositories, services TaxRateServices) *Us
 		ReadTaxRate: NewReadTaxRateUseCase(
 			ReadTaxRateRepositories{TaxRate: repositories.TaxRate},
 			ReadTaxRateServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListTaxRates: NewListTaxRatesUseCase(
 			ListTaxRatesRepositories{TaxRate: repositories.TaxRate},
 			ListTaxRatesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		FindApplicableTaxRate: NewFindApplicableTaxRateUseCase(
 			FindApplicableTaxRateRepositories{TaxRate: repositories.TaxRate},
 			FindApplicableTaxRateServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

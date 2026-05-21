@@ -23,10 +23,10 @@ type UserRepositories struct {
 
 // UserServices groups all business service dependencies for user use cases
 type UserServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of user use cases
@@ -37,52 +37,52 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateUserRepositories(repositories)
 	createServices := CreateUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadUserRepositories(repositories)
 	readServices := ReadUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateUserRepositories(repositories)
 	updateServices := UpdateUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteUserRepositories(repositories)
 	deleteServices := DeleteUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListUsersRepositories(repositories)
 	listServices := ListUsersServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getUserListPageDataRepos := GetUserListPageDataRepositories(repositories)
 	getUserListPageDataServices := GetUserListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getUserItemPageDataRepos := GetUserItemPageDataRepositories(repositories)
 	getUserItemPageDataServices := GetUserItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -98,16 +98,16 @@ func NewUseCases(
 
 // NewUseCasesUngrouped creates a new collection of user use cases with individual parameters
 // Deprecated: Use NewUseCases with grouped parameters instead
-func NewUseCasesUngrouped(userRepo userpb.UserDomainServiceServer, authorizationService ports.AuthorizationService) *UseCases {
+func NewUseCasesUngrouped(userRepo userpb.UserDomainServiceServer, authorizationService ports.Authorizer) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := UserRepositories{
 		User: userRepo,
 	}
 
 	services := UserServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

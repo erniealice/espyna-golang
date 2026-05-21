@@ -48,10 +48,10 @@ import (
 // This is composition logic - it wires infrastructure (providers) to application (use cases)
 func InitializeEntity(
 	repos *domain.EntityRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*entity.EntityUseCases, error) {
 	svc := func() entityServices {
 		return entityServices{authSvc, txSvc, i18nSvc, idSvc}
@@ -101,10 +101,10 @@ func InitializeEntity(
 		result.ClientPortalGrant = clientPortalGrantUseCases.NewUseCases(
 			clientPortalGrantUseCases.ClientPortalGrantRepositories{ClientPortalGrant: repos.ClientPortalGrant},
 			clientPortalGrantUseCases.ClientPortalGrantServices{
-				AuthorizationService: s.AuthorizationService,
-				TransactionService:   s.TransactionService,
-				TranslationService:   s.TranslationService,
-				IDService:            s.IDService,
+				Authorizer:  s.Authorizer,
+				Transactor:  s.Transactor,
+				Translator:  s.Translator,
+				IDGenerator: s.IDGenerator,
 			},
 		)
 	}
@@ -143,10 +143,10 @@ func InitializeEntity(
 		result.DelegateSupplier = delegateSupplierUseCases.NewUseCases(
 			delegateSupplierUseCases.DelegateSupplierRepositories{DelegateSupplier: repos.DelegateSupplier},
 			delegateSupplierUseCases.DelegateSupplierServices{
-				AuthorizationService: s.AuthorizationService,
-				TransactionService:   s.TransactionService,
-				TranslationService:   s.TranslationService,
-				IDService:            s.IDService,
+				Authorizer:  s.Authorizer,
+				Transactor:  s.Transactor,
+				Translator:  s.Translator,
+				IDGenerator: s.IDGenerator,
 			},
 		)
 	}
@@ -265,10 +265,10 @@ func InitializeEntity(
 		result.SupplierPortalGrant = supplierPortalGrantUseCases.NewUseCases(
 			supplierPortalGrantUseCases.SupplierPortalGrantRepositories{SupplierPortalGrant: repos.SupplierPortalGrant},
 			supplierPortalGrantUseCases.SupplierPortalGrantServices{
-				AuthorizationService: s.AuthorizationService,
-				TransactionService:   s.TransactionService,
-				TranslationService:   s.TranslationService,
-				IDService:            s.IDService,
+				Authorizer:  s.Authorizer,
+				Transactor:  s.Transactor,
+				Translator:  s.Translator,
+				IDGenerator: s.IDGenerator,
 			},
 		)
 	}
@@ -285,10 +285,10 @@ func InitializeEntity(
 		result.UserPreference = userPreferenceUseCases.NewUseCases(
 			userPreferenceUseCases.UserPreferenceRepositories{UserPreference: repos.UserPreference},
 			userPreferenceUseCases.UserPreferenceServices{
-				AuthorizationService: s.AuthorizationService,
-				TransactionService:   s.TransactionService,
-				TranslationService:   s.TranslationService,
-				IDService:            s.IDService,
+				Authorizer:  s.Authorizer,
+				Transactor:  s.Transactor,
+				Translator:  s.Translator,
+				IDGenerator: s.IDGenerator,
 			},
 		)
 	}
@@ -336,8 +336,8 @@ func InitializeEntity(
 // entityServices is a type alias to reduce repetition in InitializeEntity.
 // All entity *Services structs share the same layout, so we can convert between them.
 type entityServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }

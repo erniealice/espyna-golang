@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
-	agingpb        "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
-	payagingpb     "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
-	clientstmtpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
-	expreportpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
-	reportpb       "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
-	revreportpb    "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
-	collsumpb      "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
-	disbreportpb   "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
-	suppstmtpb     "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/supplier_statement"
 	"github.com/erniealice/espyna-golang/consumer"
+	clientstmtpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
+	expreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
+	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
+	payagingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
+	agingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/receivables_aging"
+	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
+	collsumpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
+	disbreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
+	suppstmtpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/supplier_statement"
 )
 
 // TableConfig holds table names for the ledger reporting adapter.

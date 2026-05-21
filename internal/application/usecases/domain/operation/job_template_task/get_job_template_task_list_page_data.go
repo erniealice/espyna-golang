@@ -17,9 +17,9 @@ type GetJobTemplateTaskListPageDataRepositories struct {
 }
 
 type GetJobTemplateTaskListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetJobTemplateTaskListPageDataUseCase handles the business logic for getting job template task list page data
@@ -45,7 +45,7 @@ func (uc *GetJobTemplateTaskListPageDataUseCase) Execute(
 	req *pb.GetJobTemplateTaskListPageDataRequest,
 ) (*pb.GetJobTemplateTaskListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplateTask, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *GetJobTemplateTaskListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -71,12 +71,12 @@ func (uc *GetJobTemplateTaskListPageDataUseCase) executeWithTransaction(
 ) (*pb.GetJobTemplateTaskListPageDataResponse, error) {
 	var result *pb.GetJobTemplateTaskListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"job_template_task.errors.list_page_data_failed",
 				"job template task list page data retrieval failed: %w",
 			), err)
@@ -100,7 +100,7 @@ func (uc *GetJobTemplateTaskListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"job_template_task.errors.list_page_data_failed",
 			"failed to retrieve job template task list page data: %w",
 		), err)
@@ -116,7 +116,7 @@ func (uc *GetJobTemplateTaskListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"job_template_task.validation.request_required",
 			"request is required",
 		))
@@ -140,7 +140,7 @@ func (uc *GetJobTemplateTaskListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"job_template_task.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))

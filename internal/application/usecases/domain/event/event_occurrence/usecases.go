@@ -12,9 +12,9 @@ type EventOccurrenceRepositories struct {
 
 // EventOccurrenceServices groups all business service dependencies for event occurrence use cases
 type EventOccurrenceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UseCases contains all event occurrence-related use cases.
@@ -34,27 +34,27 @@ func NewUseCases(
 		EventOccurrence: repositories.EventOccurrence,
 	}
 	listServices := ListEventOccurrencesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetEventOccurrenceListPageDataRepositories{
 		EventOccurrence: repositories.EventOccurrence,
 	}
 	listPageDataServices := GetEventOccurrenceListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetEventOccurrenceItemPageDataRepositories{
 		EventOccurrence: repositories.EventOccurrence,
 	}
 	itemPageDataServices := GetEventOccurrenceItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

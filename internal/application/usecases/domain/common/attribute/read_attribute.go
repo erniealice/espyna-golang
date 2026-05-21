@@ -17,9 +17,9 @@ type ReadAttributeRepositories struct {
 
 // ReadAttributeServices groups all business service dependencies
 type ReadAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadAttributeUseCase handles the business logic for reading attributes
@@ -48,7 +48,7 @@ func NewReadAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomainS
 	}
 
 	services := ReadAttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
+		Transactor: ports.NewNoOpTransactor(),
 	}
 
 	return NewReadAttributeUseCase(repositories, services)
@@ -57,7 +57,7 @@ func NewReadAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomainS
 // Execute performs the read attribute operation
 func (uc *ReadAttributeUseCase) Execute(ctx context.Context, req *attributepb.ReadAttributeRequest) (*attributepb.ReadAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"attribute", ports.ActionRead); err != nil {
 		return nil, err
 	}

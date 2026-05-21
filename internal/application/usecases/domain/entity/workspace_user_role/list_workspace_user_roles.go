@@ -22,9 +22,9 @@ type ListWorkspaceUserRolesRepositories struct {
 
 // ListWorkspaceUserRolesServices groups all business service dependencies
 type ListWorkspaceUserRolesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListWorkspaceUserRolesUseCase handles the business logic for listing workspace user roles
@@ -47,7 +47,7 @@ func NewListWorkspaceUserRolesUseCase(
 // Execute performs the list workspace user roles operation
 func (uc *ListWorkspaceUserRolesUseCase) Execute(ctx context.Context, req *workspaceuserrolepb.ListWorkspaceUserRolesRequest) (*workspaceuserrolepb.ListWorkspaceUserRolesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspaceUserRole, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -59,14 +59,14 @@ func (uc *ListWorkspaceUserRolesUseCase) Execute(ctx context.Context, req *works
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.business_rule_validation_failed", "Business rule validation failed ")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.business_rule_validation_failed", "Business rule validation failed ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.WorkspaceUserRole.ListWorkspaceUserRoles(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.list_failed", "Failed to retrieve workspace user roles ")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.list_failed", "Failed to retrieve workspace user roles ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -76,7 +76,7 @@ func (uc *ListWorkspaceUserRolesUseCase) Execute(ctx context.Context, req *works
 // validateInput validates the input request
 func (uc *ListWorkspaceUserRolesUseCase) validateInput(ctx context.Context, req *workspaceuserrolepb.ListWorkspaceUserRolesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
 	}
 	return nil
 }

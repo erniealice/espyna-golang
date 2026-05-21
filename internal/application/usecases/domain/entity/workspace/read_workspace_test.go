@@ -31,7 +31,7 @@ func createTestReadWorkspaceUseCase(businessType string) *ReadWorkspaceUseCase {
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadWorkspaceServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 
 	return NewReadWorkspaceUseCase(repositories, services)
@@ -86,5 +86,5 @@ func TestReadWorkspaceUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "workspace.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace.validation.id_required", useCase.services.Translator, ctx)
 }

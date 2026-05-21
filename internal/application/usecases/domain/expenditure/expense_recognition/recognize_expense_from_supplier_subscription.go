@@ -75,10 +75,10 @@ type RecognizeExpenseFromSupplierSubscriptionRepositories struct {
 
 // RecognizeExpenseFromSupplierSubscriptionServices groups infra deps.
 type RecognizeExpenseFromSupplierSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // RecognizeExpenseFromSupplierSubscriptionUseCase is the buying-side mirror
@@ -121,25 +121,25 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) Execute(
 	ctx context.Context,
 	input RecognizeExpenseFromSupplierSubscriptionInput,
 ) (*RecognizeExpenseFromSupplierSubscriptionOutput, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionCreate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_subscription", ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(input.SupplierSubscriptionID) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"expense_recognition.validation.supplier_subscription_id_required",
 			"supplier_subscription_id is required [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *RecognizeExpenseFromSupplierSubscriptionOutput
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, input)
 			if execErr != nil {
 				return execErr
@@ -182,7 +182,7 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) executeCore(
 	}
 	if sub == nil {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"supplier_subscription.errors.not_found",
 			"supplier_subscription not found [DEFAULT]",
 		))
@@ -190,7 +190,7 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) executeCore(
 	}
 	if !sub.GetActive() {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"supplier_subscription.errors.inactive",
 			"supplier subscription is inactive [DEFAULT]",
 		))
@@ -204,7 +204,7 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) executeCore(
 	}
 	if plan == nil {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"cost_plan.errors.not_found",
 			"cost_plan not found for supplier subscription [DEFAULT]",
 		))
@@ -458,7 +458,7 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) insertDraftExpenditur
 	totalAmount int64,
 	input RecognizeExpenseFromSupplierSubscriptionInput,
 ) (string, error) {
-	id := uc.services.IDService.GenerateID()
+	id := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)
@@ -507,7 +507,7 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) insertRecognition(
 	expenditureID, idempotencyKey string,
 	input RecognizeExpenseFromSupplierSubscriptionInput,
 ) (string, error) {
-	id := uc.services.IDService.GenerateID()
+	id := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)
@@ -580,7 +580,7 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) insertLines(
 	subID := sub.GetId()
 
 	for _, spec := range specs {
-		lineID := uc.services.IDService.GenerateID()
+		lineID := uc.services.IDGenerator.GenerateID()
 		line := &expenserecognitionlinepb.ExpenseRecognitionLine{
 			Id:                   lineID,
 			WorkspaceId:          workspaceID,

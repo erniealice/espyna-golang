@@ -21,9 +21,9 @@ type GetClientByEmailRepositories struct {
 
 // GetClientByEmailServices groups all business service dependencies
 type GetClientByEmailServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetClientByEmailUseCase handles the business logic for finding a client by email address.
@@ -58,9 +58,9 @@ func NewGetClientByEmailUseCaseUngrouped(clientRepo clientpb.ClientDomainService
 	}
 
 	services := GetClientByEmailServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetClientByEmailUseCase(repositories, services)
@@ -77,20 +77,20 @@ func NewGetClientByEmailUseCaseUngrouped(clientRepo clientpb.ClientDomainService
 // 4. Returns the client if found, or an error if not found (does NOT create)
 func (uc *GetClientByEmailUseCase) Execute(ctx context.Context, req *userpb.ListUsersRequest) (*clientpb.ListClientsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	// Extract email from filters for validation
 	email := uc.extractEmailFromFilters(req.Filters)
 	if email == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.email_filter_required", "Email address filter is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.email_filter_required", "Email address filter is required [DEFAULT]"))
 	}
 
 	// Step 1: Search for existing user by email using the provided request
@@ -104,7 +104,7 @@ func (uc *GetClientByEmailUseCase) Execute(ctx context.Context, req *userpb.List
 	}
 
 	if userListResp == nil || len(userListResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.errors.user_not_found", "User not found with the provided email [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.user_not_found", "User not found with the provided email [DEFAULT]"))
 	}
 
 	// Step 2: Search for associated client by user_id
@@ -130,7 +130,7 @@ func (uc *GetClientByEmailUseCase) Execute(ctx context.Context, req *userpb.List
 	}
 
 	if clientListResp == nil || len(clientListResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.errors.client_not_found", "Client not found for the provided email [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.client_not_found", "Client not found for the provided email [DEFAULT]"))
 	}
 
 	return clientListResp, nil

@@ -19,9 +19,9 @@ type GetEventResourceListPageDataRepositories struct {
 
 // GetEventResourceListPageDataServices groups all business service dependencies
 type GetEventResourceListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // GetEventResourceListPageDataUseCase handles the business logic for getting event resource list page data
@@ -44,7 +44,7 @@ func NewGetEventResourceListPageDataUseCase(
 // Execute performs the get event resource list page data operation
 func (uc *GetEventResourceListPageDataUseCase) Execute(ctx context.Context, req *eventresourcepb.GetEventResourceListPageDataRequest) (*eventresourcepb.GetEventResourceListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventResource, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,18 +52,18 @@ func (uc *GetEventResourceListPageDataUseCase) Execute(ctx context.Context, req 
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventResource, ports.ActionList)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_resource.errors.authorization_failed", "Authorization failed for event resource")
 		return nil, errors.New(translatedError)
 	}
 

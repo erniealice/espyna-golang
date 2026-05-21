@@ -19,9 +19,9 @@ type DeleteCollectionAttributeRepositories struct {
 
 // DeleteCollectionAttributeServices groups all business service dependencies
 type DeleteCollectionAttributeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteCollectionAttributeUseCase handles the business logic for deleting product attributes
@@ -44,13 +44,13 @@ func NewDeleteCollectionAttributeUseCase(
 // Execute performs the delete product attribute operation
 func (uc *DeleteCollectionAttributeUseCase) Execute(ctx context.Context, req *collectionattributepb.DeleteCollectionAttributeRequest) (*collectionattributepb.DeleteCollectionAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollectionAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -61,7 +61,7 @@ func (uc *DeleteCollectionAttributeUseCase) Execute(ctx context.Context, req *co
 // executeWithTransaction executes product attribute deletion within a transaction
 func (uc *DeleteCollectionAttributeUseCase) executeWithTransaction(ctx context.Context, req *collectionattributepb.DeleteCollectionAttributeRequest) (*collectionattributepb.DeleteCollectionAttributeResponse, error) {
 	var result *collectionattributepb.DeleteCollectionAttributeResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -71,7 +71,7 @@ func (uc *DeleteCollectionAttributeUseCase) executeWithTransaction(ctx context.C
 	})
 
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.transaction_failed", "Transaction execution failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -83,37 +83,37 @@ func (uc *DeleteCollectionAttributeUseCase) executeCore(ctx context.Context, req
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityCollectionAttribute, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.CollectionAttribute.DeleteCollectionAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.deletion_failed", "Collection attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.deletion_failed", "Collection attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -122,13 +122,13 @@ func (uc *DeleteCollectionAttributeUseCase) executeCore(ctx context.Context, req
 // validateInput validates the input request
 func (uc *DeleteCollectionAttributeUseCase) validateInput(ctx context.Context, req *collectionattributepb.DeleteCollectionAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.validation.data_required", "Collection attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.validation.data_required", "Collection attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.validation.id_required", "Collection attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.validation.id_required", "Collection attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func (uc *DeleteCollectionAttributeUseCase) validateBusinessRules(ctx context.Co
 	// Additional business rule validation can be added here
 	// For example: check if product attribute is referenced by other entities
 	if uc.isCollectionAttributeInUse(ctx, req.Data.CollectionId, req.Data.AttributeId) {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection_attribute.errors.in_use", "Collection attribute is currently in use and cannot be deleted [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.in_use", "Collection attribute is currently in use and cannot be deleted [DEFAULT]"))
 	}
 	return nil
 }

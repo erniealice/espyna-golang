@@ -18,9 +18,9 @@ type ReadBalanceRepositories struct {
 
 // ReadBalanceServices groups all business service dependencies
 type ReadBalanceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadBalanceUseCase handles the business logic for reading balances
@@ -43,7 +43,7 @@ func NewReadBalanceUseCase(
 // Execute performs the read balance operation
 func (uc *ReadBalanceUseCase) Execute(ctx context.Context, req *balancepb.ReadBalanceRequest) (*balancepb.ReadBalanceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalance, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (uc *ReadBalanceUseCase) Execute(ctx context.Context, req *balancepb.ReadBa
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"balance.errors.not_found",
 				map[string]interface{}{"balanceId": req.Data.Id},
 				"Student account balance not found [DEFAULT]",
@@ -84,13 +84,13 @@ func (uc *ReadBalanceUseCase) Execute(ctx context.Context, req *balancepb.ReadBa
 // validateInput validates the input request
 func (uc *ReadBalanceUseCase) validateInput(ctx context.Context, req *balancepb.ReadBalanceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.data_required", "balance data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.data_required", "balance data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.id_required", "balance ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.id_required", "balance ID is required [DEFAULT]"))
 	}
 	return nil
 }

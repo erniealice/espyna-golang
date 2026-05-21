@@ -67,15 +67,15 @@ type reporter interface {
 // Deps groups the construction-time dependencies. `Reporter` carries
 // `any` from the umbrella; the assertion happens inside this package.
 // The other fields mirror the parent service-layer `Services` shape
-// (TranslationService for error messages, AuthorizationService for the
+// (Translator for error messages, Authorizer for the
 // standard "reports" + ActionList gate).
 type Deps struct {
 	// Reporter carries the raw postgres LedgerReportingAdapter value. The
 	// concrete type satisfies the unexported `reporter` interface; the
 	// assertion happens inside [NewUseCases] / [SetReporterFromAny].
-	Reporter             any
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Reporter   any
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UseCases aggregates every AP aging use case. Apps reach it via
@@ -155,13 +155,13 @@ func NewUseCases(deps *Deps) *UseCases {
 	return &UseCases{
 		GetPayablesAgingReport: NewGetPayablesAgingReportUseCase(
 			r,
-			deps.AuthorizationService,
-			deps.TranslationService,
+			deps.Authorizer,
+			deps.Translator,
 		),
 		GetSimplePayablesAgingReport: NewGetSimplePayablesAgingReportUseCase(
 			r,
-			deps.AuthorizationService,
-			deps.TranslationService,
+			deps.Authorizer,
+			deps.Translator,
 		),
 	}
 }

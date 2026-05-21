@@ -19,9 +19,9 @@ type ListStaffAttributesRepositories struct {
 
 // ListStaffAttributesServices groups all business service dependencies
 type ListStaffAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListStaffAttributesUseCase handles the business logic for listing staff attributes
@@ -50,9 +50,9 @@ func NewListStaffAttributesUseCaseUngrouped(staffAttributeRepo staffattributepb.
 	}
 
 	services := ListStaffAttributesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListStaffAttributesUseCase(repositories, services)
@@ -61,27 +61,27 @@ func NewListStaffAttributesUseCaseUngrouped(staffAttributeRepo staffattributepb.
 // Execute performs the list staff attributes operation
 func (uc *ListStaffAttributesUseCase) Execute(ctx context.Context, req *staffattributepb.ListStaffAttributesRequest) (*staffattributepb.ListStaffAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaffAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Apply default values for pagination
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.StaffAttribute.ListStaffAttributes(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.list_failed", "Failed to retrieve staff attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.list_failed", "Failed to retrieve staff attributes [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -91,7 +91,7 @@ func (uc *ListStaffAttributesUseCase) Execute(ctx context.Context, req *staffatt
 // validateInput validates the input request
 func (uc *ListStaffAttributesUseCase) validateInput(ctx context.Context, req *staffattributepb.ListStaffAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
 	}
 
 	// No additional business rules for listing staff attributes

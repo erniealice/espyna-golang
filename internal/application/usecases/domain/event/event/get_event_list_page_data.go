@@ -18,9 +18,9 @@ type GetEventListPageDataRepositories struct {
 }
 
 type GetEventListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetEventListPageDataUseCase handles the business logic for getting event list page data
@@ -49,7 +49,7 @@ func (uc *GetEventListPageDataUseCase) Execute(
 	req *eventpb.GetEventListPageDataRequest,
 ) (*eventpb.GetEventListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEvent, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetEventListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetEventListPageDataUseCase) executeWithTransaction(
 ) (*eventpb.GetEventListPageDataResponse, error) {
 	var result *eventpb.GetEventListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.errors.list_page_data_failed",
 				"event list page data retrieval failed: %w",
 			), err)
@@ -106,7 +106,7 @@ func (uc *GetEventListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.errors.list_failed",
 			"failed to retrieve events: %w",
 		), err)
@@ -135,7 +135,7 @@ func (uc *GetEventListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.errors.processing_failed",
 			"failed to process event list data: %w",
 		), err)
@@ -149,7 +149,7 @@ func (uc *GetEventListPageDataUseCase) executeCore(
 		} else {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.errors.type_conversion_failed",
 				"failed to convert item to event type",
 			))
@@ -181,7 +181,7 @@ func (uc *GetEventListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.request_required",
 			"request is required",
 		))
@@ -226,7 +226,7 @@ func (uc *GetEventListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))
@@ -238,7 +238,7 @@ func (uc *GetEventListPageDataUseCase) validatePagination(
 		if method.Offset.Page < 1 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.validation.invalid_page",
 				"page number must be greater than 0",
 			))
@@ -248,7 +248,7 @@ func (uc *GetEventListPageDataUseCase) validatePagination(
 		if method.Cursor.Token == "" {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.validation.invalid_cursor",
 				"cursor token cannot be empty",
 			))
@@ -266,7 +266,7 @@ func (uc *GetEventListPageDataUseCase) validateFilters(
 	if len(filters.Filters) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.empty_filters",
 			"filters cannot be empty when filter request is provided",
 		))
@@ -277,7 +277,7 @@ func (uc *GetEventListPageDataUseCase) validateFilters(
 		if filter == nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.validation.filter_required",
 				"filter %d cannot be nil",
 			), i)
@@ -302,7 +302,7 @@ func (uc *GetEventListPageDataUseCase) validateSort(
 	if len(sort.Fields) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.empty_sort_fields",
 			"sort fields cannot be empty when sort request is provided",
 		))
@@ -313,7 +313,7 @@ func (uc *GetEventListPageDataUseCase) validateSort(
 		if sortField == nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.validation.sort_field_required",
 				"sort field %d cannot be nil",
 			), i)
@@ -331,7 +331,7 @@ func (uc *GetEventListPageDataUseCase) validateSearch(
 	if search.Query == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event.validation.empty_search_query",
 			"search query cannot be empty when search request is provided",
 		))
@@ -343,7 +343,7 @@ func (uc *GetEventListPageDataUseCase) validateSearch(
 			if !uc.isValidEventField(field) {
 				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 					ctx,
-					uc.services.TranslationService,
+					uc.services.Translator,
 					"event.validation.invalid_search_field",
 					"invalid search field: %s",
 				), field)
@@ -354,7 +354,7 @@ func (uc *GetEventListPageDataUseCase) validateSearch(
 		if search.Options.MaxResults < 0 || search.Options.MaxResults > 1000 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event.validation.invalid_max_results",
 				"max results must be between 0 and 1000",
 			))

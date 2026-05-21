@@ -119,10 +119,10 @@ func newScheduleFixture(t *testing.T) (*CreatePricePlanUseCase, *mockPlanRepoFor
 			Client:        clientRepo,
 		},
 		CreatePricePlanServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TransactionService:   noTxnCreate{},
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            &stubIDSvc{},
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Transactor:  noTxnCreate{},
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: &stubIDSvc{},
 		},
 	)
 	return uc, planRepo, ppRepo, scheduleRepo, clientRepo

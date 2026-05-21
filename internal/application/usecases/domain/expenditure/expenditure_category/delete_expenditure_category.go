@@ -17,9 +17,9 @@ type DeleteExpenditureCategoryRepositories struct {
 
 // DeleteExpenditureCategoryServices groups all business service dependencies
 type DeleteExpenditureCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteExpenditureCategoryUseCase handles the business logic for deleting expenditure categories
@@ -41,13 +41,13 @@ func NewDeleteExpenditureCategoryUseCase(
 
 // Execute performs the delete expenditure category operation
 func (uc *DeleteExpenditureCategoryUseCase) Execute(ctx context.Context, req *pb.DeleteExpenditureCategoryRequest) (*pb.DeleteExpenditureCategoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureCategory, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_category.validation.id_required", "Expenditure category ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_category.validation.id_required", "Expenditure category ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.ExpenditureCategory.DeleteExpenditureCategory(ctx, req)

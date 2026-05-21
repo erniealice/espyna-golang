@@ -22,10 +22,10 @@ type CreateSupplierRepositories struct {
 
 // CreateSupplierServices groups all business service dependencies
 type CreateSupplierServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateSupplierUseCase handles the business logic for creating suppliers
@@ -53,10 +53,10 @@ func NewCreateSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainSer
 	}
 
 	services := CreateSupplierServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateSupplierUseCase(repositories, services)
@@ -65,14 +65,14 @@ func NewCreateSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainSer
 // Execute performs the create supplier operation
 func (uc *CreateSupplierUseCase) Execute(ctx context.Context, req *supplierpb.CreateSupplierRequest) (*supplierpb.CreateSupplierResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.request_required", "Request is required for suppliers [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.request_required", "Request is required for suppliers [DEFAULT]"))
 	}
 
 	// Business validation
@@ -84,7 +84,7 @@ func (uc *CreateSupplierUseCase) Execute(ctx context.Context, req *supplierpb.Cr
 	enrichedSupplier := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedSupplier)
 	}
 
@@ -96,10 +96,10 @@ func (uc *CreateSupplierUseCase) Execute(ctx context.Context, req *supplierpb.Cr
 func (uc *CreateSupplierUseCase) executeWithTransaction(ctx context.Context, enrichedSupplier *supplierpb.Supplier) (*supplierpb.CreateSupplierResponse, error) {
 	var result *supplierpb.CreateSupplierResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedSupplier)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "supplier.errors.creation_failed", "Supplier creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "supplier.errors.creation_failed", "Supplier creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -181,8 +181,8 @@ func (uc *CreateSupplierUseCase) applyBusinessLogic(supplier *supplierpb.Supplie
 
 	// Business logic: Generate Supplier ID if not provided
 	if supplier.Id == "" {
-		if uc.services.IDService != nil {
-			supplier.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			supplier.Id = uc.services.IDGenerator.GenerateID()
 		} else {
 			supplier.Id = fmt.Sprintf("supplier-%d", now.UnixNano())
 		}
@@ -191,8 +191,8 @@ func (uc *CreateSupplierUseCase) applyBusinessLogic(supplier *supplierpb.Supplie
 	// Business logic: Generate User ID if not provided
 	if supplier.User != nil {
 		if supplier.User.Id == "" {
-			if uc.services.IDService != nil {
-				supplier.User.Id = uc.services.IDService.GenerateID()
+			if uc.services.IDGenerator != nil {
+				supplier.User.Id = uc.services.IDGenerator.GenerateID()
 			} else {
 				supplier.User.Id = fmt.Sprintf("user-%d", now.UnixNano())
 			}
@@ -201,8 +201,8 @@ func (uc *CreateSupplierUseCase) applyBusinessLogic(supplier *supplierpb.Supplie
 
 	// Business logic: Generate internal_id if not provided
 	if supplier.InternalId == "" {
-		if uc.services.IDService != nil {
-			supplier.InternalId = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			supplier.InternalId = uc.services.IDGenerator.GenerateID()
 		} else {
 			supplier.InternalId = fmt.Sprintf("internal-%d", now.UnixNano())
 		}
@@ -240,35 +240,35 @@ func (uc *CreateSupplierUseCase) applyBusinessLogic(supplier *supplierpb.Supplie
 func (uc *CreateSupplierUseCase) validateBusinessRules(ctx context.Context, supplier *supplierpb.Supplier) error {
 	// Business rule: Required data validation
 	if supplier == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.data_required", "Supplier data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.data_required", "Supplier data is required [DEFAULT]"))
 	}
 
 	// Business rule: Name is required
 	if supplier.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_required", "Supplier name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.name_required", "Supplier name is required [DEFAULT]"))
 	}
 
 	// Business rule: Supplier type is required
 	if supplier.SupplierType == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.supplier_type_required", "Supplier type is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.supplier_type_required", "Supplier type is required [DEFAULT]"))
 	}
 
 	// Business rule: Name length constraints
 	if len(supplier.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_too_short", "Name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.name_too_short", "Name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(supplier.Name) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_too_long", "Name cannot exceed 200 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.name_too_long", "Name cannot exceed 200 characters [DEFAULT]"))
 	}
 
 	// Business rule: Internal ID format validation
 	if supplier.InternalId != "" {
 		if len(supplier.InternalId) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.internal_id_too_short", "Internal ID must be at least 3 characters long [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.internal_id_too_short", "Internal ID must be at least 3 characters long [DEFAULT]"))
 		}
 		if len(supplier.InternalId) > 50 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.internal_id_too_long", "Internal ID cannot exceed 50 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.internal_id_too_long", "Internal ID cannot exceed 50 characters [DEFAULT]"))
 		}
 	}
 

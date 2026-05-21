@@ -17,9 +17,9 @@ type GetBalanceAttributeListPageDataRepositories struct {
 
 // GetBalanceAttributeListPageDataServices groups all business service dependencies
 type GetBalanceAttributeListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetBalanceAttributeListPageDataUseCase handles the business logic for getting balance attribute list page data
@@ -42,7 +42,7 @@ func NewGetBalanceAttributeListPageDataUseCase(
 // Execute performs the get balance attribute list page data operation
 func (uc *GetBalanceAttributeListPageDataUseCase) Execute(ctx context.Context, req *balanceattributepb.GetBalanceAttributeListPageDataRequest) (*balanceattributepb.GetBalanceAttributeListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalanceAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *GetBalanceAttributeListPageDataUseCase) Execute(ctx context.Context, r
 // validateInput validates the input request
 func (uc *GetBalanceAttributeListPageDataUseCase) validateInput(ctx context.Context, req *balanceattributepb.GetBalanceAttributeListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return nil
 }

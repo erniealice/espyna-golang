@@ -16,9 +16,9 @@ type ListJobTemplateTasksRepositories struct {
 }
 
 type ListJobTemplateTasksServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListJobTemplateTasksUseCase handles the business logic for listing job template tasks
@@ -41,7 +41,7 @@ func NewListJobTemplateTasksUseCase(
 // Execute performs the list job template tasks operation
 func (uc *ListJobTemplateTasksUseCase) Execute(ctx context.Context, req *pb.ListJobTemplateTasksRequest) (*pb.ListJobTemplateTasksResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplateTask, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListJobTemplateTasksUseCase) Execute(ctx context.Context, req *pb.List
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListJobTemplateTasksUseCase) Execute(ctx context.Context, req *pb.List
 func (uc *ListJobTemplateTasksUseCase) executeWithTransaction(ctx context.Context, req *pb.ListJobTemplateTasksRequest) (*pb.ListJobTemplateTasksResponse, error) {
 	var result *pb.ListJobTemplateTasksResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "job_template_task.errors.list_failed", "job template task listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "job_template_task.errors.list_failed", "job template task listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListJobTemplateTasksUseCase) executeWithTransaction(ctx context.Contex
 func (uc *ListJobTemplateTasksUseCase) executeCore(ctx context.Context, req *pb.ListJobTemplateTasksRequest) (*pb.ListJobTemplateTasksResponse, error) {
 	resp, err := uc.repositories.JobTemplateTask.ListJobTemplateTasks(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.errors.list_failed", "job template task listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.errors.list_failed", "job template task listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *ListJobTemplateTasksUseCase) executeCore(ctx context.Context, req *pb.
 // validateInput validates the input request
 func (uc *ListJobTemplateTasksUseCase) validateInput(ctx context.Context, req *pb.ListJobTemplateTasksRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.request_required", "request is required"))
 	}
 
 	return nil

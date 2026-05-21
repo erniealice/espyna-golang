@@ -15,8 +15,8 @@ type ListAccruedExpensesRepositories struct {
 
 // ListAccruedExpensesServices groups service dependencies.
 type ListAccruedExpensesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListAccruedExpensesUseCase handles listing accrued expenses.
@@ -35,7 +35,7 @@ func NewListAccruedExpensesUseCase(
 
 // Execute performs the list operation.
 func (uc *ListAccruedExpensesUseCase) Execute(ctx context.Context, req *accruedexpensepb.ListAccruedExpensesRequest) (*accruedexpensepb.ListAccruedExpensesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpense, ports.ActionList); err != nil {
 		return nil, err
 	}

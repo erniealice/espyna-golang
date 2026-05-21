@@ -19,9 +19,9 @@ type ReverseAccrualRepositories struct {
 
 // ReverseAccrualServices groups service dependencies.
 type ReverseAccrualServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReverseAccrualUseCase flips an accrual to status=REVERSED. Guards against
@@ -42,12 +42,12 @@ func NewReverseAccrualUseCase(
 
 // Execute performs the reverse-accrual operation.
 func (uc *ReverseAccrualUseCase) Execute(ctx context.Context, req *accruedexpensepb.ReverseAccrualRequest) (*accruedexpensepb.ReverseAccrualResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpense, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetAccruedExpenseId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.id_required", "Accrued expense ID is required [DEFAULT]"))
 	}
 
@@ -60,12 +60,12 @@ func (uc *ReverseAccrualUseCase) Execute(ctx context.Context, req *accruedexpens
 		return nil, fmt.Errorf("failed to read accrual: %w", err)
 	}
 	if len(readResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.errors.not_found", "[ERR-DEFAULT] Accrued expense not found"))
 	}
 	original := readResp.Data[0]
 	if original.GetSettledAmount() != 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.errors.cannot_reverse_settled", "[ERR-DEFAULT] Cannot reverse an accrual with un-reversed settlements"))
 	}
 

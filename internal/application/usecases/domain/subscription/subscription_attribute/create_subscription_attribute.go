@@ -24,10 +24,10 @@ type CreateSubscriptionAttributeRepositories struct {
 
 // CreateSubscriptionAttributeServices groups all business service dependencies
 type CreateSubscriptionAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateSubscriptionAttributeUseCase handles the business logic for creating subscription attributes
@@ -50,7 +50,7 @@ func NewCreateSubscriptionAttributeUseCase(
 // Execute performs the create subscription attribute operation
 func (uc *CreateSubscriptionAttributeUseCase) Execute(ctx context.Context, req *subscriptionattributepb.CreateSubscriptionAttributeRequest) (*subscriptionattributepb.CreateSubscriptionAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscriptionAttribute, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *CreateSubscriptionAttributeUseCase) Execute(ctx context.Context, req *
 
 	// Business logic and enrichment
 	if err := uc.enrichSubscriptionAttributeData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -74,7 +74,7 @@ func (uc *CreateSubscriptionAttributeUseCase) Execute(ctx context.Context, req *
 	// Call repository
 	resp, err := uc.repositories.SubscriptionAttribute.CreateSubscriptionAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.creation_failed", "Subscription attribute creation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.creation_failed", "Subscription attribute creation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -84,19 +84,19 @@ func (uc *CreateSubscriptionAttributeUseCase) Execute(ctx context.Context, req *
 // validateInput validates the input request
 func (uc *CreateSubscriptionAttributeUseCase) validateInput(ctx context.Context, req *subscriptionattributepb.CreateSubscriptionAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.SubscriptionId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.subscription_id_required", "Subscription ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.subscription_id_required", "Subscription ID is required [DEFAULT]"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.value_required", "Value is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.value_required", "Value is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func (uc *CreateSubscriptionAttributeUseCase) enrichSubscriptionAttributeData(su
 
 	// Generate SubscriptionAttribute ID
 	if subscriptionAttribute.Id == "" {
-		subscriptionAttribute.Id = uc.services.IDService.GenerateID()
+		subscriptionAttribute.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set subscription attribute audit fields
@@ -128,16 +128,16 @@ func (uc *CreateSubscriptionAttributeUseCase) validateEntityReferences(ctx conte
 			Data: &subscriptionpb.Subscription{Id: subscriptionAttribute.SubscriptionId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.subscription_reference_validation_failed", "Failed to validate subscription entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.subscription_reference_validation_failed", "Failed to validate subscription entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if subscription == nil || subscription.Data == nil || len(subscription.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.subscription_not_found", "Subscription not found [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.subscription_not_found", "Subscription not found [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{subscriptionId}", subscriptionAttribute.SubscriptionId)
 			return errors.New(translatedError)
 		}
 		if !subscription.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.subscription_not_active", "Referenced subscription with ID '{subscriptionId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.subscription_not_active", "Referenced subscription with ID '{subscriptionId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{subscriptionId}", subscriptionAttribute.SubscriptionId)
 			return errors.New(translatedError)
 		}
@@ -149,16 +149,16 @@ func (uc *CreateSubscriptionAttributeUseCase) validateEntityReferences(ctx conte
 			Data: &attributepb.Attribute{Id: subscriptionAttribute.AttributeId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.attribute_not_found", "Attribute not found [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.attribute_not_found", "Attribute not found [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", subscriptionAttribute.AttributeId)
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", subscriptionAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

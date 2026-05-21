@@ -12,10 +12,10 @@ type OutcomeCriteriaRepositories struct {
 
 // OutcomeCriteriaServices groups all business service dependencies
 type OutcomeCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all outcome_criteria-related use cases
@@ -41,91 +41,91 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	createServices := CreateOutcomeCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadOutcomeCriteriaRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	readServices := ReadOutcomeCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateOutcomeCriteriaRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	updateServices := UpdateOutcomeCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteOutcomeCriteriaRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	deleteServices := DeleteOutcomeCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListOutcomeCriteriaRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listServices := ListOutcomeCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetOutcomeCriteriaListPageDataRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listPageDataServices := GetOutcomeCriteriaListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetOutcomeCriteriaItemPageDataRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	itemPageDataServices := GetOutcomeCriteriaItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByGroupRepos := ListByGroupRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listByGroupServices := ListByGroupServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getCurrentPublishedRepos := GetCurrentPublishedRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	getCurrentPublishedServices := GetCurrentPublishedServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByScopeRepos := ListByScopeRepositories{
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listByScopeServices := ListByScopeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

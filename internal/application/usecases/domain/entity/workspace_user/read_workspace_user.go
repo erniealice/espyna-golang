@@ -22,9 +22,9 @@ type ReadWorkspaceUserRepositories struct {
 
 // ReadWorkspaceUserServices groups all business service dependencies
 type ReadWorkspaceUserServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadWorkspaceUserUseCase handles the business logic for reading a workspace user
@@ -57,9 +57,9 @@ func NewReadWorkspaceUserUseCaseUngrouped(
 	}
 
 	services := ReadWorkspaceUserServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadWorkspaceUserUseCase(repositories, services)
@@ -69,17 +69,17 @@ func NewReadWorkspaceUserUseCaseUngrouped(
 func (uc *ReadWorkspaceUserUseCase) Execute(ctx context.Context, req *workspaceuserpb.ReadWorkspaceUserRequest) (*workspaceuserpb.ReadWorkspaceUserResponse, error) {
 	// Input validation
 	if req == nil || req.Data == nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.validation.request_required", "Request is required for workspace users")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user.validation.request_required", "Request is required for workspace users")
 		return nil, errors.New(translatedError)
 	}
 
 	if req.Data.Id == "" {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.validation.id_required", "Workspace-User ID is required")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user.validation.id_required", "Workspace-User ID is required")
 		return nil, errors.New(translatedError)
 	}
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspaceUser, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (uc *ReadWorkspaceUserUseCase) Execute(ctx context.Context, req *workspaceu
 		// Check if this is a "not found" error - if so, create our own translated message
 		// Otherwise, return the error as-is for the calling function to handle
 		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "does not exist") {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user.errors.not_found", "Workspace-User with ID \"{workspaceUserId}\" not found")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user.errors.not_found", "Workspace-User with ID \"{workspaceUserId}\" not found")
 			translatedError = strings.ReplaceAll(translatedError, "{workspaceUserId}", req.Data.Id)
 			return nil, errors.New(translatedError)
 		}

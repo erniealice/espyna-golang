@@ -18,9 +18,9 @@ type ReadActivityRepositories struct {
 
 // ReadActivityServices groups all business service dependencies
 type ReadActivityServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadActivityUseCase handles the business logic for reading activities
@@ -48,9 +48,9 @@ func NewReadActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainServi
 	}
 
 	services := ReadActivityServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadActivityUseCase(repositories, services)
@@ -59,14 +59,14 @@ func NewReadActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainServi
 // Execute performs the read activity operation
 func (uc *ReadActivityUseCase) Execute(ctx context.Context, req *activitypb.ReadActivityRequest) (*activitypb.ReadActivityResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"activity", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
 	}
 
 	// Business validation
@@ -78,7 +78,7 @@ func (uc *ReadActivityUseCase) Execute(ctx context.Context, req *activitypb.Read
 	enrichedRequest := uc.applyBusinessLogic(req)
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -90,10 +90,10 @@ func (uc *ReadActivityUseCase) Execute(ctx context.Context, req *activitypb.Read
 func (uc *ReadActivityUseCase) executeWithTransaction(ctx context.Context, req *activitypb.ReadActivityRequest) (*activitypb.ReadActivityResponse, error) {
 	var result *activitypb.ReadActivityResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "activity.errors.read_failed", "Activity read failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "activity.errors.read_failed", "Activity read failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -136,17 +136,17 @@ func (uc *ReadActivityUseCase) applyBusinessLogic(req *activitypb.ReadActivityRe
 func (uc *ReadActivityUseCase) validateBusinessRules(ctx context.Context, req *activitypb.ReadActivityRequest) error {
 	// Business rule: Request data validation
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.data_required", "Activity data is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.data_required", "Activity data is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: Activity ID is required
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.id_required", "Activity ID is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.id_required", "Activity ID is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: Activity ID format validation
 	if err := uc.validateActivityID(req.Data.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.id_invalid", "Activity ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.id_invalid", "Activity ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

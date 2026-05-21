@@ -21,9 +21,9 @@ type UpdateLicenseRepositories struct {
 
 // UpdateLicenseServices groups all business service dependencies
 type UpdateLicenseServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
+	Authorizer ports.Authorizer // RBAC and permissions
+	Transactor ports.Transactor // Database transactions
+	Translator ports.Translator // i18n error messages
 }
 
 // UpdateLicenseUseCase handles the business logic for updating licenses
@@ -46,7 +46,7 @@ func NewUpdateLicenseUseCase(
 // Execute performs the update license operation
 func (uc *UpdateLicenseUseCase) Execute(ctx context.Context, req *licensepb.UpdateLicenseRequest) (*licensepb.UpdateLicenseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicense, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (uc *UpdateLicenseUseCase) Execute(ctx context.Context, req *licensepb.Upda
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"license.errors.not_found",
 				map[string]interface{}{"licenseId": req.Data.Id},
 				"License not found [DEFAULT]",
@@ -92,13 +92,13 @@ func (uc *UpdateLicenseUseCase) Execute(ctx context.Context, req *licensepb.Upda
 // validateInput validates the input request
 func (uc *UpdateLicenseUseCase) validateInput(ctx context.Context, req *licensepb.UpdateLicenseRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.data_required", "license data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.data_required", "license data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.id_required", "license ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.id_required", "license ID is required [DEFAULT]"))
 	}
 	return nil
 }

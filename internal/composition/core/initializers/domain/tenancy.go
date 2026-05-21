@@ -9,10 +9,10 @@ import (
 // InitializeTenancy creates all tenancy use cases from provider repositories.
 func InitializeTenancy(
 	repos *domain.TenancyRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*tenancy.TenancyUseCases, error) {
 	return tenancy.NewUseCases(
 		tenancy.TenancyRepositories{

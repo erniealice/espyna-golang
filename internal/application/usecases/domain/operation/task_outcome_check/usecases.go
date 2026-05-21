@@ -12,10 +12,10 @@ type TaskOutcomeCheckRepositories struct {
 
 // TaskOutcomeCheckServices groups all business service dependencies
 type TaskOutcomeCheckServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all task_outcome_check-related use cases
@@ -39,73 +39,73 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	createServices := CreateTaskOutcomeCheckServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadTaskOutcomeCheckRepositories{
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	readServices := ReadTaskOutcomeCheckServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateTaskOutcomeCheckRepositories{
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	updateServices := UpdateTaskOutcomeCheckServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteTaskOutcomeCheckRepositories{
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	deleteServices := DeleteTaskOutcomeCheckServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListTaskOutcomeChecksRepositories{
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	listServices := ListTaskOutcomeChecksServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetTaskOutcomeCheckListPageDataRepositories{
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	listPageDataServices := GetTaskOutcomeCheckListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetTaskOutcomeCheckItemPageDataRepositories{
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	itemPageDataServices := GetTaskOutcomeCheckItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByTaskOutcomeRepos := ListByTaskOutcomeRepositories{
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	listByTaskOutcomeServices := ListByTaskOutcomeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

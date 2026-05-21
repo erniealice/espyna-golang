@@ -28,12 +28,12 @@ type InvalidateSessionRepositories struct {
 	Session sessionpb.SessionDomainServiceServer
 }
 
-// InvalidateSessionServices groups infrastructure deps. No AuthorizationService —
+// InvalidateSessionServices groups infrastructure deps. No Authorizer —
 // per the usecases/auth invariant, this operates on the session established
 // earlier in the request lifecycle.
 type InvalidateSessionServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // InvalidateSessionUseCase marks a session inactive (logout semantics).
@@ -59,7 +59,7 @@ func (uc *InvalidateSessionUseCase) Execute(
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -70,11 +70,11 @@ func (uc *InvalidateSessionUseCase) executeWithTransaction(
 	req *InvalidateSessionRequest,
 ) (*InvalidateSessionResponse, error) {
 	var out *InvalidateSessionResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			translated := contextutil.GetTranslatedMessageWithContext(
-				txCtx, uc.services.TranslationService,
+				txCtx, uc.services.Translator,
 				"auth.errors.invalidate_session_failed", "Failed to invalidate session [DEFAULT]")
 			return fmt.Errorf("%s: %w", translated, err)
 		}
@@ -119,12 +119,12 @@ func (uc *InvalidateSessionUseCase) executeCore(
 func (uc *InvalidateSessionUseCase) validateInput(ctx context.Context, req *InvalidateSessionRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.validation.request_required", "Session invalidation request is required [DEFAULT]"))
 	}
 	if req.Token == "" && req.SessionID == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.validation.session_identifier_required",
 			"Session token or session ID is required [DEFAULT]"))
 	}

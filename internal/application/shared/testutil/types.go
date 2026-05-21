@@ -15,10 +15,10 @@ import (
 // StandardServices provides the complete set of services needed for testing
 // This ensures ALL test files have consistent service setup including idAdapter
 type StandardServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateStandardServices creates a complete set of mock services for testing
@@ -28,7 +28,7 @@ type StandardServices struct {
 //
 // Returns StandardServices with all services configured according to parameters
 func CreateStandardServices(supportsTransaction, shouldAuthorize bool) StandardServices {
-	var authService ports.AuthorizationService
+	var authService ports.Authorizer
 	if shouldAuthorize {
 		authService = mockAuth.NewAllowAllAuth()
 	} else {
@@ -36,10 +36,10 @@ func CreateStandardServices(supportsTransaction, shouldAuthorize bool) StandardS
 	}
 
 	return StandardServices{
-		AuthorizationService: authService,
-		TransactionService:   mockDb.NewMockTransactionService(supportsTransaction),
-		TranslationService:   mockTranslation.NewMockTranslationService(),
-		IDService:            ports.NewNoOpIDService(), // Use NoOp for test consistency without additional build tags
+		Authorizer:  authService,
+		Transactor:  mockDb.NewMockTransactionService(supportsTransaction),
+		Translator:  mockTranslation.NewMockTranslationService(),
+		IDGenerator: ports.NewNoOpIDGenerator(), // Use NoOp for test consistency without additional build tags
 	}
 }
 

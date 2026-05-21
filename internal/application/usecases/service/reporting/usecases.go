@@ -75,9 +75,9 @@ import (
 // Defined independently here to avoid a `reporting → service →
 // reporting` import cycle.
 type Deps struct {
-	DB                   *sql.DB
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	DB         *sql.DB
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 
 	// ARAgingReporter carries the raw postgres LedgerReportingAdapter as
 	// `any`. The unexported `ar_aging.reporter` interface is the structural
@@ -210,29 +210,29 @@ func NewReportingUseCases(deps *Deps) *ReportingUseCases {
 	}
 	return &ReportingUseCases{
 		ARAging: ar_aging.NewUseCases(&ar_aging.Deps{
-			Reporter:             deps.ARAgingReporter,
-			AuthorizationService: deps.AuthorizationService,
-			TranslationService:   deps.TranslationService,
+			Reporter:   deps.ARAgingReporter,
+			Authorizer: deps.Authorizer,
+			Translator: deps.Translator,
 		}),
 		APAging: ap_aging.NewUseCases(&ap_aging.Deps{
-			Reporter:             deps.APAgingReporter,
-			AuthorizationService: deps.AuthorizationService,
-			TranslationService:   deps.TranslationService,
+			Reporter:   deps.APAgingReporter,
+			Authorizer: deps.Authorizer,
+			Translator: deps.Translator,
 		}),
 		GrossCashFlow: gross_cashflow.NewUseCases(&gross_cashflow.Deps{
-			Reporter:             deps.GrossCashFlowReporter,
-			AuthorizationService: deps.AuthorizationService,
-			TranslationService:   deps.TranslationService,
+			Reporter:   deps.GrossCashFlowReporter,
+			Authorizer: deps.Authorizer,
+			Translator: deps.Translator,
 		}),
 		Statements: statements.NewUseCases(&statements.Deps{
-			Reporter:             deps.StatementsReporter,
-			AuthorizationService: deps.AuthorizationService,
-			TranslationService:   deps.TranslationService,
+			Reporter:   deps.StatementsReporter,
+			Authorizer: deps.Authorizer,
+			Translator: deps.Translator,
 		}),
 		DomainSpecific: domain_specific.NewUseCases(&domain_specific.Deps{
-			Reporter:             deps.DomainSpecificReporter,
-			AuthorizationService: deps.AuthorizationService,
-			TranslationService:   deps.TranslationService,
+			Reporter:   deps.DomainSpecificReporter,
+			Authorizer: deps.Authorizer,
+			Translator: deps.Translator,
 		}),
 	}
 }

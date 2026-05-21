@@ -14,10 +14,10 @@ type PurchaseOrderRepositories struct {
 
 // PurchaseOrderServices groups all business service dependencies for purchase order use cases
 type PurchaseOrderServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all purchase order-related use cases
@@ -41,64 +41,64 @@ func NewUseCases(
 		PaymentTerm:   repositories.PaymentTerm,
 	}
 	createServices := CreatePurchaseOrderServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPurchaseOrderRepositories{
 		PurchaseOrder: repositories.PurchaseOrder,
 	}
 	readServices := ReadPurchaseOrderServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePurchaseOrderRepositories{
 		PurchaseOrder: repositories.PurchaseOrder,
 	}
 	updateServices := UpdatePurchaseOrderServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePurchaseOrderRepositories{
 		PurchaseOrder: repositories.PurchaseOrder,
 	}
 	deleteServices := DeletePurchaseOrderServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPurchaseOrdersRepositories{
 		PurchaseOrder: repositories.PurchaseOrder,
 	}
 	listServices := ListPurchaseOrdersServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetPurchaseOrderListPageDataRepositories{
 		PurchaseOrder: repositories.PurchaseOrder,
 	}
 	getListPageDataServices := GetPurchaseOrderListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetPurchaseOrderItemPageDataRepositories{
 		PurchaseOrder: repositories.PurchaseOrder,
 	}
 	getItemPageDataServices := GetPurchaseOrderItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

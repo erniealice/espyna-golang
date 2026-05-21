@@ -30,9 +30,9 @@ func createTestDeleteRoleUseCase(businessType string) *DeleteRoleUseCase {
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := DeleteRoleServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeleteRoleUseCase(repositories, services)
@@ -93,5 +93,5 @@ func TestDeleteRoleUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "role.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "role.validation.id_required", useCase.services.Translator, ctx)
 }

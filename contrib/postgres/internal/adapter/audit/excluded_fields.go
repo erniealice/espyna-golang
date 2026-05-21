@@ -1,6 +1,5 @@
 //go:build postgresql
 
-
 package audit
 
 // ExcludedFields contains field names that must never appear in audit trail records.

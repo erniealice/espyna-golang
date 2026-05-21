@@ -17,9 +17,9 @@ type ListJobTemplatesRepositories struct {
 
 // ListJobTemplatesServices groups all business service dependencies
 type ListJobTemplatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListJobTemplatesUseCase handles the business logic for listing job templates
@@ -42,20 +42,20 @@ func NewListJobTemplatesUseCase(
 // Execute performs the list job templates operation
 func (uc *ListJobTemplatesUseCase) Execute(ctx context.Context, req *pb.ListJobTemplatesRequest) (*pb.ListJobTemplatesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job_template", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.request_required", "request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.request_required", "request is required"))
 	}
 
 	// Call repository
 	result, err := uc.repositories.JobTemplate.ListJobTemplates(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.errors.list_failed", "job template listing failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.errors.list_failed", "job template listing failed [DEFAULT]"))
 	}
 
 	return result, nil

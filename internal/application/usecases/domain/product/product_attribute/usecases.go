@@ -16,10 +16,10 @@ type ProductAttributeRepositories struct {
 
 // ProductAttributeServices groups all business service dependencies for product attribute use cases
 type ProductAttributeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all product attribute-related use cases
@@ -45,19 +45,19 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	createServices := CreateProductAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadProductAttributeRepositories{
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	readServices := ReadProductAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateProductAttributeRepositories{
@@ -66,43 +66,43 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	updateServices := UpdateProductAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteProductAttributeRepositories{
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	deleteServices := DeleteProductAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListProductAttributesRepositories{
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	listServices := ListProductAttributesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetProductAttributeListPageDataRepositories{
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	listPageDataServices := GetProductAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetProductAttributeItemPageDataRepositories{
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	itemPageDataServices := GetProductAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

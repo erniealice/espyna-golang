@@ -16,9 +16,9 @@ type ListByJobRepositories struct {
 }
 
 type ListByJobServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListByJobUseCase handles the business logic for listing task outcomes by job
@@ -41,7 +41,7 @@ func NewListByJobUseCase(
 // Execute performs the list by job operation
 func (uc *ListByJobUseCase) Execute(ctx context.Context, req *pb.ListTaskOutcomesByJobRequest) (*pb.ListTaskOutcomesByJobResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTaskOutcome, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListByJobUseCase) Execute(ctx context.Context, req *pb.ListTaskOutcome
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListByJobUseCase) Execute(ctx context.Context, req *pb.ListTaskOutcome
 func (uc *ListByJobUseCase) executeWithTransaction(ctx context.Context, req *pb.ListTaskOutcomesByJobRequest) (*pb.ListTaskOutcomesByJobResponse, error) {
 	var result *pb.ListTaskOutcomesByJobResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "task_outcome.errors.list_by_job_failed", "task outcome listing by job failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "task_outcome.errors.list_by_job_failed", "task outcome listing by job failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListByJobUseCase) executeWithTransaction(ctx context.Context, req *pb.
 func (uc *ListByJobUseCase) executeCore(ctx context.Context, req *pb.ListTaskOutcomesByJobRequest) (*pb.ListTaskOutcomesByJobResponse, error) {
 	resp, err := uc.repositories.TaskOutcome.ListByJob(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.errors.list_by_job_failed", "failed to list task outcomes by job: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.list_by_job_failed", "failed to list task outcomes by job: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *ListByJobUseCase) executeCore(ctx context.Context, req *pb.ListTaskOut
 // validateInput validates the input request
 func (uc *ListByJobUseCase) validateInput(ctx context.Context, req *pb.ListTaskOutcomesByJobRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.request_required", "request is required"))
 	}
 	if req.JobId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.job_id_required", "job ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.job_id_required", "job ID is required"))
 	}
 
 	return nil

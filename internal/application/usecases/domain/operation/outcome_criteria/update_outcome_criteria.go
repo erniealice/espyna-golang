@@ -16,9 +16,9 @@ type UpdateOutcomeCriteriaRepositories struct {
 }
 
 type UpdateOutcomeCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateOutcomeCriteriaUseCase handles the business logic for updating outcome criteria
@@ -41,7 +41,7 @@ func NewUpdateOutcomeCriteriaUseCase(
 // Execute performs the update outcome criteria operation
 func (uc *UpdateOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.UpdateOutcomeCriteriaRequest) (*pb.UpdateOutcomeCriteriaResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityOutcomeCriteria, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *UpdateOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.Upd
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req, enrichedData)
 	}
 
@@ -72,7 +72,7 @@ func (uc *UpdateOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.Upd
 func (uc *UpdateOutcomeCriteriaUseCase) executeWithTransaction(ctx context.Context, req *pb.UpdateOutcomeCriteriaRequest, enrichedData *pb.OutcomeCriteria) (*pb.UpdateOutcomeCriteriaResponse, error) {
 	var result *pb.UpdateOutcomeCriteriaResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req, enrichedData)
 		if err != nil {
 			return err
@@ -94,14 +94,14 @@ func (uc *UpdateOutcomeCriteriaUseCase) executeCore(ctx context.Context, req *pb
 		Data: &pb.OutcomeCriteria{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.not_found", "[ERR-DEFAULT] Outcome criteria not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.not_found", "[ERR-DEFAULT] Outcome criteria not found"))
 	}
 
 	resp, err := uc.repositories.OutcomeCriteria.UpdateOutcomeCriteria(ctx, &pb.UpdateOutcomeCriteriaRequest{
 		Data: enrichedData,
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.update_failed", "[ERR-DEFAULT] Outcome criteria update failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.update_failed", "[ERR-DEFAULT] Outcome criteria update failed"))
 	}
 	return resp, nil
 }
@@ -120,13 +120,13 @@ func (uc *UpdateOutcomeCriteriaUseCase) applyBusinessLogic(data *pb.OutcomeCrite
 // validateInput validates the input request
 func (uc *UpdateOutcomeCriteriaUseCase) validateInput(ctx context.Context, req *pb.UpdateOutcomeCriteriaRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.data_required", "[ERR-DEFAULT] Outcome criteria data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.data_required", "[ERR-DEFAULT] Outcome criteria data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
 	}
 	return nil
 }
@@ -134,14 +134,14 @@ func (uc *UpdateOutcomeCriteriaUseCase) validateInput(ctx context.Context, req *
 // validateBusinessRules enforces business constraints
 func (uc *UpdateOutcomeCriteriaUseCase) validateBusinessRules(ctx context.Context, data *pb.OutcomeCriteria) error {
 	if data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.data_required", "[ERR-DEFAULT] Outcome criteria data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.data_required", "[ERR-DEFAULT] Outcome criteria data is required"))
 	}
 	if data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
 	}
 	// Validate Name only if provided (partial update support)
 	if data.Name != "" && len(data.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.name_too_long", "[ERR-DEFAULT] Outcome criteria name is too long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.name_too_long", "[ERR-DEFAULT] Outcome criteria name is too long"))
 	}
 
 	return nil

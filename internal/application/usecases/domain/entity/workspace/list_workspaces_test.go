@@ -29,7 +29,7 @@ func createTestListWorkspacesUseCase(businessType string) *ListWorkspacesUseCase
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListWorkspacesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 
 	return NewListWorkspacesUseCase(repositories, services)
@@ -42,7 +42,7 @@ func TestListWorkspacesUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockWorkspaceRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListWorkspacesUseCase(ListWorkspacesRepositories{Workspace: mockRepo}, ListWorkspacesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/workspace has 1 entry
@@ -67,9 +67,9 @@ func TestListWorkspacesUseCase_Execute_AfterDelete(t *testing.T) {
 	deleteRepositories := DeleteWorkspaceRepositories{Workspace: mockRepo}
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteWorkspaceServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	deleteUseCase := NewDeleteWorkspaceUseCase(deleteRepositories, deleteServices)
 
@@ -79,7 +79,7 @@ func TestListWorkspacesUseCase_Execute_AfterDelete(t *testing.T) {
 
 	// --- Now list the workspaces ---
 	listUseCase := NewListWorkspacesUseCase(ListWorkspacesRepositories{Workspace: mockRepo}, ListWorkspacesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	listReq := &workspacepb.ListWorkspacesRequest{}

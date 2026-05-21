@@ -18,9 +18,9 @@ type GetPurchaseOrderLineItemListPageDataRepositories struct {
 
 // GetPurchaseOrderLineItemListPageDataServices groups all business service dependencies
 type GetPurchaseOrderLineItemListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPurchaseOrderLineItemListPageDataUseCase handles fetching paginated, searchable purchase order line item list data
@@ -42,13 +42,13 @@ func NewGetPurchaseOrderLineItemListPageDataUseCase(
 
 // Execute performs the get purchase order line item list page data operation
 func (uc *GetPurchaseOrderLineItemListPageDataUseCase) Execute(ctx context.Context, req *purchaseorderlineitempb.GetPurchaseOrderLineItemListPageDataRequest) (*purchaseorderlineitempb.GetPurchaseOrderLineItemListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrderLineItem, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -57,7 +57,7 @@ func (uc *GetPurchaseOrderLineItemListPageDataUseCase) Execute(ctx context.Conte
 	}
 	resp, err := uc.repositories.PurchaseOrderLineItem.GetPurchaseOrderLineItemListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load purchase order line item list")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load purchase order line item list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -65,13 +65,13 @@ func (uc *GetPurchaseOrderLineItemListPageDataUseCase) Execute(ctx context.Conte
 
 func (uc *GetPurchaseOrderLineItemListPageDataUseCase) validateInput(ctx context.Context, req *purchaseorderlineitempb.GetPurchaseOrderLineItemListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Pagination != nil && req.Pagination.Limit > 0 && req.Pagination.Limit > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
 	}
 	if req.Search != nil && len(req.Search.Query) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
 	}
 	return nil
 }

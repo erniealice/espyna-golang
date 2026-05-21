@@ -58,10 +58,10 @@ type MaterializeJobsForSubscriptionRepositories struct {
 // MaterializeJobsForSubscriptionServices mirrors the standard service struct
 // pattern used by every other use case in this package.
 type MaterializeJobsForSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 
 	// Optional. When set, the use case calls it for every spawned Job whose
 	// billing_rule_type == MILESTONE per plan §3.7. Errors propagate and
@@ -121,14 +121,14 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 		req.SubscriptionId = pbReq.GetSubscriptionId()
 		req.SpawnJobs = pbReq.GetSpawnJobs()
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	if req.SubscriptionId == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.validation.id_required",
 			"subscription ID is required [DEFAULT]",
 		))
@@ -143,7 +143,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 		uc.repositories.JobPhase == nil ||
 		uc.repositories.JobTask == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.materialize_jobs_repositories_unavailable",
 			"materialize_jobs_for_subscription is missing required repositories [DEFAULT]",
 		))
@@ -235,7 +235,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 			}
 			if !tpl.GetActive() {
 				return errors.New(contextutil.GetTranslatedMessageWithContext(
-					txCtx, uc.services.TranslationService,
+					txCtx, uc.services.Translator,
 					"subscription.errors.template_inactive",
 					"job template is inactive [DEFAULT]",
 				))
@@ -281,8 +281,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 		return nil
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, writeFn); err != nil {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if err := uc.services.Transactor.ExecuteInTransaction(ctx, writeFn); err != nil {
 			return nil, err
 		}
 	} else {
@@ -323,7 +323,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readSubscription(
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.not_found",
 			"subscription not found [DEFAULT]",
 		))
@@ -331,7 +331,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readSubscription(
 	sub := resp.GetData()[0]
 	if !sub.GetActive() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.subscription_inactive",
 			"subscription is inactive [DEFAULT]",
 		))
@@ -344,7 +344,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readPricePlan(
 ) (*priceplanpb.PricePlan, error) {
 	if id == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.price_plan_not_found",
 			"price plan not found [DEFAULT]",
 		))
@@ -354,7 +354,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readPricePlan(
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.price_plan_not_found",
 			"price plan not found [DEFAULT]",
 		))
@@ -367,7 +367,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readPlan(
 ) (*planpb.Plan, error) {
 	if id == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.plan_not_found",
 			"plan not found [DEFAULT]",
 		))
@@ -378,7 +378,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readPlan(
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.plan_not_found",
 			"plan not found [DEFAULT]",
 		))
@@ -394,7 +394,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readJobTemplate(
 	})
 	if err != nil || resp == nil || len(resp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"subscription.errors.template_not_found",
 			"job template not found [DEFAULT]",
 		))
@@ -435,8 +435,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 	pricePlan *priceplanpb.PricePlan,
 ) (*jobpb.Job, error) {
 	jobID := ""
-	if uc.services.IDService != nil {
-		jobID = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		jobID = uc.services.IDGenerator.GenerateID()
 	} else {
 		jobID = fmt.Sprintf("job-%d", time.Now().UnixNano())
 	}
@@ -568,7 +568,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicShell(
 			}
 			if !tpl.GetActive() {
 				return errors.New(contextutil.GetTranslatedMessageWithContext(
-					txCtx, uc.services.TranslationService,
+					txCtx, uc.services.Translator,
 					"subscription.errors.template_inactive",
 					"job template is inactive [DEFAULT]",
 				))
@@ -585,8 +585,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicShell(
 		return nil
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, writeFn); err != nil {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if err := uc.services.Transactor.ExecuteInTransaction(ctx, writeFn); err != nil {
 			return nil, err
 		}
 	} else {
@@ -607,8 +607,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnShell(
 	sub *subscriptionpb.Subscription, pricePlan *priceplanpb.PricePlan,
 ) (*jobpb.Job, error) {
 	jobID := ""
-	if uc.services.IDService != nil {
-		jobID = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		jobID = uc.services.IDGenerator.GenerateID()
 	} else {
 		jobID = fmt.Sprintf("eng-%d", time.Now().UnixNano())
 	}
@@ -667,8 +667,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnPhasesAndTasks(
 
 	for _, tp := range tplPhases {
 		var phaseID string
-		if uc.services.IDService != nil {
-			phaseID = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			phaseID = uc.services.IDGenerator.GenerateID()
 		} else {
 			phaseID = fmt.Sprintf("phase-%d", time.Now().UnixNano())
 		}
@@ -712,8 +712,8 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnPhasesAndTasks(
 		})
 		for _, tt := range tplTasks {
 			var taskID string
-			if uc.services.IDService != nil {
-				taskID = uc.services.IDService.GenerateID()
+			if uc.services.IDGenerator != nil {
+				taskID = uc.services.IDGenerator.GenerateID()
 			} else {
 				taskID = fmt.Sprintf("task-%d", time.Now().UnixNano())
 			}

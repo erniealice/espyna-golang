@@ -14,10 +14,10 @@ type WorkflowTemplateRepositories struct {
 
 // WorkflowTemplateServices groups all business service dependencies for workflow template use cases
 type WorkflowTemplateServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Required for Create use case
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator // Required for Create use case
 }
 
 // UseCases contains all workflow template-related use cases
@@ -39,54 +39,54 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateWorkflowTemplateRepositories(repositories)
 	createServices := CreateWorkflowTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadWorkflowTemplateRepositories(repositories)
 	readServices := ReadWorkflowTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateWorkflowTemplateRepositories(repositories)
 	updateServices := UpdateWorkflowTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteWorkflowTemplateRepositories(repositories)
 	deleteServices := DeleteWorkflowTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListWorkflowTemplatesRepositories(repositories)
 	listServices := ListWorkflowTemplatesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetWorkflowTemplateListPageDataRepositories{
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getListPageDataServices := GetWorkflowTemplateListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetWorkflowTemplateItemPageDataRepositories{
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getItemPageDataServices := GetWorkflowTemplateItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

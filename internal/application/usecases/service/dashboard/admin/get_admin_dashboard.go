@@ -60,12 +60,12 @@ type GetAdminDashboardRepositories struct {
 	WorkspaceUserRole WorkspaceUserRoleDashboardRepository
 }
 
-// GetAdminDashboardServices groups application services. TranslationService
-// formats error messages. No AuthorizationService — the dashboard is rendered
+// GetAdminDashboardServices groups application services. Translator
+// formats error messages. No Authorizer — the dashboard is rendered
 // for the active workspace context and the upstream HTTP route is gated by
 // session middleware rather than per-entity authcheck.
 type GetAdminDashboardServices struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // GetAdminDashboardUseCase composes the four entity aggregates (permission /
@@ -100,7 +100,7 @@ func (uc *GetAdminDashboardUseCase) Execute(
 ) (*admindashpb.GetAdminDashboardResponse, error) {
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"admin.dashboard.validation.request_required",
 			"admin dashboard: request is required"))
 	}

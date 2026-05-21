@@ -16,9 +16,9 @@ type GetCurrentPublishedRepositories struct {
 }
 
 type GetCurrentPublishedServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetCurrentPublishedUseCase handles the business logic for getting the current published outcome criteria
@@ -41,7 +41,7 @@ func NewGetCurrentPublishedUseCase(
 // Execute performs the get current published operation
 func (uc *GetCurrentPublishedUseCase) Execute(ctx context.Context, req *pb.GetCurrentPublishedOutcomeCriteriaRequest) (*pb.GetCurrentPublishedOutcomeCriteriaResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityOutcomeCriteria, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *GetCurrentPublishedUseCase) Execute(ctx context.Context, req *pb.GetCu
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *GetCurrentPublishedUseCase) Execute(ctx context.Context, req *pb.GetCu
 func (uc *GetCurrentPublishedUseCase) executeWithTransaction(ctx context.Context, req *pb.GetCurrentPublishedOutcomeCriteriaRequest) (*pb.GetCurrentPublishedOutcomeCriteriaResponse, error) {
 	var result *pb.GetCurrentPublishedOutcomeCriteriaResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "outcome_criteria.errors.get_current_published_failed", "get current published outcome criteria failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "outcome_criteria.errors.get_current_published_failed", "get current published outcome criteria failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *GetCurrentPublishedUseCase) executeWithTransaction(ctx context.Context
 func (uc *GetCurrentPublishedUseCase) executeCore(ctx context.Context, req *pb.GetCurrentPublishedOutcomeCriteriaRequest) (*pb.GetCurrentPublishedOutcomeCriteriaResponse, error) {
 	resp, err := uc.repositories.OutcomeCriteria.GetCurrentPublished(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.get_current_published_failed", "failed to get current published outcome criteria: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.get_current_published_failed", "failed to get current published outcome criteria: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *GetCurrentPublishedUseCase) executeCore(ctx context.Context, req *pb.G
 // validateInput validates the input request
 func (uc *GetCurrentPublishedUseCase) validateInput(ctx context.Context, req *pb.GetCurrentPublishedOutcomeCriteriaRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.request_required", "request is required"))
 	}
 
 	return nil

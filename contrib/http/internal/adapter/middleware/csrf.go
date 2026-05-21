@@ -73,11 +73,11 @@ func generateCSRFToken() string {
 func writeCSRFError(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusForbidden)
-	
+
 	response := map[string]interface{}{
 		"success": false,
 		"error":   message,
 	}
-	
+
 	json.NewEncoder(w).Encode(response)
 }

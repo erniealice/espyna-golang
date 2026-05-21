@@ -19,10 +19,10 @@ type CreateInventoryDepreciationRepositories struct {
 
 // CreateInventoryDepreciationServices groups all business service dependencies
 type CreateInventoryDepreciationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateInventoryDepreciationUseCase handles the business logic for creating inventory depreciations
@@ -44,12 +44,12 @@ func NewCreateInventoryDepreciationUseCase(
 
 // Execute performs the create inventory depreciation operation
 func (uc *CreateInventoryDepreciationUseCase) Execute(ctx context.Context, req *inventorydepreciationpb.CreateInventoryDepreciationRequest) (*inventorydepreciationpb.CreateInventoryDepreciationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInventoryDepreciation, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -57,7 +57,7 @@ func (uc *CreateInventoryDepreciationUseCase) Execute(ctx context.Context, req *
 
 func (uc *CreateInventoryDepreciationUseCase) executeWithTransaction(ctx context.Context, req *inventorydepreciationpb.CreateInventoryDepreciationRequest) (*inventorydepreciationpb.CreateInventoryDepreciationResponse, error) {
 	var result *inventorydepreciationpb.CreateInventoryDepreciationResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("inventory depreciation creation failed: %w", err)
@@ -74,33 +74,33 @@ func (uc *CreateInventoryDepreciationUseCase) executeWithTransaction(ctx context
 func (uc *CreateInventoryDepreciationUseCase) executeCore(ctx context.Context, req *inventorydepreciationpb.CreateInventoryDepreciationRequest) (*inventorydepreciationpb.CreateInventoryDepreciationResponse, error) {
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.errors.authorization_failed", "Authorization failed for inventory depreciations [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.errors.authorization_failed", "Authorization failed for inventory depreciations [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityInventoryDepreciation, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.errors.authorization_failed", "Authorization failed for inventory depreciations [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.errors.authorization_failed", "Authorization failed for inventory depreciations [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.errors.authorization_failed", "Authorization failed for inventory depreciations [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.errors.authorization_failed", "Authorization failed for inventory depreciations [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	if err := uc.enrichData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -109,25 +109,25 @@ func (uc *CreateInventoryDepreciationUseCase) executeCore(ctx context.Context, r
 
 func (uc *CreateInventoryDepreciationUseCase) validateInput(ctx context.Context, req *inventorydepreciationpb.CreateInventoryDepreciationRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.data_required", "Inventory depreciation data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.data_required", "Inventory depreciation data is required [DEFAULT]"))
 	}
 	if req.Data.InventoryItemId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.inventory_item_id_required", "Inventory item ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.inventory_item_id_required", "Inventory item ID is required [DEFAULT]"))
 	}
 	if req.Data.Method == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.method_required", "Depreciation method is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.method_required", "Depreciation method is required [DEFAULT]"))
 	}
 	if req.Data.CostBasis <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.cost_basis_positive", "Cost basis must be greater than zero [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.cost_basis_positive", "Cost basis must be greater than zero [DEFAULT]"))
 	}
 	if req.Data.UsefulLifeMonths <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.useful_life_months_positive", "Useful life months must be greater than zero [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.useful_life_months_positive", "Useful life months must be greater than zero [DEFAULT]"))
 	}
 	if req.Data.StartDate == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.start_date_required", "Start date is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.start_date_required", "Start date is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func (uc *CreateInventoryDepreciationUseCase) enrichData(depreciation *inventory
 	now := time.Now()
 
 	if depreciation.Id == "" {
-		depreciation.Id = uc.services.IDService.GenerateID()
+		depreciation.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	depreciation.DateCreated = &[]int64{now.UnixMilli()}[0]
@@ -157,12 +157,12 @@ func (uc *CreateInventoryDepreciationUseCase) validateBusinessRules(ctx context.
 	// Validate depreciation method
 	validMethods := map[string]bool{"straight_line": true, "declining_balance": true, "sum_of_years": true, "units_of_production": true}
 	if !validMethods[depreciation.Method] {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.invalid_method", "Depreciation method must be straight_line, declining_balance, sum_of_years, or units_of_production [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.invalid_method", "Depreciation method must be straight_line, declining_balance, sum_of_years, or units_of_production [DEFAULT]"))
 	}
 
 	// Validate salvage value is not greater than cost basis
 	if depreciation.SalvageValue > depreciation.CostBasis {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_depreciation.validation.salvage_exceeds_cost", "Salvage value cannot exceed cost basis [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.validation.salvage_exceeds_cost", "Salvage value cannot exceed cost basis [DEFAULT]"))
 	}
 
 	return nil

@@ -19,9 +19,9 @@ type ReadUserRepositories struct {
 
 // ReadUserServices groups all business service dependencies
 type ReadUserServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadUserUseCase handles the business logic for reading a user
@@ -50,9 +50,9 @@ func NewReadUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *ReadU
 	}
 
 	services := ReadUserServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadUserUseCase(repositories, services)
@@ -61,13 +61,13 @@ func NewReadUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *ReadU
 // Execute performs the read user operation
 func (uc *ReadUserUseCase) Execute(ctx context.Context, req *userpb.ReadUserRequest) (*userpb.ReadUserResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityUser, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -79,10 +79,10 @@ func (uc *ReadUserUseCase) Execute(ctx context.Context, req *userpb.ReadUserRequ
 func (uc *ReadUserUseCase) executeWithTransaction(ctx context.Context, req *userpb.ReadUserRequest) (*userpb.ReadUserResponse, error) {
 	var result *userpb.ReadUserResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "user.errors.read_failed", "User read failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "user.errors.read_failed", "User read failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -110,7 +110,7 @@ func (uc *ReadUserUseCase) executeCore(ctx context.Context, req *userpb.ReadUser
 
 	// Not found error
 	if len(resp.Data) == 0 || resp.Data[0].Id == "" { // Assuming resp.Data will be nil or have empty ID if not found
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{userId}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}
@@ -121,13 +121,13 @@ func (uc *ReadUserUseCase) executeCore(ctx context.Context, req *userpb.ReadUser
 // validateInput validates the input request
 func (uc *ReadUserUseCase) validateInput(ctx context.Context, req *userpb.ReadUserRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.request_required", "Request is required for users [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.request_required", "Request is required for users [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.data_required", "User data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.data_required", "User data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.id_required", "User ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.id_required", "User ID is required [DEFAULT]"))
 	}
 	return nil
 }

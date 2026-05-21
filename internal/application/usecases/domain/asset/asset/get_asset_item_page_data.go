@@ -19,9 +19,9 @@ type GetAssetItemPageDataRepositories struct {
 
 // GetAssetItemPageDataServices groups all business service dependencies
 type GetAssetItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetAssetItemPageDataUseCase handles the business logic for getting asset item page data
@@ -44,27 +44,27 @@ func NewGetAssetItemPageDataUseCase(
 // Execute performs the get asset item page data operation
 func (uc *GetAssetItemPageDataUseCase) Execute(ctx context.Context, req *assetpb.GetAssetItemPageDataRequest) (*assetpb.GetAssetItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAsset, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Asset.GetAssetItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load asset details")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load asset details")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -74,22 +74,22 @@ func (uc *GetAssetItemPageDataUseCase) Execute(ctx context.Context, req *assetpb
 // validateInput validates the input request
 func (uc *GetAssetItemPageDataUseCase) validateInput(ctx context.Context, req *assetpb.GetAssetItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate asset ID
 	if req.AssetId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.asset_id_required", "[ERR-DEFAULT] Asset ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.asset_id_required", "[ERR-DEFAULT] Asset ID is required"))
 	}
 
 	// Basic ID format validation
 	if len(req.AssetId) < 3 || len(req.AssetId) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.invalid_asset_id_format", "[ERR-DEFAULT] Invalid asset ID format"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.invalid_asset_id_format", "[ERR-DEFAULT] Invalid asset ID format"))
 	}
 
 	// Ensure ID doesn't contain invalid characters
 	if strings.ContainsAny(req.AssetId, " \t\n\r") {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.asset_id_invalid_characters", "[ERR-DEFAULT] Asset ID contains invalid characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.asset_id_invalid_characters", "[ERR-DEFAULT] Asset ID contains invalid characters"))
 	}
 
 	return nil

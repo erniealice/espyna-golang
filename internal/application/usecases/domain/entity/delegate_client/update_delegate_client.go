@@ -24,9 +24,9 @@ type UpdateDelegateClientRepositories struct {
 
 // UpdateDelegateClientServices groups all business service dependencies
 type UpdateDelegateClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateDelegateClientUseCase handles the business logic for updating delegate clients
@@ -52,7 +52,7 @@ func NewUpdateDelegateClientUseCaseUngrouped(
 	delegateClientRepo delegateclientpb.DelegateClientDomainServiceServer,
 	delegateRepo delegatepb.DelegateDomainServiceServer,
 	clientRepo clientpb.ClientDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UpdateDelegateClientUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := UpdateDelegateClientRepositories{
@@ -62,9 +62,9 @@ func NewUpdateDelegateClientUseCaseUngrouped(
 	}
 
 	services := UpdateDelegateClientServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateDelegateClientUseCase(repositories, services)
@@ -73,39 +73,39 @@ func NewUpdateDelegateClientUseCaseUngrouped(
 // Execute performs the update delegate client operation
 func (uc *UpdateDelegateClientUseCase) Execute(ctx context.Context, req *delegateclientpb.UpdateDelegateClientRequest) (*delegateclientpb.UpdateDelegateClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateClient, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichDelegateClientData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Entity reference validation
 	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.DelegateClient.UpdateDelegateClient(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.update_failed", "Delegate-Client relationship update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.update_failed", "Delegate-Client relationship update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -115,19 +115,19 @@ func (uc *UpdateDelegateClientUseCase) Execute(ctx context.Context, req *delegat
 // validateInput validates the input request
 func (uc *UpdateDelegateClientUseCase) validateInput(ctx context.Context, req *delegateclientpb.UpdateDelegateClientRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.data_required", "Delegate-Client relationship data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.data_required", "Delegate-Client relationship data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
 	}
 	if req.Data.DelegateId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.delegate_id_required", "Delegate ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.delegate_id_required", "Delegate ID is required [DEFAULT]"))
 	}
 	if req.Data.ClientId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.client_id_required", "Client ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.client_id_required", "Client ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func (uc *UpdateDelegateClientUseCase) enrichDelegateClientData(delegateClient *
 func (uc *UpdateDelegateClientUseCase) validateBusinessRules(ctx context.Context, delegateClient *delegateclientpb.DelegateClient) error {
 	// Validate delegate and client relationship
 	if delegateClient.DelegateId == delegateClient.ClientId {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.same_id", "Delegate ID and client ID cannot be the same [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.same_id", "Delegate ID and client ID cannot be the same [DEFAULT]"))
 	}
 
 	// Business rule: Prevent duplicate delegate-client relationships
@@ -166,16 +166,16 @@ func (uc *UpdateDelegateClientUseCase) validateEntityReferences(ctx context.Cont
 			Data: &delegatepb.Delegate{Id: delegateClient.DelegateId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.delegate_reference_validation_failed", "Failed to validate delegate entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.delegate_reference_validation_failed", "Failed to validate delegate entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if delegate == nil || delegate.Data == nil || len(delegate.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.delegate_not_found", "Referenced delegate with ID '{delegateId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.delegate_not_found", "Referenced delegate with ID '{delegateId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{delegateId}", delegateClient.DelegateId)
 			return errors.New(translatedError)
 		}
 		if !delegate.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.delegate_not_active", "Referenced delegate with ID '{delegateId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.delegate_not_active", "Referenced delegate with ID '{delegateId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{delegateId}", delegateClient.DelegateId)
 			return errors.New(translatedError)
 		}
@@ -187,16 +187,16 @@ func (uc *UpdateDelegateClientUseCase) validateEntityReferences(ctx context.Cont
 			Data: &clientpb.Client{Id: delegateClient.ClientId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.client_reference_validation_failed", "Failed to validate client entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.client_reference_validation_failed", "Failed to validate client entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if client == nil || client.Data == nil || len(client.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.client_not_found", "Referenced client with ID '{clientId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.client_not_found", "Referenced client with ID '{clientId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{clientId}", delegateClient.ClientId)
 			return errors.New(translatedError)
 		}
 		if !client.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.client_not_active", "Referenced client with ID '{clientId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.client_not_active", "Referenced client with ID '{clientId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{clientId}", delegateClient.ClientId)
 			return errors.New(translatedError)
 		}

@@ -17,9 +17,9 @@ type ReadLocationAttributeRepositories struct {
 
 // ReadLocationAttributeServices groups all business service dependencies
 type ReadLocationAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadLocationAttributeUseCase handles the business logic for reading location attributes
@@ -50,9 +50,9 @@ func NewReadLocationAttributeUseCaseUngrouped(
 	}
 
 	services := ReadLocationAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadLocationAttributeUseCase(repositories, services)
@@ -60,7 +60,7 @@ func NewReadLocationAttributeUseCaseUngrouped(
 
 func (uc *ReadLocationAttributeUseCase) Execute(ctx context.Context, req *locationattributepb.ReadLocationAttributeRequest) (*locationattributepb.ReadLocationAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLocationAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -83,13 +83,13 @@ func (uc *ReadLocationAttributeUseCase) Execute(ctx context.Context, req *locati
 // validateInput validates the input request
 func (uc *ReadLocationAttributeUseCase) validateInput(ctx context.Context, req *locationattributepb.ReadLocationAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.request_required", "Request is required for location attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.request_required", "Request is required for location attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.data_required", "Location attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.data_required", "Location attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.id_required", "Location attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.id_required", "Location attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

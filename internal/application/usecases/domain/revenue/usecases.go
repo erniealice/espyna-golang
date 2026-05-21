@@ -104,10 +104,10 @@ type RevenueUseCases struct {
 // WithAmortizeAdvanceCollection on the returned aggregator after construction.
 func NewUseCases(
 	repos RevenueRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 	computeTaxes ...*computepkg.ComputeTaxesForRevenueUseCase,
 ) *RevenueUseCases {
 	// Accept optional computeTaxes as variadic for backward-compatibility.
@@ -138,11 +138,11 @@ func NewUseCases(
 			TreasuryCollection: repos.TreasuryCollection,
 		},
 		revenueUseCases.RevenueServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
-			ComputeTaxes:         computeUC,
+			Authorizer:   authSvc,
+			Transactor:   txSvc,
+			Translator:   i18nSvc,
+			IDGenerator:  idService,
+			ComputeTaxes: computeUC,
 		},
 	)
 
@@ -151,10 +151,10 @@ func NewUseCases(
 			RevenueLineItem: repos.RevenueLineItem,
 		},
 		revenueLineItemUseCases.RevenueLineItemServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -163,10 +163,10 @@ func NewUseCases(
 			RevenueCategory: repos.RevenueCategory,
 		},
 		revenueCategoryUseCases.RevenueCategoryServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -175,10 +175,10 @@ func NewUseCases(
 			RevenueAttribute: repos.RevenueAttribute,
 		},
 		revenueAttributeUseCases.RevenueAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -187,10 +187,10 @@ func NewUseCases(
 			DeferredRevenue: repos.DeferredRevenue,
 		},
 		deferredRevenueUseCases.DeferredRevenueServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -199,8 +199,8 @@ func NewUseCases(
 			RevenueTaxLine: repos.RevenueTaxLine,
 		},
 		revenueTaxLineUseCases.RevenueTaxLineServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 

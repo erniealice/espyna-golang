@@ -402,10 +402,10 @@ func buildStandardRepos(
 
 func buildStandardServices() ComputeTaxesServices {
 	return ComputeTaxesServices{
-		AuthorizationService: ports.NewNoOpAuthorizationService(),
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  ports.NewNoOpAuthorizer(),
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 }
 

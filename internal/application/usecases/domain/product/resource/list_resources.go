@@ -18,9 +18,9 @@ type ListResourcesRepositories struct {
 
 // ListResourcesServices groups all business service dependencies
 type ListResourcesServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ListResourcesUseCase handles the business logic for listing resources
@@ -43,7 +43,7 @@ func NewListResourcesUseCase(
 // Execute performs the list resources operation
 func (uc *ListResourcesUseCase) Execute(ctx context.Context, req *resourcepb.ListResourcesRequest) (*resourcepb.ListResourcesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityResource, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (uc *ListResourcesUseCase) Execute(ctx context.Context, req *resourcepb.Lis
 func (uc *ListResourcesUseCase) validateInput(ctx context.Context, req *resourcepb.ListResourcesRequest) error {
 
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	// Additional validation can be added here if needed
 	return nil

@@ -17,9 +17,9 @@ type DeleteClientCategoryRepositories struct {
 
 // DeleteClientCategoryServices groups all business service dependencies
 type DeleteClientCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteClientCategoryUseCase handles the business logic for deleting client categories
@@ -47,9 +47,9 @@ func NewDeleteClientCategoryUseCaseUngrouped(clientCategoryRepo clientcategorypb
 	}
 
 	services := DeleteClientCategoryServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteClientCategoryUseCase(repositories, services)
@@ -57,12 +57,12 @@ func NewDeleteClientCategoryUseCaseUngrouped(clientCategoryRepo clientcategorypb
 
 func (uc *DeleteClientCategoryUseCase) Execute(ctx context.Context, req *clientcategorypb.DeleteClientCategoryRequest) (*clientcategorypb.DeleteClientCategoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"client_category", ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -71,10 +71,10 @@ func (uc *DeleteClientCategoryUseCase) Execute(ctx context.Context, req *clientc
 func (uc *DeleteClientCategoryUseCase) executeWithTransaction(ctx context.Context, req *clientcategorypb.DeleteClientCategoryRequest) (*clientcategorypb.DeleteClientCategoryResponse, error) {
 	var result *clientcategorypb.DeleteClientCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "client_category.errors.deletion_failed", "Client category deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "client_category.errors.deletion_failed", "Client category deletion failed [DEFAULT]")
 			return errors.New(translatedError + ": " + err.Error())
 		}
 		result = res
@@ -97,13 +97,13 @@ func (uc *DeleteClientCategoryUseCase) executeCore(ctx context.Context, req *cli
 
 func (uc *DeleteClientCategoryUseCase) validateInput(ctx context.Context, req *clientcategorypb.DeleteClientCategoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.data_required", "Client category data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.data_required", "Client category data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.id_required", "Client category ID is required for deletion [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.id_required", "Client category ID is required for deletion [DEFAULT]"))
 	}
 	return nil
 }

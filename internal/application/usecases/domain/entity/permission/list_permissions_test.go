@@ -28,7 +28,7 @@ func createTestListPermissionsUseCase(businessType string) *ListPermissionsUseCa
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListPermissionsServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewListPermissionsUseCase(repositories, services)
 }
@@ -40,7 +40,7 @@ func TestListPermissionsUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockPermissionRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListPermissionsUseCase(ListPermissionsRepositories{Permission: mockRepo}, ListPermissionsServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/permission has 2 entries
@@ -71,9 +71,9 @@ func TestListPermissionsUseCase_Execute_AfterDelete(t *testing.T) {
 	deleteRepositories := DeletePermissionRepositories{Permission: mockRepo}
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeletePermissionServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	deleteUseCase := NewDeletePermissionUseCase(deleteRepositories, deleteServices)
 
@@ -86,7 +86,7 @@ func TestListPermissionsUseCase_Execute_AfterDelete(t *testing.T) {
 	// --- Now list the permissions ---
 	listStandardServices := testutil.CreateStandardServices(false, true)
 	listUseCase := NewListPermissionsUseCase(ListPermissionsRepositories{Permission: mockRepo}, ListPermissionsServices{
-		TranslationService: listStandardServices.TranslationService,
+		Translator: listStandardServices.Translator,
 	})
 
 	listReq := &permissionpb.ListPermissionsRequest{}

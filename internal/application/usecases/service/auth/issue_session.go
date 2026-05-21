@@ -33,12 +33,12 @@ func (uc *IssueSessionUseCase) Execute(
 ) (*authpb.IssueSessionResponse, error) {
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.validation.request_required", "Session issuance request is required [DEFAULT]"))
 	}
 	if uc.inner == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.service_unavailable", "Auth service is not available [DEFAULT]"))
 	}
 
@@ -52,7 +52,7 @@ func (uc *IssueSessionUseCase) Execute(
 	}
 	if resp == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.issue_session_failed", "Failed to issue session [DEFAULT]"))
 	}
 

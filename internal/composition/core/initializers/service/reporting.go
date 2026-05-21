@@ -26,14 +26,14 @@ import (
 // asserting a fat union here) keeps each leaf's port narrow.
 func initServiceReporting(
 	db *sql.DB,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 	ledgerReportingSvc any,
 ) *reportingusecases.ReportingUseCases {
 	reportingDeps := &reportingusecases.Deps{
 		DB:                     db,
-		AuthorizationService:   authSvc,
-		TranslationService:     i18nSvc,
+		Authorizer:             authSvc,
+		Translator:             i18nSvc,
 		ARAgingReporter:        ledgerReportingSvc,
 		APAgingReporter:        ledgerReportingSvc,
 		GrossCashFlowReporter:  ledgerReportingSvc,

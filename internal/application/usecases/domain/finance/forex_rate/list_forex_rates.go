@@ -17,8 +17,8 @@ type ListForexRatesRepositories struct {
 
 // ListForexRatesServices groups service dependencies.
 type ListForexRatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListForexRatesUseCase handles listing forex rates.
@@ -34,12 +34,12 @@ func NewListForexRatesUseCase(repositories ListForexRatesRepositories, services 
 
 // Execute performs the list forex_rates operation.
 func (uc *ListForexRatesUseCase) Execute(ctx context.Context, req *forexratepb.ListForexRatesRequest) (*forexratepb.ListForexRatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityForexRate, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return uc.repositories.ForexRate.ListForexRates(ctx, req)

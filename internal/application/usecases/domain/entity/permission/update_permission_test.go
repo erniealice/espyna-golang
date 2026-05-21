@@ -31,9 +31,9 @@ func createTestUpdatePermissionUseCase(businessType string) *UpdatePermissionUse
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := UpdatePermissionServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdatePermissionUseCase(repositories, services)

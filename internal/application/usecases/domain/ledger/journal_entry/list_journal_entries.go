@@ -18,9 +18,9 @@ type ListJournalEntriesRepositories struct {
 
 // ListJournalEntriesServices groups all business service dependencies
 type ListJournalEntriesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListJournalEntriesUseCase handles the business logic for listing journal entries
@@ -43,20 +43,20 @@ func NewListJournalEntriesUseCase(
 // Execute performs the list journal entries operation
 func (uc *ListJournalEntriesUseCase) Execute(ctx context.Context, req *journalentrypb.ListJournalEntriesRequest) (*journalentrypb.ListJournalEntriesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityJournalEntry, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -66,7 +66,7 @@ func (uc *ListJournalEntriesUseCase) Execute(ctx context.Context, req *journalen
 	}
 	resp, err := uc.repositories.JournalEntry.ListJournalEntries(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.errors.list_failed", "[ERR-DEFAULT] Failed to list journal entries")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.errors.list_failed", "[ERR-DEFAULT] Failed to list journal entries")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -76,7 +76,7 @@ func (uc *ListJournalEntriesUseCase) Execute(ctx context.Context, req *journalen
 // validateInput validates the input request
 func (uc *ListJournalEntriesUseCase) validateInput(ctx context.Context, req *journalentrypb.ListJournalEntriesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	return nil
 }

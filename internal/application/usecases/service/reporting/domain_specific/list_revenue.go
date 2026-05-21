@@ -24,18 +24,18 @@ import (
 // The same shape applies to [ListExpensesUseCase].
 type ListRevenueUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewListRevenueUseCase wires the use case with nil-safe deps.
 func NewListRevenueUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *ListRevenueUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &ListRevenueUseCase{
 		reporter:             r,

@@ -30,7 +30,7 @@ func createTestListWorkspaceUserRolesUseCase(businessType string, supportsTransa
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := ListWorkspaceUserRolesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 
 	return NewListWorkspaceUserRolesUseCase(repositories, services)
@@ -43,7 +43,7 @@ func TestListWorkspaceUserRolesUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockWorkspaceUserRoleRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListWorkspaceUserRolesUseCase(ListWorkspaceUserRolesRepositories{WorkspaceUserRole: mockRepo}, ListWorkspaceUserRolesServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/workspace-user-role has 3 entries

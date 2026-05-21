@@ -303,21 +303,21 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 
 	for rows.Next() {
 		var (
-			id                   string
-			dateCreated          int64
-			dateModified         int64
-			runNumber            string
-			payPeriodStart       string
-			payPeriodEnd         string
-			totalGross           int64
-			totalDeductions      int64
-			totalNet             int64
-			employeeCount        int32
-			statusStr            string
-			approvedBy           *string
-			postedAt             *int64
-			postedAtString       *string
-			total                int64
+			id              string
+			dateCreated     int64
+			dateModified    int64
+			runNumber       string
+			payPeriodStart  string
+			payPeriodEnd    string
+			totalGross      int64
+			totalDeductions int64
+			totalNet        int64
+			employeeCount   int32
+			statusStr       string
+			approvedBy      *string
+			postedAt        *int64
+			postedAtString  *string
+			total           int64
 		)
 
 		err := rows.Scan(

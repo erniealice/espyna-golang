@@ -19,7 +19,7 @@ type Repositories struct {
 
 // Services groups application services.
 type Services struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // NewUseCases wires every security service use case from shared
@@ -28,7 +28,7 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 	return &UseCases{
 		GetUserPermissionCodes: NewGetUserPermissionCodesUseCase(
 			GetUserPermissionCodesRepositories{PermissionQuery: repositories.PermissionQuery},
-			GetUserPermissionCodesServices{TranslationService: services.TranslationService},
+			GetUserPermissionCodesServices{Translator: services.Translator},
 		),
 	}
 }

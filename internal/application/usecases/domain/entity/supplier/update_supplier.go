@@ -18,9 +18,9 @@ type UpdateSupplierRepositories struct {
 
 // UpdateSupplierServices groups all business service dependencies
 type UpdateSupplierServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateSupplierUseCase handles the business logic for updating a supplier
@@ -48,9 +48,9 @@ func NewUpdateSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainSer
 	}
 
 	services := UpdateSupplierServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateSupplierUseCase(repositories, services)
@@ -59,23 +59,23 @@ func NewUpdateSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainSer
 // Execute performs the update supplier operation
 func (uc *UpdateSupplierUseCase) Execute(ctx context.Context, req *supplierpb.UpdateSupplierRequest) (*supplierpb.UpdateSupplierResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.request_required", "Request is required for suppliers [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.request_required", "Request is required for suppliers [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.id_required", "Supplier ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.id_required", "Supplier ID is required [DEFAULT]"))
 	}
 
 	// Business logic validation
 	if req.Data.Name == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.validation.name_required", "Supplier name is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.validation.name_required", "Supplier name is required [DEFAULT]"))
 	}
 
 	// 2026-05-03 — Preserve active flags when the payload does not carry
@@ -105,7 +105,7 @@ func (uc *UpdateSupplierUseCase) Execute(ctx context.Context, req *supplierpb.Up
 	// Call repository
 	resp, err := uc.repositories.Supplier.UpdateSupplier(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.errors.update_failed", "Supplier update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.errors.update_failed", "Supplier update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

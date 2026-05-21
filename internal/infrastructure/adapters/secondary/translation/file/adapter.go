@@ -21,7 +21,7 @@ import (
 func init() {
 	registry.RegisterTranslationProvider(
 		"file",
-		func() ports.TranslationService {
+		func() ports.Translator {
 			return NewFileTranslationAdapter()
 		},
 		transformConfig,
@@ -30,7 +30,7 @@ func init() {
 }
 
 // buildFromEnv creates and initializes a file-based translation service from environment variables.
-func buildFromEnv() (ports.TranslationService, error) {
+func buildFromEnv() (ports.Translator, error) {
 	translationsPath := os.Getenv("LEAPFOR_TRANSLATION_PATH")
 	if translationsPath == "" {
 		translationsPath = os.Getenv("TRANSLATIONS_PATH")
@@ -72,7 +72,7 @@ func transformConfig(rawConfig map[string]any) (*registry.TranslationProviderCon
 // Adapter Implementation
 // =============================================================================
 
-// FileTranslationAdapter implements ports.TranslationService using JSON files.
+// FileTranslationAdapter implements ports.Translator using JSON files.
 type FileTranslationAdapter struct {
 	translationsPath string
 	cache            map[string]map[string]string // locale_businessType -> key -> message
@@ -259,4 +259,4 @@ func (a *FileTranslationAdapter) IsEnabled() bool {
 	return a.enabled
 }
 
-var _ ports.TranslationService = (*FileTranslationAdapter)(nil)
+var _ ports.Translator = (*FileTranslationAdapter)(nil)

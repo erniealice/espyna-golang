@@ -20,9 +20,9 @@ type ReadWorkflowRepositories struct {
 
 // ReadWorkflowServices groups all business service dependencies
 type ReadWorkflowServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadWorkflowUseCase handles the business logic for reading workflows
@@ -51,9 +51,9 @@ func NewReadWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainServi
 	}
 
 	services := ReadWorkflowServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadWorkflowUseCase(repositories, services)
@@ -62,14 +62,14 @@ func NewReadWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainServi
 // Execute performs the read workflow operation
 func (uc *ReadWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.ReadWorkflowRequest) (*workflowpb.ReadWorkflowResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
 	}
 
 	// Business validation
@@ -78,7 +78,7 @@ func (uc *ReadWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.Read
 	}
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req.Data)
 	}
 
@@ -90,10 +90,10 @@ func (uc *ReadWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.Read
 func (uc *ReadWorkflowUseCase) executeWithTransaction(ctx context.Context, workflow *workflowpb.Workflow) (*workflowpb.ReadWorkflowResponse, error) {
 	var result *workflowpb.ReadWorkflowResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, workflow)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workflow.errors.read_failed", "Workflow read failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workflow.errors.read_failed", "Workflow read failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -118,17 +118,17 @@ func (uc *ReadWorkflowUseCase) executeCore(ctx context.Context, workflow *workfl
 func (uc *ReadWorkflowUseCase) validateBusinessRules(ctx context.Context, workflow *workflowpb.Workflow) error {
 	// Business rule: Required data validation
 	if workflow == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.data_required", "Workflow data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.data_required", "Workflow data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for reading
 	if workflow.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.id_required", "Workflow ID is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.id_required", "Workflow ID is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateWorkflowID(workflow.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.id_invalid", "Workflow ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.id_invalid", "Workflow ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

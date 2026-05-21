@@ -11,9 +11,9 @@ import (
 
 	"github.com/lib/pq"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"

@@ -19,9 +19,9 @@ type GetInvoiceAttributeItemPageDataRepositories struct {
 
 // GetInvoiceAttributeItemPageDataServices groups all business service dependencies
 type GetInvoiceAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetInvoiceAttributeItemPageDataUseCase handles the business logic for getting invoice attribute item page data
@@ -44,21 +44,21 @@ func NewGetInvoiceAttributeItemPageDataUseCase(
 // Execute performs the get invoice attribute item page data operation
 func (uc *GetInvoiceAttributeItemPageDataUseCase) Execute(ctx context.Context, req *invoiceattributepb.GetInvoiceAttributeItemPageDataRequest) (*invoiceattributepb.GetInvoiceAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInvoiceAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.InvoiceAttribute.GetInvoiceAttributeItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.item_page_data_failed", "Failed to retrieve invoice attribute item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.item_page_data_failed", "Failed to retrieve invoice attribute item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -68,17 +68,17 @@ func (uc *GetInvoiceAttributeItemPageDataUseCase) Execute(ctx context.Context, r
 // validateInput validates the input request
 func (uc *GetInvoiceAttributeItemPageDataUseCase) validateInput(ctx context.Context, req *invoiceattributepb.GetInvoiceAttributeItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.request_required", "Request is required for invoice attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.request_required", "Request is required for invoice attributes [DEFAULT]"))
 	}
 
 	// Validate invoice attribute ID - uses direct field req.InvoiceAttributeId
 	if strings.TrimSpace(req.InvoiceAttributeId) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
 	}
 
 	// Basic ID format validation
 	if len(req.InvoiceAttributeId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.id_too_short", "Invoice attribute ID must be at least 3 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.id_too_short", "Invoice attribute ID must be at least 3 characters [DEFAULT]"))
 	}
 
 	return nil

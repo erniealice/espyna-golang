@@ -17,9 +17,9 @@ type DeleteDisbursementRepositories struct {
 
 // DeleteDisbursementServices groups all business service dependencies
 type DeleteDisbursementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteDisbursementUseCase handles the business logic for deleting disbursements
@@ -41,13 +41,13 @@ func NewDeleteDisbursementUseCase(
 
 // Execute performs the delete disbursement operation
 func (uc *DeleteDisbursementUseCase) Execute(ctx context.Context, req *disbursementpb.DeleteDisbursementRequest) (*disbursementpb.DeleteDisbursementResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDisbursement, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "disbursement.validation.id_required", "Disbursement ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "disbursement.validation.id_required", "Disbursement ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Disbursement.DeleteDisbursement(ctx, req)

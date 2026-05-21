@@ -36,9 +36,9 @@ func createTestUpdateWorkspaceUserUseCase(businessType string) *UpdateWorkspaceU
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := UpdateWorkspaceUserServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateWorkspaceUserUseCase(repositories, services)
@@ -124,5 +124,5 @@ func TestUpdateWorkspaceUserUseCase_Execute_InvalidReference(t *testing.T) {
 
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "workspace_user.errors.workspace_access_denied", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user.errors.workspace_access_denied", useCase.services.Translator, ctx)
 }

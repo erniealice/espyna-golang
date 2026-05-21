@@ -19,10 +19,10 @@ type CreatePriceScheduleRepositories struct {
 
 // CreatePriceScheduleServices groups all business service dependencies
 type CreatePriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePriceScheduleUseCase handles the business logic for creating price_schedules
@@ -45,7 +45,7 @@ func NewCreatePriceScheduleUseCase(
 // Execute performs the create price_schedule operation
 func (uc *CreatePriceScheduleUseCase) Execute(ctx context.Context, req *priceschedulepb.CreatePriceScheduleRequest) (*priceschedulepb.CreatePriceScheduleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceSchedule, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *CreatePriceScheduleUseCase) Execute(ctx context.Context, req *pricesch
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -67,19 +67,19 @@ func (uc *CreatePriceScheduleUseCase) Execute(ctx context.Context, req *pricesch
 // validateInput validates the input request
 func (uc *CreatePriceScheduleUseCase) validateInput(ctx context.Context, req *priceschedulepb.CreatePriceScheduleRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.request_required", "request is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.request_required", "request is required")
 		return errors.New(msg)
 	}
 	if req.Data == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.data_required", "price schedule data is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.data_required", "price schedule data is required")
 		return errors.New(msg)
 	}
 	if req.Data.Name == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.name_required", "price schedule name is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.name_required", "price schedule name is required")
 		return errors.New(msg)
 	}
 	if req.Data.GetDateTimeStart() == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.date_time_start_required", "date time start is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.date_time_start_required", "date time start is required")
 		return errors.New(msg)
 	}
 	return nil
@@ -91,7 +91,7 @@ func (uc *CreatePriceScheduleUseCase) enrichPriceScheduleData(priceSchedule *pri
 
 	// Generate PriceSchedule ID if not provided
 	if priceSchedule.Id == "" {
-		priceSchedule.Id = uc.services.IDService.GenerateID()
+		priceSchedule.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -108,18 +108,18 @@ func (uc *CreatePriceScheduleUseCase) enrichPriceScheduleData(priceSchedule *pri
 func (uc *CreatePriceScheduleUseCase) validateBusinessRules(ctx context.Context, priceSchedule *priceschedulepb.PriceSchedule) error {
 	// Validate price schedule name length
 	if len(priceSchedule.Name) < 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.name_min_length", "price schedule name must be at least 3 characters long")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.name_min_length", "price schedule name must be at least 3 characters long")
 		return errors.New(msg)
 	}
 
 	if len(priceSchedule.Name) > 100 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.name_max_length", "price schedule name cannot exceed 100 characters")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.name_max_length", "price schedule name cannot exceed 100 characters")
 		return errors.New(msg)
 	}
 
 	// Validate Description length validation
 	if priceSchedule.Description != nil && len(*priceSchedule.Description) > 500 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.description_max_length", "price schedule description cannot exceed 500 characters")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.description_max_length", "price schedule description cannot exceed 500 characters")
 		return errors.New(msg)
 	}
 
@@ -130,10 +130,10 @@ func (uc *CreatePriceScheduleUseCase) validateBusinessRules(ctx context.Context,
 func (uc *CreatePriceScheduleUseCase) executeWithTransaction(ctx context.Context, req *priceschedulepb.CreatePriceScheduleRequest) (*priceschedulepb.CreatePriceScheduleResponse, error) {
 	var result *priceschedulepb.CreatePriceScheduleResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.errors.creation_failed", "price schedule creation failed")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.errors.creation_failed", "price schedule creation failed")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		result = res

@@ -20,8 +20,8 @@ type FindMostRecentForexRateRepositories struct {
 
 // FindMostRecentForexRateServices groups service dependencies.
 type FindMostRecentForexRateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // FindMostRecentForexRateRequest is the input for finding the most recent forex rate.
@@ -49,20 +49,20 @@ func NewFindMostRecentForexRateUseCase(
 
 // Execute returns the most recent ACTIVE forex_rate row for the given currency pair.
 func (uc *FindMostRecentForexRateUseCase) Execute(ctx context.Context, req *FindMostRecentForexRateRequest) (*forexratepb.ForexRate, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityForexRate, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.WorkspaceID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.workspace_id_required", "Workspace ID is required [DEFAULT]"))
 	}
 	if req.FromCurrency == "" || req.ToCurrency == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"forex_rate.validation.currency_pair_required", "Currency pair is required [DEFAULT]"))
 	}
 

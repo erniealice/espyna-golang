@@ -21,10 +21,10 @@ type CreateSupplierSubscriptionRepositories struct {
 }
 
 type CreateSupplierSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 type CreateSupplierSubscriptionUseCase struct {
@@ -40,18 +40,18 @@ func NewCreateSupplierSubscriptionUseCase(
 }
 
 func (uc *CreateSupplierSubscriptionUseCase) Execute(ctx context.Context, req *suppliersubscriptionpb.CreateSupplierSubscriptionRequest) (*suppliersubscriptionpb.CreateSupplierSubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierSubscription, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_subscription.validation.data_required", "supplier subscription data is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_subscription.validation.data_required", "supplier subscription data is required"))
 	}
 	if req.Data.CostPlanId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_subscription.validation.cost_plan_id_required", "cost plan ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_subscription.validation.cost_plan_id_required", "cost plan ID is required"))
 	}
 	if req.Data.SupplierId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_subscription.validation.supplier_id_required", "supplier ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_subscription.validation.supplier_id_required", "supplier ID is required"))
 	}
 
 	// Currency hard-block: the referenced CostPlan's billing_currency must match
@@ -70,7 +70,7 @@ func (uc *CreateSupplierSubscriptionUseCase) Execute(ctx context.Context, req *s
 					})
 					if cpErr == nil && cpResp != nil && len(cpResp.Data) > 0 {
 						if cpResp.Data[0].BillingCurrency != functionalCurrency {
-							return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+							return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 								"supplier_subscription.errors.currency_mismatch",
 								"cost plan billing currency must match workspace functional currency"))
 						}
@@ -80,7 +80,7 @@ func (uc *CreateSupplierSubscriptionUseCase) Execute(ctx context.Context, req *s
 		}
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -88,10 +88,10 @@ func (uc *CreateSupplierSubscriptionUseCase) Execute(ctx context.Context, req *s
 
 func (uc *CreateSupplierSubscriptionUseCase) executeWithTransaction(ctx context.Context, req *suppliersubscriptionpb.CreateSupplierSubscriptionRequest) (*suppliersubscriptionpb.CreateSupplierSubscriptionResponse, error) {
 	var result *suppliersubscriptionpb.CreateSupplierSubscriptionResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_subscription.errors.creation_failed", "supplier subscription creation failed")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_subscription.errors.creation_failed", "supplier subscription creation failed")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		result = res
@@ -106,7 +106,7 @@ func (uc *CreateSupplierSubscriptionUseCase) executeWithTransaction(ctx context.
 func (uc *CreateSupplierSubscriptionUseCase) executeCore(ctx context.Context, req *suppliersubscriptionpb.CreateSupplierSubscriptionRequest) (*suppliersubscriptionpb.CreateSupplierSubscriptionResponse, error) {
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.Active = true
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]

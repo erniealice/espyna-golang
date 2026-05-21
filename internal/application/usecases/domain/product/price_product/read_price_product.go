@@ -19,9 +19,9 @@ type ReadPriceProductRepositories struct {
 
 // ReadPriceProductServices groups all business service dependencies
 type ReadPriceProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadPriceProductUseCase handles the business logic for reading a price product
@@ -44,7 +44,7 @@ func NewReadPriceProductUseCase(
 // Execute performs the read price product operation
 func (uc *ReadPriceProductUseCase) Execute(ctx context.Context, req *priceproductpb.ReadPriceProductRequest) (*priceproductpb.ReadPriceProductResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceProduct, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -52,24 +52,24 @@ func (uc *ReadPriceProductUseCase) Execute(ctx context.Context, req *priceproduc
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityPriceProduct, ports.ActionRead)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -77,7 +77,7 @@ func (uc *ReadPriceProductUseCase) Execute(ctx context.Context, req *priceproduc
 	resp, err := uc.repositories.PriceProduct.ReadPriceProduct(ctx, req)
 	if err != nil {
 		// Handle not found error specifically - repository should return proper not found error
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.not_found", "Product pricing with ID \"{id}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.not_found", "Product pricing with ID \"{id}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{id}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}
@@ -88,13 +88,13 @@ func (uc *ReadPriceProductUseCase) Execute(ctx context.Context, req *priceproduc
 // validateInput validates the input request
 func (uc *ReadPriceProductUseCase) validateInput(ctx context.Context, req *priceproductpb.ReadPriceProductRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.data_required", "Price Product data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.data_required", "Price Product data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.id_required", "Price Product ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.id_required", "Price Product ID is required [DEFAULT]"))
 	}
 	return nil
 }

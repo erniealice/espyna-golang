@@ -18,9 +18,9 @@ type ListDocumentTemplatesByModuleRepositories struct {
 
 // ListDocumentTemplatesByModuleServices groups all business service dependencies
 type ListDocumentTemplatesByModuleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDocumentTemplatesByModuleUseCase handles listing document templates filtered by module_key
@@ -42,13 +42,13 @@ func NewListDocumentTemplatesByModuleUseCase(
 
 // Execute lists document templates belonging to a specific module (e.g. "revenue")
 func (uc *ListDocumentTemplatesByModuleUseCase) Execute(ctx context.Context, moduleKey string) (*documenttemplatepb.ListDocumentTemplatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDocumentTemplate, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if moduleKey == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "document_template.validation.module_key_required", "Module key is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "document_template.validation.module_key_required", "Module key is required [DEFAULT]"))
 	}
 
 	return uc.repositories.DocumentTemplate.ListDocumentTemplates(ctx, &documenttemplatepb.ListDocumentTemplatesRequest{

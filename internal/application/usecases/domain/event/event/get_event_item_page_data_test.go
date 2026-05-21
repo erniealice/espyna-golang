@@ -44,8 +44,8 @@ func TestGetEventItemPageDataUseCase_Execute_Success(t *testing.T) {
 		Event: mockRepo,
 	}
 	services := GetEventItemPageDataServices{
-		TransactionService: nil, // No transaction for this test
-		TranslationService: nil, // No translation for this test
+		Transactor: nil, // No transaction for this test
+		Translator: nil, // No translation for this test
 	}
 
 	// Create use case
@@ -126,8 +126,8 @@ func TestGetEventItemPageDataUseCase_Execute_ValidationErrors(t *testing.T) {
 		Event: mockRepo,
 	}
 	services := GetEventItemPageDataServices{
-		TransactionService: nil,
-		TranslationService: nil,
+		Transactor: nil,
+		Translator: nil,
 	}
 
 	useCase := NewGetEventItemPageDataUseCase(repos, services)
@@ -210,8 +210,8 @@ func TestGetEventItemPageDataUseCase_TimezoneHandling(t *testing.T) {
 				Event: mockRepo,
 			}
 			services := GetEventItemPageDataServices{
-				TransactionService: nil,
-				TranslationService: nil,
+				Transactor: nil,
+				Translator: nil,
 			}
 			useCase := NewGetEventItemPageDataUseCase(repos, services)
 
@@ -317,8 +317,8 @@ func TestGetEventItemPageDataUseCase_SchedulingEnhancement(t *testing.T) {
 				Event: mockRepo,
 			}
 			services := GetEventItemPageDataServices{
-				TransactionService: nil,
-				TranslationService: nil,
+				Transactor: nil,
+				Translator: nil,
 			}
 			useCase := NewGetEventItemPageDataUseCase(repos, services)
 

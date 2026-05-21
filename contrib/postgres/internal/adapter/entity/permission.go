@@ -17,8 +17,8 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
+	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 

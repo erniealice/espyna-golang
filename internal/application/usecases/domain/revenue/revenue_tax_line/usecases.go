@@ -14,9 +14,9 @@ type RevenueTaxLineRepositories struct {
 
 // RevenueTaxLineServices groups all business service dependencies.
 type RevenueTaxLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all revenue_tax_line use cases.
@@ -34,37 +34,37 @@ func NewUseCases(repositories RevenueTaxLineRepositories, services RevenueTaxLin
 		ReadRevenueTaxLine: NewReadRevenueTaxLineUseCase(
 			ReadRevenueTaxLineRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			ReadRevenueTaxLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListRevenueTaxLines: NewListRevenueTaxLinesUseCase(
 			ListRevenueTaxLinesRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			ListRevenueTaxLinesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		CreateRevenueTaxLine: NewCreateRevenueTaxLineUseCase(
 			CreateRevenueTaxLineRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			CreateRevenueTaxLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ListByRevenueRevenueTaxLine: NewListByRevenueRevenueTaxLineUseCase(
 			ListByRevenueRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			ListByRevenueServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteByRevenueRevenueTaxLine: NewDeleteByRevenueRevenueTaxLineUseCase(
 			DeleteByRevenueRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			DeleteByRevenueServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

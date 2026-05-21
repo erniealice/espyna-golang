@@ -25,9 +25,9 @@ type UpdateStaffAttributeRepositories struct {
 
 // UpdateStaffAttributeServices groups all business service dependencies
 type UpdateStaffAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateStaffAttributeUseCase handles the business logic for updating staff attributes
@@ -62,9 +62,9 @@ func NewUpdateStaffAttributeUseCaseUngrouped(
 	}
 
 	services := UpdateStaffAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateStaffAttributeUseCase(repositories, services)
@@ -73,7 +73,7 @@ func NewUpdateStaffAttributeUseCaseUngrouped(
 // Execute performs the update staff attribute operation
 func (uc *UpdateStaffAttributeUseCase) Execute(ctx context.Context, req *staffattributepb.UpdateStaffAttributeRequest) (*staffattributepb.UpdateStaffAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaffAttribute, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -85,13 +85,13 @@ func (uc *UpdateStaffAttributeUseCase) Execute(ctx context.Context, req *staffat
 
 	// Business logic and enrichment
 	if err := uc.enrichStaffAttributeData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -103,7 +103,7 @@ func (uc *UpdateStaffAttributeUseCase) Execute(ctx context.Context, req *staffat
 	// Call repository
 	resp, err := uc.repositories.StaffAttribute.UpdateStaffAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.update_failed", "Staff attribute update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.update_failed", "Staff attribute update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -113,22 +113,22 @@ func (uc *UpdateStaffAttributeUseCase) Execute(ctx context.Context, req *staffat
 // validateInput validates the input request
 func (uc *UpdateStaffAttributeUseCase) validateInput(ctx context.Context, req *staffattributepb.UpdateStaffAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.data_required", "Staff attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.data_required", "Staff attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.id_required", "Staff attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.id_required", "Staff attribute ID is required [DEFAULT]"))
 	}
 	if req.Data.StaffId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.staff_id_required", "Staff ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.staff_id_required", "Staff ID is required [DEFAULT]"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.value_required", "Value is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.value_required", "Value is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -148,11 +148,11 @@ func (uc *UpdateStaffAttributeUseCase) enrichStaffAttributeData(staffAttribute *
 func (uc *UpdateStaffAttributeUseCase) validateBusinessRules(ctx context.Context, staffAttribute *staffattributepb.StaffAttribute) error {
 	// Validate value length
 	if len(strings.TrimSpace(staffAttribute.Value)) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
 	}
 
 	if len(staffAttribute.Value) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// TODO: Additional business rules
@@ -172,16 +172,16 @@ func (uc *UpdateStaffAttributeUseCase) validateEntityReferences(ctx context.Cont
 			Data: &staffpb.Staff{Id: staffAttribute.StaffId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.staff_reference_validation_failed", "Failed to validate staff entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.staff_reference_validation_failed", "Failed to validate staff entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if staff == nil || staff.Data == nil || len(staff.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.staff_not_found", "Referenced staff with ID '{staffId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.staff_not_found", "Referenced staff with ID '{staffId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{staffId}", staffAttribute.StaffId)
 			return errors.New(translatedError)
 		}
 		if !staff.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.staff_not_active", "Referenced staff with ID '{staffId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.staff_not_active", "Referenced staff with ID '{staffId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{staffId}", staffAttribute.StaffId)
 			return errors.New(translatedError)
 		}
@@ -193,16 +193,16 @@ func (uc *UpdateStaffAttributeUseCase) validateEntityReferences(ctx context.Cont
 			Data: &attributepb.Attribute{Id: staffAttribute.AttributeId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.attribute_not_found", "Referenced attribute with ID '{attributeId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.attribute_not_found", "Referenced attribute with ID '{attributeId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", staffAttribute.AttributeId)
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", staffAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

@@ -84,7 +84,7 @@ func (m *MockAuthorizationService) SetDefaults(roles []string, workspaces []stri
 	return m
 }
 
-// AuthorizationService interface implementation
+// Authorizer interface implementation
 
 func (m *MockAuthorizationService) HasPermission(ctx context.Context, userID, permission string) (bool, error) {
 	fmt.Printf("🔐 HasPermission called: userID=%s, permission=%s, enabled=%v, allowAll=%v, denyAll=%v\n", userID, permission, m.enabled, m.allowAll, m.denyAll)

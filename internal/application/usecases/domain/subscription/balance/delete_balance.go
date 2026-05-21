@@ -18,9 +18,9 @@ type DeleteBalanceRepositories struct {
 
 // DeleteBalanceServices groups all business service dependencies
 type DeleteBalanceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteBalanceUseCase handles the business logic for deleting balances
@@ -43,7 +43,7 @@ func NewDeleteBalanceUseCase(
 // Execute performs the delete balance operation
 func (uc *DeleteBalanceUseCase) Execute(ctx context.Context, req *balancepb.DeleteBalanceRequest) (*balancepb.DeleteBalanceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalance, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -51,18 +51,18 @@ func (uc *DeleteBalanceUseCase) Execute(ctx context.Context, req *balancepb.Dele
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityBalance, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -85,7 +85,7 @@ func (uc *DeleteBalanceUseCase) Execute(ctx context.Context, req *balancepb.Dele
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"balance.errors.not_found",
 				map[string]interface{}{"balanceId": req.Data.Id},
 				"Student account balance not found [DEFAULT]",
@@ -102,13 +102,13 @@ func (uc *DeleteBalanceUseCase) Execute(ctx context.Context, req *balancepb.Dele
 // validateInput validates the input request
 func (uc *DeleteBalanceUseCase) validateInput(ctx context.Context, req *balancepb.DeleteBalanceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.data_required", "balance data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.data_required", "balance data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.id_required", "balance ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.id_required", "balance ID is required [DEFAULT]"))
 	}
 	return nil
 }

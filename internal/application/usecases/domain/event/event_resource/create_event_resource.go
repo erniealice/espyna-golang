@@ -21,10 +21,10 @@ type CreateEventResourceRepositories struct {
 
 // CreateEventResourceServices groups all business service dependencies
 type CreateEventResourceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventResourceUseCase handles the business logic for creating event resource assignments
@@ -56,10 +56,10 @@ func NewCreateEventResourceUseCaseUngrouped(
 	}
 
 	services := CreateEventResourceServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil, // Will be injected later if needed
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return &CreateEventResourceUseCase{
@@ -71,7 +71,7 @@ func NewCreateEventResourceUseCaseUngrouped(
 // Execute performs the create event resource operation
 func (uc *CreateEventResourceUseCase) Execute(ctx context.Context, req *eventresourcepb.CreateEventResourceRequest) (*eventresourcepb.CreateEventResourceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventResource, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -97,12 +97,12 @@ func (uc *CreateEventResourceUseCase) Execute(ctx context.Context, req *eventres
 
 // shouldUseTransaction determines if this operation should use a transaction
 func (uc *CreateEventResourceUseCase) shouldUseTransaction(ctx context.Context) bool {
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
 
 	// Don't start a nested transaction if we're already in one
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 
@@ -113,7 +113,7 @@ func (uc *CreateEventResourceUseCase) shouldUseTransaction(ctx context.Context) 
 func (uc *CreateEventResourceUseCase) executeWithTransaction(ctx context.Context, req *eventresourcepb.CreateEventResourceRequest) (*eventresourcepb.CreateEventResourceResponse, error) {
 	var response *eventresourcepb.CreateEventResourceResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		// Business rule validation (check first to avoid unnecessary DB calls)
 		if err := uc.validateBusinessRules(req.Data); err != nil {
 			return err
@@ -180,7 +180,7 @@ func (uc *CreateEventResourceUseCase) enrichEventResourceData(eventResource *eve
 
 	// Generate EventResource ID if not provided
 	if eventResource.Id == "" {
-		eventResource.Id = uc.services.IDService.GenerateID()
+		eventResource.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields

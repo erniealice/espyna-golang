@@ -67,9 +67,9 @@ import (
 // may need at construction time. Extend this struct only when a candidate
 // genuinely needs a new typed dep — avoid making it a junk drawer.
 type Deps struct {
-	DB                   *sql.DB
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	DB         *sql.DB
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ServiceUseCases aggregates every service-driven use case package.
@@ -103,7 +103,7 @@ var (
 //	const Key = "auth"
 //	func init() {
 //	    service.Register(Key, func(deps *service.Deps) any {
-//	        return New(deps.AuthorizationService, deps.TranslationService)
+//	        return New(deps.Authorizer, deps.Translator)
 //	    })
 //	}
 //	func From(s *service.ServiceUseCases) *UseCases {

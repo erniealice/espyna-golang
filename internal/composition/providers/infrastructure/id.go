@@ -11,14 +11,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
-// IDProviderAdapter wraps an IDService to implement the contracts.Provider interface
+// IDProviderAdapter wraps an IDGenerator to implement the contracts.Provider interface
 type IDProviderAdapter struct {
-	idService ports.IDService
+	idService ports.IDGenerator
 	name      string
 }
 
 // NewIDProviderAdapter creates a new IDProviderAdapter
-func NewIDProviderAdapter(service ports.IDService, name string) *IDProviderAdapter {
+func NewIDProviderAdapter(service ports.IDGenerator, name string) *IDProviderAdapter {
 	return &IDProviderAdapter{
 		idService: service,
 		name:      name,
@@ -54,7 +54,7 @@ func (p *IDProviderAdapter) Close() error {
 }
 
 // GetIDService returns the underlying ID service
-func (p *IDProviderAdapter) GetIDService() ports.IDService {
+func (p *IDProviderAdapter) GetIDService() ports.IDGenerator {
 	return p.idService
 }
 
@@ -80,7 +80,7 @@ func CreateIDProvider() (contracts.Provider, error) {
 	if err != nil {
 		// Fallback to noop for unknown providers
 		fmt.Printf("🆔 ID provider '%s' not found, using fallback noop: %v\n", providerName, err)
-		idService = ports.NewNoOpIDService()
+		idService = ports.NewNoOpIDGenerator()
 		providerName = "noop"
 	}
 

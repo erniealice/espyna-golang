@@ -15,9 +15,9 @@ type ReadSubscriptionRepositories struct {
 }
 
 type ReadSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadSubscriptionUseCase handles the business logic for reading subscriptions
@@ -40,7 +40,7 @@ func NewReadSubscriptionUseCase(
 // Execute performs the read subscription operation
 func (uc *ReadSubscriptionUseCase) Execute(ctx context.Context, req *subscriptionpb.ReadSubscriptionRequest) (*subscriptionpb.ReadSubscriptionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *ReadSubscriptionUseCase) Execute(ctx context.Context, req *subscriptio
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -69,7 +69,7 @@ func (uc *ReadSubscriptionUseCase) executeWithTransaction(ctx context.Context, r
 	var result *subscriptionpb.ReadSubscriptionResponse
 
 	// For read operations, we might not strictly need a transaction, but we use the service for consistency
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -89,10 +89,10 @@ func (uc *ReadSubscriptionUseCase) executeCore(ctx context.Context, req *subscri
 	// Call repository
 	resp, err := uc.repositories.Subscription.ReadSubscription(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
 	}
 	if resp == nil || len(resp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
 	}
 	return resp, nil
 }
@@ -100,13 +100,13 @@ func (uc *ReadSubscriptionUseCase) executeCore(ctx context.Context, req *subscri
 // validateInput validates the input request
 func (uc *ReadSubscriptionUseCase) validateInput(ctx context.Context, req *subscriptionpb.ReadSubscriptionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.data_required", "[ERR-DEFAULT] Subscription data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.data_required", "[ERR-DEFAULT] Subscription data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_required", "[ERR-DEFAULT] Subscription ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.id_required", "[ERR-DEFAULT] Subscription ID is required"))
 	}
 	return nil
 }
@@ -115,7 +115,7 @@ func (uc *ReadSubscriptionUseCase) validateInput(ctx context.Context, req *subsc
 func (uc *ReadSubscriptionUseCase) validateBusinessRules(ctx context.Context, subscription *subscriptionpb.Subscription) error {
 	// Validate subscription ID format
 	if len(subscription.Id) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_too_short", "[ERR-DEFAULT] Subscription ID is too short"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.id_too_short", "[ERR-DEFAULT] Subscription ID is too short"))
 	}
 
 	return nil

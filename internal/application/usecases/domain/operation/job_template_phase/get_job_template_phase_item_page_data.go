@@ -16,9 +16,9 @@ type GetJobTemplatePhaseItemPageDataRepositories struct {
 }
 
 type GetJobTemplatePhaseItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetJobTemplatePhaseItemPageDataUseCase handles the business logic for getting job template phase item page data
@@ -44,7 +44,7 @@ func (uc *GetJobTemplatePhaseItemPageDataUseCase) Execute(
 	req *pb.GetJobTemplatePhaseItemPageDataRequest,
 ) (*pb.GetJobTemplatePhaseItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplatePhase, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (uc *GetJobTemplatePhaseItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -70,12 +70,12 @@ func (uc *GetJobTemplatePhaseItemPageDataUseCase) executeWithTransaction(
 ) (*pb.GetJobTemplatePhaseItemPageDataResponse, error) {
 	var result *pb.GetJobTemplatePhaseItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"job_template_phase.errors.item_page_data_failed",
 				"job template phase item page data retrieval failed: %w",
 			), err)
@@ -106,7 +106,7 @@ func (uc *GetJobTemplatePhaseItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"job_template_phase.errors.read_failed",
 			"failed to retrieve job template phase: %w",
 		), err)
@@ -115,7 +115,7 @@ func (uc *GetJobTemplatePhaseItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"job_template_phase.errors.not_found",
 			"job template phase not found",
 		))
@@ -137,7 +137,7 @@ func (uc *GetJobTemplatePhaseItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"job_template_phase.validation.request_required",
 			"request is required",
 		))
@@ -146,7 +146,7 @@ func (uc *GetJobTemplatePhaseItemPageDataUseCase) validateInput(
 	if req.JobTemplatePhaseId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"job_template_phase.validation.id_required",
 			"job template phase ID is required",
 		))

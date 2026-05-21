@@ -31,8 +31,8 @@ func createTestDeleteWorkspaceUserUseCase(businessType string) *DeleteWorkspaceU
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := DeleteWorkspaceUserServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
+		Translator: standardServices.Translator,
 	}
 	return NewDeleteWorkspaceUserUseCase(repositories, services)
 }
@@ -49,8 +49,8 @@ func TestDeleteWorkspaceUserUseCase_Execute_Success(t *testing.T) {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteWorkspaceUserServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
+		Translator: standardServices.Translator,
 	}
 	deleteUseCase := NewDeleteWorkspaceUserUseCase(deleteRepositories, deleteServices)
 
@@ -59,7 +59,7 @@ func TestDeleteWorkspaceUserUseCase_Execute_Success(t *testing.T) {
 		WorkspaceUser: sharedWorkspaceUserRepo,
 	}
 	readServices := ReadWorkspaceUserServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	readUseCase := NewReadWorkspaceUserUseCase(readRepositories, readServices)
 
@@ -95,7 +95,7 @@ func TestDeleteWorkspaceUserUseCase_Execute_NotFound(t *testing.T) {
 
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "workspace_user.errors.authorization_failed", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user.errors.authorization_failed", useCase.services.Translator, ctx)
 }
 
 func TestDeleteWorkspaceUserUseCase_Execute_EmptyId(t *testing.T) {
@@ -108,5 +108,5 @@ func TestDeleteWorkspaceUserUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "workspace_user.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user.validation.id_required", useCase.services.Translator, ctx)
 }

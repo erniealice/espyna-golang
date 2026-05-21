@@ -17,9 +17,9 @@ type ReadExpenditureAttributeRepositories struct {
 
 // ReadExpenditureAttributeServices groups all business service dependencies
 type ReadExpenditureAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadExpenditureAttributeUseCase handles the business logic for reading an expenditure attribute
@@ -41,13 +41,13 @@ func NewReadExpenditureAttributeUseCase(
 
 // Execute performs the read expenditure attribute operation
 func (uc *ReadExpenditureAttributeUseCase) Execute(ctx context.Context, req *pb.ReadExpenditureAttributeRequest) (*pb.ReadExpenditureAttributeResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_attribute.validation.id_required", "Expenditure attribute ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_attribute.validation.id_required", "Expenditure attribute ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.ExpenditureAttribute.ReadExpenditureAttribute(ctx, req)

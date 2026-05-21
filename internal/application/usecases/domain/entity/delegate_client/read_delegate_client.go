@@ -21,9 +21,9 @@ type ReadDelegateClientRepositories struct {
 
 // ReadDelegateClientServices groups all business service dependencies
 type ReadDelegateClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadDelegateClientUseCase handles the business logic for reading a delegate client
@@ -54,9 +54,9 @@ func NewReadDelegateClientUseCaseUngrouped(
 		Client:         nil,
 	}
 	services := ReadDelegateClientServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadDelegateClientUseCase(repositories, services)
@@ -66,15 +66,15 @@ func NewReadDelegateClientUseCaseUngrouped(
 func (uc *ReadDelegateClientUseCase) Execute(ctx context.Context, req *delegateclientpb.ReadDelegateClientRequest) (*delegateclientpb.ReadDelegateClientResponse, error) {
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.id_required", "Delegate-Client relationship ID is required [DEFAULT]"))
 	}
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateClient, ports.ActionRead); err != nil {
 		return nil, err
 	}

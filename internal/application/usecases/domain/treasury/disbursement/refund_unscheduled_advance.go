@@ -21,9 +21,9 @@ type RefundUnscheduledAdvanceRepositories struct {
 
 // RefundUnscheduledAdvanceServices groups infra services.
 type RefundUnscheduledAdvanceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // RefundUnscheduledAdvanceUseCase — buying-side mirror.
@@ -50,28 +50,28 @@ func (uc *RefundUnscheduledAdvanceUseCase) Execute(
 	if req == nil {
 		req = &disbursementpb.RefundUnscheduledAdvanceDisbursementRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTreasuryDisbursement, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryDisbursementId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.validation.id_required",
 			"treasury_disbursement_id is required [DEFAULT]",
 		))
 	}
 	if req.GetAmount() <= 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.validation.refund_amount_required",
 			"refund amount must be > 0 [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *disbursementpb.RefundUnscheduledAdvanceDisbursementResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return execErr
@@ -99,7 +99,7 @@ func (uc *RefundUnscheduledAdvanceUseCase) executeCore(
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.not_found",
 			"treasury_disbursement not found [DEFAULT]",
 		))
@@ -108,7 +108,7 @@ func (uc *RefundUnscheduledAdvanceUseCase) executeCore(
 
 	if adv.GetAdvanceKind() != advancekindpb.AdvanceKind_ADVANCE_KIND_UNSCHEDULED {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.refund_requires_unscheduled",
 			"refund is only valid for advance_kind=UNSCHEDULED [DEFAULT]",
 		))
@@ -119,7 +119,7 @@ func (uc *RefundUnscheduledAdvanceUseCase) executeCore(
 		// proceed
 	default:
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.refund_requires_open_advance",
 			"refund requires advance_status=ACTIVE or PARTIALLY_SETTLED [DEFAULT]",
 		))
@@ -128,7 +128,7 @@ func (uc *RefundUnscheduledAdvanceUseCase) executeCore(
 	remaining := adv.GetAdvanceRemainingAmount()
 	if req.GetAmount() > remaining {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.refund_amount_exceeds_remaining",
 			"refund amount exceeds advance_remaining_amount [DEFAULT]",
 		))

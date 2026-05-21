@@ -17,9 +17,9 @@ type DeleteAttachmentRepositories struct {
 
 // DeleteAttachmentServices groups all business service dependencies
 type DeleteAttachmentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteAttachmentUseCase handles the business logic for deleting attachments
@@ -41,13 +41,13 @@ func NewDeleteAttachmentUseCase(
 
 // Execute performs the delete attachment operation
 func (uc *DeleteAttachmentUseCase) Execute(ctx context.Context, req *attachmentpb.DeleteAttachmentRequest) (*attachmentpb.DeleteAttachmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAttachment, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "attachment.validation.id_required", "Attachment ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "attachment.validation.id_required", "Attachment ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Attachment.DeleteAttachment(ctx, req)

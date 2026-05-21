@@ -317,7 +317,7 @@ func generateTransactionID() string {
 	return fmt.Sprintf("tx_mock_%d", time.Now().UnixNano())
 }
 
-// MockTransactionServiceAdapter adapts MockTransactionManager to ports.TransactionService
+// MockTransactionServiceAdapter adapts MockTransactionManager to ports.Transactor
 // This provides a clean bridge between infrastructure mocks and application ports
 type MockTransactionServiceAdapter struct {
 	mockTxManager        *MockTransactionManager
@@ -325,9 +325,9 @@ type MockTransactionServiceAdapter struct {
 }
 
 // NewMockTransactionService creates a transaction service using infrastructure mock
-func NewMockTransactionService(supportsTransactions bool) ports.TransactionService {
+func NewMockTransactionService(supportsTransactions bool) ports.Transactor {
 	if !supportsTransactions {
-		return ports.NewNoOpTransactionService()
+		return ports.NewNoOpTransactor()
 	}
 
 	// Create infrastructure mock and cast to access setter methods
@@ -340,7 +340,7 @@ func NewMockTransactionService(supportsTransactions bool) ports.TransactionServi
 }
 
 // NewFailingMockTransactionService creates a transaction service that will fail RunInTransaction
-func NewFailingMockTransactionService() ports.TransactionService {
+func NewFailingMockTransactionService() ports.Transactor {
 	txManager := NewMockTransactionManager().(*MockTransactionManager)
 
 	// Configure to fail at RunInTransaction level using setter method

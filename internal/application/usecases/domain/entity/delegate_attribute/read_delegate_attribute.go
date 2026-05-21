@@ -18,9 +18,9 @@ type ReadDelegateAttributeRepositories struct {
 
 // ReadDelegateAttributeServices groups all business service dependencies
 type ReadDelegateAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadDelegateAttributeUseCase handles the business logic for reading delegate attributes
@@ -49,9 +49,9 @@ func NewReadDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateattr
 	}
 
 	services := ReadDelegateAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadDelegateAttributeUseCase(repositories, services)
@@ -60,7 +60,7 @@ func NewReadDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateattr
 // Execute performs the read delegate attribute operation
 func (uc *ReadDelegateAttributeUseCase) Execute(ctx context.Context, req *delegateattributepb.ReadDelegateAttributeRequest) (*delegateattributepb.ReadDelegateAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -83,13 +83,13 @@ func (uc *ReadDelegateAttributeUseCase) Execute(ctx context.Context, req *delega
 // validateInput validates the input request
 func (uc *ReadDelegateAttributeUseCase) validateInput(ctx context.Context, req *delegateattributepb.ReadDelegateAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.data_required", "[ERR-DEFAULT] Delegate attribute data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.data_required", "[ERR-DEFAULT] Delegate attribute data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	return nil
 }

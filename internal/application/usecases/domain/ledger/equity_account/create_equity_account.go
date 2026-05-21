@@ -22,10 +22,10 @@ type CreateEquityAccountRepositories struct {
 
 // CreateEquityAccountServices groups all business service dependencies.
 type CreateEquityAccountServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEquityAccountUseCase handles the business logic for creating equity accounts.
@@ -47,12 +47,12 @@ func NewCreateEquityAccountUseCase(
 
 // Execute performs the create equity account operation.
 func (uc *CreateEquityAccountUseCase) Execute(ctx context.Context, req *equityaccountpb.CreateEquityAccountRequest) (*equityaccountpb.CreateEquityAccountResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityEquityAccount, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -62,10 +62,10 @@ func (uc *CreateEquityAccountUseCase) Execute(ctx context.Context, req *equityac
 func (uc *CreateEquityAccountUseCase) executeWithTransaction(ctx context.Context, req *equityaccountpb.CreateEquityAccountRequest) (*equityaccountpb.CreateEquityAccountResponse, error) {
 	var result *equityaccountpb.CreateEquityAccountResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "equity_account.errors.creation_failed", "Equity account creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "equity_account.errors.creation_failed", "Equity account creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -99,16 +99,16 @@ func (uc *CreateEquityAccountUseCase) executeCore(ctx context.Context, req *equi
 
 func (uc *CreateEquityAccountUseCase) validateInput(ctx context.Context, req *equityaccountpb.CreateEquityAccountRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.validation.data_required", "[ERR-DEFAULT] Equity account data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.validation.data_required", "[ERR-DEFAULT] Equity account data is required"))
 	}
 
 	req.Data.Name = strings.TrimSpace(req.Data.Name)
 
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.validation.name_required", "[ERR-DEFAULT] Name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.validation.name_required", "[ERR-DEFAULT] Name is required"))
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func (uc *CreateEquityAccountUseCase) enrichData(account *equityaccountpb.Equity
 	now := time.Now()
 
 	if account.Id == "" {
-		account.Id = uc.services.IDService.GenerateID()
+		account.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	account.DateCreated = &[]int64{now.UnixMilli()}[0]
@@ -131,7 +131,7 @@ func (uc *CreateEquityAccountUseCase) enrichData(account *equityaccountpb.Equity
 
 func (uc *CreateEquityAccountUseCase) validateBusinessRules(ctx context.Context, account *equityaccountpb.EquityAccount) error {
 	if len(account.Name) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 200 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 200 characters"))
 	}
 	return nil
 }

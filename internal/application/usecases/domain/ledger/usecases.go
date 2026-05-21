@@ -76,10 +76,10 @@ type LedgerUseCases struct {
 // NewUseCases creates all ledger use cases with proper constructor injection.
 func NewUseCases(
 	repos LedgerRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *LedgerUseCases {
 	var documentTemplateUC *documentTemplateUseCases.UseCases
 	if repos.DocumentTemplate != nil {
@@ -88,10 +88,10 @@ func NewUseCases(
 				DocumentTemplate: repos.DocumentTemplate,
 			},
 			documentTemplateUseCases.DocumentTemplateServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 		)
 	}
@@ -103,10 +103,10 @@ func NewUseCases(
 				Attachment: repos.Attachment,
 			},
 			attachmentUseCases.AttachmentServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 		)
 	}
@@ -118,10 +118,10 @@ func NewUseCases(
 				Account: repos.Account,
 			},
 			accountUseCases.AccountServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 		)
 	}
@@ -133,10 +133,10 @@ func NewUseCases(
 				JournalEntry: repos.JournalEntry,
 			},
 			journalEntryUseCases.JournalEntryServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 		)
 	}
@@ -148,10 +148,10 @@ func NewUseCases(
 				FiscalPeriod: repos.FiscalPeriod,
 			},
 			fiscalPeriodUseCases.FiscalPeriodServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 		)
 	}

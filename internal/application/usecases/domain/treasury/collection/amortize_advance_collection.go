@@ -35,7 +35,7 @@ const entityTreasuryCollection = "treasury_collection"
 //
 // The current implementation uses Read + Update for the row lock; the postgres
 // adapter is expected to wrap the Update inside the active tx so that the
-// SELECT FOR UPDATE semantics come for free via the TransactionService.
+// SELECT FOR UPDATE semantics come for free via the Transactor.
 type AmortizeAdvanceCollectionRepositories struct {
 	TreasuryCollection collectionpb.CollectionDomainServiceServer
 	Revenue            revenuepb.RevenueDomainServiceServer
@@ -43,10 +43,10 @@ type AmortizeAdvanceCollectionRepositories struct {
 
 // AmortizeAdvanceCollectionServices groups infra services.
 type AmortizeAdvanceCollectionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // AmortizeAdvanceCollectionUseCase wires Plan B's selling-side amortization.
@@ -68,7 +68,7 @@ func NewAmortizeAdvanceCollectionUseCase(
 
 // Execute amortizes one tranche from the advance Collection.
 //
-// Flow (single tx — caller may pass a tx-bound ctx via TransactionService):
+// Flow (single tx — caller may pass a tx-bound ctx via Transactor):
 //  1. authcheck (treasury_collection:update + revenue:create).
 //  2. SELECT FOR UPDATE the treasury_collection row (via repo Read; the
 //     adapter is responsible for issuing FOR UPDATE inside the active tx).
@@ -85,25 +85,25 @@ func (uc *AmortizeAdvanceCollectionUseCase) Execute(
 	if req == nil {
 		req = &collectionpb.AmortizeAdvanceCollectionRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTreasuryCollection, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"revenue", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryCollectionId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.validation.id_required",
 			"treasury_collection_id is required [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *collectionpb.AmortizeAdvanceCollectionResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return execErr
@@ -135,7 +135,7 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.not_found",
 			"treasury_collection not found [DEFAULT]",
 		))
@@ -146,7 +146,7 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 	// 2. Validate advance kind/status.
 	if adv.GetAdvanceKind() != advancekindpb.AdvanceKind_ADVANCE_KIND_TIME_BASED {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.amortize_requires_time_based",
 			"AmortizeAdvanceCollection requires advance_kind=TIME_BASED [DEFAULT]",
 		))
@@ -154,7 +154,7 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 	}
 	if adv.GetAdvanceStatus() != advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.amortize_requires_active",
 			"AmortizeAdvanceCollection requires advance_status=ACTIVE [DEFAULT]",
 		))
@@ -344,7 +344,7 @@ func (uc *AmortizeAdvanceCollectionUseCase) insertRevenue(
 	tranche amortizeschedule.TrancheSpec,
 	req *collectionpb.AmortizeAdvanceCollectionRequest,
 ) (string, error) {
-	revenueID := uc.services.IDService.GenerateID()
+	revenueID := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)

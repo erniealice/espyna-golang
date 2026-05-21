@@ -15,8 +15,8 @@ type ListExpenseRecognitionLinesRepositories struct {
 
 // ListExpenseRecognitionLinesServices groups service dependencies.
 type ListExpenseRecognitionLinesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListExpenseRecognitionLinesUseCase handles listing recognition-lines.
@@ -35,7 +35,7 @@ func NewListExpenseRecognitionLinesUseCase(
 
 // Execute performs the list operation.
 func (uc *ListExpenseRecognitionLinesUseCase) Execute(ctx context.Context, req *expenserecognitionlinepb.ListExpenseRecognitionLinesRequest) (*expenserecognitionlinepb.ListExpenseRecognitionLinesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognitionLine, ports.ActionList); err != nil {
 		return nil, err
 	}

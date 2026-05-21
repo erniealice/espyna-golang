@@ -17,9 +17,9 @@ type DeleteRevenueCategoryRepositories struct {
 
 // DeleteRevenueCategoryServices groups all business service dependencies
 type DeleteRevenueCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteRevenueCategoryUseCase handles the business logic for deleting revenue categories
@@ -41,13 +41,13 @@ func NewDeleteRevenueCategoryUseCase(
 
 // Execute performs the delete revenue category operation
 func (uc *DeleteRevenueCategoryUseCase) Execute(ctx context.Context, req *pb.DeleteRevenueCategoryRequest) (*pb.DeleteRevenueCategoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueCategory, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue_category.validation.id_required", "Revenue category ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_category.validation.id_required", "Revenue category ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.RevenueCategory.DeleteRevenueCategory(ctx, req)

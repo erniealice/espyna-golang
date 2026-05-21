@@ -17,8 +17,8 @@ type ReadAccruedExpenseSettlementRepositories struct {
 
 // ReadAccruedExpenseSettlementServices groups service dependencies.
 type ReadAccruedExpenseSettlementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadAccruedExpenseSettlementUseCase handles reading a settlement.
@@ -37,12 +37,12 @@ func NewReadAccruedExpenseSettlementUseCase(
 
 // Execute performs the read operation.
 func (uc *ReadAccruedExpenseSettlementUseCase) Execute(ctx context.Context, req *accruedexpensepb.ReadAccruedExpenseSettlementRequest) (*accruedexpensepb.ReadAccruedExpenseSettlementResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpenseSettlement, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense_settlement.validation.id_required", "Settlement ID is required [DEFAULT]"))
 	}
 	return uc.repositories.AccruedExpenseSettlement.ReadAccruedExpenseSettlement(ctx, req)

@@ -16,9 +16,9 @@ type GetTemplateTaskCriteriaItemPageDataRepositories struct {
 }
 
 type GetTemplateTaskCriteriaItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetTemplateTaskCriteriaItemPageDataUseCase handles the business logic for getting template task criteria item page data
@@ -44,7 +44,7 @@ func (uc *GetTemplateTaskCriteriaItemPageDataUseCase) Execute(
 	req *pb.GetTemplateTaskCriteriaItemPageDataRequest,
 ) (*pb.GetTemplateTaskCriteriaItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTemplateTaskCriteria, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (uc *GetTemplateTaskCriteriaItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -70,12 +70,12 @@ func (uc *GetTemplateTaskCriteriaItemPageDataUseCase) executeWithTransaction(
 ) (*pb.GetTemplateTaskCriteriaItemPageDataResponse, error) {
 	var result *pb.GetTemplateTaskCriteriaItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"template_task_criteria.errors.item_page_data_failed",
 				"template task criteria item page data retrieval failed: %w",
 			), err)
@@ -105,7 +105,7 @@ func (uc *GetTemplateTaskCriteriaItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"template_task_criteria.errors.read_failed",
 			"failed to retrieve template task criteria: %w",
 		), err)
@@ -114,7 +114,7 @@ func (uc *GetTemplateTaskCriteriaItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"template_task_criteria.errors.not_found",
 			"template task criteria not found",
 		))
@@ -136,7 +136,7 @@ func (uc *GetTemplateTaskCriteriaItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"template_task_criteria.validation.request_required",
 			"request is required",
 		))
@@ -145,7 +145,7 @@ func (uc *GetTemplateTaskCriteriaItemPageDataUseCase) validateInput(
 	if req.TemplateTaskCriteriaId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"template_task_criteria.validation.id_required",
 			"template task criteria ID is required",
 		))

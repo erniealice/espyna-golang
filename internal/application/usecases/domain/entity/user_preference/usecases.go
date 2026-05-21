@@ -19,10 +19,10 @@ type UserPreferenceRepositories struct {
 
 // UserPreferenceServices groups service dependencies.
 type UserPreferenceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all user_preference use cases.
@@ -52,7 +52,7 @@ type CreateUserPreferenceUseCase struct {
 }
 
 func (uc *CreateUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.CreateUserPreferenceRequest) (*userpreferencepb.CreateUserPreferenceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityUserPreference, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *CreateUserPreferenceUseCase) Execute(ctx context.Context, req *userpre
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -76,7 +76,7 @@ type ReadUserPreferenceUseCase struct {
 }
 
 func (uc *ReadUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.ReadUserPreferenceRequest) (*userpreferencepb.ReadUserPreferenceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityUserPreference, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type UpdateUserPreferenceUseCase struct {
 }
 
 func (uc *UpdateUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.UpdateUserPreferenceRequest) (*userpreferencepb.UpdateUserPreferenceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityUserPreference, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ type DeleteUserPreferenceUseCase struct {
 }
 
 func (uc *DeleteUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.DeleteUserPreferenceRequest) (*userpreferencepb.DeleteUserPreferenceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityUserPreference, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ type ListUserPreferencesUseCase struct {
 }
 
 func (uc *ListUserPreferencesUseCase) Execute(ctx context.Context, req *userpreferencepb.ListUserPreferencesRequest) (*userpreferencepb.ListUserPreferencesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityUserPreference, ports.ActionRead); err != nil {
 		return nil, err
 	}

@@ -18,9 +18,9 @@ type GetPriceScheduleListPageDataRepositories struct {
 
 // GetPriceScheduleListPageDataServices groups all business service dependencies
 type GetPriceScheduleListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPriceScheduleListPageDataUseCase handles the business logic for getting price schedule list page data
@@ -43,14 +43,14 @@ func NewGetPriceScheduleListPageDataUseCase(
 // Execute performs the get price schedule list page data operation
 func (uc *GetPriceScheduleListPageDataUseCase) Execute(ctx context.Context, req *priceschedulepb.GetPriceScheduleListPageDataRequest) (*priceschedulepb.GetPriceScheduleListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceSchedule, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.request_required", "Request is required for price schedule list page data"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.request_required", "Request is required for price schedule list page data"))
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
@@ -63,7 +63,7 @@ func (uc *GetPriceScheduleListPageDataUseCase) Execute(ctx context.Context, req 
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,10 +75,10 @@ func (uc *GetPriceScheduleListPageDataUseCase) Execute(ctx context.Context, req 
 func (uc *GetPriceScheduleListPageDataUseCase) executeWithTransaction(ctx context.Context, req *priceschedulepb.GetPriceScheduleListPageDataRequest) (*priceschedulepb.GetPriceScheduleListPageDataResponse, error) {
 	var result *priceschedulepb.GetPriceScheduleListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "price_schedule.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load price schedule list")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "price_schedule.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load price schedule list")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -100,16 +100,16 @@ func (uc *GetPriceScheduleListPageDataUseCase) executeCore(ctx context.Context, 
 // validateInput validates the input request
 func (uc *GetPriceScheduleListPageDataUseCase) validateInput(ctx context.Context, req *priceschedulepb.GetPriceScheduleListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Validate pagination parameters
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.invalid_limit", "Pagination limit must be non-negative"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.invalid_limit", "Pagination limit must be non-negative"))
 		}
 		if req.Pagination.Limit > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.limit_too_large", "Pagination limit cannot exceed 1000"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.limit_too_large", "Pagination limit cannot exceed 1000"))
 		}
 	}
 

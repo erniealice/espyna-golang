@@ -17,9 +17,9 @@ type ListDisbursementsRepositories struct {
 
 // ListDisbursementsServices groups all business service dependencies
 type ListDisbursementsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDisbursementsUseCase handles the business logic for listing disbursements
@@ -41,13 +41,13 @@ func NewListDisbursementsUseCase(
 
 // Execute performs the list disbursements operation
 func (uc *ListDisbursementsUseCase) Execute(ctx context.Context, req *disbursementpb.ListDisbursementsRequest) (*disbursementpb.ListDisbursementsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDisbursement, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "disbursement.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "disbursement.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Disbursement.ListDisbursements(ctx, req)

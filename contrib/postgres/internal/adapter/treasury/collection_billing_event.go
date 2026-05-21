@@ -11,9 +11,10 @@
 // 20260517-advance-cash-events plan).
 //
 // Schema constraint reminder (application-layer, not DB):
-//   SUM(tranche_amount) over all junctions for a given treasury_collection_id
-//   must be <= treasury_collection.amount. The adapter does not enforce this —
-//   the use-case layer is responsible.
+//
+//	SUM(tranche_amount) over all junctions for a given treasury_collection_id
+//	must be <= treasury_collection.amount. The adapter does not enforce this —
+//	the use-case layer is responsible.
 package treasury
 
 import (

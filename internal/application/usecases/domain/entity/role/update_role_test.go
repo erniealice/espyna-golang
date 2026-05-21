@@ -31,9 +31,9 @@ func createTestUpdateRoleUseCase(businessType string) *UpdateRoleUseCase {
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := UpdateRoleServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateRoleUseCase(repositories, services)

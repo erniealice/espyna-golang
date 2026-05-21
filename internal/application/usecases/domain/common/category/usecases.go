@@ -12,9 +12,9 @@ type CategoryRepositories struct {
 
 // CategoryServices groups all business service dependencies for category use cases
 type CategoryServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
-	IDService          ports.IDService
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all category-related use cases
@@ -34,33 +34,33 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateCategoryRepositories(repositories)
 	createServices := CreateCategoryServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
-		IDService:          services.IDService,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadCategoryRepositories(repositories)
 	readServices := ReadCategoryServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateCategoryRepositories(repositories)
 	updateServices := UpdateCategoryServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteCategoryRepositories(repositories)
 	deleteServices := DeleteCategoryServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListCategoriesRepositories(repositories)
 	listServices := ListCategoriesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -81,8 +81,8 @@ func NewUseCasesUngrouped(categoryRepo categorypb.CategoryDomainServiceServer) *
 	}
 
 	services := CategoryServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

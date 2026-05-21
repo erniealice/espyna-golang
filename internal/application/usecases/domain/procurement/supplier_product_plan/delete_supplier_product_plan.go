@@ -16,9 +16,9 @@ type DeleteSupplierProductPlanRepositories struct {
 }
 
 type DeleteSupplierProductPlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type DeleteSupplierProductPlanUseCase struct {
@@ -34,16 +34,16 @@ func NewDeleteSupplierProductPlanUseCase(
 }
 
 func (uc *DeleteSupplierProductPlanUseCase) Execute(ctx context.Context, req *supplierproductplanpb.DeleteSupplierProductPlanRequest) (*supplierproductplanpb.DeleteSupplierProductPlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierProductPlan, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_plan.validation.id_required", "supplier product plan ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_plan.validation.id_required", "supplier product plan ID is required"))
 	}
 	result, err := uc.repositories.SupplierProductPlan.DeleteSupplierProductPlan(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_plan.errors.deletion_failed", "supplier product plan deletion failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_plan.errors.deletion_failed", "supplier product plan deletion failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil

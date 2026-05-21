@@ -17,10 +17,10 @@ type AssetRevaluationRepositories struct {
 
 // AssetRevaluationServices groups all service dependencies.
 type AssetRevaluationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all asset-revaluation-related use cases.
@@ -40,10 +40,10 @@ func NewUseCases(
 		AssetRevaluation: repositories.AssetRevaluation,
 	}
 	revalueServices := RevalueAssetServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	return &UseCases{

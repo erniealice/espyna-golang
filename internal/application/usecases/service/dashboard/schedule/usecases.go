@@ -56,9 +56,9 @@ type UseCases struct {
 // EventDashboardRepository port. May be nil under non-postgres builds
 // (mock_db, mock_auth) — the wrapper degrades gracefully (empty Response).
 type Deps struct {
-	EntityDashboard      *eventdashboard.GetScheduleDashboardPageDataUseCase
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	EntityDashboard *eventdashboard.GetScheduleDashboardPageDataUseCase
+	Authorizer      ports.Authorizer
+	Translator      ports.Translator
 }
 
 // NewUseCases wires every schedule-dashboard service use case from grouped
@@ -72,8 +72,8 @@ func NewUseCases(deps *Deps) *UseCases {
 		GetScheduleDashboard: NewGetScheduleDashboardUseCase(
 			GetScheduleDashboardRepositories{EntityDashboard: deps.EntityDashboard},
 			GetScheduleDashboardServices{
-				AuthorizationService: deps.AuthorizationService,
-				TranslationService:   deps.TranslationService,
+				Authorizer: deps.Authorizer,
+				Translator: deps.Translator,
 			},
 		),
 	}

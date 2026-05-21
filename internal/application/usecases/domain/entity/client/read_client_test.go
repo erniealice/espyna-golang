@@ -42,8 +42,8 @@ func createTestReadClientUseCase(businessType string, supportsTransaction bool) 
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := ReadClientServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Translator: standardServices.Translator,
 	}
 
 	return NewReadClientUseCase(repositories, services)
@@ -98,7 +98,7 @@ func TestReadClientUseCase_Execute_NotFound(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedErrorWithContext(t, err, "client.errors.not_found", "{\"clientId\": \""+nonExistentID+"\"}", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedErrorWithContext(t, err, "client.errors.not_found", "{\"clientId\": \""+nonExistentID+"\"}", useCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "NotFound", false, err)
@@ -119,7 +119,7 @@ func TestReadClientUseCase_Execute_EmptyId(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "client.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "client.validation.id_required", useCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "EmptyId", false, err)

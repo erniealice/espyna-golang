@@ -17,9 +17,9 @@ type ListExpenditureAttributesRepositories struct {
 
 // ListExpenditureAttributesServices groups all business service dependencies
 type ListExpenditureAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListExpenditureAttributesUseCase handles the business logic for listing expenditure attributes
@@ -41,13 +41,13 @@ func NewListExpenditureAttributesUseCase(
 
 // Execute performs the list expenditure attributes operation
 func (uc *ListExpenditureAttributesUseCase) Execute(ctx context.Context, req *pb.ListExpenditureAttributesRequest) (*pb.ListExpenditureAttributesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.ExpenditureAttribute.ListExpenditureAttributes(ctx, req)

@@ -243,10 +243,10 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 	uc := NewMaterializeInstanceJobsForSubscriptionUseCase(
 		repos,
 		MaterializeInstanceJobsForSubscriptionServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TransactionService:   stubTxService{},
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            ports.NewNoOpIDService(),
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Transactor:  stubTxService{},
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: ports.NewNoOpIDGenerator(),
 		},
 	)
 	return &instFixture{uc: uc, jobs: jobRepo, phases: jobPhaseRepo, tasks: jobTaskRepo, events: eventRepo, subRepo: subRepo}
@@ -717,10 +717,10 @@ func TestMaterializeInstanceJobs_Case13_SubscriptionMustBeActive(t *testing.T) {
 			JobTask:             &stubJobTaskRepo{},
 		},
 		MaterializeInstanceJobsForSubscriptionServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TransactionService:   stubTxService{},
-			TranslationService:   ports.NewNoOpTranslationService(),
-			IDService:            ports.NewNoOpIDService(),
+			Authorizer:  ports.NewNoOpAuthorizer(),
+			Transactor:  stubTxService{},
+			Translator:  ports.NewNoOpTranslator(),
+			IDGenerator: ports.NewNoOpIDGenerator(),
 		},
 	)
 	_, err := uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{

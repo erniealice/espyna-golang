@@ -32,8 +32,8 @@ type RouteManager interface {
 	// Add other required methods as needed
 }
 
-// Services holds all core infrastructure services with mock defaults
-type Services struct {
+// Platform holds all core infrastructure services with mock defaults
+type Platform struct {
 	Auth           contracts.Service           // Authentication/Authorization service
 	Storage        contracts.Service           // Storage service (files, uploads)
 	Metrics        contracts.Service           // Metrics and monitoring service
@@ -80,9 +80,9 @@ func (m *MockService) Health(ctx context.Context) error {
 	return nil
 }
 
-// translationServiceWrapper wraps ports.TranslationService to implement contracts.Service
+// translationServiceWrapper wraps ports.Translator to implement contracts.Service
 type translationServiceWrapper struct {
-	svc ports.TranslationService
+	svc ports.Translator
 }
 
 func (w *translationServiceWrapper) Name() string {
@@ -101,9 +101,9 @@ func (w *translationServiceWrapper) Health(ctx context.Context) error {
 	return nil
 }
 
-// NewDefaultServices creates a Services struct with mock defaults
-func NewDefaultServices() *Services {
-	return &Services{
+// NewDefaultPlatform creates a Platform struct with mock defaults
+func NewDefaultPlatform() *Platform {
+	return &Platform{
 		Auth:        NewMockService("mock-auth"), // Placeholder - actual auth service created separately
 		Storage:     NewMockService("mock-storage"),
 		Metrics:     NewMockService("mock-metrics"),
@@ -125,7 +125,7 @@ type Container struct {
 
 	// Organized component groups
 	useCases *usecases.Aggregate
-	services Services
+	services Platform
 
 	initialized bool
 	closed      bool
@@ -161,7 +161,7 @@ func NewContainer() *Container {
 			Version:     "1.0.0",
 			Environment: "development",
 		},
-		services: *NewDefaultServices(),
+		services: *NewDefaultPlatform(),
 	}
 }
 
@@ -461,10 +461,10 @@ func (c *Container) initializeWorkflowEngine() error {
 
 // getServicesForInitializers is a new helper similar to the one in usecases.go
 func (c *Container) getServicesForInitializers() (
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 	err error,
 ) {
 	// This logic is duplicated from the UseCaseInitializer, which is a sign it should
@@ -472,32 +472,32 @@ func (c *Container) getServicesForInitializers() (
 
 	// Get auth service from provider manager
 	if authProvider := c.providers.GetAuthProvider(); authProvider != nil {
-		if authService, ok := authProvider.(ports.AuthorizationService); ok {
+		if authService, ok := authProvider.(ports.Authorizer); ok {
 			authSvc = authService
 		}
 	}
 	// Fallback to mock if needed
 	if authSvc == nil {
-		authSvc, _ = c.services.Auth.(ports.AuthorizationService)
+		authSvc, _ = c.services.Auth.(ports.Authorizer)
 	}
 
 	// Get ID service from provider manager
 	if idProvider := c.providers.GetIDProvider(); idProvider != nil {
-		if idWrapper, ok := idProvider.(interface{ GetIDService() ports.IDService }); ok {
+		if idWrapper, ok := idProvider.(interface{ GetIDService() ports.IDGenerator }); ok {
 			idSvc = idWrapper.GetIDService()
 		}
 	}
 	if idSvc == nil {
-		idSvc, _ = c.services.IDGen.(ports.IDService)
+		idSvc, _ = c.services.IDGen.(ports.IDGenerator)
 	}
 
-	txSvc, _ = c.services.Transaction.(ports.TransactionService)
+	txSvc, _ = c.services.Transaction.(ports.Transactor)
 
-	// Extract TranslationService from wrapper or direct assignment
+	// Extract Translator from wrapper or direct assignment
 	if wrapper, ok := c.services.Translation.(*translationServiceWrapper); ok {
 		i18nSvc = wrapper.svc
 	} else {
-		i18nSvc, _ = c.services.Translation.(ports.TranslationService)
+		i18nSvc, _ = c.services.Translation.(ports.Translator)
 	}
 
 	return authSvc, txSvc, i18nSvc, idSvc, nil

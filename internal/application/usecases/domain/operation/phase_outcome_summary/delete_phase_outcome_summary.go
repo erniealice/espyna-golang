@@ -15,9 +15,9 @@ type DeletePhaseOutcomeSummaryRepositories struct {
 }
 
 type DeletePhaseOutcomeSummaryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeletePhaseOutcomeSummaryUseCase handles the business logic for deleting phase outcome summaries
@@ -40,7 +40,7 @@ func NewDeletePhaseOutcomeSummaryUseCase(
 // Execute performs the delete phase outcome summary operation
 func (uc *DeletePhaseOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.DeletePhaseOutcomeSummaryRequest) (*pb.DeletePhaseOutcomeSummaryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPhaseOutcomeSummary, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *DeletePhaseOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -63,7 +63,7 @@ func (uc *DeletePhaseOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb
 func (uc *DeletePhaseOutcomeSummaryUseCase) executeWithTransaction(ctx context.Context, req *pb.DeletePhaseOutcomeSummaryRequest) (*pb.DeletePhaseOutcomeSummaryResponse, error) {
 	var result *pb.DeletePhaseOutcomeSummaryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -84,12 +84,12 @@ func (uc *DeletePhaseOutcomeSummaryUseCase) executeCore(ctx context.Context, req
 		Data: &pb.PhaseOutcomeSummary{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.errors.not_found", "[ERR-DEFAULT] Phase outcome summary not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.errors.not_found", "[ERR-DEFAULT] Phase outcome summary not found"))
 	}
 
 	resp, err := uc.repositories.PhaseOutcomeSummary.DeletePhaseOutcomeSummary(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.errors.deletion_failed", "[ERR-DEFAULT] Phase outcome summary deletion failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.errors.deletion_failed", "[ERR-DEFAULT] Phase outcome summary deletion failed"))
 	}
 	return resp, nil
 }
@@ -97,13 +97,13 @@ func (uc *DeletePhaseOutcomeSummaryUseCase) executeCore(ctx context.Context, req
 // validateInput validates the input request
 func (uc *DeletePhaseOutcomeSummaryUseCase) validateInput(ctx context.Context, req *pb.DeletePhaseOutcomeSummaryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.data_required", "[ERR-DEFAULT] Phase outcome summary data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.data_required", "[ERR-DEFAULT] Phase outcome summary data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.id_required", "[ERR-DEFAULT] Phase outcome summary ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.id_required", "[ERR-DEFAULT] Phase outcome summary ID is required"))
 	}
 	return nil
 }

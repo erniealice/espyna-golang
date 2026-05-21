@@ -74,9 +74,9 @@ type reporter interface {
 // Deps groups the construction-time dependencies. `Reporter` carries
 // `any` from the umbrella; the assertion happens inside this package.
 type Deps struct {
-	Reporter             any
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Reporter   any
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UseCases aggregates every statement + balance use case.
@@ -141,23 +141,23 @@ func NewUseCases(deps *Deps) *UseCases {
 	return &UseCases{
 		GetClientStatement: NewGetClientStatementUseCase(
 			r,
-			deps.AuthorizationService,
-			deps.TranslationService,
+			deps.Authorizer,
+			deps.Translator,
 		),
 		GetSupplierStatement: NewGetSupplierStatementUseCase(
 			r,
-			deps.AuthorizationService,
-			deps.TranslationService,
+			deps.Authorizer,
+			deps.Translator,
 		),
 		ListClientBalances: NewListClientBalancesUseCase(
 			r,
-			deps.AuthorizationService,
-			deps.TranslationService,
+			deps.Authorizer,
+			deps.Translator,
 		),
 		ListSupplierBalances: NewListSupplierBalancesUseCase(
 			r,
-			deps.AuthorizationService,
-			deps.TranslationService,
+			deps.Authorizer,
+			deps.Translator,
 		),
 	}
 }

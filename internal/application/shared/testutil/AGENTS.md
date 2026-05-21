@@ -27,10 +27,10 @@ ctx := testutil.CreateTestContextWithUser("custom-user-id")
 services := testutil.CreateStandardServices(supportsTransaction, shouldAuthorize)
 
 // Access individual services
-authService := services.AuthorizationService
-transactionService := services.TransactionService
-translationService := services.TranslationService
-idService := services.IDService  // ALWAYS included
+authorizer := services.Authorizer
+transactor := services.Transactor
+translator := services.Translator
+idGenerator := services.IDGenerator  // ALWAYS included
 ```
 
 ### 3. Error Assertion Helpers (`errors.go`)
@@ -80,7 +80,7 @@ func (uc *UseCase) Execute(ctx context.Context, req *Request) (*Response, error)
     // Validation, business logic, data enrichment
 
     // Transaction decision
-    if uc.services.TransactionService.SupportsTransactions() {
+    if uc.services.Transactor.SupportsTransactions() {
         return uc.executeWithTransaction(ctx, req, enrichedData)
     }
     return uc.executeCore(ctx, req, enrichedData)
@@ -105,10 +105,10 @@ func createTest[Operation][Entity]UseCase(businessType string, supportsTransacti
 
     standardServices := testutil.CreateStandardServices(supportsTransaction, true)
     services := [Operation][Entity]Services{
-        AuthorizationService: standardServices.AuthorizationService,
-        TransactionService:   standardServices.TransactionService,
-        TranslationService:   standardServices.TranslationService,
-        IDService:           standardServices.IDService,  // Include if service struct has it
+        Authorizer:  standardServices.Authorizer,
+        Transactor:  standardServices.Transactor,
+        Translator:  standardServices.Translator,
+        IDGenerator: standardServices.IDGenerator,  // Include if service struct has it
     }
 
     return New[Operation][Entity]UseCase(repositories, services)

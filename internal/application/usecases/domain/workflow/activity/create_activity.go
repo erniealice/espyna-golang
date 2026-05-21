@@ -24,10 +24,10 @@ type CreateActivityRepositories struct {
 
 // CreateActivityServices groups all business service dependencies
 type CreateActivityServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateActivityUseCase handles the business logic for creating activities
@@ -57,10 +57,10 @@ func NewCreateActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 	}
 
 	services := CreateActivityServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateActivityUseCase(repositories, services)
@@ -69,14 +69,14 @@ func NewCreateActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 // Execute performs the create activity operation
 func (uc *CreateActivityUseCase) Execute(ctx context.Context, req *activitypb.CreateActivityRequest) (*activitypb.CreateActivityResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"activity", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
 	}
 
 	// Business validation
@@ -93,7 +93,7 @@ func (uc *CreateActivityUseCase) Execute(ctx context.Context, req *activitypb.Cr
 	enrichedActivity := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedActivity)
 	}
 
@@ -105,10 +105,10 @@ func (uc *CreateActivityUseCase) Execute(ctx context.Context, req *activitypb.Cr
 func (uc *CreateActivityUseCase) executeWithTransaction(ctx context.Context, enrichedActivity *activitypb.Activity) (*activitypb.CreateActivityResponse, error) {
 	var result *activitypb.CreateActivityResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedActivity)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "activity.errors.creation_failed", "Activity creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "activity.errors.creation_failed", "Activity creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -135,8 +135,8 @@ func (uc *CreateActivityUseCase) applyBusinessLogic(activity *activitypb.Activit
 
 	// Business logic: Generate Activity ID if not provided
 	if activity.Id == "" {
-		if uc.services.IDService != nil {
-			activity.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			activity.Id = uc.services.IDGenerator.GenerateID()
 		} else {
 			// Fallback to timestamp-based ID for defensive programming
 			activity.Id = fmt.Sprintf("activity-%d", now.UnixNano())
@@ -165,7 +165,7 @@ func (uc *CreateActivityUseCase) applyBusinessLogic(activity *activitypb.Activit
 func (uc *CreateActivityUseCase) validateForeignKeys(ctx context.Context, activity *activitypb.Activity) error {
 	// Foreign key validation: Stage must exist and be active
 	if activity.StageId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.stage_id_required", "Stage ID is required for activities [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.stage_id_required", "Stage ID is required for activities [DEFAULT]"))
 	}
 
 	// Check stage exists
@@ -176,18 +176,18 @@ func (uc *CreateActivityUseCase) validateForeignKeys(ctx context.Context, activi
 	}
 	stageRes, err := uc.repositories.Stage.ReadStage(ctx, stageReadReq)
 	if err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.stage_not_found", "Stage not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.stage_not_found", "Stage not found [DEFAULT]"))
 	}
 	if stageRes == nil || len(stageRes.Data) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.stage_not_found", "Stage not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.stage_not_found", "Stage not found [DEFAULT]"))
 	}
 	if !stageRes.Data[0].Active {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.stage_inactive", "Stage is inactive [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.stage_inactive", "Stage is inactive [DEFAULT]"))
 	}
 
 	// Foreign key validation: Activity template must exist and be active
 	if activity.ActivityTemplateId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.activity_template_id_required", "Activity template ID is required for activities [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.activity_template_id_required", "Activity template ID is required for activities [DEFAULT]"))
 	}
 
 	// Check activity template exists
@@ -198,13 +198,13 @@ func (uc *CreateActivityUseCase) validateForeignKeys(ctx context.Context, activi
 	}
 	activityTemplateRes, err := uc.repositories.ActivityTemplate.ReadActivityTemplate(ctx, activityTemplateReadReq)
 	if err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.activity_template_not_found", "Activity template not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.activity_template_not_found", "Activity template not found [DEFAULT]"))
 	}
 	if activityTemplateRes == nil || len(activityTemplateRes.Data) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.activity_template_not_found", "Activity template not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.activity_template_not_found", "Activity template not found [DEFAULT]"))
 	}
 	if !activityTemplateRes.Data[0].Active {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.activity_template_inactive", "Activity template is inactive [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.activity_template_inactive", "Activity template is inactive [DEFAULT]"))
 	}
 
 	return nil
@@ -214,98 +214,98 @@ func (uc *CreateActivityUseCase) validateForeignKeys(ctx context.Context, activi
 func (uc *CreateActivityUseCase) validateBusinessRules(ctx context.Context, activity *activitypb.Activity) error {
 	// Business rule: Required data validation
 	if activity == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.data_required", "Activity data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.data_required", "Activity data is required [DEFAULT]"))
 	}
 
 	// Business rule: Name is required
 	if activity.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.name_required", "Activity name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.name_required", "Activity name is required [DEFAULT]"))
 	}
 
 	// Business rule: Name length constraints
 	if len(activity.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.name_too_short", "Activity name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.name_too_short", "Activity name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(activity.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.name_too_long", "Activity name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.name_too_long", "Activity name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Business rule: Name format validation (alphanumeric, spaces, hyphens, underscores)
 	if err := uc.validateActivityName(activity.Name); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.name_invalid", "Activity name contains invalid characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.name_invalid", "Activity name contains invalid characters [DEFAULT]"))
 	}
 
 	// Business rule: Description length constraints
 	if activity.Description != nil && len(*activity.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.description_too_long", "Activity description cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.description_too_long", "Activity description cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// Business rule: Assigned to format validation if provided
 	if activity.AssignedTo != nil && *activity.AssignedTo != "" {
 		if len(*activity.AssignedTo) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.assigned_to_invalid", "Assigned to field is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.assigned_to_invalid", "Assigned to field is invalid [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Completed by format validation if provided
 	if activity.CompletedBy != nil && *activity.CompletedBy != "" {
 		if len(*activity.CompletedBy) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.completed_by_invalid", "Completed by field is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.completed_by_invalid", "Completed by field is invalid [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Due date validation if provided
 	if activity.DateDue != nil && *activity.DateDue > 0 {
 		if *activity.DateDue < time.Now().UnixMilli() {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.due_date_past", "Due date cannot be in the past [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.due_date_past", "Due date cannot be in the past [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Completion percentage validation if provided
 	if activity.CompletionPercentage != nil {
 		if *activity.CompletionPercentage < 0 || *activity.CompletionPercentage > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.completion_percentage_invalid", "Completion percentage must be between 0 and 100 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.completion_percentage_invalid", "Completion percentage must be between 0 and 100 [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Duration validation if provided
 	if activity.EstimatedDurationMinutes != nil && *activity.EstimatedDurationMinutes > 0 {
 		if *activity.EstimatedDurationMinutes < 1 || *activity.EstimatedDurationMinutes > 10080 { // Max 1 week in minutes
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.estimated_duration_invalid", "Estimated duration must be between 1 and 10080 minutes [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.estimated_duration_invalid", "Estimated duration must be between 1 and 10080 minutes [DEFAULT]"))
 		}
 	}
 
 	if activity.ActualDurationMinutes != nil && *activity.ActualDurationMinutes > 0 {
 		if *activity.ActualDurationMinutes < 0 || *activity.ActualDurationMinutes > 10080 { // Max 1 week in minutes
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.actual_duration_invalid", "Actual duration must be between 0 and 10080 minutes [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.actual_duration_invalid", "Actual duration must be between 0 and 10080 minutes [DEFAULT]"))
 		}
 	}
 
 	// Business rule: JSON field length validation if provided
 	if activity.InputDataJson != nil && len(*activity.InputDataJson) > 10000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.input_data_too_long", "Input data JSON cannot exceed 10000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.input_data_too_long", "Input data JSON cannot exceed 10000 characters [DEFAULT]"))
 	}
 
 	if activity.OutputDataJson != nil && len(*activity.OutputDataJson) > 10000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.output_data_too_long", "Output data JSON cannot exceed 10000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.output_data_too_long", "Output data JSON cannot exceed 10000 characters [DEFAULT]"))
 	}
 
 	if activity.ResultJson != nil && len(*activity.ResultJson) > 10000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.result_json_too_long", "Result JSON cannot exceed 10000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.result_json_too_long", "Result JSON cannot exceed 10000 characters [DEFAULT]"))
 	}
 
 	// Business rule: Text field length validation if provided
 	if activity.ErrorMessage != nil && len(*activity.ErrorMessage) > 2000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.error_message_too_long", "Error message cannot exceed 2000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.error_message_too_long", "Error message cannot exceed 2000 characters [DEFAULT]"))
 	}
 
 	if activity.ApprovalComments != nil && len(*activity.ApprovalComments) > 2000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.approval_comments_too_long", "Approval comments cannot exceed 2000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.approval_comments_too_long", "Approval comments cannot exceed 2000 characters [DEFAULT]"))
 	}
 
 	if activity.RejectionReason != nil && len(*activity.RejectionReason) > 2000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.rejection_reason_too_long", "Rejection reason cannot exceed 2000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.rejection_reason_too_long", "Rejection reason cannot exceed 2000 characters [DEFAULT]"))
 	}
 
 	return nil

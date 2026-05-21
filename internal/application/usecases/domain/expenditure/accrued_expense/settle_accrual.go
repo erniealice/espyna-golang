@@ -23,7 +23,7 @@
 // --------------------
 // The use case wraps the entire (validate -> insert settlement -> read
 // peer settlements -> recompute parent -> update parent) sequence in a
-// single transaction via the platform TransactionService. The adapter
+// single transaction via the platform Transactor. The adapter
 // layer is expected to take a row-level lock on the parent
 // AccruedExpense row (`SELECT ... FOR UPDATE`) before reading peer
 // settlements so concurrent SettleAccrual calls for the same accrual
@@ -85,10 +85,10 @@ type SettleAccrualRepositories struct {
 
 // SettleAccrualServices groups service dependencies.
 type SettleAccrualServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // SettleAccrualUseCase is the SOLE writer of
@@ -129,7 +129,7 @@ func (uc *SettleAccrualUseCase) SettleAccrual(
 	ctx context.Context,
 	request *accruedexpensepb.SettleAccrualRequest,
 ) (*accruedexpensepb.SettleAccrualResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccruedExpenseSettle, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -141,9 +141,9 @@ func (uc *SettleAccrualUseCase) SettleAccrual(
 	// Always run inside a transaction. Without it the read-modify-write
 	// on the parent row races concurrent settlements for the same
 	// accrual.
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *accruedexpensepb.SettleAccrualResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, request)
 			if err != nil {
 				return err
@@ -153,14 +153,14 @@ func (uc *SettleAccrualUseCase) SettleAccrual(
 		})
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w",
-				contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+				contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 					"accrued_expense.errors.settle_failed",
 					"[ERR-DEFAULT] Failed to settle accrued expense"), err)
 		}
 		return result, nil
 	}
 	// No-tx fallback for mock/test environments. The race window is
-	// real but the platform contracts guarantee TransactionService is
+	// real but the platform contracts guarantee Transactor is
 	// always supplied in production.
 	return uc.executeCore(ctx, request)
 }
@@ -173,27 +173,27 @@ func (uc *SettleAccrualUseCase) validateRequest(
 	request *accruedexpensepb.SettleAccrualRequest,
 ) error {
 	if request == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.settle_request_required",
 			"Settle accrual request is required [DEFAULT]"))
 	}
 	if request.GetAccruedExpenseId() == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.id_required",
 			"Accrued expense ID is required [DEFAULT]"))
 	}
 	if request.GetExpenditureId() == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.expenditure_id_required",
 			"Settling expenditure ID is required [DEFAULT]"))
 	}
 	if request.GetAmountSettled() <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.amount_positive",
 			"Settlement amount must be greater than zero [DEFAULT]"))
 	}
 	if request.GetCurrency() == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.validation.currency_required",
 			"Settlement currency is required [DEFAULT]"))
 	}
@@ -217,14 +217,14 @@ func (uc *SettleAccrualUseCase) executeCore(
 	}
 	parents := parentResp.GetData()
 	if len(parents) == 0 || parents[0] == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.errors.not_found",
 			"Accrued expense not found [DEFAULT]"))
 	}
 	parent := parents[0]
 
 	if parent.GetStatus() == accruedexpensepb.AccruedExpenseStatus_ACCRUED_EXPENSE_STATUS_REVERSED {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.errors.cannot_settle_reversed",
 			"Cannot settle a reversed accrual [DEFAULT]"))
 	}
@@ -233,7 +233,7 @@ func (uc *SettleAccrualUseCase) executeCore(
 		// Cross-currency settlement is allowed only with an explicit
 		// FX rate. Without one we cannot recompute the parent's
 		// settled_amount in its native currency.
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"accrued_expense.errors.fx_rate_required",
 			"FX rate is required when settling in a different currency [DEFAULT]"))
 	}
@@ -403,13 +403,13 @@ func nextStatus(
 }
 
 // generateID returns a fresh id, falling back to an empty string when
-// the IDService is not wired (the adapter is then responsible for
+// the IDGenerator is not wired (the adapter is then responsible for
 // assigning ids).
 func (uc *SettleAccrualUseCase) generateID() string {
-	if uc.services.IDService == nil {
+	if uc.services.IDGenerator == nil {
 		return ""
 	}
-	return uc.services.IDService.GenerateID()
+	return uc.services.IDGenerator.GenerateID()
 }
 
 // --- small helpers for proto optional fields -------------------------

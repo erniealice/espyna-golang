@@ -16,9 +16,9 @@ type TransitionStatusRepositories struct {
 	Fulfillment pb.FulfillmentDomainServiceServer
 }
 type TransitionStatusServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 type TransitionStatusUseCase struct {
 	repositories TransitionStatusRepositories
@@ -31,20 +31,20 @@ type TransitionStatusUseCase struct {
 // legal, then atomically updates the status and inserts a status event via the
 // adapter's TransitionStatus RPC.
 func (uc *TransitionStatusUseCase) Execute(ctx context.Context, req *pb.TransitionStatusRequest) (*pb.TransitionStatusResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "fulfillment", ports.ActionUpdate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.FulfillmentId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.validation.id_required", "fulfillment ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.validation.id_required", "fulfillment ID is required [DEFAULT]"))
 	}
 	if req.Event == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.validation.event_required", "transition event is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.validation.event_required", "transition event is required [DEFAULT]"))
 	}
 
 	// Read current fulfillment to obtain current status.
 	current, err := uc.repositories.Fulfillment.GetFulfillment(ctx, &pb.GetFulfillmentRequest{Id: req.FulfillmentId})
 	if err != nil || current == nil || current.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.errors.not_found", "fulfillment not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.errors.not_found", "fulfillment not found [DEFAULT]"))
 	}
 
 	currentStatus := FulfillmentStatus(current.Data.Status)
@@ -53,14 +53,14 @@ func (uc *TransitionStatusUseCase) Execute(ctx context.Context, req *pb.Transiti
 	// Validate via state machine — returns target status or ErrInvalidTransition.
 	_, err = ValidateTransition(currentStatus, event)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.errors.invalid_transition", err.Error()))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.errors.invalid_transition", err.Error()))
 	}
 
 	// Execute the transition (atomically updates status + inserts event log) within
 	// a transaction if available.
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		var result *pb.TransitionStatusResponse
-		txErr := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		txErr := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.Fulfillment.TransitionStatus(txCtx, req)
 			if err != nil {
 				return err

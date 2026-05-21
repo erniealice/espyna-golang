@@ -46,10 +46,10 @@ type RecognizeMilestoneAdvanceCollectionRepositories struct {
 
 // RecognizeMilestoneAdvanceCollectionServices groups infra services.
 type RecognizeMilestoneAdvanceCollectionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // RecognizeMilestoneAdvanceCollectionUseCase wires Plan B's MILESTONE
@@ -71,7 +71,7 @@ func NewRecognizeMilestoneAdvanceCollectionUseCase(
 
 // Execute recognizes one MILESTONE tranche from the advance Collection.
 //
-// Flow (single tx — caller may pass a tx-bound ctx via TransactionService):
+// Flow (single tx — caller may pass a tx-bound ctx via Transactor):
 //  1. authcheck (treasury_collection:update + revenue:create).
 //  2. Read + lock the advance Collection (SELECT FOR UPDATE — adapter honors
 //     the active tx).
@@ -90,32 +90,32 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) Execute(
 	if req == nil {
 		req = &collectionpb.RecognizeMilestoneAdvanceCollectionRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTreasuryCollection, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"revenue", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryCollectionId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.validation.id_required",
 			"treasury_collection_id is required [DEFAULT]",
 		))
 	}
 	if strings.TrimSpace(req.GetBillingEventId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.validation.billing_event_id_required",
 			"billing_event_id is required [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *collectionpb.RecognizeMilestoneAdvanceCollectionResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return execErr
@@ -144,7 +144,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.not_found",
 			"treasury_collection not found [DEFAULT]",
 		))
@@ -155,7 +155,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	// 2. Validate advance kind/status.
 	if adv.GetAdvanceKind() != advancekindpb.AdvanceKind_ADVANCE_KIND_MILESTONE {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.recognize_milestone_requires_milestone",
 			"RecognizeMilestoneAdvance requires advance_kind=MILESTONE [DEFAULT]",
 		))
@@ -163,7 +163,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	}
 	if adv.GetAdvanceStatus() != advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.recognize_requires_active",
 			"RecognizeMilestoneAdvance requires advance_status=ACTIVE [DEFAULT]",
 		))
@@ -180,7 +180,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	}
 	if junction == nil {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.junction_not_found",
 			"collection_billing_event junction not found [DEFAULT]",
 		))
@@ -209,7 +209,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	}
 	if beResp == nil || len(beResp.GetData()) == 0 {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"billing_event.errors.not_found",
 			"billing_event not found [DEFAULT]",
 		))
@@ -218,7 +218,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) executeCore(
 	be := beResp.GetData()[0]
 	if be.GetStatus() != billingeventpb.BillingEventStatus_BILLING_EVENT_STATUS_BILLED {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.billing_event_not_billed",
 			"BillingEvent must be in BILLED status to recognize [DEFAULT]",
 		))
@@ -287,7 +287,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) findJunction(
 ) (*junctionpb.CollectionBillingEvent, error) {
 	if uc.repositories.CollectionBillingEvent == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_collection.errors.junction_repo_unavailable",
 			"collection_billing_event repository is not configured [DEFAULT]",
 		))
@@ -340,7 +340,7 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) insertRevenue(
 	req *collectionpb.RecognizeMilestoneAdvanceCollectionRequest,
 	tranche int64,
 ) (string, error) {
-	revenueID := uc.services.IDService.GenerateID()
+	revenueID := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)

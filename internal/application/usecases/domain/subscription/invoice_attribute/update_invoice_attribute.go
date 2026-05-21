@@ -24,9 +24,9 @@ type UpdateInvoiceAttributeRepositories struct {
 
 // UpdateInvoiceAttributeServices groups all business service dependencies
 type UpdateInvoiceAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateInvoiceAttributeUseCase handles the business logic for updating invoice attributes
@@ -49,7 +49,7 @@ func NewUpdateInvoiceAttributeUseCase(
 // Execute performs the update invoice attribute operation
 func (uc *UpdateInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoiceattributepb.UpdateInvoiceAttributeRequest) (*invoiceattributepb.UpdateInvoiceAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInvoiceAttribute, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *UpdateInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoi
 
 	// Business logic and enrichment
 	if err := uc.enrichInvoiceAttributeData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -73,7 +73,7 @@ func (uc *UpdateInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoi
 	// Call repository
 	resp, err := uc.repositories.InvoiceAttribute.UpdateInvoiceAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.update_failed", "Invoice attribute update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.update_failed", "Invoice attribute update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -83,13 +83,13 @@ func (uc *UpdateInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoi
 // validateInput validates the input request
 func (uc *UpdateInvoiceAttributeUseCase) validateInput(ctx context.Context, req *invoiceattributepb.UpdateInvoiceAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -113,16 +113,16 @@ func (uc *UpdateInvoiceAttributeUseCase) validateEntityReferences(ctx context.Co
 			Data: &invoicepb.Invoice{Id: invoiceAttribute.InvoiceId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.invoice_reference_validation_failed", "Failed to validate invoice entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.invoice_reference_validation_failed", "Failed to validate invoice entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if invoice == nil || invoice.Data == nil || len(invoice.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.invoice_not_found", "Invoice not found [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.invoice_not_found", "Invoice not found [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{invoiceId}", invoiceAttribute.InvoiceId)
 			return errors.New(translatedError)
 		}
 		if !invoice.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.invoice_not_active", "Referenced invoice with ID '{invoiceId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.invoice_not_active", "Referenced invoice with ID '{invoiceId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{invoiceId}", invoiceAttribute.InvoiceId)
 			return errors.New(translatedError)
 		}
@@ -134,16 +134,16 @@ func (uc *UpdateInvoiceAttributeUseCase) validateEntityReferences(ctx context.Co
 			Data: &attributepb.Attribute{Id: invoiceAttribute.AttributeId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.attribute_not_found", "Attribute not found [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.attribute_not_found", "Attribute not found [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", invoiceAttribute.AttributeId)
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", invoiceAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

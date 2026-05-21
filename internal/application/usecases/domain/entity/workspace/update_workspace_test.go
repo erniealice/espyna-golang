@@ -32,9 +32,9 @@ func createTestUpdateWorkspaceUseCase(businessType string) *UpdateWorkspaceUseCa
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := UpdateWorkspaceServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateWorkspaceUseCase(repositories, services)
@@ -116,7 +116,7 @@ func TestUpdateWorkspaceUseCase_Execute_ValidationErrors(t *testing.T) {
 			req := &workspacepb.UpdateWorkspaceRequest{Data: tc.workspace}
 			_, err := useCase.Execute(ctx, req)
 			testutil.AssertError(t, err)
-			testutil.AssertTranslatedError(t, err, tc.expectedErrorKey, useCase.services.TranslationService, ctx)
+			testutil.AssertTranslatedError(t, err, tc.expectedErrorKey, useCase.services.Translator, ctx)
 		})
 	}
 }

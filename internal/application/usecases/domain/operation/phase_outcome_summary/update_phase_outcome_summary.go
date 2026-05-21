@@ -16,9 +16,9 @@ type UpdatePhaseOutcomeSummaryRepositories struct {
 }
 
 type UpdatePhaseOutcomeSummaryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdatePhaseOutcomeSummaryUseCase handles the business logic for updating phase outcome summaries
@@ -41,7 +41,7 @@ func NewUpdatePhaseOutcomeSummaryUseCase(
 // Execute performs the update phase outcome summary operation
 func (uc *UpdatePhaseOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.UpdatePhaseOutcomeSummaryRequest) (*pb.UpdatePhaseOutcomeSummaryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPhaseOutcomeSummary, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *UpdatePhaseOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req, enrichedData)
 	}
 
@@ -72,7 +72,7 @@ func (uc *UpdatePhaseOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb
 func (uc *UpdatePhaseOutcomeSummaryUseCase) executeWithTransaction(ctx context.Context, req *pb.UpdatePhaseOutcomeSummaryRequest, enrichedData *pb.PhaseOutcomeSummary) (*pb.UpdatePhaseOutcomeSummaryResponse, error) {
 	var result *pb.UpdatePhaseOutcomeSummaryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req, enrichedData)
 		if err != nil {
 			return err
@@ -93,14 +93,14 @@ func (uc *UpdatePhaseOutcomeSummaryUseCase) executeCore(ctx context.Context, req
 		Data: &pb.PhaseOutcomeSummary{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.errors.not_found", "[ERR-DEFAULT] Phase outcome summary not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.errors.not_found", "[ERR-DEFAULT] Phase outcome summary not found"))
 	}
 
 	resp, err := uc.repositories.PhaseOutcomeSummary.UpdatePhaseOutcomeSummary(ctx, &pb.UpdatePhaseOutcomeSummaryRequest{
 		Data: enrichedData,
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.errors.update_failed", "[ERR-DEFAULT] Phase outcome summary update failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.errors.update_failed", "[ERR-DEFAULT] Phase outcome summary update failed"))
 	}
 	return resp, nil
 }
@@ -116,13 +116,13 @@ func (uc *UpdatePhaseOutcomeSummaryUseCase) applyBusinessLogic(data *pb.PhaseOut
 // validateInput validates the input request
 func (uc *UpdatePhaseOutcomeSummaryUseCase) validateInput(ctx context.Context, req *pb.UpdatePhaseOutcomeSummaryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.data_required", "[ERR-DEFAULT] Phase outcome summary data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.data_required", "[ERR-DEFAULT] Phase outcome summary data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.id_required", "[ERR-DEFAULT] Phase outcome summary ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.id_required", "[ERR-DEFAULT] Phase outcome summary ID is required"))
 	}
 	return nil
 }
@@ -130,10 +130,10 @@ func (uc *UpdatePhaseOutcomeSummaryUseCase) validateInput(ctx context.Context, r
 // validateBusinessRules enforces business constraints
 func (uc *UpdatePhaseOutcomeSummaryUseCase) validateBusinessRules(ctx context.Context, data *pb.PhaseOutcomeSummary) error {
 	if data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.data_required", "[ERR-DEFAULT] Phase outcome summary data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.data_required", "[ERR-DEFAULT] Phase outcome summary data is required"))
 	}
 	if data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.id_required", "[ERR-DEFAULT] Phase outcome summary ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.id_required", "[ERR-DEFAULT] Phase outcome summary ID is required"))
 	}
 	return nil
 }

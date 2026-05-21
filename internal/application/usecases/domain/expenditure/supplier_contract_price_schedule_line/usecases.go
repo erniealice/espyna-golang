@@ -12,10 +12,10 @@ type SupplierContractPriceScheduleLineRepositories struct {
 
 // SupplierContractPriceScheduleLineServices groups all service dependencies.
 type SupplierContractPriceScheduleLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all schedule-line use cases.
@@ -37,45 +37,45 @@ func NewUseCases(
 		CreateSupplierContractPriceScheduleLine: NewCreateSupplierContractPriceScheduleLineUseCase(
 			CreateSupplierContractPriceScheduleLineRepositories{SupplierContractPriceScheduleLine: repositories.SupplierContractPriceScheduleLine},
 			CreateSupplierContractPriceScheduleLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadSupplierContractPriceScheduleLine: NewReadSupplierContractPriceScheduleLineUseCase(
 			ReadSupplierContractPriceScheduleLineRepositories{SupplierContractPriceScheduleLine: repositories.SupplierContractPriceScheduleLine},
 			ReadSupplierContractPriceScheduleLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateSupplierContractPriceScheduleLine: NewUpdateSupplierContractPriceScheduleLineUseCase(
 			UpdateSupplierContractPriceScheduleLineRepositories{SupplierContractPriceScheduleLine: repositories.SupplierContractPriceScheduleLine},
 			UpdateSupplierContractPriceScheduleLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteSupplierContractPriceScheduleLine: NewDeleteSupplierContractPriceScheduleLineUseCase(
 			DeleteSupplierContractPriceScheduleLineRepositories{SupplierContractPriceScheduleLine: repositories.SupplierContractPriceScheduleLine},
 			DeleteSupplierContractPriceScheduleLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListSupplierContractPriceScheduleLines: NewListSupplierContractPriceScheduleLinesUseCase(
 			ListSupplierContractPriceScheduleLinesRepositories{SupplierContractPriceScheduleLine: repositories.SupplierContractPriceScheduleLine},
 			ListSupplierContractPriceScheduleLinesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ResolveActiveScheduleLine: NewResolveActiveScheduleLineUseCase(
 			ResolveActiveScheduleLineRepositories{SupplierContractPriceScheduleLine: repositories.SupplierContractPriceScheduleLine},
 			ResolveActiveScheduleLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

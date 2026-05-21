@@ -137,7 +137,7 @@ func (uc *AdvanceWorkflowUseCase) Execute(ctx context.Context, req *enginepb.Adv
 		// Create activity instances from templates
 		now := time.Now()
 		for _, activityTemplate := range activityTemplates {
-			activityID := uc.services.IDService.GenerateID()
+			activityID := uc.services.IDGenerator.GenerateID()
 			activity := &activitypb.Activity{
 				Id:                       activityID,
 				StageId:                  currentStage.Id,
@@ -235,7 +235,7 @@ func (uc *AdvanceWorkflowUseCase) Execute(ctx context.Context, req *enginepb.Adv
 	}
 
 	// 6. Create Next Stage
-	newStageId := uc.services.IDService.GenerateID()
+	newStageId := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 	newStage := &stagepb.Stage{
 		Id:              newStageId,

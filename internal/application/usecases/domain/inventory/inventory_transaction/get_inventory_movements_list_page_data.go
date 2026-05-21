@@ -17,8 +17,8 @@ type GetInventoryMovementsListPageDataRepositories struct {
 
 // GetInventoryMovementsListPageDataServices groups service dependencies.
 type GetInventoryMovementsListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // GetInventoryMovementsListPageDataUseCase returns a JOIN-enriched movement list
@@ -45,13 +45,13 @@ func (uc *GetInventoryMovementsListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *inventorytransactionpb.GetInventoryMovementsListPageDataRequest,
 ) (*inventorytransactionpb.GetInventoryMovementsListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInventoryTransaction, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "inventory_transaction.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.InventoryTransaction.GetInventoryMovementsListPageData(ctx, req)

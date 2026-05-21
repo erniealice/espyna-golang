@@ -18,9 +18,9 @@ type GetUserItemPageDataRepositories struct {
 
 // GetUserItemPageDataServices groups all business service dependencies
 type GetUserItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetUserItemPageDataUseCase handles the business logic for getting user item page data
@@ -49,9 +49,9 @@ func NewGetUserItemPageDataUseCaseUngrouped(userRepo userpb.UserDomainServiceSer
 	}
 
 	services := GetUserItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetUserItemPageDataUseCase(repositories, services)
@@ -59,18 +59,18 @@ func NewGetUserItemPageDataUseCaseUngrouped(userRepo userpb.UserDomainServiceSer
 
 func (uc *GetUserItemPageDataUseCase) Execute(ctx context.Context, req *userpb.GetUserItemPageDataRequest) (*userpb.GetUserItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityUser, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.request_required", "Request is required for user item page data [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.request_required", "Request is required for user item page data [DEFAULT]"))
 	}
 
 	if req.UserId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.id_required", "User ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.id_required", "User ID is required [DEFAULT]"))
 	}
 
 	// Call repository
@@ -81,7 +81,7 @@ func (uc *GetUserItemPageDataUseCase) Execute(ctx context.Context, req *userpb.G
 
 	// Check if user was found
 	if resp.User == nil || resp.User.Id == "" {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{userId}", req.UserId)
 		return nil, errors.New(translatedError)
 	}

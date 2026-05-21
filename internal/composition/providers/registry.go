@@ -159,7 +159,7 @@ func (r *Registry) GetID() contracts.Provider {
 }
 
 // GetIDService returns the underlying ID service from the ID provider
-func (r *Registry) GetIDService() ports.IDService {
+func (r *Registry) GetIDService() ports.IDGenerator {
 	idProvider := r.infrastructure.GetID()
 	if idProvider == nil {
 		return nil

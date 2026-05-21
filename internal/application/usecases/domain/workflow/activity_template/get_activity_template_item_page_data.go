@@ -18,9 +18,9 @@ type GetActivityTemplateItemPageDataRepositories struct {
 }
 
 type GetActivityTemplateItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetActivityTemplateItemPageDataUseCase handles the business logic for getting activity template item page data
@@ -46,7 +46,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) Execute(
 	req *activityTemplatepb.GetActivityTemplateItemPageDataRequest,
 ) (*activityTemplatepb.GetActivityTemplateItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"activity_template", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -77,12 +77,12 @@ func (uc *GetActivityTemplateItemPageDataUseCase) executeWithTransaction(
 ) (*activityTemplatepb.GetActivityTemplateItemPageDataResponse, error) {
 	var result *activityTemplatepb.GetActivityTemplateItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"activity_template.errors.item_page_data_failed",
 				"activity template item page data retrieval failed: %w",
 			), err)
@@ -114,7 +114,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"activity_template.errors.read_failed",
 			"failed to retrieve activity template: %w",
 		), err)
@@ -123,7 +123,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"activity_template.errors.not_found",
 			"activity template not found",
 		))
@@ -136,7 +136,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) executeCore(
 	if activityTemplate.Id != req.ActivityTemplateId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"activity_template.errors.id_mismatch",
 			"retrieved activity template ID does not match requested ID",
 		))
@@ -164,7 +164,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"activity_template.validation.request_required",
 			"request is required",
 		))
@@ -173,7 +173,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) validateInput(
 	if req.ActivityTemplateId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"activity_template.validation.id_required",
 			"activity template ID is required",
 		))
@@ -191,7 +191,7 @@ func (uc *GetActivityTemplateItemPageDataUseCase) validateBusinessRules(
 	if len(activityTemplateId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"activity_template.validation.id_too_short",
 			"activity template ID is too short",
 		))

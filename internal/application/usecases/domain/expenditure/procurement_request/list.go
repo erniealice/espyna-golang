@@ -15,8 +15,8 @@ type ListProcurementRequestsRepositories struct {
 
 // ListProcurementRequestsServices groups service dependencies.
 type ListProcurementRequestsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListProcurementRequestsUseCase handles listing procurement requests.
@@ -35,7 +35,7 @@ func NewListProcurementRequestsUseCase(
 
 // Execute performs the list procurement requests operation.
 func (uc *ListProcurementRequestsUseCase) Execute(ctx context.Context, req *procurementrequestpb.ListProcurementRequestsRequest) (*procurementrequestpb.ListProcurementRequestsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequest, ports.ActionList); err != nil {
 		return nil, err
 	}

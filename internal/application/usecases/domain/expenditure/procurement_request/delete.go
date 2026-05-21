@@ -17,8 +17,8 @@ type DeleteProcurementRequestRepositories struct {
 
 // DeleteProcurementRequestServices groups service dependencies.
 type DeleteProcurementRequestServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // DeleteProcurementRequestUseCase handles deleting a procurement request.
@@ -37,12 +37,12 @@ func NewDeleteProcurementRequestUseCase(
 
 // Execute performs the delete procurement request operation.
 func (uc *DeleteProcurementRequestUseCase) Execute(ctx context.Context, req *procurementrequestpb.DeleteProcurementRequestRequest) (*procurementrequestpb.DeleteProcurementRequestResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequest, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.validation.id_required", "Procurement request ID is required [DEFAULT]"))
 	}
 	return uc.repositories.ProcurementRequest.DeleteProcurementRequest(ctx, req)

@@ -17,9 +17,9 @@ type GetSubscriptionAttributeListPageDataRepositories struct {
 
 // GetSubscriptionAttributeListPageDataServices groups all business service dependencies
 type GetSubscriptionAttributeListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSubscriptionAttributeListPageDataUseCase handles the business logic for getting subscription attribute list page data
@@ -42,7 +42,7 @@ func NewGetSubscriptionAttributeListPageDataUseCase(
 // Execute performs the get subscription attribute list page data operation
 func (uc *GetSubscriptionAttributeListPageDataUseCase) Execute(ctx context.Context, req *subscriptionattributepb.GetSubscriptionAttributeListPageDataRequest) (*subscriptionattributepb.GetSubscriptionAttributeListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscriptionAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *GetSubscriptionAttributeListPageDataUseCase) Execute(ctx context.Conte
 // validateInput validates the input request
 func (uc *GetSubscriptionAttributeListPageDataUseCase) validateInput(ctx context.Context, req *subscriptionattributepb.GetSubscriptionAttributeListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return nil
 }

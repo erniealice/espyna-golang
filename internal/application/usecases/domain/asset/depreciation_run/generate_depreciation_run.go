@@ -33,10 +33,10 @@ type GenerateDepreciationRunRepositories struct {
 
 // GenerateDepreciationRunServices groups all business service dependencies.
 type GenerateDepreciationRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // GenerateDepreciationRunUseCase executes a batch depreciation posting run.
@@ -47,7 +47,7 @@ type GenerateDepreciationRunServices struct {
 //  3. Per asset: maintain a running balance (BV + accumulated) that mutates after
 //     every successful period. processSinglePeriod consumes & returns this state.
 //     Each period's writes (INSERT asset_transaction + INSERT depreciation_schedule)
-//     run inside one TransactionService.ExecuteInTransaction call.
+//     run inside one Transactor.ExecuteInTransaction call.
 //     - On success: increment running balance and continue.
 //     - On unique-violation (DB partial-unique on asset_id, period_marker WHERE
 //     transaction_type='DEPRECIATION'): outcome=SKIPPED, running balance does
@@ -100,7 +100,7 @@ func (uc *GenerateDepreciationRunUseCase) Execute(
 	ctx context.Context,
 	req *deprunpb.GenerateDepreciationRunRequest,
 ) (*deprunpb.GenerateDepreciationRunResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetDepreciationRun, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (uc *GenerateDepreciationRunUseCase) Execute(
 	ctxWorkspaceID := contextutil.ExtractWorkspaceIDFromContext(ctx)
 	reqWorkspaceID := strings.TrimSpace(req.GetWorkspaceId())
 	if ctxWorkspaceID != "" && reqWorkspaceID != "" && ctxWorkspaceID != reqWorkspaceID {
-		// TODO: translate via TranslationService (Phase 7.3/8.2 owns lyngua wiring).
+		// TODO: translate via Translator (Phase 7.3/8.2 owns lyngua wiring).
 		return nil, fmt.Errorf("generate_depreciation_run: workspace context and request do not match")
 	}
 	workspaceID := reqWorkspaceID
@@ -124,7 +124,7 @@ func (uc *GenerateDepreciationRunUseCase) Execute(
 		workspaceID = ctxWorkspaceID
 	}
 	if workspaceID == "" {
-		// TODO: translate via TranslationService (Fix #4 deferred — codex L1).
+		// TODO: translate via Translator (Fix #4 deferred — codex L1).
 		// Suggested key: asset.assetDetail.depreciationRun.errors.workspaceRequired
 		return nil, errors.New("generate_depreciation_run: Workspace context required")
 	}
@@ -146,7 +146,7 @@ func (uc *GenerateDepreciationRunUseCase) Execute(
 	initiatorID := contextutil.ExtractWorkspaceUserIDFromContext(ctx)
 
 	// Step 1: INSERT parent run row (status=PENDING)
-	runID := uc.services.IDService.GenerateID()
+	runID := uc.services.IDGenerator.GenerateID()
 	now := time.Now().UTC().UnixMilli()
 	scopeID := req.GetScopeId()
 	run := &deprunpb.DepreciationRun{
@@ -274,7 +274,7 @@ func (uc *GenerateDepreciationRunUseCase) Execute(
 // or ERRORED, the caller MUST keep its existing running balance (codex C1).
 //
 // Atomicity (codex H1): the asset_transaction insert and the depreciation_schedule
-// insert run inside a single TransactionService.ExecuteInTransaction. Any error
+// insert run inside a single Transactor.ExecuteInTransaction. Any error
 // in either rolls back the tx; the schedule audit row for SKIPPED/ERRORED is
 // then written best-effort OUTSIDE the failed tx so the run history records
 // the attempt.
@@ -316,9 +316,9 @@ func (uc *GenerateDepreciationRunUseCase) processSinglePeriod(
 		txErr    error
 		isUnique bool
 	)
-	innerErr := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	innerErr := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		// INSERT asset_transaction (type=DEPRECIATION)
-		txID := uc.services.IDService.GenerateID()
+		txID := uc.services.IDGenerator.GenerateID()
 		txDate := time.Now().UTC().UnixMilli()
 		txDateStr := time.Now().UTC().Format("2006-01-02")
 		runID := run.GetId()
@@ -387,7 +387,7 @@ func (uc *GenerateDepreciationRunUseCase) persistAssetRunningBalance(
 	if uc.repositories.Asset == nil {
 		return nil
 	}
-	return uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	return uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		_, err := uc.repositories.Asset.UpdateAsset(txCtx, &assetpb.UpdateAssetRequest{
 			Data: &assetpb.Asset{
 				Id:                      assetID,
@@ -439,7 +439,7 @@ func (uc *GenerateDepreciationRunUseCase) insertScheduleEntry(
 	nowStr := time.Now().UTC().Format(time.RFC3339)
 
 	sch := &depschpb.DepreciationSchedule{
-		Id:                      uc.services.IDService.GenerateID(),
+		Id:                      uc.services.IDGenerator.GenerateID(),
 		AssetId:                 asset.GetId(),
 		PeriodStartDate:         pd.startDate,
 		PeriodEndDate:           pd.endDate,
@@ -474,7 +474,7 @@ func (uc *GenerateDepreciationRunUseCase) resolveAssets(
 	workspaceID string,
 ) ([]*assetpb.Asset, error) {
 	if strings.TrimSpace(workspaceID) == "" {
-		// TODO: translate via TranslationService (Fix #4 deferred — codex L1).
+		// TODO: translate via Translator (Fix #4 deferred — codex L1).
 		// Suggested key: asset.assetDetail.depreciationRun.errors.workspaceRequired
 		return nil, errors.New("generate_depreciation_run: Workspace context required for scope resolution")
 	}

@@ -16,18 +16,18 @@ import (
 // per-supplier chronological bill + disbursement ledger.
 type GetSupplierStatementUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetSupplierStatementUseCase wires the use case with nil-safe deps.
 func NewGetSupplierStatementUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetSupplierStatementUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetSupplierStatementUseCase{
 		reporter:             r,

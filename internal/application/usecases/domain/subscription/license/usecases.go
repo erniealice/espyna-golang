@@ -21,10 +21,10 @@ type LicenseRepositories struct {
 
 // LicenseServices groups all business service dependencies for license use cases
 type LicenseServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
-	IDService            ports.IDService            // UUID generation for licenses
+	Authorizer  ports.Authorizer  // RBAC and permissions
+	Transactor  ports.Transactor  // Database transactions
+	Translator  ports.Translator  // i18n error messages
+	IDGenerator ports.IDGenerator // UUID generation for licenses
 }
 
 // UseCases contains all license-related use cases
@@ -68,10 +68,10 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	createServices := CreateLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	// Read License
@@ -79,9 +79,9 @@ func NewUseCases(
 		License: repositories.License,
 	}
 	readServices := ReadLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Update License
@@ -90,9 +90,9 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	updateServices := UpdateLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Delete License
@@ -101,9 +101,9 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	deleteServices := DeleteLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// List Licenses
@@ -111,9 +111,9 @@ func NewUseCases(
 		License: repositories.License,
 	}
 	listServices := ListLicensesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Get License List Page Data
@@ -121,8 +121,8 @@ func NewUseCases(
 		License: repositories.License,
 	}
 	getListPageDataServices := GetLicenseListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Get License Item Page Data
@@ -130,8 +130,8 @@ func NewUseCases(
 		License: repositories.License,
 	}
 	getItemPageDataServices := GetLicenseItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Create Licenses From Plan
@@ -141,10 +141,10 @@ func NewUseCases(
 		Plan:         repositories.Plan,
 	}
 	createFromPlanServices := CreateLicensesFromPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	// Assign License
@@ -154,9 +154,9 @@ func NewUseCases(
 		Client:       repositories.Client,
 	}
 	assignServices := AssignLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Revoke License Assignment
@@ -165,9 +165,9 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	revokeServices := RevokeLicenseAssignmentServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Reassign License
@@ -177,9 +177,9 @@ func NewUseCases(
 		Client:       repositories.Client,
 	}
 	reassignServices := ReassignLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Suspend License
@@ -187,9 +187,9 @@ func NewUseCases(
 		License: repositories.License,
 	}
 	suspendServices := SuspendLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Reactivate License
@@ -197,9 +197,9 @@ func NewUseCases(
 		License: repositories.License,
 	}
 	reactivateServices := ReactivateLicenseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// Validate License Access
@@ -207,8 +207,8 @@ func NewUseCases(
 		License: repositories.License,
 	}
 	validateServices := ValidateLicenseAccessServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

@@ -15,8 +15,8 @@ type ListSupplierContractPriceScheduleLinesRepositories struct {
 
 // ListSupplierContractPriceScheduleLinesServices groups service dependencies.
 type ListSupplierContractPriceScheduleLinesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListSupplierContractPriceScheduleLinesUseCase handles listing schedule lines.
@@ -35,7 +35,7 @@ func NewListSupplierContractPriceScheduleLinesUseCase(
 
 // Execute performs the list operation.
 func (uc *ListSupplierContractPriceScheduleLinesUseCase) Execute(ctx context.Context, req *scpslpb.ListSupplierContractPriceScheduleLinesRequest) (*scpslpb.ListSupplierContractPriceScheduleLinesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceScheduleLine, ports.ActionList); err != nil {
 		return nil, err
 	}

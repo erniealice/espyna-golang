@@ -5,8 +5,8 @@ package ledger
 import (
 	"context"
 
-	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 	"github.com/erniealice/espyna-golang/consumer"
+	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 )
 
 // GetCashBookReport executes a UNION ALL query over revenue and expenditure tables

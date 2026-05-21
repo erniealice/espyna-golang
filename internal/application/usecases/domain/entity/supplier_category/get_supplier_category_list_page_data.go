@@ -19,9 +19,9 @@ type GetSupplierCategoryListPageDataRepositories struct {
 
 // GetSupplierCategoryListPageDataServices groups all business service dependencies
 type GetSupplierCategoryListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSupplierCategoryListPageDataUseCase handles the business logic for getting supplier category list page data
@@ -49,9 +49,9 @@ func NewGetSupplierCategoryListPageDataUseCaseUngrouped(supplierCategoryRepo sup
 	}
 
 	services := GetSupplierCategoryListPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetSupplierCategoryListPageDataUseCase(repositories, services)
@@ -59,24 +59,24 @@ func NewGetSupplierCategoryListPageDataUseCaseUngrouped(supplierCategoryRepo sup
 
 func (uc *GetSupplierCategoryListPageDataUseCase) Execute(ctx context.Context, req *suppliercategorypb.GetSupplierCategoryListPageDataRequest) (*suppliercategorypb.GetSupplierCategoryListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_category", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	resp, err := uc.repositories.SupplierCategory.GetSupplierCategoryListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.errors.list_page_data_failed", "Failed to retrieve supplier category list page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.errors.list_page_data_failed", "Failed to retrieve supplier category list page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -85,21 +85,21 @@ func (uc *GetSupplierCategoryListPageDataUseCase) Execute(ctx context.Context, r
 
 func (uc *GetSupplierCategoryListPageDataUseCase) validateInput(ctx context.Context, req *suppliercategorypb.GetSupplierCategoryListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
 	}
 
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
 		}
 		if req.Pagination.Limit > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
 		}
 	}
 
 	if req.Search != nil && req.Search.Query != "" {
 		if len(req.Search.Query) < 2 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
 		}
 	}
 

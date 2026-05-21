@@ -16,9 +16,9 @@ type GetProductLineItemPageDataRepositories struct {
 }
 
 type GetProductLineItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetProductLineItemPageDataUseCase handles the business logic for getting product line item page data
@@ -44,7 +44,7 @@ func (uc *GetProductLineItemPageDataUseCase) Execute(
 	req *productlinepb.GetProductLineItemPageDataRequest,
 ) (*productlinepb.GetProductLineItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductLine, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetProductLineItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetProductLineItemPageDataUseCase) executeWithTransaction(
 ) (*productlinepb.GetProductLineItemPageDataResponse, error) {
 	var result *productlinepb.GetProductLineItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"product_line.errors.item_page_data_failed",
 				"product line item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetProductLineItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_line.errors.read_failed",
 			"failed to retrieve product line: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetProductLineItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_line.errors.not_found",
 			"product line not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetProductLineItemPageDataUseCase) executeCore(
 	if productLine.Id != req.ProductLineId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_line.errors.id_mismatch",
 			"retrieved product line ID does not match requested ID",
 		))
@@ -154,7 +154,7 @@ func (uc *GetProductLineItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_line.validation.request_required",
 			"request is required",
 		))
@@ -163,7 +163,7 @@ func (uc *GetProductLineItemPageDataUseCase) validateInput(
 	if req.ProductLineId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_line.validation.id_required",
 			"product line ID is required",
 		))
@@ -181,7 +181,7 @@ func (uc *GetProductLineItemPageDataUseCase) validateBusinessRules(
 	if len(productLineId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_line.validation.id_too_short",
 			"product line ID is too short",
 		))

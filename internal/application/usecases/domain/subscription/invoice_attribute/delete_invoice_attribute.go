@@ -18,9 +18,9 @@ type DeleteInvoiceAttributeRepositories struct {
 
 // DeleteInvoiceAttributeServices groups all business service dependencies
 type DeleteInvoiceAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteInvoiceAttributeUseCase handles the business logic for deleting invoice attributes
@@ -43,7 +43,7 @@ func NewDeleteInvoiceAttributeUseCase(
 // Execute performs the delete invoice attribute operation
 func (uc *DeleteInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoiceattributepb.DeleteInvoiceAttributeRequest) (*invoiceattributepb.DeleteInvoiceAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInvoiceAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *DeleteInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoi
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"invoice_attribute.errors.not_found",
 				map[string]interface{}{"invoiceAttributeId": req.Data.Id},
 				"Invoice attribute not found [DEFAULT]",
@@ -70,7 +70,7 @@ func (uc *DeleteInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoi
 			return nil, errors.New(translatedError)
 		}
 		// Handle other repository errors
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.errors.deletion_failed", "Invoice attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.errors.deletion_failed", "Invoice attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -80,13 +80,13 @@ func (uc *DeleteInvoiceAttributeUseCase) Execute(ctx context.Context, req *invoi
 // validateInput validates the input request
 func (uc *DeleteInvoiceAttributeUseCase) validateInput(ctx context.Context, req *invoiceattributepb.DeleteInvoiceAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice_attribute.validation.id_required", "Invoice attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

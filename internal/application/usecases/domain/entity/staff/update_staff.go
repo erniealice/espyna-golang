@@ -18,9 +18,9 @@ type UpdateStaffRepositories struct {
 
 // UpdateStaffServices groups all business service dependencies
 type UpdateStaffServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateStaffUseCase handles the business logic for updating a staff
@@ -49,9 +49,9 @@ func NewUpdateStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) 
 	}
 
 	services := UpdateStaffServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateStaffUseCase(repositories, services)
@@ -59,29 +59,29 @@ func NewUpdateStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) 
 
 func (uc *UpdateStaffUseCase) Execute(ctx context.Context, req *staffpb.UpdateStaffRequest) (*staffpb.UpdateStaffResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaff, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.request_required", "Request is required for staff [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.request_required", "Request is required for staff [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.id_required", "Staff ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.id_required", "Staff ID is required [DEFAULT]"))
 	}
 
 	// Business logic validation
 	if req.Data.User != nil && req.Data.User.EmailAddress == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.email_required", "Staff email is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.email_required", "Staff email is required [DEFAULT]"))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Staff.UpdateStaff(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.errors.update_failed", "Staff update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.errors.update_failed", "Staff update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

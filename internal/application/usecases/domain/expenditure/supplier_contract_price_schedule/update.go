@@ -18,9 +18,9 @@ type UpdateSupplierContractPriceScheduleRepositories struct {
 
 // UpdateSupplierContractPriceScheduleServices groups service dependencies.
 type UpdateSupplierContractPriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateSupplierContractPriceScheduleUseCase handles updating a schedule.
@@ -39,12 +39,12 @@ func NewUpdateSupplierContractPriceScheduleUseCase(
 
 // Execute performs the update operation.
 func (uc *UpdateSupplierContractPriceScheduleUseCase) Execute(ctx context.Context, req *scpspb.UpdateSupplierContractPriceScheduleRequest) (*scpspb.UpdateSupplierContractPriceScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceSchedule, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.validation.id_required", "Supplier contract price schedule ID is required [DEFAULT]"))
 	}
 

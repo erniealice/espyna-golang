@@ -26,10 +26,10 @@ func newCreatePayrollRemittanceRepositories(r Repositories) CreatePayrollRemitta
 
 // CreatePayrollRemittanceServices groups all business service dependencies.
 type CreatePayrollRemittanceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePayrollRemittanceUseCase handles the business logic for creating a payroll remittance.
@@ -51,12 +51,12 @@ func NewCreatePayrollRemittanceUseCase(
 
 // Execute performs the create payroll remittance operation.
 func (uc *CreatePayrollRemittanceUseCase) Execute(ctx context.Context, req *payrollremittancepb.CreatePayrollRemittanceRequest) (*payrollremittancepb.CreatePayrollRemittanceResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPayrollRemittance, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -66,10 +66,10 @@ func (uc *CreatePayrollRemittanceUseCase) Execute(ctx context.Context, req *payr
 func (uc *CreatePayrollRemittanceUseCase) executeWithTransaction(ctx context.Context, req *payrollremittancepb.CreatePayrollRemittanceRequest) (*payrollremittancepb.CreatePayrollRemittanceResponse, error) {
 	var result *payrollremittancepb.CreatePayrollRemittanceResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "payroll_remittance.errors.creation_failed", "Payroll remittance creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "payroll_remittance.errors.creation_failed", "Payroll remittance creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -103,19 +103,19 @@ func (uc *CreatePayrollRemittanceUseCase) executeCore(ctx context.Context, req *
 
 func (uc *CreatePayrollRemittanceUseCase) validateInput(ctx context.Context, req *payrollremittancepb.CreatePayrollRemittanceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_remittance.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_remittance.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_remittance.validation.data_required", "[ERR-DEFAULT] Payroll remittance data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_remittance.validation.data_required", "[ERR-DEFAULT] Payroll remittance data is required"))
 	}
 	if req.Data.PayrollRunId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_remittance.validation.payroll_run_id_required", "[ERR-DEFAULT] Payroll run ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_remittance.validation.payroll_run_id_required", "[ERR-DEFAULT] Payroll run ID is required"))
 	}
 	if req.Data.RemittanceType == payrollremittancepb.RemittanceType_REMITTANCE_TYPE_UNSPECIFIED {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_remittance.validation.remittance_type_required", "[ERR-DEFAULT] Remittance type is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_remittance.validation.remittance_type_required", "[ERR-DEFAULT] Remittance type is required"))
 	}
 	if req.Data.Amount <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_remittance.validation.amount_required", "[ERR-DEFAULT] Remittance amount must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_remittance.validation.amount_required", "[ERR-DEFAULT] Remittance amount must be greater than zero"))
 	}
 	return nil
 }
@@ -124,7 +124,7 @@ func (uc *CreatePayrollRemittanceUseCase) enrichRemittanceData(rem *payrollremit
 	now := time.Now()
 
 	if rem.Id == "" {
-		rem.Id = uc.services.IDService.GenerateID()
+		rem.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Default status: Pending
@@ -146,7 +146,7 @@ func (uc *CreatePayrollRemittanceUseCase) validateBusinessRules(ctx context.Cont
 		payrollremittancepb.RemittanceType_REMITTANCE_TYPE_BIR_WITHHOLDING:
 		// valid
 	default:
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_remittance.validation.invalid_remittance_type", "[ERR-DEFAULT] Invalid remittance type — must be SSS, PhilHealth, Pag-IBIG, or BIR Withholding"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_remittance.validation.invalid_remittance_type", "[ERR-DEFAULT] Invalid remittance type — must be SSS, PhilHealth, Pag-IBIG, or BIR Withholding"))
 	}
 	return nil
 }

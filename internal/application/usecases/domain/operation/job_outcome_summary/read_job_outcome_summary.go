@@ -15,9 +15,9 @@ type ReadJobOutcomeSummaryRepositories struct {
 }
 
 type ReadJobOutcomeSummaryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadJobOutcomeSummaryUseCase handles the business logic for reading job outcome summaries
@@ -40,7 +40,7 @@ func NewReadJobOutcomeSummaryUseCase(
 // Execute performs the read job outcome summary operation
 func (uc *ReadJobOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.ReadJobOutcomeSummaryRequest) (*pb.ReadJobOutcomeSummaryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobOutcomeSummary, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *ReadJobOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.Rea
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -63,7 +63,7 @@ func (uc *ReadJobOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.Rea
 func (uc *ReadJobOutcomeSummaryUseCase) executeWithTransaction(ctx context.Context, req *pb.ReadJobOutcomeSummaryRequest) (*pb.ReadJobOutcomeSummaryResponse, error) {
 	var result *pb.ReadJobOutcomeSummaryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -82,10 +82,10 @@ func (uc *ReadJobOutcomeSummaryUseCase) executeWithTransaction(ctx context.Conte
 func (uc *ReadJobOutcomeSummaryUseCase) executeCore(ctx context.Context, req *pb.ReadJobOutcomeSummaryRequest) (*pb.ReadJobOutcomeSummaryResponse, error) {
 	resp, err := uc.repositories.JobOutcomeSummary.ReadJobOutcomeSummary(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.errors.not_found", "[ERR-DEFAULT] Job outcome summary not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.errors.not_found", "[ERR-DEFAULT] Job outcome summary not found"))
 	}
 	if resp == nil || len(resp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.errors.not_found", "[ERR-DEFAULT] Job outcome summary not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.errors.not_found", "[ERR-DEFAULT] Job outcome summary not found"))
 	}
 	return resp, nil
 }
@@ -93,13 +93,13 @@ func (uc *ReadJobOutcomeSummaryUseCase) executeCore(ctx context.Context, req *pb
 // validateInput validates the input request
 func (uc *ReadJobOutcomeSummaryUseCase) validateInput(ctx context.Context, req *pb.ReadJobOutcomeSummaryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.validation.data_required", "[ERR-DEFAULT] Job outcome summary data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.validation.data_required", "[ERR-DEFAULT] Job outcome summary data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.validation.id_required", "[ERR-DEFAULT] Job outcome summary ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.validation.id_required", "[ERR-DEFAULT] Job outcome summary ID is required"))
 	}
 	return nil
 }

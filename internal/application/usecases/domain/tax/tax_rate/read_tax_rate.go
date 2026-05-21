@@ -17,8 +17,8 @@ type ReadTaxRateRepositories struct {
 
 // ReadTaxRateServices groups service dependencies.
 type ReadTaxRateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadTaxRateUseCase handles reading a tax_rate.
@@ -34,12 +34,12 @@ func NewReadTaxRateUseCase(repositories ReadTaxRateRepositories, services ReadTa
 
 // Execute performs the read tax_rate operation.
 func (uc *ReadTaxRateUseCase) Execute(ctx context.Context, req *taxratepb.ReadTaxRateRequest) (*taxratepb.ReadTaxRateResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRate, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_rate.validation.id_required", "Tax Rate ID is required [DEFAULT]"))
 	}
 	return uc.repositories.TaxRate.ReadTaxRate(ctx, req)

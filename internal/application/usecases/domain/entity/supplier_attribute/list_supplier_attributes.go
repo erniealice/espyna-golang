@@ -18,9 +18,9 @@ type ListSupplierAttributesRepositories struct {
 
 // ListSupplierAttributesServices groups all business service dependencies
 type ListSupplierAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSupplierAttributesUseCase handles the business logic for listing supplier attributes
@@ -48,9 +48,9 @@ func NewListSupplierAttributesUseCaseUngrouped(supplierAttributeRepo supplieratt
 	}
 
 	services := ListSupplierAttributesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListSupplierAttributesUseCase(repositories, services)
@@ -59,21 +59,21 @@ func NewListSupplierAttributesUseCaseUngrouped(supplierAttributeRepo supplieratt
 // Execute performs the list supplier attributes operation
 func (uc *ListSupplierAttributesUseCase) Execute(ctx context.Context, req *supplierattributepb.ListSupplierAttributesRequest) (*supplierattributepb.ListSupplierAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_attribute", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.SupplierAttribute.ListSupplierAttributes(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.list_failed", "Failed to retrieve supplier attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.list_failed", "Failed to retrieve supplier attributes [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -83,7 +83,7 @@ func (uc *ListSupplierAttributesUseCase) Execute(ctx context.Context, req *suppl
 // validateInput validates the input request
 func (uc *ListSupplierAttributesUseCase) validateInput(ctx context.Context, req *supplierattributepb.ListSupplierAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
 	}
 	return nil
 }

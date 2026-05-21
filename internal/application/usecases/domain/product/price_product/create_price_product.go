@@ -22,10 +22,10 @@ type CreatePriceProductRepositories struct {
 
 // CreatePriceProductServices groups all business service dependencies
 type CreatePriceProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Transaction management
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Transaction management
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePriceProductUseCase handles the business logic for creating price products
@@ -48,7 +48,7 @@ func NewCreatePriceProductUseCase(
 // Execute performs the create price product operation
 func (uc *CreatePriceProductUseCase) Execute(ctx context.Context, req *priceproductpb.CreatePriceProductRequest) (*priceproductpb.CreatePriceProductResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceProduct, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -56,30 +56,30 @@ func (uc *CreatePriceProductUseCase) Execute(ctx context.Context, req *priceprod
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.authorization_failed", "Authorization failed for product pricing [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for product pricing [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityPriceProduct, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.authorization_failed", "Authorization failed for product pricing [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for product pricing [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.authorization_failed", "Authorization failed for product pricing [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for product pricing [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichPriceProductData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -95,14 +95,14 @@ func (uc *CreatePriceProductUseCase) Execute(ctx context.Context, req *priceprod
 // shouldUseTransaction determines if this operation should use a transaction
 func (uc *CreatePriceProductUseCase) shouldUseTransaction(ctx context.Context) bool {
 	// Use transaction if:
-	// 1. TransactionService is available, AND
+	// 1. Transactor is available, AND
 	// 2. We're not already in a transaction context
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
 
 	// Don't start a nested transaction if we're already in one
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 
@@ -113,25 +113,25 @@ func (uc *CreatePriceProductUseCase) shouldUseTransaction(ctx context.Context) b
 func (uc *CreatePriceProductUseCase) executeWithTransaction(ctx context.Context, req *priceproductpb.CreatePriceProductRequest) (*priceproductpb.CreatePriceProductResponse, error) {
 	var response *priceproductpb.CreatePriceProductResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		// All validations and operations within transaction
 
 		// Entity reference validation (reads happen in transaction context)
 		if err := uc.validateEntityReferences(txCtx, req.Data); err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "price_product.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "price_product.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 
 		// Business rule validation
 		if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "price_product.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "price_product.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 
 		// Create PriceProduct (will participate in transaction)
 		createResponse, err := uc.repositories.PriceProduct.CreatePriceProduct(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "price_product.errors.creation_failed", "Failed to create price product [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "price_product.errors.creation_failed", "Failed to create price product [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 
@@ -150,20 +150,20 @@ func (uc *CreatePriceProductUseCase) executeWithTransaction(ctx context.Context,
 func (uc *CreatePriceProductUseCase) executeWithoutTransaction(ctx context.Context, req *priceproductpb.CreatePriceProductRequest) (*priceproductpb.CreatePriceProductResponse, error) {
 	// Entity reference validation
 	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.reference_validation_failed", "Entity reference validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository (no transaction)
 	resp, err := uc.repositories.PriceProduct.CreatePriceProduct(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.creation_failed", "Failed to create price product [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.creation_failed", "Failed to create price product [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -172,22 +172,22 @@ func (uc *CreatePriceProductUseCase) executeWithoutTransaction(ctx context.Conte
 // validateInput validates the input request
 func (uc *CreatePriceProductUseCase) validateInput(ctx context.Context, req *priceproductpb.CreatePriceProductRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.request_required", "Request is required for product pricing [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.request_required", "Request is required for product pricing [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.data_required", "Product pricing data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.data_required", "Product pricing data is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.name_required", "Product pricing name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.name_required", "Product pricing name is required [DEFAULT]"))
 	}
 	if req.Data.ProductId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.product_id_required", "Product ID is required for product pricing [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.product_id_required", "Product ID is required for product pricing [DEFAULT]"))
 	}
 	if req.Data.Amount < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.amount_invalid", "Product pricing amount must be non-negative [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.amount_invalid", "Product pricing amount must be non-negative [DEFAULT]"))
 	}
 	if req.Data.Currency == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.currency_required", "Currency is required for product pricing [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.currency_required", "Currency is required for product pricing [DEFAULT]"))
 	}
 	return nil
 }
@@ -198,7 +198,7 @@ func (uc *CreatePriceProductUseCase) enrichPriceProductData(priceProduct *pricep
 
 	// Generate PriceProduct ID if not provided
 	if priceProduct.Id == "" {
-		priceProduct.Id = uc.services.IDService.GenerateID()
+		priceProduct.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -215,21 +215,21 @@ func (uc *CreatePriceProductUseCase) enrichPriceProductData(priceProduct *pricep
 func (uc *CreatePriceProductUseCase) validateBusinessRules(ctx context.Context, priceProduct *priceproductpb.PriceProduct) error {
 	// Validate price product name length
 	if len(priceProduct.Name) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.name_min_length", "Price product name must be at least 3 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.name_min_length", "Price product name must be at least 3 characters long [DEFAULT]"))
 	}
 
 	if len(priceProduct.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.name_max_length", "Price product name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.name_max_length", "Price product name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate product ID format
 	if len(priceProduct.ProductId) < 5 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.product_id_min_length", "Product ID must be at least 5 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.product_id_min_length", "Product ID must be at least 5 characters long [DEFAULT]"))
 	}
 
 	// Business constraint: Price product must be associated with a valid product
 	if priceProduct.ProductId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.validation.product_association_required", "Price product must be associated with a product [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.validation.product_association_required", "Price product must be associated with a product [DEFAULT]"))
 	}
 
 	return nil
@@ -243,16 +243,16 @@ func (uc *CreatePriceProductUseCase) validateEntityReferences(ctx context.Contex
 			Data: &productpb.Product{Id: priceProduct.ProductId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.product_reference_validation_failed", "Failed to validate product entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.product_reference_validation_failed", "Failed to validate product entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if product == nil || product.Data == nil || len(product.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.product_not_found", "Referenced product with ID '{productId}' does not exist [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.product_not_found", "Referenced product with ID '{productId}' does not exist [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{productId}", priceProduct.ProductId)
 			return errors.New(translatedError)
 		}
 		if !product.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_product.errors.product_not_active", "Referenced product with ID '{productId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.product_not_active", "Referenced product with ID '{productId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{productId}", priceProduct.ProductId)
 			return errors.New(translatedError)
 		}

@@ -15,9 +15,9 @@ type GetAdminListPageDataRepositories struct {
 
 // GetAdminListPageDataServices groups service dependencies for GetAdminListPageData use case
 type GetAdminListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetAdminListPageDataUseCase handles getting paginated admin list data with search, filtering, and sorting
@@ -44,7 +44,7 @@ func (uc *GetAdminListPageDataUseCase) Execute(
 	req *adminpb.GetAdminListPageDataRequest,
 ) (*adminpb.GetAdminListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityAdmin, ports.ActionList); err != nil {
 		return nil, err
 	}

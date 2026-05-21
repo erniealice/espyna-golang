@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// mockTranslationService implements ports.TranslationService for testing
+// mockTranslationService implements ports.Translator for testing
 type mockTranslationService struct {
 	translations map[string]string
 }

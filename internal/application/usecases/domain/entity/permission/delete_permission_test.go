@@ -31,9 +31,9 @@ func createTestDeletePermissionUseCase(businessType string) *DeletePermissionUse
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := DeletePermissionServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeletePermissionUseCase(repositories, services)
@@ -89,5 +89,5 @@ func TestDeletePermissionUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "permission.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "permission.validation.id_required", useCase.services.Translator, ctx)
 }

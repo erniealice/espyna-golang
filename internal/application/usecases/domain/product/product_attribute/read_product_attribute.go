@@ -20,9 +20,9 @@ type ReadProductAttributeRepositories struct {
 
 // ReadProductAttributeServices groups all business service dependencies
 type ReadProductAttributeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadProductAttributeUseCase handles the business logic for reading a product attribute
@@ -45,7 +45,7 @@ func NewReadProductAttributeUseCase(
 // Execute performs the read product attribute operation
 func (uc *ReadProductAttributeUseCase) Execute(ctx context.Context, req *productattributepb.ReadProductAttributeRequest) (*productattributepb.ReadProductAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -53,18 +53,18 @@ func (uc *ReadProductAttributeUseCase) Execute(ctx context.Context, req *product
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityProductAttribute, ports.ActionRead)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -78,11 +78,11 @@ func (uc *ReadProductAttributeUseCase) Execute(ctx context.Context, req *product
 	if err != nil {
 		// Check if it's a not found error and convert to translated message
 		if strings.Contains(err.Error(), "not found") {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "product_attribute.errors.not_found", map[string]interface{}{"productAttributeId": req.Data.Id}, "Product attribute not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_attribute.errors.not_found", map[string]interface{}{"productAttributeId": req.Data.Id}, "Product attribute not found")
 			return nil, errors.New(translatedError)
 		}
 		// Other repository errors
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.errors.read_failed", "Failed to read product attribute")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.read_failed", "Failed to read product attribute")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -92,13 +92,13 @@ func (uc *ReadProductAttributeUseCase) Execute(ctx context.Context, req *product
 // validateInput validates the input request
 func (uc *ReadProductAttributeUseCase) validateInput(ctx context.Context, req *productattributepb.ReadProductAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.request_required", "request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.data_required", "product attribute data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.data_required", "product attribute data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_attribute.validation.id_required", "product attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.validation.id_required", "product attribute ID is required"))
 	}
 	return nil
 }

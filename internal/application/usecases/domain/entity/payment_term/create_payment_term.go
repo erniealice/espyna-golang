@@ -19,10 +19,10 @@ type CreatePaymentTermRepositories struct {
 
 // CreatePaymentTermServices groups all business service dependencies
 type CreatePaymentTermServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePaymentTermUseCase handles the business logic for creating payment terms
@@ -50,10 +50,10 @@ func NewCreatePaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentT
 	}
 
 	services := CreatePaymentTermServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreatePaymentTermUseCase(repositories, services)
@@ -62,14 +62,14 @@ func NewCreatePaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentT
 // Execute performs the create payment term operation
 func (uc *CreatePaymentTermUseCase) Execute(ctx context.Context, req *paymenttermpb.CreatePaymentTermRequest) (*paymenttermpb.CreatePaymentTermResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"payment_term", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.request_required", "Request is required for payment terms [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.request_required", "Request is required for payment terms [DEFAULT]"))
 	}
 
 	// Business validation
@@ -81,7 +81,7 @@ func (uc *CreatePaymentTermUseCase) Execute(ctx context.Context, req *paymentter
 	enrichedPaymentTerm := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedPaymentTerm)
 	}
 
@@ -93,10 +93,10 @@ func (uc *CreatePaymentTermUseCase) Execute(ctx context.Context, req *paymentter
 func (uc *CreatePaymentTermUseCase) executeWithTransaction(ctx context.Context, enrichedPaymentTerm *paymenttermpb.PaymentTerm) (*paymenttermpb.CreatePaymentTermResponse, error) {
 	var result *paymenttermpb.CreatePaymentTermResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedPaymentTerm)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "payment_term.errors.creation_failed", "Payment term creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "payment_term.errors.creation_failed", "Payment term creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -122,8 +122,8 @@ func (uc *CreatePaymentTermUseCase) applyBusinessLogic(paymentTerm *paymenttermp
 
 	// Business logic: Generate PaymentTerm ID if not provided
 	if paymentTerm.Id == "" {
-		if uc.services.IDService != nil {
-			paymentTerm.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			paymentTerm.Id = uc.services.IDGenerator.GenerateID()
 		} else {
 			paymentTerm.Id = fmt.Sprintf("payment_term-%d", now.UnixNano())
 		}
@@ -145,17 +145,17 @@ func (uc *CreatePaymentTermUseCase) applyBusinessLogic(paymentTerm *paymenttermp
 func (uc *CreatePaymentTermUseCase) validateBusinessRules(ctx context.Context, paymentTerm *paymenttermpb.PaymentTerm) error {
 	// Business rule: Required data validation
 	if paymentTerm == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.data_required", "Payment term data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.data_required", "Payment term data is required [DEFAULT]"))
 	}
 
 	// Business rule: Name is required
 	if paymentTerm.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.name_required", "Payment term name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.name_required", "Payment term name is required [DEFAULT]"))
 	}
 
 	// Business rule: Code is required
 	if paymentTerm.Code == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.code_required", "Payment term code is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.code_required", "Payment term code is required [DEFAULT]"))
 	}
 
 	return nil

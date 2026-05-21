@@ -17,9 +17,9 @@ type ListDocumentTemplatesRepositories struct {
 
 // ListDocumentTemplatesServices groups all business service dependencies
 type ListDocumentTemplatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDocumentTemplatesUseCase handles the business logic for listing document templates
@@ -41,13 +41,13 @@ func NewListDocumentTemplatesUseCase(
 
 // Execute performs the list document templates operation
 func (uc *ListDocumentTemplatesUseCase) Execute(ctx context.Context, req *documenttemplatepb.ListDocumentTemplatesRequest) (*documenttemplatepb.ListDocumentTemplatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDocumentTemplate, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "document_template.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "document_template.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.DocumentTemplate.ListDocumentTemplates(ctx, req)

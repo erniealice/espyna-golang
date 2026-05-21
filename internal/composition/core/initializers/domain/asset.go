@@ -14,10 +14,10 @@ import (
 // This is composition logic - it wires infrastructure (providers) to application (use cases).
 func InitializeAsset(
 	repos *domain.AssetRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*asset.AssetUseCases, error) {
 	// Build the Asset sub-bundle
 	assetSub := assetUseCases.NewUseCases(
@@ -25,10 +25,10 @@ func InitializeAsset(
 			Asset: repos.Asset,
 		},
 		assetUseCases.AssetServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -38,10 +38,10 @@ func InitializeAsset(
 			AssetCategory: repos.AssetCategory,
 		},
 		assetCategoryUseCases.AssetCategoryServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -54,10 +54,10 @@ func InitializeAsset(
 		DepreciationRun:      repos.DepreciationRun,
 	}
 	depRunSvc := depreciationRunUseCases.DepreciationRunServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idSvc,
+		Authorizer:  authSvc,
+		Transactor:  txSvc,
+		Translator:  i18nSvc,
+		IDGenerator: idSvc,
 	}
 	depRunSub := depreciationRunUseCases.NewUseCases(depRunRepos, depRunSvc)
 
@@ -68,10 +68,10 @@ func InitializeAsset(
 		AssetRevaluation: repos.AssetRevaluation,
 	}
 	revSvc := assetRevaluationUseCases.AssetRevaluationServices{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idSvc,
+		Authorizer:  authSvc,
+		Transactor:  txSvc,
+		Translator:  i18nSvc,
+		IDGenerator: idSvc,
 	}
 	revSub := assetRevaluationUseCases.NewUseCases(revRepos, revSvc)
 

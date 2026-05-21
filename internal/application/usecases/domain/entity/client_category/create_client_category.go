@@ -19,10 +19,10 @@ type CreateClientCategoryRepositories struct {
 
 // CreateClientCategoryServices groups all business service dependencies
 type CreateClientCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateClientCategoryUseCase handles the business logic for creating client categories
@@ -51,10 +51,10 @@ func NewCreateClientCategoryUseCaseUngrouped(clientCategoryRepo clientcategorypb
 	}
 
 	services := CreateClientCategoryServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateClientCategoryUseCase(repositories, services)
@@ -63,13 +63,13 @@ func NewCreateClientCategoryUseCaseUngrouped(clientCategoryRepo clientcategorypb
 // Execute performs the create client_category operation
 func (uc *CreateClientCategoryUseCase) Execute(ctx context.Context, req *clientcategorypb.CreateClientCategoryRequest) (*clientcategorypb.CreateClientCategoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"client_category", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -81,10 +81,10 @@ func (uc *CreateClientCategoryUseCase) Execute(ctx context.Context, req *clientc
 func (uc *CreateClientCategoryUseCase) executeWithTransaction(ctx context.Context, req *clientcategorypb.CreateClientCategoryRequest) (*clientcategorypb.CreateClientCategoryResponse, error) {
 	var result *clientcategorypb.CreateClientCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "client_category.errors.creation_failed", "Client category creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "client_category.errors.creation_failed", "Client category creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -121,16 +121,16 @@ func (uc *CreateClientCategoryUseCase) executeCore(ctx context.Context, req *cli
 // validateInput validates the input request
 func (uc *CreateClientCategoryUseCase) validateInput(ctx context.Context, req *clientcategorypb.CreateClientCategoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.data_required", "Client category data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.data_required", "Client category data is required [DEFAULT]"))
 	}
 	if req.Data.ClientId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.client_id_required", "Client ID is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.client_id_required", "Client ID is required for client categories [DEFAULT]"))
 	}
 	if req.Data.CategoryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.category_id_required", "Category ID is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.category_id_required", "Category ID is required for client categories [DEFAULT]"))
 	}
 	return nil
 }
@@ -141,7 +141,7 @@ func (uc *CreateClientCategoryUseCase) enrichClientCategoryData(category *client
 
 	// Generate Client Category ID if not provided
 	if category.Id == "" {
-		category.Id = uc.services.IDService.GenerateID()
+		category.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -158,12 +158,12 @@ func (uc *CreateClientCategoryUseCase) enrichClientCategoryData(category *client
 func (uc *CreateClientCategoryUseCase) validateBusinessRules(ctx context.Context, category *clientcategorypb.ClientCategory) error {
 	// Validate client ID format if needed
 	if len(category.ClientId) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.client_id_invalid", "Client ID is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.client_id_invalid", "Client ID is invalid [DEFAULT]"))
 	}
 
 	// Validate category ID format if needed
 	if len(category.CategoryId) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.category_id_invalid", "Category ID is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.category_id_invalid", "Category ID is invalid [DEFAULT]"))
 	}
 
 	return nil

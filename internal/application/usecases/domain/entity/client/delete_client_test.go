@@ -42,9 +42,9 @@ func createTestDeleteClientUseCase(businessType string, supportsTransaction bool
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := DeleteClientServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeleteClientUseCase(repositories, services)
@@ -78,14 +78,14 @@ func TestDeleteClientUseCase_Execute_Success(t *testing.T) {
 	readUseCase := NewReadClientUseCase(
 		ReadClientRepositories{Client: useCase.repositories.Client},
 		ReadClientServices{
-			AuthorizationService: standardServices.AuthorizationService,
-			TranslationService:   standardServices.TranslationService,
+			Authorizer: standardServices.Authorizer,
+			Translator: standardServices.Translator,
 		},
 	)
 	readReq := &clientpb.ReadClientRequest{Data: &clientpb.Client{Id: existingID}}
 	_, err = readUseCase.Execute(ctx, readReq)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedErrorWithContext(t, err, "client.errors.not_found", "{\"clientId\": \""+existingID+"\"}", readUseCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedErrorWithContext(t, err, "client.errors.not_found", "{\"clientId\": \""+existingID+"\"}", readUseCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "Success", true, nil)
@@ -109,7 +109,7 @@ func TestDeleteClientUseCase_Execute_NotFound(t *testing.T) {
 	testutil.AssertError(t, err)
 
 	// Check for the actual error message format
-	testutil.AssertTranslatedErrorWithTags(t, err, "client.errors.deletion_failed", map[string]any{"id": "client-999"}, useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedErrorWithTags(t, err, "client.errors.deletion_failed", map[string]any{"id": "client-999"}, useCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "NotFound", false, err)
@@ -130,7 +130,7 @@ func TestDeleteClientUseCase_Execute_EmptyId(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "client.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "client.validation.id_required", useCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "EmptyId", false, err)

@@ -19,8 +19,8 @@ import (
 //	wrapped := executor.NewPermissionAware(inner, authSvc, translationSvc, "client", "create")
 type PermissionAwareExecutor struct {
 	inner              ports.ActivityExecutor
-	authService        ports.AuthorizationService
-	translationService ports.TranslationService
+	authService        ports.Authorizer
+	translationService ports.Translator
 	entity             string
 	action             string
 }
@@ -36,8 +36,8 @@ type PermissionAwareExecutor struct {
 //   - action: the action (e.g., "create", "read", "update", "delete", "list")
 func NewPermissionAware(
 	inner ports.ActivityExecutor,
-	authService ports.AuthorizationService,
-	translationService ports.TranslationService,
+	authService ports.Authorizer,
+	translationService ports.Translator,
 	entity string,
 	action string,
 ) ports.ActivityExecutor {

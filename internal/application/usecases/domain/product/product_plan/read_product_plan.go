@@ -32,14 +32,14 @@ func NewReadProductPlanUseCase(
 // Execute performs the read product plan operation
 func (uc *ReadProductPlanUseCase) Execute(ctx context.Context, req *productplanpb.ReadProductPlanRequest) (*productplanpb.ReadProductPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductPlan, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInputWithTranslation(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -48,17 +48,17 @@ func (uc *ReadProductPlanUseCase) Execute(ctx context.Context, req *productplanp
 	if err != nil {
 		// Check if it's a not found error and convert to translated message
 		if strings.Contains(err.Error(), "not found") {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "product_plan.errors.not_found", map[string]interface{}{"productPlanId": req.Data.Id}, "Course plan not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_plan.errors.not_found", map[string]interface{}{"productPlanId": req.Data.Id}, "Course plan not found")
 			return nil, errors.New(translatedError)
 		}
 		// Other repository errors
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.read_failed", "Failed to read course plan")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.errors.read_failed", "Failed to read course plan")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Not found error
 	if resp == nil || resp.Data == nil || len(resp.Data) == 0 {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.errors.not_found", "Product Plan with ID \"{id}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.errors.not_found", "Product Plan with ID \"{id}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{id}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}
@@ -75,15 +75,15 @@ func (uc *ReadProductPlanUseCase) validateInput(req *productplanpb.ReadProductPl
 // validateInputWithTranslation validates the input request with translated messages
 func (uc *ReadProductPlanUseCase) validateInputWithTranslation(ctx context.Context, req *productplanpb.ReadProductPlanRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.request_required", "Request is required [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.validation.request_required", "Request is required [DEFAULT]")
 		return errors.New(msg)
 	}
 	if req.Data == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.data_required", "Product plan data is required [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.validation.data_required", "Product plan data is required [DEFAULT]")
 		return errors.New(msg)
 	}
 	if req.Data.Id == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_plan.validation.id_required", "Product plan ID is required [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.validation.id_required", "Product plan ID is required [DEFAULT]")
 		return errors.New(msg)
 	}
 	return nil

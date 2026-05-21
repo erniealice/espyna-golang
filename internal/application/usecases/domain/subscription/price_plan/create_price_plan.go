@@ -32,10 +32,10 @@ type CreatePricePlanRepositories struct {
 
 // CreatePricePlanServices groups all business service dependencies
 type CreatePricePlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePricePlanUseCase handles the business logic for creating price_plans
@@ -58,7 +58,7 @@ func NewCreatePricePlanUseCase(
 // Execute performs the create price_plan operation
 func (uc *CreatePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.CreatePricePlanRequest) (*priceplanpb.CreatePricePlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (uc *CreatePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -80,20 +80,20 @@ func (uc *CreatePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.
 // validateInput validates the input request
 func (uc *CreatePricePlanUseCase) validateInput(ctx context.Context, req *priceplanpb.CreatePricePlanRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", "request is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.request_required", "request is required")
 		return errors.New(msg)
 	}
 	if req.Data == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.data_required", "price plan data is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.data_required", "price plan data is required")
 		return errors.New(msg)
 	}
 	// Name is optional — when blank, the UI falls back to the parent Plan's name.
 	if req.Data.PlanId == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.plan_id_required", "plan ID is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.plan_id_required", "plan ID is required")
 		return errors.New(msg)
 	}
 	if req.Data.BillingCurrency == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.currency_required", "currency is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.currency_required", "currency is required")
 		return errors.New(msg)
 	}
 	return nil
@@ -105,7 +105,7 @@ func (uc *CreatePricePlanUseCase) enrichPricePlanData(pricePlan *priceplanpb.Pri
 
 	// Generate PricePlan ID if not provided
 	if pricePlan.Id == "" {
-		pricePlan.Id = uc.services.IDService.GenerateID()
+		pricePlan.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -123,36 +123,36 @@ func (uc *CreatePricePlanUseCase) validateBusinessRules(ctx context.Context, pri
 	// Validate price plan name length — only when a name was provided (optional field).
 	if pricePlan.GetName() != "" {
 		if len(pricePlan.GetName()) < 3 {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.name_min_length", "price plan name must be at least 3 characters long")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.name_min_length", "price plan name must be at least 3 characters long")
 			return errors.New(msg)
 		}
 		if len(pricePlan.GetName()) > 100 {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.name_max_length", "price plan name cannot exceed 100 characters")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.name_max_length", "price plan name cannot exceed 100 characters")
 			return errors.New(msg)
 		}
 	}
 
 	// Validate Plan ID format validation
 	if len(pricePlan.PlanId) < 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.plan_id_min_length", "plan ID must be at least 3 characters long")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.plan_id_min_length", "plan ID must be at least 3 characters long")
 		return errors.New(msg)
 	}
 
 	// Validate Amount validation
 	if pricePlan.BillingAmount <= 0 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.amount_positive", "price plan amount must be greater than 0")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.amount_positive", "price plan amount must be greater than 0")
 		return errors.New(msg)
 	}
 
 	// Validate Currency validation
 	if len(pricePlan.BillingCurrency) != 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.currency_format", "currency must be a 3-character currency code")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.currency_format", "currency must be a 3-character currency code")
 		return errors.New(msg)
 	}
 
 	// Validate Description length validation
 	if len(pricePlan.GetDescription()) > 500 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.description_max_length", "price plan description cannot exceed 500 characters")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.description_max_length", "price plan description cannot exceed 500 characters")
 		return errors.New(msg)
 	}
 
@@ -181,15 +181,15 @@ func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 		Data: &planpb.Plan{Id: &planId},
 	})
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_validation_failed", "failed to validate plan entity reference")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.errors.plan_validation_failed", "failed to validate plan entity reference")
 		return fmt.Errorf("%s: %w", msg, err)
 	}
 	if plan == nil || plan.Data == nil || len(plan.Data) == 0 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_found", "referenced plan with ID '%s' does not exist")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.errors.plan_not_found", "referenced plan with ID '%s' does not exist")
 		return fmt.Errorf(msg, pricePlan.PlanId)
 	}
 	if !plan.Data[0].Active {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.plan_not_active", "referenced plan with ID '%s' is not active")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.errors.plan_not_active", "referenced plan with ID '%s' is not active")
 		return fmt.Errorf(msg, pricePlan.PlanId)
 	}
 
@@ -205,10 +205,10 @@ func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 	// `price_plan.validation.milestoneCyclicBlock` so the drawer renders one
 	// consistent banner. The PricePlan-edit drawer disables the MILESTONE
 	// option client-side; this is the server-side defense.
-	if err := validateMilestoneCyclicBlock(ctx, uc.services.TranslationService, pricePlan, plan.Data[0]); err != nil {
+	if err := validateMilestoneCyclicBlock(ctx, uc.services.Translator, pricePlan, plan.Data[0]); err != nil {
 		return err
 	}
-	if err := validateAdHoc(ctx, uc.services.TranslationService, pricePlan, plan.Data[0]); err != nil {
+	if err := validateAdHoc(ctx, uc.services.Translator, pricePlan, plan.Data[0]); err != nil {
 		return err
 	}
 
@@ -235,8 +235,8 @@ func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 		plan.Data[0],
 		uc.repositories.PriceSchedule,
 		uc.repositories.Client,
-		uc.services.IDService,
-		uc.services.TranslationService,
+		uc.services.IDGenerator,
+		uc.services.Translator,
 	); err != nil {
 		return err
 	}
@@ -258,10 +258,10 @@ func stringPtrOrNil(s string) *string {
 func (uc *CreatePricePlanUseCase) executeWithTransaction(ctx context.Context, req *priceplanpb.CreatePricePlanRequest) (*priceplanpb.CreatePricePlanResponse, error) {
 	var result *priceplanpb.CreatePricePlanResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.creation_failed", "price plan creation failed")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.errors.creation_failed", "price plan creation failed")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		result = res

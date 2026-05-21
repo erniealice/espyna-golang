@@ -18,9 +18,9 @@ type GetCollectionAttributeListPageDataRepositories struct {
 }
 
 type GetCollectionAttributeListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetCollectionAttributeListPageDataUseCase handles the business logic for getting product attribute list page data
@@ -48,7 +48,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) Execute(
 	req *collectionattributepb.GetCollectionAttributeListPageDataRequest,
 ) (*collectionattributepb.GetCollectionAttributeListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollectionAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -74,12 +74,12 @@ func (uc *GetCollectionAttributeListPageDataUseCase) executeWithTransaction(
 ) (*collectionattributepb.GetCollectionAttributeListPageDataResponse, error) {
 	var result *collectionattributepb.GetCollectionAttributeListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.errors.list_page_data_failed",
 				"product attribute list page data retrieval failed: %w",
 			), err)
@@ -105,7 +105,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.errors.list_failed",
 			"failed to retrieve product attributes: %w",
 		), err)
@@ -133,7 +133,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.errors.processing_failed",
 			"failed to process product attribute list data: %w",
 		), err)
@@ -147,7 +147,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) executeCore(
 		} else {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.errors.type_conversion_failed",
 				"failed to convert item to product attribute type",
 			))
@@ -179,7 +179,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.request_required",
 			"request is required",
 		))
@@ -224,7 +224,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))
@@ -236,7 +236,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validatePagination(
 		if method.Offset.Page < 1 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.validation.invalid_page",
 				"page number must be greater than 0",
 			))
@@ -246,7 +246,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validatePagination(
 		if method.Cursor.Token == "" {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.validation.invalid_cursor",
 				"cursor token cannot be empty",
 			))
@@ -264,7 +264,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateFilters(
 	if len(filters.Filters) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.empty_filters",
 			"filters cannot be empty when filter request is provided",
 		))
@@ -275,7 +275,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateFilters(
 		if filter.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.validation.filter_field_required",
 				"filter field is required for filter %d",
 			), i)
@@ -285,7 +285,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateFilters(
 		if !uc.isValidCollectionAttributeField(filter.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.validation.invalid_filter_field",
 				"invalid filter field: %s",
 			), filter.Field)
@@ -303,7 +303,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateSort(
 	if len(sort.Fields) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.empty_sort_fields",
 			"sort fields cannot be empty when sort request is provided",
 		))
@@ -314,7 +314,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateSort(
 		if sortField.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.validation.sort_field_required",
 				"sort field is required for sort field %d",
 			), i)
@@ -324,7 +324,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateSort(
 		if !uc.isValidCollectionAttributeField(sortField.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.validation.invalid_sort_field",
 				"invalid sort field: %s",
 			), sortField.Field)
@@ -342,7 +342,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateSearch(
 	if search.Query == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.empty_search_query",
 			"search query cannot be empty when search request is provided",
 		))
@@ -354,7 +354,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateSearch(
 			if !uc.isValidCollectionAttributeField(field) {
 				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 					ctx,
-					uc.services.TranslationService,
+					uc.services.Translator,
 					"collection_attribute.validation.invalid_search_field",
 					"invalid search field: %s",
 				), field)
@@ -365,7 +365,7 @@ func (uc *GetCollectionAttributeListPageDataUseCase) validateSearch(
 		if search.Options.MaxResults < 0 || search.Options.MaxResults > 1000 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.validation.invalid_max_results",
 				"max results must be between 0 and 1000",
 			))

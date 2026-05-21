@@ -17,8 +17,8 @@ type UpdateWithholdingCertificateRepositories struct {
 
 // UpdateWithholdingCertificateServices groups service dependencies.
 type UpdateWithholdingCertificateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UpdateWithholdingCertificateUseCase handles updating a withholding_certificate.
@@ -34,12 +34,12 @@ func NewUpdateWithholdingCertificateUseCase(repositories UpdateWithholdingCertif
 
 // Execute performs the update withholding_certificate operation.
 func (uc *UpdateWithholdingCertificateUseCase) Execute(ctx context.Context, req *withholdingcertificatepb.UpdateWithholdingCertificateRequest) (*withholdingcertificatepb.UpdateWithholdingCertificateResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityWithholdingCertificate, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"withholding_certificate.validation.id_required", "Withholding Certificate ID is required [DEFAULT]"))
 	}
 	return uc.repositories.WithholdingCertificate.UpdateWithholdingCertificate(ctx, req)

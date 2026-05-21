@@ -16,9 +16,9 @@ type ListByJobTaskRepositories struct {
 }
 
 type ListByJobTaskServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListByJobTaskUseCase handles the business logic for listing outcomes by job task
@@ -41,7 +41,7 @@ func NewListByJobTaskUseCase(
 // Execute performs the list by job task operation
 func (uc *ListByJobTaskUseCase) Execute(ctx context.Context, req *pb.ListTaskOutcomesByJobTaskRequest) (*pb.ListTaskOutcomesByJobTaskResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTaskOutcome, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListByJobTaskUseCase) Execute(ctx context.Context, req *pb.ListTaskOut
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListByJobTaskUseCase) Execute(ctx context.Context, req *pb.ListTaskOut
 func (uc *ListByJobTaskUseCase) executeWithTransaction(ctx context.Context, req *pb.ListTaskOutcomesByJobTaskRequest) (*pb.ListTaskOutcomesByJobTaskResponse, error) {
 	var result *pb.ListTaskOutcomesByJobTaskResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "task_outcome.errors.list_by_job_task_failed", "task outcome listing by job task failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "task_outcome.errors.list_by_job_task_failed", "task outcome listing by job task failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListByJobTaskUseCase) executeWithTransaction(ctx context.Context, req 
 func (uc *ListByJobTaskUseCase) executeCore(ctx context.Context, req *pb.ListTaskOutcomesByJobTaskRequest) (*pb.ListTaskOutcomesByJobTaskResponse, error) {
 	resp, err := uc.repositories.TaskOutcome.ListByJobTask(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.errors.list_by_job_task_failed", "failed to list task outcomes by job task: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.list_by_job_task_failed", "failed to list task outcomes by job task: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *ListByJobTaskUseCase) executeCore(ctx context.Context, req *pb.ListTas
 // validateInput validates the input request
 func (uc *ListByJobTaskUseCase) validateInput(ctx context.Context, req *pb.ListTaskOutcomesByJobTaskRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.request_required", "request is required"))
 	}
 	if req.JobTaskId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.job_task_id_required", "job task ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.job_task_id_required", "job task ID is required"))
 	}
 
 	return nil

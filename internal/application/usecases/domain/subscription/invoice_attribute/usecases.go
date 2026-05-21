@@ -27,10 +27,10 @@ type InvoiceAttributeRepositories struct {
 
 // InvoiceAttributeServices groups all business service dependencies for invoice attribute use cases
 type InvoiceAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of invoice attribute use cases
@@ -41,18 +41,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateInvoiceAttributeRepositories(repositories)
 	createServices := CreateInvoiceAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadInvoiceAttributeRepositories{
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	readServices := ReadInvoiceAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateInvoiceAttributeRepositories{
@@ -61,40 +61,40 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	updateServices := UpdateInvoiceAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteInvoiceAttributeRepositories{
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	deleteServices := DeleteInvoiceAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListInvoiceAttributesRepositories{
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	listServices := ListInvoiceAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetInvoiceAttributeListPageDataRepositories{
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	getListPageDataServices := GetInvoiceAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetInvoiceAttributeItemPageDataRepositories{
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	getItemPageDataServices := GetInvoiceAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

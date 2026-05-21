@@ -4,7 +4,7 @@ import "context"
 
 // PermissionQuery is the narrow port for RBAC permission-code lookups.
 //
-// Separate from AuthorizationService: AuthorizationService answers
+// Separate from Authorizer: Authorizer answers
 // "does user X have permission Y?" (boolean), while PermissionQuery returns
 // the full set of ALLOW codes net of DENYs so callers can cache or filter
 // in bulk (e.g. for sidebar building, batch authorization, permission

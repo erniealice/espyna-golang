@@ -28,10 +28,10 @@ type ListAuditEntriesRepositories struct {
 }
 
 // ListAuditEntriesServices groups application services. No
-// TransactionService — the use case is read-only.
+// Transactor — the use case is read-only.
 type ListAuditEntriesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListAuditEntriesUseCase resolves a paginated audit entry list for an
@@ -63,8 +63,8 @@ func (uc *ListAuditEntriesUseCase) Execute(
 	// Authorization — "audit_trail" + ActionList.
 	if err := authcheck.Check(
 		ctx,
-		uc.services.AuthorizationService,
-		uc.services.TranslationService,
+		uc.services.Authorizer,
+		uc.services.Translator,
 		"audit_trail",
 		ports.ActionList,
 	); err != nil {
@@ -73,7 +73,7 @@ func (uc *ListAuditEntriesUseCase) Execute(
 
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"audit.validation.request_required", "request is required"))
 	}
 	if uc.repositories.AuditService == nil {
@@ -93,7 +93,7 @@ func (uc *ListAuditEntriesUseCase) Execute(
 	if err != nil {
 		return nil, fmt.Errorf(
 			contextutil.GetTranslatedMessageWithContext(
-				ctx, uc.services.TranslationService,
+				ctx, uc.services.Translator,
 				"audit.errors.list_failed", "failed to list audit entries: %w"),
 			err,
 		)

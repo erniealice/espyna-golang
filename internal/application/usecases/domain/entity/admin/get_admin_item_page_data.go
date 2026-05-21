@@ -15,9 +15,9 @@ type GetAdminItemPageDataRepositories struct {
 
 // GetAdminItemPageDataServices groups service dependencies for GetAdminItemPageData use case
 type GetAdminItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetAdminItemPageDataUseCase handles getting individual admin item data
@@ -44,7 +44,7 @@ func (uc *GetAdminItemPageDataUseCase) Execute(
 	req *adminpb.GetAdminItemPageDataRequest,
 ) (*adminpb.GetAdminItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityAdmin, ports.ActionList); err != nil {
 		return nil, err
 	}

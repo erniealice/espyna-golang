@@ -19,10 +19,10 @@ type LineRepositories struct {
 
 // LineServices groups all business service dependencies for line use cases.
 type LineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all line-related use cases.
@@ -38,38 +38,38 @@ type UseCases struct {
 func NewUseCases(repositories LineRepositories, services LineServices) *UseCases {
 	createRepos := CreateLineRepositories{Line: repositories.Line}
 	createServices := CreateLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadLineRepositories{Line: repositories.Line}
 	readServices := ReadLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateLineRepositories{Line: repositories.Line}
 	updateServices := UpdateLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteLineRepositories{Line: repositories.Line}
 	deleteServices := DeleteLineServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListLinesRepositories{Line: repositories.Line}
 	listServices := ListLinesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -90,10 +90,10 @@ type CreateLineRepositories struct {
 }
 
 type CreateLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 type CreateLineUseCase struct {
@@ -106,18 +106,18 @@ func NewCreateLineUseCase(repositories CreateLineRepositories, services CreateLi
 }
 
 func (uc *CreateLineUseCase) Execute(ctx context.Context, req *linepb.CreateLineRequest) (*linepb.CreateLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, ports.EntityLine, ports.ActionCreate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.validation.data_required", "Line data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.validation.data_required", "Line data is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.validation.name_required", "Name is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.validation.name_required", "Name is required [DEFAULT]"))
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.Active = true
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
@@ -126,7 +126,7 @@ func (uc *CreateLineUseCase) Execute(ctx context.Context, req *linepb.CreateLine
 	req.Data.DateModifiedString = &[]string{now.Format(time.RFC3339)}[0]
 	resp, err := uc.repositories.Line.CreateLine(ctx, req)
 	if err != nil {
-		translated := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.errors.creation_failed", "Line creation failed [DEFAULT]")
+		translated := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.errors.creation_failed", "Line creation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translated, err)
 	}
 	return resp, nil
@@ -141,9 +141,9 @@ type ReadLineRepositories struct {
 }
 
 type ReadLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type ReadLineUseCase struct {
@@ -156,18 +156,18 @@ func NewReadLineUseCase(repositories ReadLineRepositories, services ReadLineServ
 }
 
 func (uc *ReadLineUseCase) Execute(ctx context.Context, req *linepb.ReadLineRequest) (*linepb.ReadLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, ports.EntityLine, ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.validation.id_required", "Line ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.validation.id_required", "Line ID is required [DEFAULT]"))
 	}
 	resp, err := uc.repositories.Line.ReadLine(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	if resp == nil || len(resp.GetData()) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.errors.not_found", "Line not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.errors.not_found", "Line not found [DEFAULT]"))
 	}
 	return resp, nil
 }
@@ -181,9 +181,9 @@ type UpdateLineRepositories struct {
 }
 
 type UpdateLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type UpdateLineUseCase struct {
@@ -196,18 +196,18 @@ func NewUpdateLineUseCase(repositories UpdateLineRepositories, services UpdateLi
 }
 
 func (uc *UpdateLineUseCase) Execute(ctx context.Context, req *linepb.UpdateLineRequest) (*linepb.UpdateLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, ports.EntityLine, ports.ActionUpdate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.validation.id_required", "Line ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.validation.id_required", "Line ID is required [DEFAULT]"))
 	}
 	readResp, err := uc.repositories.Line.ReadLine(ctx, &linepb.ReadLineRequest{Data: &linepb.Line{Id: req.Data.Id}})
 	if err != nil {
 		return nil, err
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.errors.not_found", "Line not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.errors.not_found", "Line not found [DEFAULT]"))
 	}
 	existing := readResp.GetData()[0]
 	if req.Data.Name == "" {
@@ -234,9 +234,9 @@ type DeleteLineRepositories struct {
 }
 
 type DeleteLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type DeleteLineUseCase struct {
@@ -249,11 +249,11 @@ func NewDeleteLineUseCase(repositories DeleteLineRepositories, services DeleteLi
 }
 
 func (uc *DeleteLineUseCase) Execute(ctx context.Context, req *linepb.DeleteLineRequest) (*linepb.DeleteLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, ports.EntityLine, ports.ActionDelete); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "line.validation.id_required", "Line ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "line.validation.id_required", "Line ID is required [DEFAULT]"))
 	}
 	return uc.repositories.Line.DeleteLine(ctx, req)
 }
@@ -267,9 +267,9 @@ type ListLinesRepositories struct {
 }
 
 type ListLinesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type ListLinesUseCase struct {
@@ -282,7 +282,7 @@ func NewListLinesUseCase(repositories ListLinesRepositories, services ListLinesS
 }
 
 func (uc *ListLinesUseCase) Execute(ctx context.Context, req *linepb.ListLinesRequest) (*linepb.ListLinesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, ports.EntityLine, ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

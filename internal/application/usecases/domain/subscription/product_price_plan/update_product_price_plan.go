@@ -24,9 +24,9 @@ type UpdateProductPricePlanRepositories struct {
 
 // UpdateProductPricePlanServices groups all business service dependencies
 type UpdateProductPricePlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateProductPricePlanUseCase handles the business logic for updating product price plans
@@ -48,29 +48,29 @@ func NewUpdateProductPricePlanUseCase(
 
 // Execute performs the update product price plan operation
 func (uc *UpdateProductPricePlanUseCase) Execute(ctx context.Context, req *productpriceplanpb.UpdateProductPricePlanRequest) (*productpriceplanpb.UpdateProductPricePlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.authorization_failed", "Authorization failed for product price plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.authorization_failed", "Authorization failed for product price plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityPricePlan, ports.ActionUpdate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.authorization_failed", "Authorization failed for product price plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.authorization_failed", "Authorization failed for product price plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.authorization_failed", "Authorization failed for product price plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.authorization_failed", "Authorization failed for product price plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -80,10 +80,10 @@ func (uc *UpdateProductPricePlanUseCase) Execute(ctx context.Context, req *produ
 func (uc *UpdateProductPricePlanUseCase) executeWithTransaction(ctx context.Context, req *productpriceplanpb.UpdateProductPricePlanRequest) (*productpriceplanpb.UpdateProductPricePlanResponse, error) {
 	var result *productpriceplanpb.UpdateProductPricePlanResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.update_failed", "Product price plan update failed [DEFAULT]")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.update_failed", "Product price plan update failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		result = res
@@ -98,27 +98,27 @@ func (uc *UpdateProductPricePlanUseCase) executeWithTransaction(ctx context.Cont
 
 func (uc *UpdateProductPricePlanUseCase) executeCore(ctx context.Context, req *productpriceplanpb.UpdateProductPricePlanRequest) (*productpriceplanpb.UpdateProductPricePlanResponse, error) {
 	if err := uc.validateInputWithTranslation(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	if err := uc.enrichData(req.Data); err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
 	if err := uc.validateEntityReferencesWithTranslation(ctx, req.Data); err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.entity_reference_validation_failed", "Entity reference validation failed [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.entity_reference_validation_failed", "Entity reference validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
 	resp, err := uc.repositories.ProductPricePlan.UpdateProductPricePlan(ctx, req)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "product_price_plan.errors.not_found", map[string]interface{}{"productPricePlanId": req.Data.Id}, "Product price plan not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_price_plan.errors.not_found", map[string]interface{}{"productPricePlanId": req.Data.Id}, "Product price plan not found")
 			return nil, errors.New(translatedError)
 		}
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.update_failed", "Product price plan update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.update_failed", "Product price plan update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 	return resp, nil
@@ -126,15 +126,15 @@ func (uc *UpdateProductPricePlanUseCase) executeCore(ctx context.Context, req *p
 
 func (uc *UpdateProductPricePlanUseCase) validateInputWithTranslation(ctx context.Context, req *productpriceplanpb.UpdateProductPricePlanRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.request_required", "Request is required [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.validation.request_required", "Request is required [DEFAULT]")
 		return errors.New(msg)
 	}
 	if req.Data == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.data_required", "Product price plan data is required [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.validation.data_required", "Product price plan data is required [DEFAULT]")
 		return errors.New(msg)
 	}
 	if req.Data.Id == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.validation.id_required", "Product price plan ID is required [DEFAULT]")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.validation.id_required", "Product price plan ID is required [DEFAULT]")
 		return errors.New(msg)
 	}
 	return nil
@@ -157,11 +157,11 @@ func (uc *UpdateProductPricePlanUseCase) validateEntityReferencesWithTranslation
 			Data: &priceplanpb.PricePlan{Id: productPricePlan.PricePlanId},
 		})
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.price_plan_validation_failed", "Failed to validate price plan entity reference [DEFAULT]")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.price_plan_validation_failed", "Failed to validate price plan entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		if pricePlan == nil || pricePlan.Data == nil || len(pricePlan.Data) == 0 {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.price_plan_not_found", "Referenced price plan does not exist [DEFAULT]")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.price_plan_not_found", "Referenced price plan does not exist [DEFAULT]")
 			return fmt.Errorf("%s with ID '%s'", msg, productPricePlan.PricePlanId)
 		}
 		pricePlanPlanID = pricePlan.Data[0].GetPlanId()
@@ -172,15 +172,15 @@ func (uc *UpdateProductPricePlanUseCase) validateEntityReferencesWithTranslation
 			Data: &productplanpb.ProductPlan{Id: productPricePlan.ProductPlanId},
 		})
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_validation_failed", "Failed to validate product plan entity reference [DEFAULT]")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.product_plan_validation_failed", "Failed to validate product plan entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		if productPlan == nil || productPlan.Data == nil || len(productPlan.Data) == 0 {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_not_found", "Referenced product plan does not exist [DEFAULT]")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.product_plan_not_found", "Referenced product plan does not exist [DEFAULT]")
 			return fmt.Errorf("%s with ID '%s'", msg, productPricePlan.ProductPlanId)
 		}
 		if pricePlanPlanID != "" && productPlan.Data[0].GetPlanId() != pricePlanPlanID {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_price_plan.errors.product_plan_plan_mismatch", "Referenced product plan does not belong to the price plan's parent plan [DEFAULT]")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.product_plan_plan_mismatch", "Referenced product plan does not belong to the price plan's parent plan [DEFAULT]")
 			return fmt.Errorf("%s (product_plan.plan_id='%s', price_plan.plan_id='%s')", msg, productPlan.Data[0].GetPlanId(), pricePlanPlanID)
 		}
 	}

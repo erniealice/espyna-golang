@@ -17,9 +17,9 @@ type GetPermissionListPageDataRepositories struct {
 
 // GetPermissionListPageDataServices groups all business service dependencies
 type GetPermissionListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPermissionListPageDataUseCase handles the business logic for getting permission list page data
@@ -48,9 +48,9 @@ func NewGetPermissionListPageDataUseCaseUngrouped(permissionRepo permissionpb.Pe
 	}
 
 	services := GetPermissionListPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetPermissionListPageDataUseCase(repositories, services)
@@ -59,7 +59,7 @@ func NewGetPermissionListPageDataUseCaseUngrouped(permissionRepo permissionpb.Pe
 // Execute performs the get permission list page data operation
 func (uc *GetPermissionListPageDataUseCase) Execute(ctx context.Context, req *permissionpb.GetPermissionListPageDataRequest) (*permissionpb.GetPermissionListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPermissions, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (uc *GetPermissionListPageDataUseCase) Execute(ctx context.Context, req *pe
 	// Call repository
 	resp, err := uc.repositories.Permission.GetPermissionListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.errors.list_page_data_failed", "Failed to retrieve permission list page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.errors.list_page_data_failed", "Failed to retrieve permission list page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

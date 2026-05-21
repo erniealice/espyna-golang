@@ -58,26 +58,26 @@ func NewEventUseCases(
 	eventTagAssignmentRepo eventtagassignmentpb.EventTagAssignmentDomainServiceServer,
 	clientRepo clientpb.ClientDomainServiceServer,
 	productRepo productpb.ProductDomainServiceServer,
-	authorizationService ports.AuthorizationService,
-	transactionService ports.TransactionService,
-	translationService ports.TranslationService,
-	idService ports.IDService,
+	authorizationService ports.Authorizer,
+	transactionService ports.Transactor,
+	translationService ports.Translator,
+	idService ports.IDGenerator,
 ) *EventUseCases {
 	// Shared services for all use cases
 	sharedServices := struct {
-		Auth ports.AuthorizationService
-		Tx   ports.TransactionService
-		I18n ports.TranslationService
-		ID   ports.IDService
+		Auth ports.Authorizer
+		Tx   ports.Transactor
+		I18n ports.Translator
+		ID   ports.IDGenerator
 	}{authorizationService, transactionService, translationService, idService}
 
 	// Event (core)
 	eventRepositories := eventUseCases.EventRepositories{Event: eventRepo}
 	eventServices := eventUseCases.EventServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventAttendee
@@ -86,10 +86,10 @@ func NewEventUseCases(
 		Event:         eventRepo,
 	}
 	eventAttendeeServices := eventAttendeeUseCases.EventAttendeeServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventAttribute
@@ -98,10 +98,10 @@ func NewEventUseCases(
 		Event:          eventRepo,
 	}
 	eventAttributeServices := eventAttributeUseCases.EventAttributeServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventClient
@@ -111,10 +111,10 @@ func NewEventUseCases(
 		Client:      clientRepo,
 	}
 	eventClientServices := eventClientUseCases.EventClientServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventOccurrence (read-only)
@@ -122,9 +122,9 @@ func NewEventUseCases(
 		EventOccurrence: eventOccurrenceRepo,
 	}
 	eventOccurrenceServices := eventOccurrenceUseCases.EventOccurrenceServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
+		Authorizer: sharedServices.Auth,
+		Transactor: sharedServices.Tx,
+		Translator: sharedServices.I18n,
 	}
 
 	// EventProduct
@@ -134,10 +134,10 @@ func NewEventUseCases(
 		Product:      productRepo,
 	}
 	eventProductServices := eventProductUseCases.EventProductServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventRecurrence
@@ -145,10 +145,10 @@ func NewEventUseCases(
 		EventRecurrence: eventRecurrenceRepo,
 	}
 	eventRecurrenceServices := eventRecurrenceUseCases.EventRecurrenceServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventResource
@@ -157,10 +157,10 @@ func NewEventUseCases(
 		Event:         eventRepo,
 	}
 	eventResourceServices := eventResourceUseCases.EventResourceServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventTag (master list, per workspace)
@@ -168,10 +168,10 @@ func NewEventUseCases(
 		EventTag: eventTagRepo,
 	}
 	eventTagServices := eventTagUseCases.EventTagServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// EventTagAssignment (event ↔ tag join)
@@ -181,10 +181,10 @@ func NewEventUseCases(
 		EventTag:           eventTagRepo,
 	}
 	eventTagAssignmentServices := eventTagAssignmentUseCases.EventTagAssignmentServices{
-		AuthorizationService: sharedServices.Auth,
-		TransactionService:   sharedServices.Tx,
-		TranslationService:   sharedServices.I18n,
-		IDService:            sharedServices.ID,
+		Authorizer:  sharedServices.Auth,
+		Transactor:  sharedServices.Tx,
+		Translator:  sharedServices.I18n,
+		IDGenerator: sharedServices.ID,
 	}
 
 	// Per Wave B P1.C.7 (20260520-service-domain-migration, Q-SDM-DASHBOARD-LAYOUT)

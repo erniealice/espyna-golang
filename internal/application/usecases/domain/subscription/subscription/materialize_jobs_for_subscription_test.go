@@ -268,10 +268,10 @@ func newFixture(t *testing.T, opts fixtureOpts) *fixture {
 			JobTask:             jobTaskRepo,
 		},
 		MaterializeJobsForSubscriptionServices{
-			AuthorizationService:           ports.NewNoOpAuthorizationService(),
-			TransactionService:             stubTxService{},
-			TranslationService:             ports.NewNoOpTranslationService(),
-			IDService:                      ports.NewNoOpIDService(),
+			Authorizer:                     ports.NewNoOpAuthorizer(),
+			Transactor:                     stubTxService{},
+			Translator:                     ports.NewNoOpTranslator(),
+			IDGenerator:                    ports.NewNoOpIDGenerator(),
 			MaterializeBillingEventsForJob: mbe,
 		},
 	)

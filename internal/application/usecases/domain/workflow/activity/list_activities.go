@@ -19,9 +19,9 @@ type ListActivitiesRepositories struct {
 
 // ListActivitiesServices groups all business service dependencies
 type ListActivitiesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListActivitiesUseCase handles the business logic for listing activities
@@ -49,9 +49,9 @@ func NewListActivitiesUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 	}
 
 	services := ListActivitiesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListActivitiesUseCase(repositories, services)
@@ -60,14 +60,14 @@ func NewListActivitiesUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 // Execute performs the list activities operation
 func (uc *ListActivitiesUseCase) Execute(ctx context.Context, req *activitypb.ListActivitiesRequest) (*activitypb.ListActivitiesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"activity", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
 	}
 
 	// Business validation
@@ -79,7 +79,7 @@ func (uc *ListActivitiesUseCase) Execute(ctx context.Context, req *activitypb.Li
 	enrichedRequest := uc.applyBusinessLogic(req)
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -91,10 +91,10 @@ func (uc *ListActivitiesUseCase) Execute(ctx context.Context, req *activitypb.Li
 func (uc *ListActivitiesUseCase) executeWithTransaction(ctx context.Context, req *activitypb.ListActivitiesRequest) (*activitypb.ListActivitiesResponse, error) {
 	var result *activitypb.ListActivitiesResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "activity.errors.list_failed", "Activity listing failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "activity.errors.list_failed", "Activity listing failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -139,11 +139,11 @@ func (uc *ListActivitiesUseCase) applyBusinessLogic(req *activitypb.ListActiviti
 func (uc *ListActivitiesUseCase) validateBusinessRules(ctx context.Context, req *activitypb.ListActivitiesRequest) error {
 	// Business rule: Pagination limit validation if provided
 	if req.Pagination != nil && req.Pagination.Limit < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.pagination_limit_negative", "Pagination limit cannot be negative [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.pagination_limit_negative", "Pagination limit cannot be negative [DEFAULT]"))
 	}
 
 	if req.Pagination != nil && req.Pagination.Limit > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.pagination_limit_too_large", "Pagination limit cannot exceed 1000 [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.pagination_limit_too_large", "Pagination limit cannot exceed 1000 [DEFAULT]"))
 	}
 
 	return nil

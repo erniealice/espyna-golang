@@ -17,9 +17,9 @@ type ListBalanceAttributesRepositories struct {
 
 // ListBalanceAttributesServices groups all business service dependencies
 type ListBalanceAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListBalanceAttributesUseCase handles the business logic for listing balance attributes
@@ -42,7 +42,7 @@ func NewListBalanceAttributesUseCase(
 // Execute performs the list balance attributes operation
 func (uc *ListBalanceAttributesUseCase) Execute(ctx context.Context, req *balanceattributepb.ListBalanceAttributesRequest) (*balanceattributepb.ListBalanceAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalanceAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *ListBalanceAttributesUseCase) Execute(ctx context.Context, req *balanc
 // validateInput validates the input request
 func (uc *ListBalanceAttributesUseCase) validateInput(ctx context.Context, req *balanceattributepb.ListBalanceAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return nil
 }

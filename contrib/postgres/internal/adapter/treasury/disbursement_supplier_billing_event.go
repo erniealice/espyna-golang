@@ -10,8 +10,9 @@
 // counterpart, Phase 7 of the 20260517-advance-cash-events plan).
 //
 // Schema constraint reminder (application-layer, not DB):
-//   SUM(tranche_amount) over all junctions for a given treasury_disbursement_id
-//   must be <= treasury_disbursement.amount.
+//
+//	SUM(tranche_amount) over all junctions for a given treasury_disbursement_id
+//	must be <= treasury_disbursement.amount.
 package treasury
 
 import (

@@ -27,10 +27,10 @@ type BalanceAttributeRepositories struct {
 
 // BalanceAttributeServices groups all business service dependencies for balance attribute use cases
 type BalanceAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of balance attribute use cases
@@ -41,18 +41,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateBalanceAttributeRepositories(repositories)
 	createServices := CreateBalanceAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadBalanceAttributeRepositories{
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	readServices := ReadBalanceAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateBalanceAttributeRepositories{
@@ -61,40 +61,40 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	updateServices := UpdateBalanceAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteBalanceAttributeRepositories{
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	deleteServices := DeleteBalanceAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListBalanceAttributesRepositories{
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	listServices := ListBalanceAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetBalanceAttributeListPageDataRepositories{
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	getListPageDataServices := GetBalanceAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetBalanceAttributeItemPageDataRepositories{
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	getItemPageDataServices := GetBalanceAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

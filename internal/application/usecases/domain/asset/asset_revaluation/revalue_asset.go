@@ -34,10 +34,10 @@ type RevalueAssetRepositories struct {
 
 // RevalueAssetServices groups all business service dependencies.
 type RevalueAssetServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // RevalueAssetRequest is the internal input to the use case.
@@ -71,7 +71,7 @@ type RevalueAssetResult struct {
 //  6. INSERT asset_transaction (REVALUATION_UP|DOWN) with asset_revaluation_id back-ref.
 //  7. UPDATE asset.book_value = asset.fair_value = new_fair_value.
 //
-// All seven steps run inside a single TransactionService.ExecuteInTransaction
+// All seven steps run inside a single Transactor.ExecuteInTransaction
 // closure so the history read + writes are atomic. A concurrent revaluation
 // on the same asset cannot misallocate the split.
 type RevalueAssetUseCase struct {
@@ -106,7 +106,7 @@ func (uc *RevalueAssetUseCase) Execute(
 	ctx context.Context,
 	pbReq *revaluation_pb.RevalueAssetUseCaseRequest,
 ) (*revaluation_pb.RevalueAssetUseCaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetRevaluation, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (uc *RevalueAssetUseCase) Execute(
 	// race the check.
 	workspaceID := strings.TrimSpace(contextutil.ExtractWorkspaceIDFromContext(ctx))
 	if workspaceID == "" {
-		// TODO: translate via TranslationService (Fix #4 deferred — codex L1).
+		// TODO: translate via Translator (Fix #4 deferred — codex L1).
 		// Suggested key: asset.assetDetail.depreciationRun.errors.workspaceRequired
 		return nil, errors.New("revalue_asset: Workspace context required")
 	}
@@ -168,7 +168,7 @@ func (uc *RevalueAssetUseCase) Execute(
 		// no asset_revaluation or asset_transaction row is ever written for
 		// them.
 		if asset.GetMeasurementModel() != assetpb.MeasurementModel_MEASUREMENT_MODEL_REVALUATION {
-			// TODO: translate via TranslationService (Fix #4 deferred — codex L1).
+			// TODO: translate via Translator (Fix #4 deferred — codex L1).
 			// Suggested key: asset.assetRevaluation.errors.wrongMeasurementModel
 			return errors.New("revalue_asset: asset measurement_model must be REVALUATION to be revalued (codex H4)")
 		}
@@ -202,7 +202,7 @@ func (uc *RevalueAssetUseCase) Execute(
 
 		// Step 5: INSERT asset_revaluation
 		revDate := time.Now().UTC().Format("2006-01-02")
-		revID := uc.services.IDService.GenerateID()
+		revID := uc.services.IDGenerator.GenerateID()
 		now := time.Now().UTC().UnixMilli()
 		nowStr := time.Now().UTC().Format(time.RFC3339)
 
@@ -256,7 +256,7 @@ func (uc *RevalueAssetUseCase) Execute(
 		if !isIncrease {
 			txType = assettxpb.AssetTransactionType_ASSET_TRANSACTION_TYPE_REVALUATION_DOWN
 		}
-		txID := uc.services.IDService.GenerateID()
+		txID := uc.services.IDGenerator.GenerateID()
 		txAmount := absAmount // always positive; type discriminates direction
 		revIDStr := rev.GetId()
 		initiator := contextutil.ExtractWorkspaceUserIDFromContext(txCtx)
@@ -303,10 +303,10 @@ func (uc *RevalueAssetUseCase) Execute(
 	}
 
 	// Execute within a transaction if supported. The NoOp service runs inline
-	// (used by unit tests); production wires a PostgreSQL TransactionService
+	// (used by unit tests); production wires a PostgreSQL Transactor
 	// that opens BEGIN/COMMIT around the closure.
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, executeCore); err != nil {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if err := uc.services.Transactor.ExecuteInTransaction(ctx, executeCore); err != nil {
 			return nil, err
 		}
 	} else {

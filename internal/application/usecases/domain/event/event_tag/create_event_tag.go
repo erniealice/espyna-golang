@@ -18,10 +18,10 @@ type CreateEventTagRepositories struct {
 
 // CreateEventTagServices groups all business service dependencies
 type CreateEventTagServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventTagUseCase handles the business logic for creating event_tag records
@@ -43,7 +43,7 @@ func NewCreateEventTagUseCase(
 
 // Execute performs the create event_tag operation
 func (uc *CreateEventTagUseCase) Execute(ctx context.Context, req *eventtagpb.CreateEventTagRequest) (*eventtagpb.CreateEventTagResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventTag, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -64,10 +64,10 @@ func (uc *CreateEventTagUseCase) Execute(ctx context.Context, req *eventtagpb.Cr
 }
 
 func (uc *CreateEventTagUseCase) shouldUseTransaction(ctx context.Context) bool {
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 	return true
@@ -76,7 +76,7 @@ func (uc *CreateEventTagUseCase) shouldUseTransaction(ctx context.Context) bool 
 func (uc *CreateEventTagUseCase) executeWithTransaction(ctx context.Context, req *eventtagpb.CreateEventTagRequest) (*eventtagpb.CreateEventTagResponse, error) {
 	var response *eventtagpb.CreateEventTagResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		if err := uc.validateBusinessRules(req.Data); err != nil {
 			return err
 		}
@@ -122,7 +122,7 @@ func (uc *CreateEventTagUseCase) enrichEventTagData(eventTag *eventtagpb.EventTa
 	now := time.Now()
 
 	if eventTag.Id == "" {
-		eventTag.Id = uc.services.IDService.GenerateID()
+		eventTag.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	eventTag.DateCreated = &[]int64{now.UnixMilli()}[0]

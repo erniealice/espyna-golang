@@ -18,9 +18,9 @@ type DeleteSupplierAttributeRepositories struct {
 
 // DeleteSupplierAttributeServices groups all business service dependencies
 type DeleteSupplierAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteSupplierAttributeUseCase handles the business logic for deleting supplier attributes
@@ -48,9 +48,9 @@ func NewDeleteSupplierAttributeUseCaseUngrouped(supplierAttributeRepo supplierat
 	}
 
 	services := DeleteSupplierAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteSupplierAttributeUseCase(repositories, services)
@@ -59,7 +59,7 @@ func NewDeleteSupplierAttributeUseCaseUngrouped(supplierAttributeRepo supplierat
 // Execute performs the delete supplier attribute operation
 func (uc *DeleteSupplierAttributeUseCase) Execute(ctx context.Context, req *supplierattributepb.DeleteSupplierAttributeRequest) (*supplierattributepb.DeleteSupplierAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_attribute", ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (uc *DeleteSupplierAttributeUseCase) Execute(ctx context.Context, req *supp
 	// Call repository
 	resp, err := uc.repositories.SupplierAttribute.DeleteSupplierAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.errors.deletion_failed", "Supplier attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.errors.deletion_failed", "Supplier attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -82,13 +82,13 @@ func (uc *DeleteSupplierAttributeUseCase) Execute(ctx context.Context, req *supp
 // validateInput validates the input request
 func (uc *DeleteSupplierAttributeUseCase) validateInput(ctx context.Context, req *supplierattributepb.DeleteSupplierAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.request_required", "Request is required for supplier attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.data_required", "Supplier attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.data_required", "Supplier attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_attribute.validation.id_required", "Supplier attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_attribute.validation.id_required", "Supplier attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

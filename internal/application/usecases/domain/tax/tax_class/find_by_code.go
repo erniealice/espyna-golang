@@ -23,8 +23,8 @@ type FindByCodeTaxClassRepositories struct {
 
 // FindByCodeTaxClassServices groups service dependencies.
 type FindByCodeTaxClassServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // FindByCodeTaxClassUseCase wraps the adapter's FindByCode method.
@@ -44,12 +44,12 @@ func NewFindByCodeTaxClassUseCase(
 
 // Execute returns the TaxClass matching (code, direction).
 func (uc *FindByCodeTaxClassUseCase) Execute(ctx context.Context, code, direction string) (*taxclasspb.TaxClass, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxClass, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if code == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_class.validation.code_required", "Tax class code is required [DEFAULT]"))
 	}
 

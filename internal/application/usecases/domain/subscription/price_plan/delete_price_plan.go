@@ -18,9 +18,9 @@ type DeletePricePlanRepositories struct {
 
 // DeletePricePlanServices groups all business service dependencies
 type DeletePricePlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeletePricePlanUseCase handles the business logic for deleting price_plans
@@ -43,7 +43,7 @@ func NewDeletePricePlanUseCase(
 // Execute performs the delete price_plan operation
 func (uc *DeletePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.DeletePricePlanRequest) (*priceplanpb.DeletePricePlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPricePlan, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *DeletePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.
 	// Call repository with error wrapping
 	result, err := uc.repositories.PricePlan.DeletePricePlan(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.errors.deletion_failed", "price plan deletion failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.errors.deletion_failed", "price plan deletion failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil
@@ -70,15 +70,15 @@ func (uc *DeletePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.
 // validateInput validates the input request
 func (uc *DeletePricePlanUseCase) validateInput(ctx context.Context, req *priceplanpb.DeletePricePlanRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.request_required", "request is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.request_required", "request is required")
 		return errors.New(msg)
 	}
 	if req.Data == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.data_required", "price plan data is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.data_required", "price plan data is required")
 		return errors.New(msg)
 	}
 	if req.Data.Id == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.id_required", "price plan ID is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.id_required", "price plan ID is required")
 		return errors.New(msg)
 	}
 	return nil
@@ -88,7 +88,7 @@ func (uc *DeletePricePlanUseCase) validateInput(ctx context.Context, req *pricep
 func (uc *DeletePricePlanUseCase) validateBusinessRules(ctx context.Context, req *priceplanpb.DeletePricePlanRequest) error {
 	// Validate price plan ID format
 	if req.Data != nil && len(req.Data.Id) < 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_plan.validation.id_min_length", "price plan ID must be at least 3 characters long")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.id_min_length", "price plan ID must be at least 3 characters long")
 		return errors.New(msg)
 	}
 

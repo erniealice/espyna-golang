@@ -23,9 +23,9 @@ type DeleteWorkspaceUserRoleRepositories struct {
 
 // DeleteWorkspaceUserRoleServices groups all business service dependencies
 type DeleteWorkspaceUserRoleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteWorkspaceUserRoleUseCase handles the business logic for deleting a workspace user role
@@ -48,13 +48,13 @@ func NewDeleteWorkspaceUserRoleUseCase(
 // Execute performs the delete workspace user role operation
 func (uc *DeleteWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *workspaceuserrolepb.DeleteWorkspaceUserRoleRequest) (*workspaceuserrolepb.DeleteWorkspaceUserRoleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspaceUserRole, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -66,10 +66,10 @@ func (uc *DeleteWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *work
 func (uc *DeleteWorkspaceUserRoleUseCase) executeWithTransaction(ctx context.Context, req *workspaceuserrolepb.DeleteWorkspaceUserRoleRequest) (*workspaceuserrolepb.DeleteWorkspaceUserRoleResponse, error) {
 	var result *workspaceuserrolepb.DeleteWorkspaceUserRoleResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workspace_user_role.errors.deletion_failed", "Workspace-User-Role deletion failed ")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workspace_user_role.errors.deletion_failed", "Workspace-User-Role deletion failed ")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -86,17 +86,17 @@ func (uc *DeleteWorkspaceUserRoleUseCase) executeWithTransaction(ctx context.Con
 func (uc *DeleteWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *workspaceuserrolepb.DeleteWorkspaceUserRoleRequest) (*workspaceuserrolepb.DeleteWorkspaceUserRoleResponse, error) {
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.request_required", "Request is required for workspace user roles "))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.validation.id_required", "Workspace-User-Role ID is required "))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.validation.id_required", "Workspace-User-Role ID is required "))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.WorkspaceUserRole.DeleteWorkspaceUserRole(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace_user_role.errors.deletion_failed", "Workspace-User-Role deletion failed ")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace_user_role.errors.deletion_failed", "Workspace-User-Role deletion failed ")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

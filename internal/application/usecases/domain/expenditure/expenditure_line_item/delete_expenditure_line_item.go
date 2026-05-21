@@ -17,9 +17,9 @@ type DeleteExpenditureLineItemRepositories struct {
 
 // DeleteExpenditureLineItemServices groups all business service dependencies
 type DeleteExpenditureLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteExpenditureLineItemUseCase handles the business logic for deleting expenditure line items
@@ -41,13 +41,13 @@ func NewDeleteExpenditureLineItemUseCase(
 
 // Execute performs the delete expenditure line item operation
 func (uc *DeleteExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb.DeleteExpenditureLineItemRequest) (*pb.DeleteExpenditureLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureLineItem, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_line_item.validation.id_required", "Expenditure line item ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_line_item.validation.id_required", "Expenditure line item ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.ExpenditureLineItem.DeleteExpenditureLineItem(ctx, req)

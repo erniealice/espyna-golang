@@ -10,10 +10,10 @@ type Repositories struct {
 }
 
 type Services struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 type UseCases struct {
@@ -31,35 +31,35 @@ func NewUseCases(repos Repositories, svcs Services) *UseCases {
 	return &UseCases{
 		CreateSupplierPlan: NewCreateSupplierPlanUseCase(
 			CreateSupplierPlanRepositories{SupplierPlan: repos.SupplierPlan},
-			CreateSupplierPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService, IDService: svcs.IDService},
+			CreateSupplierPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
 		),
 		ReadSupplierPlan: NewReadSupplierPlanUseCase(
 			ReadSupplierPlanRepositories{SupplierPlan: repos.SupplierPlan},
-			ReadSupplierPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ReadSupplierPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		UpdateSupplierPlan: NewUpdateSupplierPlanUseCase(
 			UpdateSupplierPlanRepositories{SupplierPlan: repos.SupplierPlan},
-			UpdateSupplierPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			UpdateSupplierPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		DeleteSupplierPlan: NewDeleteSupplierPlanUseCase(
 			DeleteSupplierPlanRepositories{SupplierPlan: repos.SupplierPlan},
-			DeleteSupplierPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			DeleteSupplierPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		ListSupplierPlans: NewListSupplierPlansUseCase(
 			ListSupplierPlansRepositories{SupplierPlan: repos.SupplierPlan},
-			ListSupplierPlansServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ListSupplierPlansServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierPlanListPageData: NewGetSupplierPlanListPageDataUseCase(
 			GetSupplierPlanListPageDataRepositories{SupplierPlan: repos.SupplierPlan},
-			GetSupplierPlanListPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetSupplierPlanListPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierPlanItemPageData: NewGetSupplierPlanItemPageDataUseCase(
 			GetSupplierPlanItemPageDataRepositories{SupplierPlan: repos.SupplierPlan},
-			GetSupplierPlanItemPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetSupplierPlanItemPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		SearchSupplierPlansByName: NewSearchSupplierPlansByNameUseCase(
 			SearchSupplierPlansByNameRepositories{SupplierPlan: repos.SupplierPlan},
-			SearchSupplierPlansByNameServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			SearchSupplierPlansByNameServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 	}
 }

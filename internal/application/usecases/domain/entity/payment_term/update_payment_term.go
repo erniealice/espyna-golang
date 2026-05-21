@@ -18,9 +18,9 @@ type UpdatePaymentTermRepositories struct {
 
 // UpdatePaymentTermServices groups all business service dependencies
 type UpdatePaymentTermServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdatePaymentTermUseCase handles the business logic for updating a payment term
@@ -48,9 +48,9 @@ func NewUpdatePaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentT
 	}
 
 	services := UpdatePaymentTermServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdatePaymentTermUseCase(repositories, services)
@@ -59,29 +59,29 @@ func NewUpdatePaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentT
 // Execute performs the update payment term operation
 func (uc *UpdatePaymentTermUseCase) Execute(ctx context.Context, req *paymenttermpb.UpdatePaymentTermRequest) (*paymenttermpb.UpdatePaymentTermResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"payment_term", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.request_required", "Request is required for payment terms [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.request_required", "Request is required for payment terms [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.id_required", "Payment term ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.id_required", "Payment term ID is required [DEFAULT]"))
 	}
 
 	// Business logic validation
 	if req.Data.Name == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.validation.name_required", "Payment term name is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.validation.name_required", "Payment term name is required [DEFAULT]"))
 	}
 
 	// Call repository
 	resp, err := uc.repositories.PaymentTerm.UpdatePaymentTerm(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.errors.update_failed", "Payment term update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.errors.update_failed", "Payment term update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

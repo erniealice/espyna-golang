@@ -18,10 +18,10 @@ type CreateFulfillmentRepositories struct {
 	Fulfillment pb.FulfillmentDomainServiceServer
 }
 type CreateFulfillmentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 type CreateFulfillmentUseCase struct {
 	repositories CreateFulfillmentRepositories
@@ -34,8 +34,8 @@ type GetFulfillmentRepositories struct {
 	Fulfillment pb.FulfillmentDomainServiceServer
 }
 type GetFulfillmentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 type GetFulfillmentUseCase struct {
 	repositories GetFulfillmentRepositories
@@ -45,21 +45,21 @@ type GetFulfillmentUseCase struct {
 // Execute creates a fulfillment and its line items in one transaction.
 // It generates IDs, sets PENDING status, and logs the initial nil→PENDING status event.
 func (uc *CreateFulfillmentUseCase) Execute(ctx context.Context, req *pb.CreateFulfillmentRequest) (*pb.CreateFulfillmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "fulfillment", ports.ActionCreate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.validation.data_required", "fulfillment data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.validation.data_required", "fulfillment data is required [DEFAULT]"))
 	}
 	if req.Data.RevenueId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.validation.revenue_id_required", "revenue ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.validation.revenue_id_required", "revenue ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()
 
 	// Generate fulfillment ID.
-	if uc.services.IDService != nil {
-		req.Data.Id = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	} else {
 		req.Data.Id = fmt.Sprintf("fulfillment-%d", now.UnixNano())
 	}
@@ -75,9 +75,9 @@ func (uc *CreateFulfillmentUseCase) Execute(ctx context.Context, req *pb.CreateF
 		req.Data.Status = string(StatusPending)
 	}
 
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		var result *pb.CreateFulfillmentResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.Fulfillment.CreateFulfillment(txCtx, req)
 			if err != nil {
 				return err
@@ -96,15 +96,15 @@ func (uc *CreateFulfillmentUseCase) Execute(ctx context.Context, req *pb.CreateF
 // ---- GetFulfillment ----
 
 func (uc *GetFulfillmentUseCase) Execute(ctx context.Context, req *pb.GetFulfillmentRequest) (*pb.GetFulfillmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService, "fulfillment", ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.validation.id_required", "fulfillment ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.validation.id_required", "fulfillment ID is required [DEFAULT]"))
 	}
 	result, err := uc.repositories.Fulfillment.GetFulfillment(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fulfillment.errors.not_found", "fulfillment not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fulfillment.errors.not_found", "fulfillment not found [DEFAULT]"))
 	}
 	return result, nil
 }

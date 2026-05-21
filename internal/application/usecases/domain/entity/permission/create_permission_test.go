@@ -53,10 +53,10 @@ func createTestUseCaseWithAuth(businessType string, supportsTransaction bool, sh
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, shouldAuthorize)
 	services := CreatePermissionServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
-		IDService:            standardServices.IDService,
+		Authorizer:  standardServices.Authorizer,
+		Transactor:  standardServices.Transactor,
+		Translator:  standardServices.Translator,
+		IDGenerator: standardServices.IDGenerator,
 	}
 
 	return NewCreatePermissionUseCase(repositories, services)
@@ -299,9 +299,9 @@ func TestCreatePermissionUseCase_Execute_TableDriven(t *testing.T) {
 				testutil.AssertError(t, err)
 				if tc.ExpectedError != "" {
 					if tc.ErrorTags != nil {
-						testutil.AssertTranslatedErrorWithTags(t, err, tc.ExpectedError, tc.ErrorTags, useCase.services.TranslationService, ctx)
+						testutil.AssertTranslatedErrorWithTags(t, err, tc.ExpectedError, tc.ErrorTags, useCase.services.Translator, ctx)
 					} else {
-						testutil.AssertTranslatedError(t, err, tc.ExpectedError, useCase.services.TranslationService, ctx)
+						testutil.AssertTranslatedError(t, err, tc.ExpectedError, useCase.services.Translator, ctx)
 					}
 				}
 			}

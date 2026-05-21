@@ -13,7 +13,7 @@ import (
 type AllowAllAuthService struct{}
 
 // NewAllowAllAuth creates a simple allow-all authorization service
-func NewAllowAllAuth() ports.AuthorizationService {
+func NewAllowAllAuth() ports.Authorizer {
 	return &AllowAllAuthService{}
 }
 

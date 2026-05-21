@@ -16,9 +16,9 @@ type UpdateTaskOutcomeRepositories struct {
 }
 
 type UpdateTaskOutcomeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateTaskOutcomeUseCase handles the business logic for updating task outcomes
@@ -41,7 +41,7 @@ func NewUpdateTaskOutcomeUseCase(
 // Execute performs the update task outcome operation
 func (uc *UpdateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.UpdateTaskOutcomeRequest) (*pb.UpdateTaskOutcomeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTaskOutcome, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *UpdateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.UpdateT
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req, enrichedData)
 	}
 
@@ -72,7 +72,7 @@ func (uc *UpdateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.UpdateT
 func (uc *UpdateTaskOutcomeUseCase) executeWithTransaction(ctx context.Context, req *pb.UpdateTaskOutcomeRequest, enrichedData *pb.TaskOutcome) (*pb.UpdateTaskOutcomeResponse, error) {
 	var result *pb.UpdateTaskOutcomeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req, enrichedData)
 		if err != nil {
 			return err
@@ -93,14 +93,14 @@ func (uc *UpdateTaskOutcomeUseCase) executeCore(ctx context.Context, req *pb.Upd
 		Data: &pb.TaskOutcome{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.errors.not_found", "[ERR-DEFAULT] Task outcome not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.not_found", "[ERR-DEFAULT] Task outcome not found"))
 	}
 
 	resp, err := uc.repositories.TaskOutcome.UpdateTaskOutcome(ctx, &pb.UpdateTaskOutcomeRequest{
 		Data: enrichedData,
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.errors.update_failed", "[ERR-DEFAULT] Task outcome update failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.update_failed", "[ERR-DEFAULT] Task outcome update failed"))
 	}
 	return resp, nil
 }
@@ -116,13 +116,13 @@ func (uc *UpdateTaskOutcomeUseCase) applyBusinessLogic(data *pb.TaskOutcome) *pb
 // validateInput validates the input request
 func (uc *UpdateTaskOutcomeUseCase) validateInput(ctx context.Context, req *pb.UpdateTaskOutcomeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.data_required", "[ERR-DEFAULT] Task outcome data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.data_required", "[ERR-DEFAULT] Task outcome data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.id_required", "[ERR-DEFAULT] Task outcome ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.id_required", "[ERR-DEFAULT] Task outcome ID is required"))
 	}
 	return nil
 }
@@ -130,10 +130,10 @@ func (uc *UpdateTaskOutcomeUseCase) validateInput(ctx context.Context, req *pb.U
 // validateBusinessRules enforces business constraints
 func (uc *UpdateTaskOutcomeUseCase) validateBusinessRules(ctx context.Context, data *pb.TaskOutcome) error {
 	if data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.data_required", "[ERR-DEFAULT] Task outcome data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.data_required", "[ERR-DEFAULT] Task outcome data is required"))
 	}
 	if data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome.validation.id_required", "[ERR-DEFAULT] Task outcome ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.validation.id_required", "[ERR-DEFAULT] Task outcome ID is required"))
 	}
 	return nil
 }

@@ -150,25 +150,25 @@ func (uc *ComputeTaxesForRevenueUseCase) Execute(
 	ctx context.Context,
 	req *ComputeTaxesRequest,
 ) (*ComputeTaxesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueTaxLine, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.RevenueID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.revenue_id_required",
 			"Revenue ID is required for tax computation [DEFAULT]"))
 	}
 	if req.WorkspaceID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.workspace_id_required",
 			"Workspace ID is required for tax computation [DEFAULT]"))
 	}
 
-	if !req.DryRun && uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if !req.DryRun && uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *ComputeTaxesResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("compute taxes failed: %w", err)
@@ -707,8 +707,8 @@ func (uc *ComputeTaxesForRevenueUseCase) buildRevenueTaxLine(
 		Active:               true,
 	}
 
-	if uc.services.IDService != nil {
-		line.Id = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		line.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	ms := now.UnixMilli()
@@ -806,14 +806,14 @@ func (uc *ComputeTaxesForRevenueUseCase) checkMultiCurrencyGuard(
 	funcCurrency := ws.GetFunctionalCurrency()
 	revCurrency := rev.GetCurrency()
 	if funcCurrency != "" && revCurrency != "" && revCurrency != funcCurrency {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.currency_mismatch",
 			fmt.Sprintf("revenue currency %q does not match workspace functional currency %q [DEFAULT]",
 				revCurrency, funcCurrency)))
 	}
 	if rev.GetBillingCurrency() != "" {
 		if rev.GetForexRateMicroUnits() == 0 || rev.GetForexRateSource() == "" {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 				"revenue_tax_line.validation.fx_snapshot_required",
 				"billing_currency is set but forex_rate_micro_units or forex_rate_source is missing [DEFAULT]"))
 		}
@@ -825,7 +825,7 @@ func (uc *ComputeTaxesForRevenueUseCase) checkMultiCurrencyGuard(
 func (uc *ComputeTaxesForRevenueUseCase) checkRecomputeBlockers(ctx context.Context, rev *revenuepb.Revenue) error {
 	ss := rev.GetSettlementStatus()
 	if ss == settlementStatusFullySettled || ss == settlementStatusCashReceivedWHTpending {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.recompute_blocked_settled",
 			"recompute is blocked: revenue has been (partially) settled. Reverse the cash receipt before recomputing [DEFAULT]"))
 	}
@@ -836,7 +836,7 @@ func (uc *ComputeTaxesForRevenueUseCase) checkRecomputeBlockers(ctx context.Cont
 		if err == nil && resp != nil {
 			for _, cert := range resp.GetData() {
 				if cert.GetStatus() != withholdingcertificatepb.WithholdingCertificateStatus_WITHHOLDING_CERTIFICATE_STATUS_VOIDED {
-					return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+					return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 						"revenue_tax_line.validation.recompute_blocked_certificate",
 						"recompute is blocked: a non-void WithholdingCertificate exists. Void all certificates before recomputing [DEFAULT]"))
 				}

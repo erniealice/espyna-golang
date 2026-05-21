@@ -18,9 +18,9 @@ type ListPriceSchedulesRepositories struct {
 
 // ListPriceSchedulesServices groups all business service dependencies
 type ListPriceSchedulesServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ListPriceSchedulesUseCase handles the business logic for listing price_schedules
@@ -43,7 +43,7 @@ func NewListPriceSchedulesUseCase(
 // Execute performs the list price_schedules operation
 func (uc *ListPriceSchedulesUseCase) Execute(ctx context.Context, req *priceschedulepb.ListPriceSchedulesRequest) (*priceschedulepb.ListPriceSchedulesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceSchedule, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *ListPriceSchedulesUseCase) Execute(ctx context.Context, req *pricesche
 	// Call repository with error wrapping
 	result, err := uc.repositories.PriceSchedule.ListPriceSchedules(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.errors.list_failed", "price schedule listing failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.errors.list_failed", "price schedule listing failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil
@@ -70,7 +70,7 @@ func (uc *ListPriceSchedulesUseCase) Execute(ctx context.Context, req *pricesche
 // validateInput validates the input request
 func (uc *ListPriceSchedulesUseCase) validateInput(ctx context.Context, req *priceschedulepb.ListPriceSchedulesRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.request_required", "request is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.request_required", "request is required")
 		return errors.New(msg)
 	}
 	return nil

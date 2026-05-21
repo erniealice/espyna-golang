@@ -19,9 +19,9 @@ type GetPlanAttributeItemPageDataRepositories struct {
 
 // GetPlanAttributeItemPageDataServices groups all business service dependencies
 type GetPlanAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPlanAttributeItemPageDataUseCase handles the business logic for getting plan attribute item page data
@@ -44,21 +44,21 @@ func NewGetPlanAttributeItemPageDataUseCase(
 // Execute performs the get plan attribute item page data operation
 func (uc *GetPlanAttributeItemPageDataUseCase) Execute(ctx context.Context, req *planattributepb.GetPlanAttributeItemPageDataRequest) (*planattributepb.GetPlanAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlanAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.PlanAttribute.GetPlanAttributeItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.item_page_data_failed", "Failed to retrieve plan attribute item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.errors.item_page_data_failed", "Failed to retrieve plan attribute item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -68,17 +68,17 @@ func (uc *GetPlanAttributeItemPageDataUseCase) Execute(ctx context.Context, req 
 // validateInput validates the input request
 func (uc *GetPlanAttributeItemPageDataUseCase) validateInput(ctx context.Context, req *planattributepb.GetPlanAttributeItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.validation.request_required", "Request is required for plan attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.validation.request_required", "Request is required for plan attributes [DEFAULT]"))
 	}
 
 	// Validate plan attribute ID - uses direct field req.PlanAttributeId
 	if strings.TrimSpace(req.PlanAttributeId) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.validation.id_required", "Plan attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.validation.id_required", "Plan attribute ID is required [DEFAULT]"))
 	}
 
 	// Basic ID format validation
 	if len(req.PlanAttributeId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.validation.id_too_short", "Plan attribute ID must be at least 3 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.validation.id_too_short", "Plan attribute ID must be at least 3 characters [DEFAULT]"))
 	}
 
 	return nil

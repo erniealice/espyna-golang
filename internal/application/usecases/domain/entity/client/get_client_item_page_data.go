@@ -15,9 +15,9 @@ type GetClientItemPageDataRepositories struct {
 
 // GetClientItemPageDataServices groups service dependencies for GetClientItemPageData use case
 type GetClientItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetClientItemPageDataUseCase handles getting individual client item data
@@ -44,7 +44,7 @@ func (uc *GetClientItemPageDataUseCase) Execute(
 	req *clientpb.GetClientItemPageDataRequest,
 ) (*clientpb.GetClientItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionList); err != nil {
 		return nil, err
 	}

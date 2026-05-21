@@ -18,9 +18,9 @@ type FindApplicablePriceScheduleRepositories struct {
 
 // FindApplicablePriceScheduleServices groups all business service dependencies
 type FindApplicablePriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // FindApplicablePriceScheduleUseCase handles the business logic for finding the
@@ -47,7 +47,7 @@ func (uc *FindApplicablePriceScheduleUseCase) Execute(
 	req *priceschedulepb.FindApplicablePriceScheduleRequest,
 ) (*priceschedulepb.FindApplicablePriceScheduleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceSchedule, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (uc *FindApplicablePriceScheduleUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -72,12 +72,12 @@ func (uc *FindApplicablePriceScheduleUseCase) executeWithTransaction(
 ) (*priceschedulepb.FindApplicablePriceScheduleResponse, error) {
 	var result *priceschedulepb.FindApplicablePriceScheduleResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"price_schedule.errors.find_applicable_failed",
 				"find applicable price schedule failed: %w",
 			), err)
@@ -101,7 +101,7 @@ func (uc *FindApplicablePriceScheduleUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_schedule.errors.find_applicable_failed",
 			"failed to find applicable price schedule: %w",
 		), err)
@@ -117,7 +117,7 @@ func (uc *FindApplicablePriceScheduleUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_schedule.validation.request_required",
 			"request is required",
 		))
@@ -125,7 +125,7 @@ func (uc *FindApplicablePriceScheduleUseCase) validateInput(
 	if req.LocationId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_schedule.validation.location_id_required",
 			"location_id is required",
 		))
@@ -133,7 +133,7 @@ func (uc *FindApplicablePriceScheduleUseCase) validateInput(
 	if req.Date == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_schedule.validation.date_required",
 			"date is required",
 		))

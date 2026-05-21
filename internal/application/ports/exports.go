@@ -100,22 +100,22 @@ const (
 )
 
 // ID types
-type IDService = infrastructure.IDService
+type IDGenerator = infrastructure.IDGenerator
 
-// NoOpIDService provides fallback functionality
-type NoOpIDService = infrastructure.NoOpIDService
+// NoOpIDGenerator provides fallback functionality
+type NoOpIDGenerator = infrastructure.NoOpIDGenerator
 
-// NewNoOpIDService creates a fallback ID service
-var NewNoOpIDService = infrastructure.NewNoOpIDService
+// NewNoOpIDGenerator creates a fallback ID service
+var NewNoOpIDGenerator = infrastructure.NewNoOpIDGenerator
 
 // Transaction types
-type TransactionService = infrastructure.TransactionService
+type Transactor = infrastructure.Transactor
 
-// NoOpTransactionService does nothing - used as fallback
-type NoOpTransactionService = infrastructure.NoOpTransactionService
+// NoOpTransactor does nothing - used as fallback
+type NoOpTransactor = infrastructure.NoOpTransactor
 
-// NewNoOpTransactionService creates a no-operation transaction service
-var NewNoOpTransactionService = infrastructure.NewNoOpTransactionService
+// NewNoOpTransactor creates a no-operation transaction service
+var NewNoOpTransactor = infrastructure.NewNoOpTransactor
 
 // Reference checker — application port over postgres reference.Checker.
 type ReferenceChecker = infrastructure.ReferenceChecker
@@ -213,10 +213,10 @@ type (
 )
 
 // Translation types
-type TranslationService = domain.TranslationService
+type Translator = domain.Translator
 
-// NewNoOpTranslationService creates a non-operational fallback
-var NewNoOpTranslationService = domain.NewNoOpTranslationService
+// NewNoOpTranslator creates a non-operational fallback
+var NewNoOpTranslator = domain.NewNoOpTranslator
 
 // Ledger types
 type LedgerReportingService = domain.LedgerReportingService
@@ -233,14 +233,14 @@ type (
 
 // Authorization types
 type (
-	AuthorizationService   = security.AuthorizationService
+	Authorizer             = security.Authorizer
 	AuthorizationProvider  = security.AuthorizationProvider
 	AuthorizationError     = security.AuthorizationError
 	AuthorizationErrorCode = security.AuthorizationErrorCode
 )
 
-// NewNoOpAuthorizationService creates a non-operational fallback
-var NewNoOpAuthorizationService = security.NewNoOpAuthorizationService
+// NewNoOpAuthorizer creates a non-operational fallback
+var NewNoOpAuthorizer = security.NewNoOpAuthorizer
 
 // NewAuthorizationError creates a new authorization error
 var NewAuthorizationError = security.NewAuthorizationError

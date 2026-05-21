@@ -51,8 +51,8 @@ func newListCandidatesUseCase() *ListDepreciationCandidatesUseCase {
 			DepreciationSchedule: &fakeCandidateDepreciationScheduleRepo{},
 		},
 		ListDepreciationCandidatesServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TranslationService:   ports.NewNoOpTranslationService(),
+			Authorizer: ports.NewNoOpAuthorizer(),
+			Translator: ports.NewNoOpTranslator(),
 		},
 	)
 }

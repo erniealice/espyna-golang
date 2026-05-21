@@ -49,9 +49,9 @@ type UseCases struct {
 // Execute method tolerates nil repositories and returns a zero-valued
 // response section for the missing concern.
 type Deps struct {
-	PayrollRun         PayrollRunDashboardRepository
-	PayrollRemittance  PayrollRemittanceDashboardRepository
-	TranslationService ports.TranslationService
+	PayrollRun        PayrollRunDashboardRepository
+	PayrollRemittance PayrollRemittanceDashboardRepository
+	Translator        ports.Translator
 }
 
 // NewUseCases wires every payroll-dashboard service use case from grouped
@@ -67,7 +67,7 @@ func NewUseCases(deps *Deps) *UseCases {
 				PayrollRun:        deps.PayrollRun,
 				PayrollRemittance: deps.PayrollRemittance,
 			},
-			GetPayrollDashboardServices{TranslationService: deps.TranslationService},
+			GetPayrollDashboardServices{Translator: deps.Translator},
 		),
 	}
 }

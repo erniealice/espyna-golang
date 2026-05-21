@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -341,6 +341,7 @@ func NewAssetCategoryRepository(db *sql.DB, tableName string) assetcategorypb.As
 //   - Asset has different useful_life_months → AssetsDeviating = 1.
 //   - Asset salvage_value = acquisition_cost × default_salvage_value_percent / 100 → not deviating.
 //   - Asset salvage_value differs from expected centavos → AssetsDeviating = 1.
+//
 // No new test framework has been introduced here per plan §Step 7.1.3 "defer if
 // no integration test framework exists for this adapter."
 func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
@@ -416,8 +417,8 @@ func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 
 	// Build a map of category_id → counts.
 	type rollupCounts struct {
-		inPolicy   int
-		deviating  int
+		inPolicy  int
+		deviating int
 	}
 	countsMap := make(map[string]rollupCounts)
 	for rows.Next() {

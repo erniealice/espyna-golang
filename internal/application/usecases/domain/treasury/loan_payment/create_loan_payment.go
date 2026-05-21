@@ -21,10 +21,10 @@ type CreateLoanPaymentRepositories struct {
 
 // CreateLoanPaymentServices groups all business service dependencies.
 type CreateLoanPaymentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateLoanPaymentUseCase handles the business logic for recording loan payments.
@@ -52,12 +52,12 @@ func NewCreateLoanPaymentUseCase(
 
 // Execute performs the create loan payment operation.
 func (uc *CreateLoanPaymentUseCase) Execute(ctx context.Context, req *loanpaymentpb.CreateLoanPaymentRequest) (*loanpaymentpb.CreateLoanPaymentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityLoanPayment, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -67,10 +67,10 @@ func (uc *CreateLoanPaymentUseCase) Execute(ctx context.Context, req *loanpaymen
 func (uc *CreateLoanPaymentUseCase) executeWithTransaction(ctx context.Context, req *loanpaymentpb.CreateLoanPaymentRequest) (*loanpaymentpb.CreateLoanPaymentResponse, error) {
 	var result *loanpaymentpb.CreateLoanPaymentResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "loan_payment.errors.creation_failed", "Loan payment creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "loan_payment.errors.creation_failed", "Loan payment creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -104,22 +104,22 @@ func (uc *CreateLoanPaymentUseCase) executeCore(ctx context.Context, req *loanpa
 
 func (uc *CreateLoanPaymentUseCase) validateInput(ctx context.Context, req *loanpaymentpb.CreateLoanPaymentRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.data_required", "[ERR-DEFAULT] Loan payment data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.data_required", "[ERR-DEFAULT] Loan payment data is required"))
 	}
 	if req.Data.LoanId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.loan_id_required", "[ERR-DEFAULT] Loan ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.loan_id_required", "[ERR-DEFAULT] Loan ID is required"))
 	}
 	if req.Data.TotalAmount <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.amount_positive", "[ERR-DEFAULT] Total amount must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.amount_positive", "[ERR-DEFAULT] Total amount must be greater than zero"))
 	}
 	if req.Data.PrincipalAmount < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.principal_non_negative", "[ERR-DEFAULT] Principal amount must not be negative"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.principal_non_negative", "[ERR-DEFAULT] Principal amount must not be negative"))
 	}
 	if req.Data.InterestAmount < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.interest_non_negative", "[ERR-DEFAULT] Interest amount must not be negative"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.interest_non_negative", "[ERR-DEFAULT] Interest amount must not be negative"))
 	}
 	return nil
 }
@@ -128,7 +128,7 @@ func (uc *CreateLoanPaymentUseCase) enrichData(payment *loanpaymentpb.LoanPaymen
 	now := time.Now()
 
 	if payment.Id == "" {
-		payment.Id = uc.services.IDService.GenerateID()
+		payment.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	if payment.PaymentDate == "" {
@@ -151,7 +151,7 @@ func (uc *CreateLoanPaymentUseCase) validateBusinessRules(ctx context.Context, p
 	computed := payment.PrincipalAmount + payment.InterestAmount + payment.FeeAmount
 	diff := payment.TotalAmount - computed
 	if diff != 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.total_mismatch", "[ERR-DEFAULT] Total amount must equal principal + interest + fees"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.total_mismatch", "[ERR-DEFAULT] Total amount must equal principal + interest + fees"))
 	}
 	return nil
 }

@@ -17,10 +17,10 @@ type CreateSupplierProductCostPlanRepositories struct {
 }
 
 type CreateSupplierProductCostPlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 type CreateSupplierProductCostPlanUseCase struct {
@@ -36,20 +36,20 @@ func NewCreateSupplierProductCostPlanUseCase(
 }
 
 func (uc *CreateSupplierProductCostPlanUseCase) Execute(ctx context.Context, req *supplierproductcostplanpb.CreateSupplierProductCostPlanRequest) (*supplierproductcostplanpb.CreateSupplierProductCostPlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierProductCostPlan, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_cost_plan.validation.data_required", "supplier product cost plan data is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_cost_plan.validation.data_required", "supplier product cost plan data is required"))
 	}
 	if req.Data.SupplierProductPlanId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_cost_plan.validation.supplier_product_plan_id_required", "supplier product plan ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_cost_plan.validation.supplier_product_plan_id_required", "supplier product plan ID is required"))
 	}
 	if req.Data.CostPlanId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_cost_plan.validation.cost_plan_id_required", "cost plan ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_cost_plan.validation.cost_plan_id_required", "cost plan ID is required"))
 	}
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -57,10 +57,10 @@ func (uc *CreateSupplierProductCostPlanUseCase) Execute(ctx context.Context, req
 
 func (uc *CreateSupplierProductCostPlanUseCase) executeWithTransaction(ctx context.Context, req *supplierproductcostplanpb.CreateSupplierProductCostPlanRequest) (*supplierproductcostplanpb.CreateSupplierProductCostPlanResponse, error) {
 	var result *supplierproductcostplanpb.CreateSupplierProductCostPlanResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_cost_plan.errors.creation_failed", "supplier product cost plan creation failed")
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_cost_plan.errors.creation_failed", "supplier product cost plan creation failed")
 			return fmt.Errorf("%s: %w", msg, err)
 		}
 		result = res
@@ -75,7 +75,7 @@ func (uc *CreateSupplierProductCostPlanUseCase) executeWithTransaction(ctx conte
 func (uc *CreateSupplierProductCostPlanUseCase) executeCore(ctx context.Context, req *supplierproductcostplanpb.CreateSupplierProductCostPlanRequest) (*supplierproductcostplanpb.CreateSupplierProductCostPlanResponse, error) {
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.Active = true
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]

@@ -23,10 +23,10 @@ type CreateEventProductRepositories struct {
 
 // CreateEventProductServices groups all business service dependencies
 type CreateEventProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventProductUseCase handles the business logic for creating event product associations
@@ -61,10 +61,10 @@ func NewCreateEventProductUseCaseUngrouped(
 	}
 
 	services := CreateEventProductServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil, // Will be injected later if needed
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return &CreateEventProductUseCase{
@@ -76,7 +76,7 @@ func NewCreateEventProductUseCaseUngrouped(
 // Execute performs the create event product operation
 func (uc *CreateEventProductUseCase) Execute(ctx context.Context, req *eventproductpb.CreateEventProductRequest) (*eventproductpb.CreateEventProductResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventProduct, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -102,12 +102,12 @@ func (uc *CreateEventProductUseCase) Execute(ctx context.Context, req *eventprod
 
 // shouldUseTransaction determines if this operation should use a transaction
 func (uc *CreateEventProductUseCase) shouldUseTransaction(ctx context.Context) bool {
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
 
 	// Don't start a nested transaction if we're already in one
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 
@@ -118,7 +118,7 @@ func (uc *CreateEventProductUseCase) shouldUseTransaction(ctx context.Context) b
 func (uc *CreateEventProductUseCase) executeWithTransaction(ctx context.Context, req *eventproductpb.CreateEventProductRequest) (*eventproductpb.CreateEventProductResponse, error) {
 	var response *eventproductpb.CreateEventProductResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		// Business rule validation (check first to avoid unnecessary DB calls)
 		if err := uc.validateBusinessRules(req.Data); err != nil {
 			return err
@@ -185,7 +185,7 @@ func (uc *CreateEventProductUseCase) enrichEventProductData(eventProduct *eventp
 
 	// Generate EventProduct ID if not provided
 	if eventProduct.Id == "" {
-		eventProduct.Id = uc.services.IDService.GenerateID()
+		eventProduct.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields

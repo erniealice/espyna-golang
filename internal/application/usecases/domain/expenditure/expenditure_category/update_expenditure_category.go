@@ -19,9 +19,9 @@ type UpdateExpenditureCategoryRepositories struct {
 
 // UpdateExpenditureCategoryServices groups all business service dependencies
 type UpdateExpenditureCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateExpenditureCategoryUseCase handles the business logic for updating expenditure categories
@@ -43,14 +43,14 @@ func NewUpdateExpenditureCategoryUseCase(
 
 // Execute performs the update expenditure category operation
 func (uc *UpdateExpenditureCategoryUseCase) Execute(ctx context.Context, req *pb.UpdateExpenditureCategoryRequest) (*pb.UpdateExpenditureCategoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureCategory, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *pb.UpdateExpenditureCategoryResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("expenditure category update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateExpenditureCategoryUseCase) Execute(ctx context.Context, req *pb
 
 func (uc *UpdateExpenditureCategoryUseCase) executeCore(ctx context.Context, req *pb.UpdateExpenditureCategoryRequest) (*pb.UpdateExpenditureCategoryResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_category.validation.id_required", "Expenditure category ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_category.validation.id_required", "Expenditure category ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()

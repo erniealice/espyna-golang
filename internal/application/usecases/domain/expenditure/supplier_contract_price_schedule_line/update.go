@@ -18,8 +18,8 @@ type UpdateSupplierContractPriceScheduleLineRepositories struct {
 
 // UpdateSupplierContractPriceScheduleLineServices groups service dependencies.
 type UpdateSupplierContractPriceScheduleLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UpdateSupplierContractPriceScheduleLineUseCase handles updating a schedule-line.
@@ -38,12 +38,12 @@ func NewUpdateSupplierContractPriceScheduleLineUseCase(
 
 // Execute performs the update operation.
 func (uc *UpdateSupplierContractPriceScheduleLineUseCase) Execute(ctx context.Context, req *scpslpb.UpdateSupplierContractPriceScheduleLineRequest) (*scpslpb.UpdateSupplierContractPriceScheduleLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceScheduleLine, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule_line.validation.id_required", "Schedule line ID is required [DEFAULT]"))
 	}
 	now := time.Now()

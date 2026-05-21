@@ -22,10 +22,10 @@ type ExpenseRecognitionRepositories struct {
 
 // ExpenseRecognitionServices groups all service dependencies.
 type ExpenseRecognitionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all expense recognition use cases.
@@ -56,38 +56,38 @@ func NewUseCases(
 		CreateExpenseRecognition: NewCreateExpenseRecognitionUseCase(
 			CreateExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			CreateExpenseRecognitionServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadExpenseRecognition: NewReadExpenseRecognitionUseCase(
 			ReadExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			ReadExpenseRecognitionServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateExpenseRecognition: NewUpdateExpenseRecognitionUseCase(
 			UpdateExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			UpdateExpenseRecognitionServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteExpenseRecognition: NewDeleteExpenseRecognitionUseCase(
 			DeleteExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			DeleteExpenseRecognitionServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListExpenseRecognitions: NewListExpenseRecognitionsUseCase(
 			ListExpenseRecognitionsRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			ListExpenseRecognitionsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		RecognizeFromExpenditure: NewRecognizeFromExpenditureUseCase(
@@ -99,35 +99,35 @@ func NewUseCases(
 				SupplierSubscription:   repositories.SupplierSubscription,
 			},
 			RecognizeFromExpenditureServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		RecognizeFromContract: NewRecognizeFromContractUseCase(
 			RecognizeFromContractRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			RecognizeFromContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReverseExpenseRecognition: NewReverseExpenseRecognitionUseCase(
 			ReverseExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			ReverseExpenseRecognitionServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		GetUnrecognizedExpenditures: NewGetUnrecognizedExpendituresUseCase(
 			GetUnrecognizedExpendituresRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			GetUnrecognizedExpendituresServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

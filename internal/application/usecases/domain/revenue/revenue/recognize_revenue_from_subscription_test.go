@@ -195,10 +195,10 @@ func buildUseCase(t *testing.T, m *recognizeMocks) (*RecognizeRevenueFromSubscri
 		PaymentTerm:      paymenttermpb.UnimplementedPaymentTermDomainServiceServer{},
 	}
 	services := RecognizeRevenueFromSubscriptionServices{
-		AuthorizationService: ports.NewNoOpAuthorizationService(),
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  ports.NewNoOpAuthorizer(),
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 	return NewRecognizeRevenueFromSubscriptionUseCase(repos, services), revenueRepo, rliRepo
 }
@@ -1025,10 +1025,10 @@ func buildMilestoneUseCase(t *testing.T, m *milestoneMocks) (*RecognizeRevenueFr
 		JobTemplatePhase: m.jobTemplatePhase,
 	}
 	services := RecognizeRevenueFromSubscriptionServices{
-		AuthorizationService: ports.NewNoOpAuthorizationService(),
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  ports.NewNoOpAuthorizer(),
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 	return NewRecognizeRevenueFromSubscriptionUseCase(repos, services), revenueRepo, rliRepo
 }

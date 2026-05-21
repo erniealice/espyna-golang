@@ -17,9 +17,9 @@ type ListBalancesRepositories struct {
 
 // ListBalancesServices groups all business service dependencies
 type ListBalancesServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService   // Current: Text translation and localization
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator // Current: Text translation and localization
 }
 
 // ListBalancesUseCase handles the business logic for listing balances
@@ -42,7 +42,7 @@ func NewListBalancesUseCase(
 // Execute performs the list balances operation
 func (uc *ListBalancesUseCase) Execute(ctx context.Context, req *balancepb.ListBalancesRequest) (*balancepb.ListBalancesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityBalance, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -50,18 +50,18 @@ func (uc *ListBalancesUseCase) Execute(ctx context.Context, req *balancepb.ListB
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityBalance, ports.ActionRead)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -87,7 +87,7 @@ func (uc *ListBalancesUseCase) Execute(ctx context.Context, req *balancepb.ListB
 // validateInput validates the input request
 func (uc *ListBalancesUseCase) validateInput(ctx context.Context, req *balancepb.ListBalancesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "balance.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.validation.request_required", "request is required [DEFAULT]"))
 	}
 	return nil
 }

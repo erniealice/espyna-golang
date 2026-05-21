@@ -18,9 +18,9 @@ type DeleteResourceRepositories struct {
 
 // DeleteResourceServices groups all business service dependencies
 type DeleteResourceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteResourceUseCase handles the business logic for deleting resources
@@ -43,12 +43,12 @@ func NewDeleteResourceUseCase(
 // Execute performs the delete resource operation
 func (uc *DeleteResourceUseCase) Execute(ctx context.Context, req *resourcepb.DeleteResourceRequest) (*resourcepb.DeleteResourceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityResource, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -57,7 +57,7 @@ func (uc *DeleteResourceUseCase) Execute(ctx context.Context, req *resourcepb.De
 // executeWithTransaction wraps the core logic in a transaction
 func (uc *DeleteResourceUseCase) executeWithTransaction(ctx context.Context, req *resourcepb.DeleteResourceRequest) (*resourcepb.DeleteResourceResponse, error) {
 	var result *resourcepb.DeleteResourceResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -92,13 +92,13 @@ func (uc *DeleteResourceUseCase) executeCore(ctx context.Context, req *resourcep
 func (uc *DeleteResourceUseCase) validateInput(ctx context.Context, req *resourcepb.DeleteResourceRequest) error {
 
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.validation.data_required", "Resource data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.validation.data_required", "Resource data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.validation.id_required", "Resource ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.validation.id_required", "Resource ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func (uc *DeleteResourceUseCase) validateBusinessRules(ctx context.Context, req 
 	// Additional business rule validation can be added here
 	// For example: check if resource is in use by active events or bookings
 	if uc.isResourceInUse(ctx, req.Data.Id) {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.errors.in_use", "Resource is currently in use and cannot be deleted [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.errors.in_use", "Resource is currently in use and cannot be deleted [DEFAULT]"))
 	}
 	return nil
 }

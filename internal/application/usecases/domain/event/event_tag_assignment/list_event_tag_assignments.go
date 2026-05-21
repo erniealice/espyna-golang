@@ -17,9 +17,9 @@ type ListEventTagAssignmentsRepositories struct {
 
 // ListEventTagAssignmentsServices groups all business service dependencies
 type ListEventTagAssignmentsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListEventTagAssignmentsUseCase handles the business logic for listing event_tag_assignments
@@ -42,25 +42,25 @@ func NewListEventTagAssignmentsUseCase(
 // Execute performs the list event_tag_assignments operation.
 // Filters are passed through; the infra layer is responsible for applying them.
 func (uc *ListEventTagAssignmentsUseCase) Execute(ctx context.Context, req *eventtagassignmentpb.ListEventTagAssignmentsRequest) (*eventtagassignmentpb.ListEventTagAssignmentsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventTagAssignment, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventTagAssignment, ports.ActionList)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")
 		return nil, errors.New(translatedError)
 	}
 

@@ -164,8 +164,8 @@ func init() {
 | storage | `ports.StorageProvider` | gcs, s3, azure, local, mock |
 | email | `ports.EmailProvider` | gmail, microsoft, mock |
 | payment | `ports.PaymentProvider` | maya, asiapay, mock |
-| id | `ports.IDService` | uuidv7, noop |
-| translation | `ports.TranslationService` | file, lyngua, noop, mock |
+| id | `ports.IDGenerator` | uuidv7, noop |
+| translation | `ports.Translator` | file, lyngua, noop, mock |
 
 ## Database Domain Structure (40 Repositories)
 

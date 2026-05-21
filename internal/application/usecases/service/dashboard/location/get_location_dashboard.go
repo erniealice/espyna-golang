@@ -56,13 +56,13 @@ type GetLocationDashboardRepositories struct {
 	LocationArea LocationAreaDashboardRepository
 }
 
-// GetLocationDashboardServices groups application services. TranslationService
-// formats error messages. No AuthorizationService — the dashboard is rendered
+// GetLocationDashboardServices groups application services. Translator
+// formats error messages. No Authorizer — the dashboard is rendered
 // for the active workspace context and the upstream HTTP route is gated by
 // session middleware rather than per-entity authcheck (matches Admin pilot
 // pattern at `service/dashboard/admin/get_admin_dashboard.go`).
 type GetLocationDashboardServices struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // GetLocationDashboardUseCase composes the location + location_area
@@ -107,7 +107,7 @@ func (uc *GetLocationDashboardUseCase) Execute(
 ) (*locationdashpb.GetLocationDashboardResponse, error) {
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"location.dashboard.validation.request_required",
 			"location dashboard: request is required"))
 	}

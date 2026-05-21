@@ -17,9 +17,9 @@ type ReadAccountRepositories struct {
 
 // ReadAccountServices groups all business service dependencies
 type ReadAccountServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadAccountUseCase handles the business logic for reading accounts
@@ -42,7 +42,7 @@ func NewReadAccountUseCase(
 // Execute performs the read account operation
 func (uc *ReadAccountUseCase) Execute(ctx context.Context, req *accountpb.ReadAccountRequest) (*accountpb.ReadAccountResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAccount, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -68,13 +68,13 @@ func (uc *ReadAccountUseCase) Execute(ctx context.Context, req *accountpb.ReadAc
 // validateInput validates the input request
 func (uc *ReadAccountUseCase) validateInput(ctx context.Context, req *accountpb.ReadAccountRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "account.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "account.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

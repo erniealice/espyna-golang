@@ -19,9 +19,9 @@ type UpdateEventRecurrenceRepositories struct {
 
 // UpdateEventRecurrenceServices groups all business service dependencies
 type UpdateEventRecurrenceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateEventRecurrenceUseCase handles the business logic for updating event recurrences
@@ -50,9 +50,9 @@ func NewUpdateEventRecurrenceUseCaseUngrouped(eventRecurrenceRepo eventrecurrenc
 	}
 
 	services := UpdateEventRecurrenceServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &UpdateEventRecurrenceUseCase{
@@ -64,13 +64,13 @@ func NewUpdateEventRecurrenceUseCaseUngrouped(eventRecurrenceRepo eventrecurrenc
 // Execute performs the update event recurrence operation
 func (uc *UpdateEventRecurrenceUseCase) Execute(ctx context.Context, req *eventrecurrencepb.UpdateEventRecurrenceRequest) (*eventrecurrencepb.UpdateEventRecurrenceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"event_recurrence", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *UpdateEventRecurrenceUseCase) Execute(ctx context.Context, req *eventr
 func (uc *UpdateEventRecurrenceUseCase) executeWithTransaction(ctx context.Context, req *eventrecurrencepb.UpdateEventRecurrenceRequest) (*eventrecurrencepb.UpdateEventRecurrenceResponse, error) {
 	var result *eventrecurrencepb.UpdateEventRecurrenceResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "event_recurrence.errors.update_failed", "Event recurrence update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "event_recurrence.errors.update_failed", "Event recurrence update failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -126,13 +126,13 @@ func (uc *UpdateEventRecurrenceUseCase) executeCore(ctx context.Context, req *ev
 // validateInput validates the input request
 func (uc *UpdateEventRecurrenceUseCase) validateInput(ctx context.Context, req *eventrecurrencepb.UpdateEventRecurrenceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.data_required", "Event recurrence data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.data_required", "Event recurrence data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.id_required", "Event recurrence ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.id_required", "Event recurrence ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -140,10 +140,10 @@ func (uc *UpdateEventRecurrenceUseCase) validateInput(ctx context.Context, req *
 // validateBasicFields validates basic field requirements before business logic
 func (uc *UpdateEventRecurrenceUseCase) validateBasicFields(ctx context.Context, eventRecurrence *eventrecurrencepb.EventRecurrence) error {
 	if eventRecurrence.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.name_required", "Event recurrence name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.name_required", "Event recurrence name is required [DEFAULT]"))
 	}
 	if eventRecurrence.RruleString == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_recurrence.validation.rrule_string_required", "RRULE string is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_recurrence.validation.rrule_string_required", "RRULE string is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -158,14 +158,14 @@ func (uc *UpdateEventRecurrenceUseCase) getExistingEventRecurrence(ctx context.C
 	if err != nil {
 		// Check if this is a not found error from repository
 		if contains := contextutil.Contains(err.Error(), "not found"); contains {
-			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event_recurrence.errors.not_found", map[string]interface{}{"eventRecurrenceId": eventRecurrenceID}, "Event recurrence not found [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event_recurrence.errors.not_found", map[string]interface{}{"eventRecurrenceId": eventRecurrenceID}, "Event recurrence not found [DEFAULT]")
 			return nil, errors.New(errorMessage)
 		}
 		return nil, err
 	}
 
 	if len(resp.Data) == 0 {
-		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event_recurrence.errors.not_found", map[string]interface{}{"eventRecurrenceId": eventRecurrenceID}, "Event recurrence not found [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event_recurrence.errors.not_found", map[string]interface{}{"eventRecurrenceId": eventRecurrenceID}, "Event recurrence not found [DEFAULT]")
 		return nil, errors.New(errorMessage)
 	}
 

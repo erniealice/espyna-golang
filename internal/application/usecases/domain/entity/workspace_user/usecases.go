@@ -27,10 +27,10 @@ type WorkspaceUserRepositories struct {
 
 // WorkspaceUserServices groups all business service dependencies for workspace user use cases
 type WorkspaceUserServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of workspace user use cases
@@ -41,56 +41,56 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateWorkspaceUserRepositories(repositories)
 	createServices := CreateWorkspaceUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadWorkspaceUserRepositories(repositories)
 	readServices := ReadWorkspaceUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateWorkspaceUserRepositories(repositories)
 	updateServices := UpdateWorkspaceUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteWorkspaceUserRepositories(repositories)
 	deleteServices := DeleteWorkspaceUserServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListWorkspaceUsersRepositories(repositories)
 	listServices := ListWorkspaceUsersServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetWorkspaceUserListPageDataRepositories{
 		WorkspaceUser: repositories.WorkspaceUser,
 	}
 	listPageDataServices := GetWorkspaceUserListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetWorkspaceUserItemPageDataRepositories{
 		WorkspaceUser: repositories.WorkspaceUser,
 	}
 	itemPageDataServices := GetWorkspaceUserItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -110,7 +110,7 @@ func NewUseCasesUngrouped(
 	workspaceUserRepo workspaceuserpb.WorkspaceUserDomainServiceServer,
 	workspaceRepo workspacepb.WorkspaceDomainServiceServer,
 	userRepo userpb.UserDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := WorkspaceUserRepositories{
@@ -120,9 +120,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := WorkspaceUserServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

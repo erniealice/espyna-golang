@@ -23,10 +23,10 @@ import (
 // injected later via a setter after the engine is initialized by the Container.
 func InitializeWorkflow(
 	repos *domain.WorkflowRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*workflow.WorkflowUseCases, error) {
 	// Create individual domain use cases with proper dependency injection
 	workflowUC := workflowUseCases.NewUseCases(
@@ -34,10 +34,10 @@ func InitializeWorkflow(
 			Workflow: repos.Workflow,
 		},
 		workflowUseCases.WorkflowServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -47,10 +47,10 @@ func InitializeWorkflow(
 			WorkflowTemplate: repos.WorkflowTemplate,
 		},
 		stageTemplateUseCases.StageTemplateServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -59,10 +59,10 @@ func InitializeWorkflow(
 			WorkflowTemplate: repos.WorkflowTemplate,
 		},
 		workflowTemplateUseCases.WorkflowTemplateServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -72,10 +72,10 @@ func InitializeWorkflow(
 			StageTemplate:    repos.StageTemplate,
 		},
 		activityTemplateUseCases.ActivityTemplateServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -86,10 +86,10 @@ func InitializeWorkflow(
 			StageTemplate: repos.StageTemplate,
 		},
 		stageUseCases.StageServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -99,10 +99,10 @@ func InitializeWorkflow(
 			Stage:    repos.Stage,
 		},
 		activityUseCases.ActivityServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	)
 
@@ -123,10 +123,10 @@ func InitializeWorkflow(
 // The engine enables dynamic workflow execution by binding activities to use cases.
 func InitializeWorkflowEngine(
 	repos *domain.WorkflowRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 	executorRegistry ports.ExecutorRegistry,
 ) (ports.WorkflowEngineService, error) {
 	engineUC := engineUseCases.NewUseCases(
@@ -139,11 +139,11 @@ func InitializeWorkflowEngine(
 			ActivityTemplate: repos.ActivityTemplate,
 		},
 		engineUseCases.EngineServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
-			ExecutorRegistry:     executorRegistry,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ExecutorRegistry: executorRegistry,
 		},
 	)
 

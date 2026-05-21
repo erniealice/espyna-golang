@@ -18,9 +18,9 @@ type GetSupplierContractListPageDataRepositories struct {
 
 // GetSupplierContractListPageDataServices groups service dependencies.
 type GetSupplierContractListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSupplierContractListPageDataUseCase handles fetching paginated supplier contract list data.
@@ -39,12 +39,12 @@ func NewGetSupplierContractListPageDataUseCase(
 
 // Execute performs the get supplier contract list page data operation.
 func (uc *GetSupplierContractListPageDataUseCase) Execute(ctx context.Context, req *suppliercontractpb.GetSupplierContractListPageDataRequest) (*suppliercontractpb.GetSupplierContractListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if uc.repositories.SupplierContract == nil {
@@ -52,7 +52,7 @@ func (uc *GetSupplierContractListPageDataUseCase) Execute(ctx context.Context, r
 	}
 	resp, err := uc.repositories.SupplierContract.GetSupplierContractListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load supplier contract list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

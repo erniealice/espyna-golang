@@ -17,9 +17,9 @@ type ReadJournalEntryRepositories struct {
 
 // ReadJournalEntryServices groups all business service dependencies
 type ReadJournalEntryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadJournalEntryUseCase handles the business logic for reading journal entries
@@ -42,7 +42,7 @@ func NewReadJournalEntryUseCase(
 // Execute performs the read journal entry operation
 func (uc *ReadJournalEntryUseCase) Execute(ctx context.Context, req *journalentrypb.ReadJournalEntryRequest) (*journalentrypb.ReadJournalEntryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityJournalEntry, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -68,13 +68,13 @@ func (uc *ReadJournalEntryUseCase) Execute(ctx context.Context, req *journalentr
 // validateInput validates the input request
 func (uc *ReadJournalEntryUseCase) validateInput(ctx context.Context, req *journalentrypb.ReadJournalEntryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

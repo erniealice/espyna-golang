@@ -28,10 +28,10 @@ type SubscriptionAttributeRepositories struct {
 
 // SubscriptionAttributeServices groups all business service dependencies for subscription attribute use cases
 type SubscriptionAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of subscription attribute use cases
@@ -42,18 +42,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateSubscriptionAttributeRepositories(repositories)
 	createServices := CreateSubscriptionAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadSubscriptionAttributeRepositories{
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	readServices := ReadSubscriptionAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateSubscriptionAttributeRepositories{
@@ -62,40 +62,40 @@ func NewUseCases(
 		Attribute:             repositories.Attribute,
 	}
 	updateServices := UpdateSubscriptionAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteSubscriptionAttributeRepositories{
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	deleteServices := DeleteSubscriptionAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListSubscriptionAttributesRepositories{
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	listServices := ListSubscriptionAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetSubscriptionAttributeListPageDataRepositories{
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	getListPageDataServices := GetSubscriptionAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetSubscriptionAttributeItemPageDataRepositories{
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	getItemPageDataServices := GetSubscriptionAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	createUseCase := NewCreateSubscriptionAttributeUseCase(createRepos, createServices)

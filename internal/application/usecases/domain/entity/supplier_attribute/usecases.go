@@ -27,10 +27,10 @@ type SupplierAttributeRepositories struct {
 
 // SupplierAttributeServices groups all business service dependencies for supplier attribute use cases
 type SupplierAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of supplier attribute use cases
@@ -41,18 +41,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateSupplierAttributeRepositories(repositories)
 	createServices := CreateSupplierAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadSupplierAttributeRepositories{
 		SupplierAttribute: repositories.SupplierAttribute,
 	}
 	readServices := ReadSupplierAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateSupplierAttributeRepositories{
@@ -61,40 +61,40 @@ func NewUseCases(
 		Attribute:         repositories.Attribute,
 	}
 	updateServices := UpdateSupplierAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteSupplierAttributeRepositories{
 		SupplierAttribute: repositories.SupplierAttribute,
 	}
 	deleteServices := DeleteSupplierAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListSupplierAttributesRepositories{
 		SupplierAttribute: repositories.SupplierAttribute,
 	}
 	listServices := ListSupplierAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetSupplierAttributeListPageDataRepositories{
 		SupplierAttribute: repositories.SupplierAttribute,
 	}
 	getListPageDataServices := GetSupplierAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetSupplierAttributeItemPageDataRepositories{
 		SupplierAttribute: repositories.SupplierAttribute,
 	}
 	getItemPageDataServices := GetSupplierAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -114,7 +114,7 @@ func NewUseCasesUngrouped(
 	supplierAttributeRepo supplierattributepb.SupplierAttributeDomainServiceServer,
 	supplierRepo supplierpb.SupplierDomainServiceServer,
 	attributeRepo attributepb.AttributeDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	repositories := SupplierAttributeRepositories{
 		SupplierAttribute: supplierAttributeRepo,
@@ -123,9 +123,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := SupplierAttributeServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

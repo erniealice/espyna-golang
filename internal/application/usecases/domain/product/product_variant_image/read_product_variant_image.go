@@ -19,9 +19,9 @@ type ReadProductVariantImageRepositories struct {
 
 // ReadProductVariantImageServices groups all business service dependencies
 type ReadProductVariantImageServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Transaction management
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Transaction management
+	Translator ports.Translator
 }
 
 // ReadProductVariantImageUseCase handles the business logic for reading a product variant image
@@ -44,7 +44,7 @@ func NewReadProductVariantImageUseCase(
 // Execute performs the read product variant image operation
 func (uc *ReadProductVariantImageUseCase) Execute(ctx context.Context, req *productvariantimagepb.ReadProductVariantImageRequest) (*productvariantimagepb.ReadProductVariantImageResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductVariantImage, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -52,24 +52,24 @@ func (uc *ReadProductVariantImageUseCase) Execute(ctx context.Context, req *prod
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityProductVariantImage, ports.ActionRead)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -79,12 +79,12 @@ func (uc *ReadProductVariantImageUseCase) Execute(ctx context.Context, req *prod
 		// Handle not found errors by checking for specific patterns in error message
 		errorMsg := strings.ToLower(err.Error())
 		if strings.Contains(errorMsg, "not found") {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.errors.not_found", "Product variant image not found [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.not_found", "Product variant image not found [DEFAULT]")
 			return nil, errors.New(translatedError)
 		}
 
 		// Handle other repository errors
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.errors.read_failed", "Failed to retrieve product variant image [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.read_failed", "Failed to retrieve product variant image [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -94,13 +94,13 @@ func (uc *ReadProductVariantImageUseCase) Execute(ctx context.Context, req *prod
 // validateInput validates the input request
 func (uc *ReadProductVariantImageUseCase) validateInput(ctx context.Context, req *productvariantimagepb.ReadProductVariantImageRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.validation.data_required", "Product variant image data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.validation.data_required", "Product variant image data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "product_variant_image.validation.id_required", "Product variant image ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.validation.id_required", "Product variant image ID is required [DEFAULT]"))
 	}
 	return nil
 }

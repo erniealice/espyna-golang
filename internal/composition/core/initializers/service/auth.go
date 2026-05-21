@@ -22,9 +22,9 @@ import (
 func initServiceAuth(
 	entityRepos *domain.EntityRepositories,
 	deps *svcusecases.Deps,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) *serviceauth.UseCases {
 	// Step 1: build entity-layer auth use cases (orchestrates Session + User).
 	var entityAuth *entityauth.UseCases
@@ -35,10 +35,10 @@ func initServiceAuth(
 				User:    entityRepos.User,
 			},
 			entityauth.Services{
-				TransactionService: txSvc,
-				TranslationService: i18nSvc,
-				IDService:          idSvc,
-				SessionExpiry:      sessionExpiryFromEnv(),
+				Transactor:    txSvc,
+				Translator:    i18nSvc,
+				IDGenerator:   idSvc,
+				SessionExpiry: sessionExpiryFromEnv(),
 			},
 		)
 	}
@@ -47,7 +47,7 @@ func initServiceAuth(
 	// contract (nil-inner guards + per-call i18n).
 	svc := serviceauth.Services{}
 	if deps != nil {
-		svc.TranslationService = deps.TranslationService
+		svc.Translator = deps.Translator
 	}
 	if entityAuth == nil {
 		return &serviceauth.UseCases{

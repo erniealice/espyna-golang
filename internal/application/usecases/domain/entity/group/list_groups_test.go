@@ -28,7 +28,7 @@ func createTestListGroupsUseCase(businessType string) *ListGroupsUseCase {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListGroupsServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewListGroupsUseCase(repositories, services)
 }
@@ -40,7 +40,7 @@ func TestListGroupsUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockGroupRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListGroupsUseCase(ListGroupsRepositories{Group: mockRepo}, ListGroupsServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	req := &grouppb.ListGroupsRequest{}

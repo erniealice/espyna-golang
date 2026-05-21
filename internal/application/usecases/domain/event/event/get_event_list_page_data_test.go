@@ -74,8 +74,8 @@ func TestGetEventListPageDataUseCase_Execute_Success(t *testing.T) {
 		Event: mockRepo,
 	}
 	services := GetEventListPageDataServices{
-		TransactionService: nil, // No transaction for this test
-		TranslationService: nil, // No translation for this test
+		Transactor: nil, // No transaction for this test
+		Translator: nil, // No translation for this test
 	}
 
 	// Create use case
@@ -281,8 +281,8 @@ func TestGetEventListPageDataUseCase_Execute_EmptyList(t *testing.T) {
 		Event: mockRepo,
 	}
 	services := GetEventListPageDataServices{
-		TransactionService: nil,
-		TranslationService: nil,
+		Transactor: nil,
+		Translator: nil,
 	}
 
 	// Create use case
@@ -331,8 +331,8 @@ func TestGetEventListPageDataUseCase_Execute_ValidationErrors(t *testing.T) {
 		Event: mockRepo,
 	}
 	services := GetEventListPageDataServices{
-		TransactionService: nil,
-		TranslationService: nil,
+		Transactor: nil,
+		Translator: nil,
 	}
 
 	useCase := NewGetEventListPageDataUseCase(repos, services)
@@ -431,8 +431,8 @@ func TestGetEventListPageDataUseCase_TimeBasedValidation(t *testing.T) {
 		Event: mockRepo,
 	}
 	services := GetEventListPageDataServices{
-		TransactionService: nil,
-		TranslationService: nil,
+		Transactor: nil,
+		Translator: nil,
 	}
 
 	useCase := NewGetEventListPageDataUseCase(repos, services)

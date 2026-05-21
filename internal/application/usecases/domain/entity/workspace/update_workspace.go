@@ -19,9 +19,9 @@ type UpdateWorkspaceRepositories struct {
 
 // UpdateWorkspaceServices groups all business service dependencies
 type UpdateWorkspaceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateWorkspaceUseCase handles the business logic for updating a workspace
@@ -50,9 +50,9 @@ func NewUpdateWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomai
 	}
 
 	services := UpdateWorkspaceServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateWorkspaceUseCase(repositories, services)
@@ -61,22 +61,22 @@ func NewUpdateWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomai
 // Execute performs the update workspace operation
 func (uc *UpdateWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.UpdateWorkspaceRequest) (*workspacepb.UpdateWorkspaceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspace, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
 	}
 
 	// Business logic validation
 	if req.Data.Name == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.name_required", "Workspace name is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.name_required", "Workspace name is required [DEFAULT]"))
 	}
 
 	// Validate business rules (including name length)
@@ -92,7 +92,7 @@ func (uc *UpdateWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.
 	// Call repository
 	resp, err := uc.repositories.Workspace.UpdateWorkspace(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.errors.update_failed", "Workspace update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.errors.update_failed", "Workspace update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -102,16 +102,16 @@ func (uc *UpdateWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.
 // validateInput validates the input request
 func (uc *UpdateWorkspaceUseCase) validateInput(ctx context.Context, req *workspacepb.UpdateWorkspaceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.data_required", "Workspace data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.data_required", "Workspace data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.name_required", "Workspace name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.name_required", "Workspace name is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -130,16 +130,16 @@ func (uc *UpdateWorkspaceUseCase) enrichWorkspaceData(workspace *workspacepb.Wor
 // validateBusinessRules enforces business constraints
 func (uc *UpdateWorkspaceUseCase) validateBusinessRules(ctx context.Context, workspace *workspacepb.Workspace) error {
 	if len(workspace.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.name_too_short", "Workspace name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.name_too_short", "Workspace name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(workspace.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.name_too_long", "Workspace name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.name_too_long", "Workspace name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate description length if provided
 	if workspace.Description != "" && len(workspace.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.description_too_long", "Workspace description cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.description_too_long", "Workspace description cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	return nil

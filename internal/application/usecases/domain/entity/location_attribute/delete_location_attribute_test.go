@@ -29,7 +29,7 @@ func createTestDeleteLocationAttributeUseCase(businessType string) *DeleteLocati
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := DeleteLocationAttributeServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewDeleteLocationAttributeUseCase(repositories, services)
 }
@@ -57,7 +57,7 @@ func TestDeleteLocationAttributeUseCase_Execute_Success(t *testing.T) {
 	readUseCase := NewReadLocationAttributeUseCase(
 		ReadLocationAttributeRepositories{LocationAttribute: useCase.repositories.LocationAttribute},
 		ReadLocationAttributeServices{
-			TranslationService: useCase.services.TranslationService,
+			Translator: useCase.services.Translator,
 		},
 	)
 	readReq := &locationattributepb.ReadLocationAttributeRequest{Data: &locationattributepb.LocationAttribute{Id: existingID}}
@@ -78,7 +78,7 @@ func TestDeleteLocationAttributeUseCase_Execute_NotFound(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "location_attribute.errors.deletion_failed", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "location_attribute.errors.deletion_failed", useCase.services.Translator, ctx)
 }
 
 func TestDeleteLocationAttributeUseCase_Execute_EmptyId(t *testing.T) {
@@ -92,5 +92,5 @@ func TestDeleteLocationAttributeUseCase_Execute_EmptyId(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "location_attribute.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "location_attribute.validation.id_required", useCase.services.Translator, ctx)
 }

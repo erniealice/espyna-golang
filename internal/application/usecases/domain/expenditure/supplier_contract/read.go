@@ -17,9 +17,9 @@ type ReadSupplierContractRepositories struct {
 
 // ReadSupplierContractServices groups service dependencies.
 type ReadSupplierContractServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadSupplierContractUseCase handles reading a supplier contract.
@@ -38,12 +38,12 @@ func NewReadSupplierContractUseCase(
 
 // Execute performs the read supplier contract operation.
 func (uc *ReadSupplierContractUseCase) Execute(ctx context.Context, req *suppliercontractpb.ReadSupplierContractRequest) (*suppliercontractpb.ReadSupplierContractResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	return uc.repositories.SupplierContract.ReadSupplierContract(ctx, req)

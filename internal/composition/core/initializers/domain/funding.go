@@ -9,10 +9,10 @@ import (
 // InitializeFunding creates all funding use cases from provider repositories.
 func InitializeFunding(
 	repos *domain.FundingRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*funding.FundingUseCases, error) {
 	return funding.NewUseCases(
 		funding.FundingRepositories{

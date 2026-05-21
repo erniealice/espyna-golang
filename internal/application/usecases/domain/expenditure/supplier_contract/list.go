@@ -15,9 +15,9 @@ type ListSupplierContractsRepositories struct {
 
 // ListSupplierContractsServices groups service dependencies.
 type ListSupplierContractsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSupplierContractsUseCase handles listing supplier contracts.
@@ -36,7 +36,7 @@ func NewListSupplierContractsUseCase(
 
 // Execute performs the list supplier contracts operation.
 func (uc *ListSupplierContractsUseCase) Execute(ctx context.Context, req *suppliercontractpb.ListSupplierContractsRequest) (*suppliercontractpb.ListSupplierContractsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionList); err != nil {
 		return nil, err
 	}

@@ -10,10 +10,10 @@ import (
 // This is composition logic - it wires infrastructure (providers) to application (use cases)
 func InitializeEvent(
 	repos *domain.EventRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*event.EventUseCases, error) {
 	// Use the domain's constructor which properly handles all use case creation
 	return event.NewEventUseCases(

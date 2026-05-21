@@ -46,39 +46,39 @@ type ProcurementUseCases struct {
 // NewUseCases creates all procurement use cases with proper constructor injection
 func NewUseCases(
 	repos ProcurementRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) *ProcurementUseCases {
 	costScheduleUC := costScheduleUseCases.NewUseCases(
 		costScheduleUseCases.Repositories{CostSchedule: repos.CostSchedule},
-		costScheduleUseCases.Services{AuthorizationService: authSvc, TransactionService: txSvc, TranslationService: i18nSvc, IDService: idSvc},
+		costScheduleUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
 	)
 
 	supplierPlanUC := supplierPlanUseCases.NewUseCases(
 		supplierPlanUseCases.Repositories{SupplierPlan: repos.SupplierPlan},
-		supplierPlanUseCases.Services{AuthorizationService: authSvc, TransactionService: txSvc, TranslationService: i18nSvc, IDService: idSvc},
+		supplierPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
 	)
 
 	costPlanUC := costPlanUseCases.NewUseCases(
 		costPlanUseCases.Repositories{CostPlan: repos.CostPlan, Workspace: repos.Workspace},
-		costPlanUseCases.Services{AuthorizationService: authSvc, TransactionService: txSvc, TranslationService: i18nSvc, IDService: idSvc},
+		costPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
 	)
 
 	supplierProductPlanUC := supplierProductPlanUseCases.NewUseCases(
 		supplierProductPlanUseCases.Repositories{SupplierProductPlan: repos.SupplierProductPlan},
-		supplierProductPlanUseCases.Services{AuthorizationService: authSvc, TransactionService: txSvc, TranslationService: i18nSvc, IDService: idSvc},
+		supplierProductPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
 	)
 
 	supplierProductCostPlanUC := supplierProductCostPlanUseCases.NewUseCases(
 		supplierProductCostPlanUseCases.Repositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-		supplierProductCostPlanUseCases.Services{AuthorizationService: authSvc, TransactionService: txSvc, TranslationService: i18nSvc, IDService: idSvc},
+		supplierProductCostPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
 	)
 
 	supplierSubscriptionUC := supplierSubscriptionUseCases.NewUseCases(
 		supplierSubscriptionUseCases.Repositories{SupplierSubscription: repos.SupplierSubscription, CostPlan: repos.CostPlan, Workspace: repos.Workspace},
-		supplierSubscriptionUseCases.Services{AuthorizationService: authSvc, TransactionService: txSvc, TranslationService: i18nSvc, IDService: idSvc},
+		supplierSubscriptionUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
 	)
 
 	return &ProcurementUseCases{

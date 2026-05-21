@@ -23,9 +23,9 @@ type UpdateWorkflowTemplateRepositories struct {
 
 // UpdateWorkflowTemplateServices groups all business service dependencies
 type UpdateWorkflowTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateWorkflowTemplateUseCase handles the business logic for updating workflow templates
@@ -55,9 +55,9 @@ func NewUpdateWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 	}
 
 	services := UpdateWorkflowTemplateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateWorkflowTemplateUseCase(repositories, services)
@@ -66,14 +66,14 @@ func NewUpdateWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 // Execute performs the update workflow template operation
 func (uc *UpdateWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.UpdateWorkflowTemplateRequest) (*workflow_templatepb.UpdateWorkflowTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow_template", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.request_required", "Request is required for workflow templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.request_required", "Request is required for workflow templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -85,7 +85,7 @@ func (uc *UpdateWorkflowTemplateUseCase) Execute(ctx context.Context, req *workf
 	enrichedWorkflowTemplate := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedWorkflowTemplate)
 	}
 
@@ -97,10 +97,10 @@ func (uc *UpdateWorkflowTemplateUseCase) Execute(ctx context.Context, req *workf
 func (uc *UpdateWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, enrichedWorkflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.UpdateWorkflowTemplateResponse, error) {
 	var result *workflow_templatepb.UpdateWorkflowTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedWorkflowTemplate)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workflow_template.errors.update_failed", "Workflow template update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workflow_template.errors.update_failed", "Workflow template update failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -143,38 +143,38 @@ func (uc *UpdateWorkflowTemplateUseCase) applyBusinessLogic(workflowTemplate *wo
 func (uc *UpdateWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) error {
 	// Business rule: Required data validation
 	if workflowTemplate == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for updating
 	if workflowTemplate.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.id_required", "Workflow template ID is required for update operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.id_required", "Workflow template ID is required for update operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateWorkflowTemplateID(workflowTemplate.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.id_invalid", "Workflow template ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.id_invalid", "Workflow template ID format is invalid [DEFAULT]"))
 	}
 
 	// Business rule: Name length constraints if provided
 	if workflowTemplate.Name != "" {
 		if len(workflowTemplate.Name) < 2 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.name_too_short", "Workflow template name must be at least 2 characters long [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.name_too_short", "Workflow template name must be at least 2 characters long [DEFAULT]"))
 		}
 
 		if len(workflowTemplate.Name) > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.name_too_long", "Workflow template name cannot exceed 100 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.name_too_long", "Workflow template name cannot exceed 100 characters [DEFAULT]"))
 		}
 
 		// Business rule: Name format validation if provided
 		if err := uc.validateWorkflowTemplateName(workflowTemplate.Name); err != nil {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.name_invalid", "Workflow template name contains invalid characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.name_invalid", "Workflow template name contains invalid characters [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Description length constraints if provided
 	if workflowTemplate.Description != nil && len(*workflowTemplate.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.description_too_long", "Workflow template description cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.description_too_long", "Workflow template description cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// Business rule: Status validation if provided
@@ -188,7 +188,7 @@ func (uc *UpdateWorkflowTemplateUseCase) validateBusinessRules(ctx context.Conte
 			}
 		}
 		if !isValidStatus {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.status_invalid", "Invalid workflow template status [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.status_invalid", "Invalid workflow template status [DEFAULT]"))
 		}
 	}
 
@@ -198,14 +198,14 @@ func (uc *UpdateWorkflowTemplateUseCase) validateBusinessRules(ctx context.Conte
 	// Business rule: Configuration JSON validation if provided
 	if workflowTemplate.ConfigurationJson != nil && strings.TrimSpace(*workflowTemplate.ConfigurationJson) != "" {
 		if err := uc.validateConfigurationJSON(*workflowTemplate.ConfigurationJson); err != nil {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.configuration_json_invalid", "Invalid configuration JSON format [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.configuration_json_invalid", "Invalid configuration JSON format [DEFAULT]"))
 		}
 	}
 
 	// Business rule: Workspace ID foreign key validation if provided
 	if workflowTemplate.WorkspaceId != nil && *workflowTemplate.WorkspaceId != "" {
 		if err := uc.validateWorkspaceExists(ctx, *workflowTemplate.WorkspaceId); err != nil {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_template.validation.workspace_not_found", "Workspace not found [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.workspace_not_found", "Workspace not found [DEFAULT]"))
 		}
 	}
 

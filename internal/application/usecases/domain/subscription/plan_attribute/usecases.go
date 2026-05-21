@@ -27,10 +27,10 @@ type PlanAttributeRepositories struct {
 
 // PlanAttributeServices groups all business service dependencies for plan attribute use cases
 type PlanAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of plan attribute use cases
@@ -41,18 +41,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreatePlanAttributeRepositories(repositories)
 	createServices := CreatePlanAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPlanAttributeRepositories{
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	readServices := ReadPlanAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePlanAttributeRepositories{
@@ -61,40 +61,40 @@ func NewUseCases(
 		Attribute:     repositories.Attribute,
 	}
 	updateServices := UpdatePlanAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePlanAttributeRepositories{
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	deleteServices := DeletePlanAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPlanAttributesRepositories{
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	listServices := ListPlanAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetPlanAttributeListPageDataRepositories{
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	getListPageDataServices := GetPlanAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetPlanAttributeItemPageDataRepositories{
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	getItemPageDataServices := GetPlanAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

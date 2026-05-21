@@ -46,9 +46,9 @@ func createTestDeleteAdminUseCase(businessType string, supportsTransaction bool)
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := DeleteAdminServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeleteAdminUseCase(repositories, services)
@@ -82,8 +82,8 @@ func TestDeleteAdminUseCase_Execute_Success(t *testing.T) {
 	readUseCase := NewReadAdminUseCase(
 		ReadAdminRepositories{Admin: useCase.repositories.Admin},
 		ReadAdminServices{
-			AuthorizationService: standardServices.AuthorizationService,
-			TranslationService:   standardServices.TranslationService,
+			Authorizer: standardServices.Authorizer,
+			Translator: standardServices.Translator,
 		},
 	)
 	readReq := &adminpb.ReadAdminRequest{Data: &adminpb.Admin{Id: existingID}}
@@ -138,7 +138,7 @@ func TestDeleteAdminUseCase_Execute_NilRequest(t *testing.T) {
 	_, err := useCase.Execute(ctx, nil)
 	testutil.AssertErrorForNilRequest(t, err)
 
-	testutil.AssertTranslatedError(t, err, "admin.validation.request_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "admin.validation.request_required", useCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "NilRequest", false, err)
@@ -157,7 +157,7 @@ func TestDeleteAdminUseCase_Execute_NilData(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertErrorForNilData(t, err)
 
-	testutil.AssertTranslatedError(t, err, "admin.validation.request_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "admin.validation.request_required", useCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "NilData", false, err)
@@ -179,7 +179,7 @@ func TestDeleteAdminUseCase_Execute_EmptyID(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "admin.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "admin.validation.id_required", useCase.services.Translator, ctx)
 
 	// Log test completion with result
 	testutil.LogTestResult(t, testCode, "EmptyID", false, err)

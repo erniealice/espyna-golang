@@ -20,9 +20,9 @@ type GetStaffAttributeItemPageDataRepositories struct {
 
 // GetStaffAttributeItemPageDataServices groups all business service dependencies
 type GetStaffAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetStaffAttributeItemPageDataUseCase handles the business logic for getting staff attribute item page data
@@ -51,9 +51,9 @@ func NewGetStaffAttributeItemPageDataUseCaseUngrouped(staffAttributeRepo staffat
 	}
 
 	services := GetStaffAttributeItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetStaffAttributeItemPageDataUseCase(repositories, services)
@@ -62,21 +62,21 @@ func NewGetStaffAttributeItemPageDataUseCaseUngrouped(staffAttributeRepo staffat
 // Execute performs the get staff attribute item page data operation
 func (uc *GetStaffAttributeItemPageDataUseCase) Execute(ctx context.Context, req *staffattributepb.GetStaffAttributeItemPageDataRequest) (*staffattributepb.GetStaffAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaffAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.StaffAttribute.GetStaffAttributeItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.item_page_data_failed", "Failed to retrieve staff attribute item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.item_page_data_failed", "Failed to retrieve staff attribute item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -86,17 +86,17 @@ func (uc *GetStaffAttributeItemPageDataUseCase) Execute(ctx context.Context, req
 // validateInput validates the input request
 func (uc *GetStaffAttributeItemPageDataUseCase) validateInput(ctx context.Context, req *staffattributepb.GetStaffAttributeItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
 	}
 
 	// Validate staff attribute ID
 	if strings.TrimSpace(req.StaffAttributeId) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.id_required", "Staff attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.id_required", "Staff attribute ID is required [DEFAULT]"))
 	}
 
 	// Basic ID format validation
 	if len(req.StaffAttributeId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.id_too_short", "Staff attribute ID must be at least 3 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.id_too_short", "Staff attribute ID must be at least 3 characters [DEFAULT]"))
 	}
 
 	return nil

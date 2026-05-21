@@ -324,17 +324,17 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 
 	for rows.Next() {
 		var (
-			id              string
-			name            string
-			address         *string
-			active          bool
-			dateCreated     time.Time
-			dateModified    time.Time
-			timezone        string
-			locationAreaID  *string
+			id               string
+			name             string
+			address          *string
+			active           bool
+			dateCreated      time.Time
+			dateModified     time.Time
+			timezone         string
+			locationAreaID   *string
 			locationAreaName string
-			attributesJSON  []byte
-			total           int64
+			attributesJSON   []byte
+			total            int64
 		)
 
 		err := rows.Scan(

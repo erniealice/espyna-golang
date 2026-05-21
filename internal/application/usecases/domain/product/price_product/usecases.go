@@ -25,10 +25,10 @@ type PriceProductRepositories struct {
 
 // PriceProductServices groups all business service dependencies for price product use cases
 type PriceProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of price product use cases
@@ -42,18 +42,18 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	createServices := CreatePriceProductServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Transactor:  services.Transactor,
+		Authorizer:  services.Authorizer,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPriceProductRepositories{
 		PriceProduct: repositories.PriceProduct,
 	}
 	readServices := ReadPriceProductServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePriceProductRepositories{
@@ -61,41 +61,41 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	updateServices := UpdatePriceProductServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePriceProductRepositories{
 		PriceProduct: repositories.PriceProduct,
 	}
 	deleteServices := DeletePriceProductServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPriceProductsRepositories{
 		PriceProduct: repositories.PriceProduct,
 	}
 	listServices := ListPriceProductsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetPriceProductListPageDataRepositories{
 		PriceProduct: repositories.PriceProduct,
 	}
 	listPageDataServices := GetPriceProductListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetPriceProductItemPageDataRepositories{
 		PriceProduct: repositories.PriceProduct,
 	}
 	itemPageDataServices := GetPriceProductItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

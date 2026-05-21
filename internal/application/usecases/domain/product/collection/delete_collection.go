@@ -19,9 +19,9 @@ type DeleteCollectionRepositories struct {
 
 // DeleteCollectionServices groups all business service dependencies
 type DeleteCollectionServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteCollectionUseCase handles the business logic for deleting collections
@@ -44,13 +44,13 @@ func NewDeleteCollectionUseCase(
 // Execute performs the delete collection operation
 func (uc *DeleteCollectionUseCase) Execute(ctx context.Context, req *collectionpb.DeleteCollectionRequest) (*collectionpb.DeleteCollectionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollection, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -61,7 +61,7 @@ func (uc *DeleteCollectionUseCase) Execute(ctx context.Context, req *collectionp
 // executeWithTransaction executes collection deletion within a transaction
 func (uc *DeleteCollectionUseCase) executeWithTransaction(ctx context.Context, req *collectionpb.DeleteCollectionRequest) (*collectionpb.DeleteCollectionResponse, error) {
 	var result *collectionpb.DeleteCollectionResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -71,7 +71,7 @@ func (uc *DeleteCollectionUseCase) executeWithTransaction(ctx context.Context, r
 	})
 
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.transaction_failed", "Transaction execution failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.transaction_failed", "Transaction execution failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -83,30 +83,30 @@ func (uc *DeleteCollectionUseCase) executeCore(ctx context.Context, req *collect
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityCollection, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.authorization_failed", "Authorization failed for collections [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -115,11 +115,11 @@ func (uc *DeleteCollectionUseCase) executeCore(ctx context.Context, req *collect
 	if err != nil {
 		// Check if it's a not found error and convert to translated message
 		if strings.Contains(err.Error(), "not found") {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "collection.errors.not_found", map[string]interface{}{"collectionId": req.Data.Id}, "Course collection not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "collection.errors.not_found", map[string]interface{}{"collectionId": req.Data.Id}, "Course collection not found")
 			return nil, errors.New(translatedError)
 		}
 		// Other error handling
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.errors.deletion_failed", "Course collection deletion failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.errors.deletion_failed", "Course collection deletion failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -129,13 +129,13 @@ func (uc *DeleteCollectionUseCase) executeCore(ctx context.Context, req *collect
 // validateInput validates the input request
 func (uc *DeleteCollectionUseCase) validateInput(ctx context.Context, req *collectionpb.DeleteCollectionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.request_required", "Request is required for collections [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.request_required", "Request is required for collections [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.data_required", "Collection data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.data_required", "Collection data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -146,14 +146,14 @@ func (uc *DeleteCollectionUseCase) validateBusinessRules(ctx context.Context, co
 	if hasChildren, err := uc.hasChildCollections(ctx, collection.Id); err != nil {
 		return err
 	} else if hasChildren {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.has_child_collections", "Cannot delete collection with child collections [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.has_child_collections", "Cannot delete collection with child collections [DEFAULT]"))
 	}
 
 	// Check if collection is associated with products
 	if hasProducts, err := uc.hasAssociatedProducts(ctx, collection.Id); err != nil {
 		return err
 	} else if hasProducts {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.has_associated_products", "Cannot delete collection with associated products [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.has_associated_products", "Cannot delete collection with associated products [DEFAULT]"))
 	}
 
 	return nil

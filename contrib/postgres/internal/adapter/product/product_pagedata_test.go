@@ -12,10 +12,10 @@ import "testing"
 // Implementation note: the PG adapter test harness in this directory does not
 // yet have a shared fixture/seed setup; standing one up is out of scope for
 // the canonicalization wave. Once a harness exists, this test should:
-//   1. Insert a fully-populated product row (all proto fields).
-//   2. Call GetProductItemPageData and ReadProduct.
-//   3. Assert proto.Equal on the returned Product against the Read result.
-//   4. Repeat with an inactive product and assert page-data returns "not found".
+//  1. Insert a fully-populated product row (all proto fields).
+//  2. Call GetProductItemPageData and ReadProduct.
+//  3. Assert proto.Equal on the returned Product against the Read result.
+//  4. Repeat with an inactive product and assert page-data returns "not found".
 func TestGetProductItemPageData_ParityWithReadProduct(t *testing.T) {
 	t.Skip("TODO: parity test — needs PG fixture harness")
 }

@@ -16,9 +16,9 @@ type GetPriceProductItemPageDataRepositories struct {
 }
 
 type GetPriceProductItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPriceProductItemPageDataUseCase handles the business logic for getting price product item page data
@@ -44,7 +44,7 @@ func (uc *GetPriceProductItemPageDataUseCase) Execute(
 	req *priceproductpb.GetPriceProductItemPageDataRequest,
 ) (*priceproductpb.GetPriceProductItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceProduct, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetPriceProductItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetPriceProductItemPageDataUseCase) executeWithTransaction(
 ) (*priceproductpb.GetPriceProductItemPageDataResponse, error) {
 	var result *priceproductpb.GetPriceProductItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"price_product.errors.item_page_data_failed",
 				"price product item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetPriceProductItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_product.errors.read_failed",
 			"failed to retrieve price product: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetPriceProductItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_product.errors.not_found",
 			"price product not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetPriceProductItemPageDataUseCase) executeCore(
 	if priceProduct.Id != req.PriceProductId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_product.errors.id_mismatch",
 			"retrieved price product ID does not match requested ID",
 		))
@@ -161,7 +161,7 @@ func (uc *GetPriceProductItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_product.validation.request_required",
 			"request is required",
 		))
@@ -170,7 +170,7 @@ func (uc *GetPriceProductItemPageDataUseCase) validateInput(
 	if req.PriceProductId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_product.validation.id_required",
 			"price product ID is required",
 		))
@@ -188,7 +188,7 @@ func (uc *GetPriceProductItemPageDataUseCase) validateBusinessRules(
 	if len(priceProductId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"price_product.validation.id_too_short",
 			"price product ID is too short",
 		))

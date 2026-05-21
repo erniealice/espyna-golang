@@ -19,9 +19,9 @@ type UpdateDocumentTemplateRepositories struct {
 
 // UpdateDocumentTemplateServices groups all business service dependencies
 type UpdateDocumentTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateDocumentTemplateUseCase handles the business logic for updating document templates
@@ -43,14 +43,14 @@ func NewUpdateDocumentTemplateUseCase(
 
 // Execute performs the update document template operation
 func (uc *UpdateDocumentTemplateUseCase) Execute(ctx context.Context, req *documenttemplatepb.UpdateDocumentTemplateRequest) (*documenttemplatepb.UpdateDocumentTemplateResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDocumentTemplate, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *documenttemplatepb.UpdateDocumentTemplateResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("document template update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateDocumentTemplateUseCase) Execute(ctx context.Context, req *docum
 
 func (uc *UpdateDocumentTemplateUseCase) executeCore(ctx context.Context, req *documenttemplatepb.UpdateDocumentTemplateRequest) (*documenttemplatepb.UpdateDocumentTemplateResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "document_template.validation.id_required", "Document template ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "document_template.validation.id_required", "Document template ID is required [DEFAULT]"))
 	}
 
 	// Set date_modified

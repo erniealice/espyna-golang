@@ -17,9 +17,9 @@ type ReadPurchaseOrderLineItemRepositories struct {
 
 // ReadPurchaseOrderLineItemServices groups all business service dependencies
 type ReadPurchaseOrderLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadPurchaseOrderLineItemUseCase handles the business logic for reading a purchase order line item
@@ -41,7 +41,7 @@ func NewReadPurchaseOrderLineItemUseCase(
 
 // Execute performs the read purchase order line item operation
 func (uc *ReadPurchaseOrderLineItemUseCase) Execute(ctx context.Context, req *purchaseorderlineitempb.ReadPurchaseOrderLineItemRequest) (*purchaseorderlineitempb.ReadPurchaseOrderLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrderLineItem, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -58,13 +58,13 @@ func (uc *ReadPurchaseOrderLineItemUseCase) Execute(ctx context.Context, req *pu
 
 func (uc *ReadPurchaseOrderLineItemUseCase) validateInput(ctx context.Context, req *purchaseorderlineitempb.ReadPurchaseOrderLineItemRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order_line_item.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order_line_item.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

@@ -24,9 +24,9 @@ type UpdateEventAttributeRepositories struct {
 
 // UpdateEventAttributeServices groups all business service dependencies
 type UpdateEventAttributeServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // UpdateEventAttributeUseCase handles the business logic for updating event attributes
@@ -49,13 +49,13 @@ func NewUpdateEventAttributeUseCase(
 // Execute performs the update event attribute operation
 func (uc *UpdateEventAttributeUseCase) Execute(ctx context.Context, req *eventattributepb.UpdateEventAttributeRequest) (*eventattributepb.UpdateEventAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventAttribute, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -67,7 +67,7 @@ func (uc *UpdateEventAttributeUseCase) Execute(ctx context.Context, req *eventat
 func (uc *UpdateEventAttributeUseCase) executeWithTransaction(ctx context.Context, req *eventattributepb.UpdateEventAttributeRequest) (*eventattributepb.UpdateEventAttributeResponse, error) {
 	var result *eventattributepb.UpdateEventAttributeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -87,18 +87,18 @@ func (uc *UpdateEventAttributeUseCase) executeCore(ctx context.Context, req *eve
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventAttribute, ports.ActionUpdate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -133,22 +133,22 @@ func (uc *UpdateEventAttributeUseCase) executeCore(ctx context.Context, req *eve
 // validateInput validates the input request
 func (uc *UpdateEventAttributeUseCase) validateInput(ctx context.Context, req *eventattributepb.UpdateEventAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.data_required", "Event attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.data_required", "Event attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.id_required", "Event attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.id_required", "Event attribute ID is required"))
 	}
 	if req.Data.EventId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.event_id_required", "Event ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.event_id_required", "Event ID is required [DEFAULT]"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.attribute_id_required", "Attribute ID is required [DEFAULT]"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.value_required", "Attribute value is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.value_required", "Attribute value is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -168,22 +168,22 @@ func (uc *UpdateEventAttributeUseCase) enrichEventAttributeData(eventAttribute *
 func (uc *UpdateEventAttributeUseCase) validateBusinessRules(ctx context.Context, eventAttribute *eventattributepb.EventAttribute) error {
 	// Validate event ID format
 	if len(eventAttribute.EventId) < 5 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.event_id_min_length", "Event ID must be at least 5 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.event_id_min_length", "Event ID must be at least 5 characters long [DEFAULT]"))
 	}
 
 	// Validate attribute ID format
 	if len(eventAttribute.AttributeId) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.attribute_id_min_length", "Attribute ID must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.attribute_id_min_length", "Attribute ID must be at least 2 characters long [DEFAULT]"))
 	}
 
 	// Validate attribute value length
 	value := strings.TrimSpace(eventAttribute.Value)
 	if len(value) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.value_not_empty", "Attribute value must not be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.value_not_empty", "Attribute value must not be empty [DEFAULT]"))
 	}
 
 	if len(value) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.value_max_length", "Attribute value cannot exceed 500 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.value_max_length", "Attribute value cannot exceed 500 characters [DEFAULT]"))
 	}
 
 	// Normalize value (trim spaces)
@@ -191,7 +191,7 @@ func (uc *UpdateEventAttributeUseCase) validateBusinessRules(ctx context.Context
 
 	// Business constraint: Event attribute must be associated with a valid event
 	if eventAttribute.EventId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_attribute.validation.event_association_required", "Event attribute must be associated with an event [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.validation.event_association_required", "Event attribute must be associated with an event [DEFAULT]"))
 	}
 
 	return nil
@@ -208,11 +208,11 @@ func (uc *UpdateEventAttributeUseCase) validateEntityReferences(ctx context.Cont
 			return err
 		}
 		if event == nil || event.Data == nil || len(event.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event_attribute.errors.event_not_found", map[string]interface{}{"eventId": eventAttribute.EventId}, "Referenced event not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event_attribute.errors.event_not_found", map[string]interface{}{"eventId": eventAttribute.EventId}, "Referenced event not found")
 			return errors.New(translatedError)
 		}
 		if !event.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event_attribute.errors.event_not_active", map[string]interface{}{"eventId": eventAttribute.EventId}, "Referenced event not active")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event_attribute.errors.event_not_active", map[string]interface{}{"eventId": eventAttribute.EventId}, "Referenced event not active")
 			return errors.New(translatedError)
 		}
 	}
@@ -226,11 +226,11 @@ func (uc *UpdateEventAttributeUseCase) validateEntityReferences(ctx context.Cont
 			return err
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event_attribute.errors.attribute_not_found", map[string]interface{}{"attributeId": eventAttribute.AttributeId}, "Referenced attribute not found")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event_attribute.errors.attribute_not_found", map[string]interface{}{"attributeId": eventAttribute.AttributeId}, "Referenced attribute not found")
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event_attribute.errors.attribute_not_active", map[string]interface{}{"attributeId": eventAttribute.AttributeId}, "Referenced attribute not active")
+			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event_attribute.errors.attribute_not_active", map[string]interface{}{"attributeId": eventAttribute.AttributeId}, "Referenced attribute not active")
 			return errors.New(translatedError)
 		}
 	}

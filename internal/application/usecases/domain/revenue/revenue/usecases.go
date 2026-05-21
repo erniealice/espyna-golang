@@ -55,10 +55,10 @@ type RevenueRepositories struct {
 
 // RevenueServices groups all business service dependencies for revenue use cases
 type RevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 
 	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — recognize-piggyback
 	// invoker. Optional; when nil the piggyback hook is skipped (no warning).
@@ -101,55 +101,55 @@ func NewUseCases(
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	createServices := CreateRevenueServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadRevenueRepositories{
 		Revenue: repositories.Revenue,
 	}
 	readServices := ReadRevenueServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateRevenueRepositories{
 		Revenue: repositories.Revenue,
 	}
 	updateServices := UpdateRevenueServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteRevenueRepositories{
 		Revenue: repositories.Revenue,
 	}
 	deleteServices := DeleteRevenueServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListRevenuesRepositories{
 		Revenue: repositories.Revenue,
 	}
 	listServices := ListRevenuesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetRevenueListPageDataRepositories{
 		Revenue: repositories.Revenue,
 	}
 	getListPageDataServices := GetRevenueListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	recognizeRepos := RecognizeRevenueFromSubscriptionRepositories{
@@ -166,10 +166,10 @@ func NewUseCases(
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	recognizeServices := RecognizeRevenueFromSubscriptionServices{
-		AuthorizationService:                   services.AuthorizationService,
-		TransactionService:                     services.TransactionService,
-		TranslationService:                     services.TranslationService,
-		IDService:                              services.IDService,
+		Authorizer:                             services.Authorizer,
+		Transactor:                             services.Transactor,
+		Translator:                             services.Translator,
+		IDGenerator:                            services.IDGenerator,
 		MaterializeInstanceJobsForSubscription: services.MaterializeInstanceJobsForSubscription,
 		ComputeTaxes:                           services.ComputeTaxes,
 	}
@@ -185,8 +185,8 @@ func NewUseCases(
 	// Plan B Phase 5a — thread TreasuryCollection through for the advance branch.
 	listCandidatesRepos.TreasuryCollection = repositories.TreasuryCollection
 	listCandidatesServices := ListRevenueRunCandidatesServices{
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	generateRunRepos := GenerateRevenueRunRepositories{
@@ -196,17 +196,17 @@ func NewUseCases(
 		Workspace:    repositories.Workspace,
 	}
 	generateRunServices := GenerateRevenueRunServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	recomputeTaxesUC := NewRecomputeTaxesUseCase(
 		RecomputeTaxesRepositories{Revenue: repositories.Revenue},
 		RecomputeTaxesServices{
-			AuthorizationService: services.AuthorizationService,
-			TranslationService:   services.TranslationService,
+			Authorizer: services.Authorizer,
+			Translator: services.Translator,
 		},
 		services.ComputeTaxes,
 	)

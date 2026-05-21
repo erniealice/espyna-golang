@@ -41,8 +41,8 @@ type ResolveActiveScheduleLineRepositories struct {
 
 // ResolveActiveScheduleLineServices groups service dependencies.
 type ResolveActiveScheduleLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ResolveActiveScheduleLineUseCase resolves the active schedule line for a contract
@@ -63,12 +63,12 @@ func NewResolveActiveScheduleLineUseCase(
 
 // Execute performs the resolve operation.
 func (uc *ResolveActiveScheduleLineUseCase) Execute(ctx context.Context, req ResolveActiveScheduleLineRequest) (*ResolveActiveScheduleLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceScheduleLine, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req.SupplierContractLineID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule_line.validation.contract_line_id_required", "Supplier contract line ID is required [DEFAULT]"))
 	}
 	if req.AsOf.IsZero() {

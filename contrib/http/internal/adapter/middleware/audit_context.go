@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
 	infraports "github.com/erniealice/espyna-golang/ports"
+	contextutil "github.com/erniealice/espyna-golang/shared/context"
 )
 
 // AuditContextMiddleware extracts actor metadata from the request and stores it

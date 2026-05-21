@@ -23,10 +23,10 @@ type SetEventTagAssignmentsRepositories struct {
 
 // SetEventTagAssignmentsServices groups all business service dependencies
 type SetEventTagAssignmentsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // SetEventTagAssignmentsRequest is the input for the atomic replace operation.
@@ -67,7 +67,7 @@ func NewSetEventTagAssignmentsUseCase(
 // event, then insert new rows with positions 0..N-1.
 func (uc *SetEventTagAssignmentsUseCase) Execute(ctx context.Context, req *SetEventTagAssignmentsRequest) (*SetEventTagAssignmentsResponse, error) {
 	// Authorization: this is effectively a create operation on assignments.
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventTagAssignment, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -83,10 +83,10 @@ func (uc *SetEventTagAssignmentsUseCase) Execute(ctx context.Context, req *SetEv
 }
 
 func (uc *SetEventTagAssignmentsUseCase) shouldUseTransaction(ctx context.Context) bool {
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 	return true
@@ -95,7 +95,7 @@ func (uc *SetEventTagAssignmentsUseCase) shouldUseTransaction(ctx context.Contex
 func (uc *SetEventTagAssignmentsUseCase) executeWithTransaction(ctx context.Context, req *SetEventTagAssignmentsRequest) (*SetEventTagAssignmentsResponse, error) {
 	var response *SetEventTagAssignmentsResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		resp, coreErr := uc.executeCore(txCtx, req)
 		if coreErr != nil {
 			return coreErr
@@ -173,8 +173,8 @@ func (uc *SetEventTagAssignmentsUseCase) executeCore(ctx context.Context, req *S
 			DateModifiedString: &[]string{now.Format(time.RFC3339)}[0],
 			Active:             true,
 		}
-		if uc.services.IDService != nil {
-			row.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			row.Id = uc.services.IDGenerator.GenerateID()
 		}
 
 		createReq := &eventtagassignmentpb.CreateEventTagAssignmentRequest{Data: row}

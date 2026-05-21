@@ -17,9 +17,9 @@ type DeleteDocumentTemplateRepositories struct {
 
 // DeleteDocumentTemplateServices groups all business service dependencies
 type DeleteDocumentTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteDocumentTemplateUseCase handles the business logic for deleting document templates
@@ -41,13 +41,13 @@ func NewDeleteDocumentTemplateUseCase(
 
 // Execute performs the delete document template operation
 func (uc *DeleteDocumentTemplateUseCase) Execute(ctx context.Context, req *documenttemplatepb.DeleteDocumentTemplateRequest) (*documenttemplatepb.DeleteDocumentTemplateResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDocumentTemplate, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "document_template.validation.id_required", "Document template ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "document_template.validation.id_required", "Document template ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.DocumentTemplate.DeleteDocumentTemplate(ctx, req)

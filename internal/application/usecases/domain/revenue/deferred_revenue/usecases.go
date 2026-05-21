@@ -12,10 +12,10 @@ type DeferredRevenueRepositories struct {
 
 // DeferredRevenueServices groups all business service dependencies for deferred revenue use cases
 type DeferredRevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all deferred revenue-related use cases
@@ -32,24 +32,24 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateDeferredRevenueRepositories(repositories)
 	createServices := CreateDeferredRevenueServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	listRepos := ListDeferredRevenuesRepositories(repositories)
 	listServices := ListDeferredRevenuesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetDeferredRevenueListPageDataRepositories(repositories)
 	getListPageDataServices := GetDeferredRevenueListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

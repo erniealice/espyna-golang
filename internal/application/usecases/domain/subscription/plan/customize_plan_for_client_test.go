@@ -231,12 +231,12 @@ func itoa(i int) string {
 }
 
 // noOpAuth — alias to the official no-op authorization service.
-func noOpAuth() ports.AuthorizationService { return ports.NewNoOpAuthorizationService() }
+func noOpAuth() ports.Authorizer { return ports.NewNoOpAuthorizer() }
 
 // noOpTranslation — alias to the official no-op translation service.
-func noOpTranslation() ports.TranslationService { return ports.NewNoOpTranslationService() }
+func noOpTranslation() ports.Translator { return ports.NewNoOpTranslator() }
 
-// noTxn — TransactionService that does NOT support transactions, so the use
+// noTxn — Transactor that does NOT support transactions, so the use
 // case runs executeCore directly.
 type noTxn struct{}
 
@@ -246,7 +246,7 @@ func (noTxn) ExecuteInTransaction(ctx context.Context, fn func(ctx context.Conte
 func (noTxn) SupportsTransactions() bool               { return false }
 func (noTxn) IsTransactionActive(context.Context) bool { return false }
 
-// hasTxn — TransactionService that DOES support transactions; used to verify
+// hasTxn — Transactor that DOES support transactions; used to verify
 // the rollback path in the partial-failure case.
 type hasTxn struct{}
 
@@ -290,10 +290,10 @@ func newFixture(t *testing.T) *customizeFixture {
 		Client:           cr,
 	}
 	svcs := CustomizePlanForClientServices{
-		AuthorizationService: noOpAuth(),
-		TransactionService:   noTxn{},
-		TranslationService:   noOpTranslation(),
-		IDService:            newStubIDService("new"),
+		Authorizer:  noOpAuth(),
+		Transactor:  noTxn{},
+		Translator:  noOpTranslation(),
+		IDGenerator: newStubIDService("new"),
 	}
 	return &customizeFixture{
 		plan: pr, pricePlan: ppr, productPlan: pdr, productPricePlan: pppr,
@@ -543,7 +543,7 @@ func TestCustomize_MidCloneFailure_Surfaces(t *testing.T) {
 	f := newFixture(t)
 	f.seedMasterPlan()
 	// Force CreatePricePlan to fail to simulate a mid-clone failure. The
-	// surrounding TransactionService is a no-op in this test, so we just
+	// surrounding Transactor is a no-op in this test, so we just
 	// check that the error bubbles up — the postgres-side rollback is the
 	// production guarantee.
 	f.pricePlan.createErr = errors.New("price plan write failed")

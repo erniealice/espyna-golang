@@ -198,10 +198,10 @@ type ApproveProcurementRequestRepositories struct {
 
 // ApproveProcurementRequestServices groups service dependencies.
 type ApproveProcurementRequestServices struct {
-	AuthorizationService   ports.AuthorizationService
-	TransactionService     ports.TransactionService
-	TranslationService     ports.TranslationService
-	IDService              ports.IDService
+	Authorizer             ports.Authorizer
+	Transactor             ports.Transactor
+	Translator             ports.Translator
+	IDGenerator            ports.IDGenerator
 	ApprovalPolicyResolver ApprovalPolicyResolver // optional; nil falls back to DefaultRequireApprovalResolver
 }
 
@@ -228,22 +228,22 @@ func (uc *ApproveProcurementRequestUseCase) Execute(
 	ctx context.Context,
 	req *procurementrequestpb.ApproveProcurementRequestRequest,
 ) (*procurementrequestpb.ApproveProcurementRequestResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequest, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetProcurementRequestId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.validation.id_required",
 			"Procurement request ID is required [DEFAULT]"))
 	}
 	if req.GetApprovedBy() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.validation.approved_by_required",
 			"Approver ID is required [DEFAULT]"))
 	}
 	if uc.repositories.SpawnDispatcher == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.errors.spawn_dispatcher_missing",
 			"Spawn dispatcher is not configured [DEFAULT]"))
 	}
@@ -290,7 +290,7 @@ func (uc *ApproveProcurementRequestUseCase) claimApprovalIntent(
 		}
 		prs := readResp.GetData()
 		if len(prs) == 0 || prs[0] == nil {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService,
+			return errors.New(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator,
 				"procurement_request.errors.not_found",
 				"Procurement request not found [DEFAULT]"))
 		}
@@ -325,7 +325,7 @@ func (uc *ApproveProcurementRequestUseCase) claimApprovalIntent(
 			return err
 		}
 		if len(ln) == 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService,
+			return errors.New(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator,
 				"procurement_request.errors.no_lines",
 				"Procurement request has no lines to spawn [DEFAULT]"))
 		}
@@ -384,16 +384,16 @@ func (uc *ApproveProcurementRequestUseCase) claimApprovalIntent(
 		return nil
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, work); err != nil {
-			translated := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if err := uc.services.Transactor.ExecuteInTransaction(ctx, work); err != nil {
+			translated := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 				"procurement_request.errors.approve_failed",
 				"[ERR-DEFAULT] Failed to approve procurement request")
 			return nil, nil, fmt.Errorf("%s: %w", translated, err)
 		}
 	} else {
 		if err := work(ctx); err != nil {
-			translated := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+			translated := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 				"procurement_request.errors.approve_failed",
 				"[ERR-DEFAULT] Failed to approve procurement request")
 			return nil, nil, fmt.Errorf("%s: %w", translated, err)
@@ -512,8 +512,8 @@ func (uc *ApproveProcurementRequestUseCase) processSpawnForLine(
 
 	// Per-line tx — failure inside `work` is logged but does not
 	// bubble; the persisted spawn_status carries the outcome.
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		_ = uc.services.TransactionService.ExecuteInTransaction(parentCtx, work)
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		_ = uc.services.Transactor.ExecuteInTransaction(parentCtx, work)
 		return
 	}
 	_ = work(parentCtx)
@@ -584,8 +584,8 @@ func (uc *ApproveProcurementRequestUseCase) promoteIfAllSpawned(
 		return nil
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		if err := uc.services.TransactionService.ExecuteInTransaction(ctx, work); err != nil {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		if err := uc.services.Transactor.ExecuteInTransaction(ctx, work); err != nil {
 			return nil, err
 		}
 	} else if err := work(ctx); err != nil {

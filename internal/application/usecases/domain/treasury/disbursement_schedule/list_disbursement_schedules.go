@@ -19,9 +19,9 @@ type ListDisbursementSchedulesRepositories struct {
 
 // ListDisbursementSchedulesServices groups service dependencies for the use case.
 type ListDisbursementSchedulesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDisbursementSchedulesUseCase lists disbursement schedules.
@@ -43,13 +43,13 @@ func NewListDisbursementSchedulesUseCase(
 
 // Execute performs the list disbursement schedules operation.
 func (uc *ListDisbursementSchedulesUseCase) Execute(ctx context.Context, req *disbursementschedulepb.ListDisbursementSchedulesRequest) (*disbursementschedulepb.ListDisbursementSchedulesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDisbursementSchedule, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "disbursement_schedule.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "disbursement_schedule.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.DisbursementSchedule.ListDisbursementSchedules(ctx, req)

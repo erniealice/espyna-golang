@@ -17,9 +17,9 @@ type ReadRevenueCategoryRepositories struct {
 
 // ReadRevenueCategoryServices groups all business service dependencies
 type ReadRevenueCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadRevenueCategoryUseCase handles the business logic for reading a revenue category
@@ -41,13 +41,13 @@ func NewReadRevenueCategoryUseCase(
 
 // Execute performs the read revenue category operation
 func (uc *ReadRevenueCategoryUseCase) Execute(ctx context.Context, req *pb.ReadRevenueCategoryRequest) (*pb.ReadRevenueCategoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueCategory, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue_category.validation.id_required", "Revenue category ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_category.validation.id_required", "Revenue category ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.RevenueCategory.ReadRevenueCategory(ctx, req)

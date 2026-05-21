@@ -17,8 +17,8 @@ type JobTemplateRelationRepositories struct {
 
 // JobTemplateRelationServices groups all business service dependencies.
 type JobTemplateRelationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UseCases contains all job-template-relation use cases.
@@ -38,8 +38,8 @@ func NewUseCases(
 		ListByParent: NewListByParentUseCase(
 			ListByParentRepositories{JobTemplateRelation: repositories.JobTemplateRelation},
 			ListByParentServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

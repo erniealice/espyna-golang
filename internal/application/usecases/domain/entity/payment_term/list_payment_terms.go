@@ -17,9 +17,9 @@ type ListPaymentTermsRepositories struct {
 
 // ListPaymentTermsServices groups all business service dependencies
 type ListPaymentTermsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListPaymentTermsUseCase handles the business logic for listing payment terms
@@ -47,9 +47,9 @@ func NewListPaymentTermsUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentTe
 	}
 
 	services := ListPaymentTermsServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListPaymentTermsUseCase(repositories, services)
@@ -58,7 +58,7 @@ func NewListPaymentTermsUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentTe
 // Execute performs the list payment terms operation
 func (uc *ListPaymentTermsUseCase) Execute(ctx context.Context, req *paymenttermpb.ListPaymentTermsRequest) (*paymenttermpb.ListPaymentTermsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"payment_term", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (uc *ListPaymentTermsUseCase) Execute(ctx context.Context, req *paymentterm
 	// Call repository
 	resp, err := uc.repositories.PaymentTerm.ListPaymentTerms(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payment_term.errors.list_failed", "Failed to retrieve payment terms [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payment_term.errors.list_failed", "Failed to retrieve payment terms [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

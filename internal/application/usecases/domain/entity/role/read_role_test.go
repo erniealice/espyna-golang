@@ -29,7 +29,7 @@ func createTestReadRoleUseCase(businessType string) *ReadRoleUseCase {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadRoleServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewReadRoleUseCase(repositories, services)
 }
@@ -90,5 +90,5 @@ func TestReadRoleUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "role.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "role.validation.id_required", useCase.services.Translator, ctx)
 }

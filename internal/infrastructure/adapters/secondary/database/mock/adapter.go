@@ -173,13 +173,13 @@ func (a *MockAdapter) HealthCheck(ctx context.Context) error {
 
 // NewMockTransactionService creates a transaction service using infrastructure mock.
 // This re-exports the core package function for backward compatibility with existing imports.
-func NewMockTransactionService(supportsTransactions bool) ports.TransactionService {
+func NewMockTransactionService(supportsTransactions bool) ports.Transactor {
 	return core.NewMockTransactionService(supportsTransactions)
 }
 
 // NewFailingMockTransactionService creates a transaction service that will fail RunInTransaction.
 // This re-exports the core package function for backward compatibility with existing imports.
-func NewFailingMockTransactionService() ports.TransactionService {
+func NewFailingMockTransactionService() ports.Transactor {
 	return core.NewFailingMockTransactionService()
 }
 

@@ -15,9 +15,9 @@ type ReadTemplateTaskCriteriaRepositories struct {
 }
 
 type ReadTemplateTaskCriteriaServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadTemplateTaskCriteriaUseCase handles the business logic for reading template task criteria
@@ -40,7 +40,7 @@ func NewReadTemplateTaskCriteriaUseCase(
 // Execute performs the read template task criteria operation
 func (uc *ReadTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.ReadTemplateTaskCriteriaRequest) (*pb.ReadTemplateTaskCriteriaResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTemplateTaskCriteria, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *ReadTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -63,7 +63,7 @@ func (uc *ReadTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.
 func (uc *ReadTemplateTaskCriteriaUseCase) executeWithTransaction(ctx context.Context, req *pb.ReadTemplateTaskCriteriaRequest) (*pb.ReadTemplateTaskCriteriaResponse, error) {
 	var result *pb.ReadTemplateTaskCriteriaResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -82,10 +82,10 @@ func (uc *ReadTemplateTaskCriteriaUseCase) executeWithTransaction(ctx context.Co
 func (uc *ReadTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, req *pb.ReadTemplateTaskCriteriaRequest) (*pb.ReadTemplateTaskCriteriaResponse, error) {
 	resp, err := uc.repositories.TemplateTaskCriteria.ReadTemplateTaskCriteria(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "template_task_criteria.errors.not_found", "[ERR-DEFAULT] Template task criteria not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.not_found", "[ERR-DEFAULT] Template task criteria not found"))
 	}
 	if resp == nil || len(resp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "template_task_criteria.errors.not_found", "[ERR-DEFAULT] Template task criteria not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.not_found", "[ERR-DEFAULT] Template task criteria not found"))
 	}
 	return resp, nil
 }
@@ -93,13 +93,13 @@ func (uc *ReadTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, req 
 // validateInput validates the input request
 func (uc *ReadTemplateTaskCriteriaUseCase) validateInput(ctx context.Context, req *pb.ReadTemplateTaskCriteriaRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "template_task_criteria.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "template_task_criteria.validation.data_required", "[ERR-DEFAULT] Template task criteria data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.validation.data_required", "[ERR-DEFAULT] Template task criteria data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "template_task_criteria.validation.id_required", "[ERR-DEFAULT] Template task criteria ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.validation.id_required", "[ERR-DEFAULT] Template task criteria ID is required"))
 	}
 	return nil
 }

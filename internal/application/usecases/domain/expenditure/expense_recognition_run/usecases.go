@@ -20,10 +20,10 @@ type ExpenseRecognitionRunRepositories struct {
 // — the inner use cases pull what they need from the parent aggregator's
 // constructor calls.
 type ExpenseRecognitionRunServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all expense-recognition-run use cases.

@@ -31,9 +31,9 @@ func createTestUpdateLocationUseCase(businessType string) *UpdateLocationUseCase
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := UpdateLocationServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateLocationUseCase(repositories, services)
@@ -112,7 +112,7 @@ func TestUpdateLocationUseCase_Execute_ValidationErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := &locationpb.UpdateLocationRequest{Data: tc.location}
 			_, err := useCase.Execute(ctx, req)
-			testutil.AssertTranslatedError(t, err, tc.expectedErrorKey, useCase.services.TranslationService, ctx)
+			testutil.AssertTranslatedError(t, err, tc.expectedErrorKey, useCase.services.Translator, ctx)
 		})
 	}
 }

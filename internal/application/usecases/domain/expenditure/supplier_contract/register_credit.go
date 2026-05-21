@@ -23,8 +23,8 @@ type RegisterCreditRepositories struct {
 
 // RegisterCreditServices groups service dependencies.
 type RegisterCreditServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // RegisterCreditUseCase handles negative-Expenditure flows (rebates, supplier credits).
@@ -45,16 +45,16 @@ func NewRegisterCreditUseCase(
 
 // Execute performs the register credit operation.
 func (uc *RegisterCreditUseCase) Execute(ctx context.Context, req RegisterCreditRequest) error {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionUpdate); err != nil {
 		return err
 	}
 	if req.ContractID == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	if req.CreditCentavos <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.amount_required", "Credit amount must be positive [DEFAULT]"))
 	}
 	balanceRepo, ok := uc.repositories.SupplierContract.(BalanceRepository)

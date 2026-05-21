@@ -100,16 +100,16 @@ const (
 )
 
 // ID types
-type IDService = internal.IDService
-type NoOpIDService = internal.NoOpIDService
+type IDGenerator = internal.IDGenerator
+type NoOpIDGenerator = internal.NoOpIDGenerator
 
-var NewNoOpIDService = internal.NewNoOpIDService
+var NewNoOpIDGenerator = internal.NewNoOpIDGenerator
 
 // Transaction types
-type TransactionService = internal.TransactionService
-type NoOpTransactionService = internal.NoOpTransactionService
+type Transactor = internal.Transactor
+type NoOpTransactor = internal.NoOpTransactor
 
-var NewNoOpTransactionService = internal.NewNoOpTransactionService
+var NewNoOpTransactor = internal.NewNoOpTransactor
 
 // Migration types
 type (
@@ -183,9 +183,9 @@ type (
 )
 
 // Translation types
-type TranslationService = internal.TranslationService
+type Translator = internal.Translator
 
-var NewNoOpTranslationService = internal.NewNoOpTranslationService
+var NewNoOpTranslator = internal.NewNoOpTranslator
 
 // Ledger types
 type LedgerReportingService = internal.LedgerReportingService
@@ -196,13 +196,13 @@ type LedgerReportingService = internal.LedgerReportingService
 
 // Authorization types
 type (
-	AuthorizationService   = internal.AuthorizationService
+	Authorizer   = internal.Authorizer
 	AuthorizationProvider  = internal.AuthorizationProvider
 	AuthorizationError     = internal.AuthorizationError
 	AuthorizationErrorCode = internal.AuthorizationErrorCode
 )
 
-var NewNoOpAuthorizationService = internal.NewNoOpAuthorizationService
+var NewNoOpAuthorizer = internal.NewNoOpAuthorizer
 var NewAuthorizationError = internal.NewAuthorizationError
 
 // Permission utility functions
@@ -353,8 +353,8 @@ const (
 // when only type aliases from internal are used, since internal re-exports from
 // these packages via its own type aliases).
 var (
-	_ domain.TranslationService
+	_ domain.Translator
 	_ infrastructure.DatabaseProvider
 	_ integration.EmailProvider
-	_ security.AuthorizationService
+	_ security.Authorizer
 )

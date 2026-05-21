@@ -19,9 +19,9 @@ type DeleteStageTemplateRepositories struct {
 
 // DeleteStageTemplateServices groups all business service dependencies
 type DeleteStageTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteStageTemplateUseCase handles the business logic for deleting stage templates
@@ -49,9 +49,9 @@ func NewDeleteStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.St
 	}
 
 	services := DeleteStageTemplateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteStageTemplateUseCase(repositories, services)
@@ -60,14 +60,14 @@ func NewDeleteStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.St
 // Execute performs the delete stage template operation
 func (uc *DeleteStageTemplateUseCase) Execute(ctx context.Context, req *stageTemplatepb.DeleteStageTemplateRequest) (*stageTemplatepb.DeleteStageTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage_template", ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.request_required", "Request is required for stage templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.request_required", "Request is required for stage templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -76,7 +76,7 @@ func (uc *DeleteStageTemplateUseCase) Execute(ctx context.Context, req *stageTem
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req.Data)
 	}
 
@@ -88,10 +88,10 @@ func (uc *DeleteStageTemplateUseCase) Execute(ctx context.Context, req *stageTem
 func (uc *DeleteStageTemplateUseCase) executeWithTransaction(ctx context.Context, stageTemplate *stageTemplatepb.StageTemplate) (*stageTemplatepb.DeleteStageTemplateResponse, error) {
 	var result *stageTemplatepb.DeleteStageTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, stageTemplate)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "stage_template.errors.deletion_failed", "Stage template deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "stage_template.errors.deletion_failed", "Stage template deletion failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -116,17 +116,17 @@ func (uc *DeleteStageTemplateUseCase) executeCore(ctx context.Context, stageTemp
 func (uc *DeleteStageTemplateUseCase) validateBusinessRules(ctx context.Context, stageTemplate *stageTemplatepb.StageTemplate) error {
 	// Business rule: Required data validation
 	if stageTemplate == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.data_required", "Stage template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.data_required", "Stage template data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for deleting
 	if stageTemplate.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.id_required", "Stage template ID is required for delete operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.id_required", "Stage template ID is required for delete operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateStageTemplateID(stageTemplate.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.id_invalid", "Stage template ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.id_invalid", "Stage template ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

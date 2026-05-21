@@ -18,10 +18,10 @@ type ReverseJournalEntryRepositories struct {
 
 // ReverseJournalEntryServices groups all business service dependencies
 type ReverseJournalEntryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // ReverseJournalEntryUseCase handles the business logic for reversing posted journal entries.
@@ -50,19 +50,19 @@ func NewReverseJournalEntryUseCase(
 // Execute performs the reverse journal entry operation
 func (uc *ReverseJournalEntryUseCase) Execute(ctx context.Context, req *journalentrypb.ReverseJournalEntryRequest) (*journalentrypb.ReverseJournalEntryResponse, error) {
 	// Authorization check — reversing requires update-level access
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityJournalEntry, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -73,10 +73,10 @@ func (uc *ReverseJournalEntryUseCase) Execute(ctx context.Context, req *journale
 func (uc *ReverseJournalEntryUseCase) executeWithTransaction(ctx context.Context, req *journalentrypb.ReverseJournalEntryRequest) (*journalentrypb.ReverseJournalEntryResponse, error) {
 	var result *journalentrypb.ReverseJournalEntryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "journal_entry.errors.reversal_failed", "Journal entry reversal failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "journal_entry.errors.reversal_failed", "Journal entry reversal failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -97,7 +97,7 @@ func (uc *ReverseJournalEntryUseCase) executeCore(ctx context.Context, req *jour
 	}
 	resp, err := uc.repositories.JournalEntry.ReverseJournalEntry(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.errors.reversal_failed", "[ERR-DEFAULT] Journal entry reversal failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.errors.reversal_failed", "[ERR-DEFAULT] Journal entry reversal failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -107,13 +107,13 @@ func (uc *ReverseJournalEntryUseCase) executeCore(ctx context.Context, req *jour
 // validateInput validates the input request
 func (uc *ReverseJournalEntryUseCase) validateInput(ctx context.Context, req *journalentrypb.ReverseJournalEntryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.JournalEntryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.id_required", "[ERR-DEFAULT] Journal entry ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.id_required", "[ERR-DEFAULT] Journal entry ID is required"))
 	}
 	if req.ReversedBy == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.reversed_by_required", "[ERR-DEFAULT] Reversed by (user ID) is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.reversed_by_required", "[ERR-DEFAULT] Reversed by (user ID) is required"))
 	}
 	return nil
 }

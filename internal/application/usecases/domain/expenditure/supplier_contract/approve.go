@@ -18,9 +18,9 @@ type ApproveSupplierContractRepositories struct {
 
 // ApproveSupplierContractServices groups service dependencies.
 type ApproveSupplierContractServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ApproveSupplierContractUseCase transitions a contract from PENDING_APPROVAL → APPROVED.
@@ -39,22 +39,22 @@ func NewApproveSupplierContractUseCase(
 
 // Execute performs the approve supplier contract operation.
 func (uc *ApproveSupplierContractUseCase) Execute(ctx context.Context, req *suppliercontractpb.ApproveSupplierContractRequest) (*suppliercontractpb.ApproveSupplierContractResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	if req.ApprovedBy == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.approved_by_required", "Approver ID is required [DEFAULT]"))
 	}
 
 	resp, err := uc.repositories.SupplierContract.ApproveSupplierContract(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.errors.approve_failed", "[ERR-DEFAULT] Failed to approve supplier contract")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

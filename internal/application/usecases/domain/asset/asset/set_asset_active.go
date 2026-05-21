@@ -18,9 +18,9 @@ type SetAssetActiveRepositories struct {
 
 // SetAssetActiveServices groups all business service dependencies
 type SetAssetActiveServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // SetAssetActiveUseCase handles toggling the active flag on an asset.
@@ -46,14 +46,14 @@ func NewSetAssetActiveUseCase(
 
 func (uc *SetAssetActiveUseCase) Execute(ctx context.Context, req *assetpb.SetAssetActiveRequest) (*assetpb.SetAssetActiveResponse, error) {
 	// Authorization check — toggling active is semantically an Update action.
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAsset, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -61,7 +61,7 @@ func (uc *SetAssetActiveUseCase) Execute(ctx context.Context, req *assetpb.SetAs
 	// (see SetAssetActive in contrib/postgres/internal/adapter/asset/asset.go).
 	resp, err := uc.repositories.Asset.SetAssetActive(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.errors.set_active_failed", "[ERR-DEFAULT] Asset set active failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.errors.set_active_failed", "[ERR-DEFAULT] Asset set active failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -71,10 +71,10 @@ func (uc *SetAssetActiveUseCase) Execute(ctx context.Context, req *assetpb.SetAs
 // validateInput validates the input request for SetAssetActive.
 func (uc *SetAssetActiveUseCase) validateInput(ctx context.Context, req *assetpb.SetAssetActiveRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.AssetId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.id_required", "[ERR-DEFAULT] Asset ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.id_required", "[ERR-DEFAULT] Asset ID is required"))
 	}
 	return nil
 }

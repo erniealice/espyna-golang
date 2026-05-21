@@ -21,10 +21,10 @@ type FindOrCreateClientRepositories struct {
 
 // FindOrCreateClientServices groups all business service dependencies
 type FindOrCreateClientServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // FindOrCreateClientUseCase handles the business logic for finding an existing client
@@ -58,10 +58,10 @@ func NewFindOrCreateClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServi
 	}
 
 	services := FindOrCreateClientServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewFindOrCreateClientUseCase(repositories, services)
@@ -79,19 +79,19 @@ func NewFindOrCreateClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServi
 // 5. If no user found, delegates to CreateClient use case which handles User+Client creation
 func (uc *FindOrCreateClientUseCase) Execute(ctx context.Context, req *clientpb.CreateClientRequest) (*clientpb.ListClientsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClient, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	// Extract email from nested User
 	if req.Data.User == nil || req.Data.User.EmailAddress == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client.validation.email_required", "Client user email address is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.email_required", "Client user email address is required [DEFAULT]"))
 	}
 
 	email := req.Data.User.EmailAddress
@@ -156,10 +156,10 @@ func (uc *FindOrCreateClientUseCase) Execute(ctx context.Context, req *clientpb.
 			User:   uc.repositories.User,
 		},
 		CreateClientServices{
-			AuthorizationService: uc.services.AuthorizationService,
-			TransactionService:   uc.services.TransactionService,
-			TranslationService:   uc.services.TranslationService,
-			IDService:            uc.services.IDService,
+			Authorizer:  uc.services.Authorizer,
+			Transactor:  uc.services.Transactor,
+			Translator:  uc.services.Translator,
+			IDGenerator: uc.services.IDGenerator,
 		},
 	)
 

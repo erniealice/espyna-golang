@@ -18,9 +18,9 @@ type GetStaffItemPageDataRepositories struct {
 
 // GetStaffItemPageDataServices groups all business service dependencies
 type GetStaffItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetStaffItemPageDataUseCase handles the business logic for getting staff item page data
@@ -49,9 +49,9 @@ func NewGetStaffItemPageDataUseCaseUngrouped(staffRepo staffpb.StaffDomainServic
 	}
 
 	services := GetStaffItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetStaffItemPageDataUseCase(repositories, services)
@@ -59,18 +59,18 @@ func NewGetStaffItemPageDataUseCaseUngrouped(staffRepo staffpb.StaffDomainServic
 
 func (uc *GetStaffItemPageDataUseCase) Execute(ctx context.Context, req *staffpb.GetStaffItemPageDataRequest) (*staffpb.GetStaffItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaff, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.request_required", "Request is required for staff item page data [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.request_required", "Request is required for staff item page data [DEFAULT]"))
 	}
 
 	if req.StaffId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.id_required", "Staff ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.id_required", "Staff ID is required [DEFAULT]"))
 	}
 
 	// Call repository
@@ -81,7 +81,7 @@ func (uc *GetStaffItemPageDataUseCase) Execute(ctx context.Context, req *staffpb
 
 	// Check if staff was found
 	if resp.Staff == nil || resp.Staff.Id == "" {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.errors.not_found", "Staff with ID \"{staffId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.errors.not_found", "Staff with ID \"{staffId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{staffId}", req.StaffId)
 		return nil, errors.New(translatedError)
 	}

@@ -38,7 +38,7 @@ func (m *BusinessTypeMiddleware) SetBusinessType(next http.Handler) http.Handler
 		if businessType == "" {
 			businessType = m.defaultBusinessType
 		}
-		
+
 		// Validate business type (optional - you can expand this list)
 		validBusinessTypes := map[string]bool{
 			"education":        true,
@@ -47,15 +47,15 @@ func (m *BusinessTypeMiddleware) SetBusinessType(next http.Handler) http.Handler
 			"aesthetic_clinic": true,
 			"general":          true,
 		}
-		
+
 		if !validBusinessTypes[businessType] {
 			// Invalid business type - fall back to default
 			businessType = m.defaultBusinessType
 		}
-		
+
 		// Set business type in context
 		ctx := context.WithValue(r.Context(), "businessType", businessType)
-		
+
 		// Continue with updated context
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

@@ -16,9 +16,9 @@ type ListCostPlansRepositories struct {
 }
 
 type ListCostPlansServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type ListCostPlansUseCase struct {
@@ -34,16 +34,16 @@ func NewListCostPlansUseCase(
 }
 
 func (uc *ListCostPlansUseCase) Execute(ctx context.Context, req *costplanpb.ListCostPlansRequest) (*costplanpb.ListCostPlansResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCostPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_plan.validation.request_required", "request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_plan.validation.request_required", "request is required"))
 	}
 	result, err := uc.repositories.CostPlan.ListCostPlans(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_plan.errors.list_failed", "cost plan listing failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_plan.errors.list_failed", "cost plan listing failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil

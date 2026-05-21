@@ -20,9 +20,9 @@ type UpdateDelegateRepositories struct {
 
 // UpdateDelegateServices groups all business service dependencies
 type UpdateDelegateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateDelegateUseCase handles the business logic for updating a delegate
@@ -51,9 +51,9 @@ func NewUpdateDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 	}
 
 	services := UpdateDelegateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateDelegateUseCase(repositories, services)
@@ -62,13 +62,13 @@ func NewUpdateDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 // Execute performs the update delegate operation
 func (uc *UpdateDelegateUseCase) Execute(ctx context.Context, req *delegatepb.UpdateDelegateRequest) (*delegatepb.UpdateDelegateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegate, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -80,10 +80,10 @@ func (uc *UpdateDelegateUseCase) Execute(ctx context.Context, req *delegatepb.Up
 func (uc *UpdateDelegateUseCase) executeWithTransaction(ctx context.Context, req *delegatepb.UpdateDelegateRequest) (*delegatepb.UpdateDelegateResponse, error) {
 	var result *delegatepb.UpdateDelegateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "delegate.errors.update_failed", "Delegate update failed")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "delegate.errors.update_failed", "Delegate update failed")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -100,26 +100,26 @@ func (uc *UpdateDelegateUseCase) executeWithTransaction(ctx context.Context, req
 func (uc *UpdateDelegateUseCase) executeCore(ctx context.Context, req *delegatepb.UpdateDelegateRequest) (*delegatepb.UpdateDelegateResponse, error) {
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.request_required", "Request is required for delegates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.request_required", "Request is required for delegates [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.data_required", "Delegate data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.data_required", "Delegate data is required [DEFAULT]"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.id_required", "Delegate ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.id_required", "Delegate ID is required [DEFAULT]"))
 	}
 
 	// Business logic validation
 	if req.Data.User != nil && req.Data.User.EmailAddress == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.email_required", "Parent/Guardian email is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.email_required", "Parent/Guardian email is required [DEFAULT]"))
 	}
 
 	// Email format validation
 	if req.Data.User != nil && req.Data.User.EmailAddress != "" {
 		emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 		if !emailRegex.MatchString(req.Data.User.EmailAddress) {
-			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.email_invalid", "Invalid email format [DEFAULT]"))
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.email_invalid", "Invalid email format [DEFAULT]"))
 		}
 	}
 
@@ -131,7 +131,7 @@ func (uc *UpdateDelegateUseCase) executeCore(ctx context.Context, req *delegatep
 	// Call repository
 	resp, err := uc.repositories.Delegate.UpdateDelegate(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.errors.update_failed", "Delegate update failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.errors.update_failed", "Delegate update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

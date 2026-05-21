@@ -28,7 +28,7 @@ func createTestListLocationsUseCase(businessType string) *ListLocationsUseCase {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListLocationsServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewListLocationsUseCase(repositories, services)
 }
@@ -40,7 +40,7 @@ func TestListLocationsUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockLocationRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListLocationsUseCase(ListLocationsRepositories{Location: mockRepo}, ListLocationsServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/location has 2 entries
@@ -65,9 +65,9 @@ func TestListLocationsUseCase_Execute_AfterDelete(t *testing.T) {
 	deleteRepositories := DeleteLocationRepositories{Location: mockRepo}
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteLocationServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	deleteUseCase := NewDeleteLocationUseCase(deleteRepositories, deleteServices)
 
@@ -77,7 +77,7 @@ func TestListLocationsUseCase_Execute_AfterDelete(t *testing.T) {
 
 	// --- Now list the locations ---
 	listUseCase := NewListLocationsUseCase(ListLocationsRepositories{Location: mockRepo}, ListLocationsServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	})
 
 	listReq := &locationpb.ListLocationsRequest{}

@@ -22,15 +22,15 @@ type GetScheduleDashboardRepositories struct {
 }
 
 // GetScheduleDashboardServices groups application services. No
-// TransactionService — the use case is read-only.
+// Transactor — the use case is read-only.
 //
-// AuthorizationService is wired through for parity with Audit's pattern,
+// Authorizer is wired through for parity with Audit's pattern,
 // but the schedule dashboard does NOT call authcheck.Check today (see
-// Execute's doc comment). TranslationService is reserved for future
+// Execute's doc comment). Translator is reserved for future
 // error-message translations.
 type GetScheduleDashboardServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // GetScheduleDashboardUseCase is the proto-shaped wrapper over the entity-

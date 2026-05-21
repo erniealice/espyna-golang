@@ -23,8 +23,8 @@ type RegisterBillingRepositories struct {
 
 // RegisterBillingServices groups service dependencies.
 type RegisterBillingServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // RegisterBillingUseCase increments billed_amount and recomputes remaining_amount
@@ -45,16 +45,16 @@ func NewRegisterBillingUseCase(
 
 // Execute performs the register billing operation.
 func (uc *RegisterBillingUseCase) Execute(ctx context.Context, req RegisterBillingRequest) error {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionUpdate); err != nil {
 		return err
 	}
 	if req.ContractID == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	if req.BilledCentavos <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.amount_required", "Billed amount must be positive [DEFAULT]"))
 	}
 	balanceRepo, ok := uc.repositories.SupplierContract.(BalanceRepository)

@@ -20,10 +20,10 @@ type CreateStaffRepositories struct {
 
 // CreateStaffServices groups all business service dependencies
 type CreateStaffServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateStaffUseCase handles the business logic for creating staff
@@ -52,10 +52,10 @@ func NewCreateStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) 
 	}
 
 	services := CreateStaffServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateStaffUseCase(repositories, services)
@@ -64,13 +64,13 @@ func NewCreateStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) 
 // Execute performs the create staff operation
 func (uc *CreateStaffUseCase) Execute(ctx context.Context, req *staffpb.CreateStaffRequest) (*staffpb.CreateStaffResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaff, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *CreateStaffUseCase) Execute(ctx context.Context, req *staffpb.CreateSt
 func (uc *CreateStaffUseCase) executeWithTransaction(ctx context.Context, req *staffpb.CreateStaffRequest) (*staffpb.CreateStaffResponse, error) {
 	var result *staffpb.CreateStaffResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "staff.errors.creation_failed", "Staff creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "staff.errors.creation_failed", "Staff creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -122,22 +122,22 @@ func (uc *CreateStaffUseCase) executeCore(ctx context.Context, req *staffpb.Crea
 // validateInput validates the input request
 func (uc *CreateStaffUseCase) validateInput(ctx context.Context, req *staffpb.CreateStaffRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.request_required", "Request is required for staff [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.request_required", "Request is required for staff [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.data_required", "Staff data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.data_required", "Staff data is required [DEFAULT]"))
 	}
 	if req.Data.User == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.user_data_required", "Staff user data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.user_data_required", "Staff user data is required [DEFAULT]"))
 	}
 	if req.Data.User.FirstName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.first_name_required", "Staff first name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.first_name_required", "Staff first name is required [DEFAULT]"))
 	}
 	if req.Data.User.LastName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.last_name_required", "Staff last name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.last_name_required", "Staff last name is required [DEFAULT]"))
 	}
 	if req.Data.User.EmailAddress == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.email_required", "Staff email address is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.email_required", "Staff email address is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -148,12 +148,12 @@ func (uc *CreateStaffUseCase) enrichStaffData(staff *staffpb.Staff) error {
 
 	// Generate Staff ID if not provided
 	if staff.Id == "" {
-		staff.Id = uc.services.IDService.GenerateID()
+		staff.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Generate User ID if not provided
 	if staff.User != nil && staff.User.Id == "" {
-		staff.User.Id = uc.services.IDService.GenerateID()
+		staff.User.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set staff audit fields
@@ -181,31 +181,31 @@ func (uc *CreateStaffUseCase) enrichStaffData(staff *staffpb.Staff) error {
 // validateBusinessRules enforces business constraints
 func (uc *CreateStaffUseCase) validateBusinessRules(ctx context.Context, staff *staffpb.Staff) error {
 	if staff.User == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.user_data_required", "User data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.user_data_required", "User data is required [DEFAULT]"))
 	}
 
 	// Validate email format
 	if err := uc.validateEmail(staff.User.EmailAddress); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.email_invalid", "Invalid email format [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.email_invalid", "Invalid email format [DEFAULT]"))
 	}
 
 	// Validate name length
 	fullName := staff.User.FirstName + " " + staff.User.LastName
 	if len(fullName) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.full_name_too_short", "Staff full name must be at least 3 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.full_name_too_short", "Staff full name must be at least 3 characters long [DEFAULT]"))
 	}
 
 	if len(fullName) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.full_name_too_long", "Staff full name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.full_name_too_long", "Staff full name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate individual name parts
 	if len(staff.User.FirstName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
 	}
 
 	if len(staff.User.LastName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
 	}
 
 	return nil

@@ -23,10 +23,10 @@ type CreateEventClientRepositories struct {
 
 // CreateEventClientServices groups all business service dependencies
 type CreateEventClientServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateEventClientUseCase handles the business logic for creating event client associations
@@ -61,10 +61,10 @@ func NewCreateEventClientUseCaseUngrouped(
 	}
 
 	services := CreateEventClientServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil, // Will be injected later if needed
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return &CreateEventClientUseCase{
@@ -76,7 +76,7 @@ func NewCreateEventClientUseCaseUngrouped(
 // Execute performs the create event client operation
 func (uc *CreateEventClientUseCase) Execute(ctx context.Context, req *eventclientpb.CreateEventClientRequest) (*eventclientpb.CreateEventClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventClient, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -103,14 +103,14 @@ func (uc *CreateEventClientUseCase) Execute(ctx context.Context, req *eventclien
 // shouldUseTransaction determines if this operation should use a transaction
 func (uc *CreateEventClientUseCase) shouldUseTransaction(ctx context.Context) bool {
 	// Use transaction if:
-	// 1. TransactionService is available, AND
+	// 1. Transactor is available, AND
 	// 2. We're not already in a transaction context
-	if uc.services.TransactionService == nil || !uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
 		return false
 	}
 
 	// Don't start a nested transaction if we're already in one
-	if uc.services.TransactionService.IsTransactionActive(ctx) {
+	if uc.services.Transactor.IsTransactionActive(ctx) {
 		return false
 	}
 
@@ -121,7 +121,7 @@ func (uc *CreateEventClientUseCase) shouldUseTransaction(ctx context.Context) bo
 func (uc *CreateEventClientUseCase) executeWithTransaction(ctx context.Context, req *eventclientpb.CreateEventClientRequest) (*eventclientpb.CreateEventClientResponse, error) {
 	var response *eventclientpb.CreateEventClientResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		// All validations and operations within transaction
 
 		// Business rule validation (check first to avoid unnecessary DB calls)
@@ -190,7 +190,7 @@ func (uc *CreateEventClientUseCase) enrichEventClientData(eventClient *eventclie
 
 	// Generate EventClient ID if not provided
 	if eventClient.Id == "" {
-		eventClient.Id = uc.services.IDService.GenerateID()
+		eventClient.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields

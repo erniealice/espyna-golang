@@ -278,9 +278,9 @@ func pivotFlatRows(flat []flatRow, req *revreportpb.RevenueReportRequest) *revre
 
 	// Group flat rows by row_key (preserving insertion order).
 	type rowAccum struct {
-		rowKey  string
-		rowID   string
-		cells   map[string]*revreportpb.RevenueReportCell // colKey → cell
+		rowKey string
+		rowID  string
+		cells  map[string]*revreportpb.RevenueReportCell // colKey → cell
 	}
 	rowOrder := make([]string, 0)
 	rowSeen := make(map[string]bool)

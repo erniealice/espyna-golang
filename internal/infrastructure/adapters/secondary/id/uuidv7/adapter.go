@@ -17,7 +17,7 @@ import (
 func init() {
 	registry.RegisterIDProvider(
 		"google_uuidv7",
-		func() ports.IDService {
+		func() ports.IDGenerator {
 			return NewGoogleUUIDv7Service()
 		},
 		transformConfig,
@@ -27,7 +27,7 @@ func init() {
 
 // buildFromEnv creates and returns a Google UUID v7 service.
 // No environment variables required - uses google/uuid library for UUID v7 generation.
-func buildFromEnv() (ports.IDService, error) {
+func buildFromEnv() (ports.IDGenerator, error) {
 	return NewGoogleUUIDv7Service(), nil
 }
 
@@ -54,7 +54,7 @@ type GoogleUUIDv7Service struct {
 }
 
 // NewGoogleUUIDv7Service creates a new Google UUID v7 service
-func NewGoogleUUIDv7Service() ports.IDService {
+func NewGoogleUUIDv7Service() ports.IDGenerator {
 	return &GoogleUUIDv7Service{
 		enabled: true,
 	}
@@ -68,13 +68,13 @@ func (s *GoogleUUIDv7Service) Name() string {
 // GenerateID creates a new UUID v7 identifier
 func (s *GoogleUUIDv7Service) GenerateID() string {
 	if !s.enabled {
-		fallback := ports.NewNoOpIDService()
+		fallback := ports.NewNoOpIDGenerator()
 		return fallback.GenerateID()
 	}
 
 	uuidV7, err := uuid.NewV7()
 	if err != nil {
-		fallback := ports.NewNoOpIDService()
+		fallback := ports.NewNoOpIDGenerator()
 		return fallback.GenerateID()
 	}
 
@@ -98,4 +98,4 @@ func (s *GoogleUUIDv7Service) GetProviderInfo() string {
 }
 
 // Compile-time interface check
-var _ ports.IDService = (*GoogleUUIDv7Service)(nil)
+var _ ports.IDGenerator = (*GoogleUUIDv7Service)(nil)

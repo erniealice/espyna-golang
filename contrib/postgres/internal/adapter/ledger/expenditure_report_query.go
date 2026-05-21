@@ -12,21 +12,21 @@ import (
 
 // validExpenditurePivotDimensions is a whitelist of allowed dimension values for expenditure reports.
 var validExpenditurePivotDimensions = map[string]bool{
-	"monthly":            true,
-	"quarterly":          true,
-	"yearly":             true,
-	"product":            true,
-	"product_line":       true,
-	"productLine":        true,
-	"location":           true,
-	"location_area":      true,
-	"locationArea":       true,
-	"category":           true,
-	"supplier":           true,
-	"expenditure_type":   true,
-	"expenditureType":    true,
-	"supplierCategory":   true,
-	"supplier_category":  true,
+	"monthly":           true,
+	"quarterly":         true,
+	"yearly":            true,
+	"product":           true,
+	"product_line":      true,
+	"productLine":       true,
+	"location":          true,
+	"location_area":     true,
+	"locationArea":      true,
+	"category":          true,
+	"supplier":          true,
+	"expenditure_type":  true,
+	"expenditureType":   true,
+	"supplierCategory":  true,
+	"supplier_category": true,
 }
 
 // normalizeExpenditureDimension converts camelCase dimension keys to snake_case for SQL switch matching.
@@ -223,13 +223,13 @@ ORDER BY row_key, col_key`,
 
 // expenditureFlatRow holds one database result row before pivoting.
 type expenditureFlatRow struct {
-	RowKey            string
-	RowID             string
-	ColKey            string
-	ColID             string
-	TotalExpenditure  int64
-	TransactionCount  int64
-	TotalQuantity     float64
+	RowKey           string
+	RowID            string
+	ColKey           string
+	ColID            string
+	TotalExpenditure int64
+	TransactionCount int64
+	TotalQuantity    float64
 }
 
 // pivotFlatExpenditureRows transforms flat SQL result rows into the proto pivot response.

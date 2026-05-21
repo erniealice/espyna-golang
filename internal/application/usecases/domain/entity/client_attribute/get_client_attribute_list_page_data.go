@@ -20,9 +20,9 @@ type GetClientAttributeListPageDataRepositories struct {
 
 // GetClientAttributeListPageDataServices groups all business service dependencies
 type GetClientAttributeListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetClientAttributeListPageDataUseCase handles the business logic for getting client attribute list page data
@@ -51,9 +51,9 @@ func NewGetClientAttributeListPageDataUseCaseUngrouped(clientAttributeRepo clien
 	}
 
 	services := GetClientAttributeListPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetClientAttributeListPageDataUseCase(repositories, services)
@@ -62,27 +62,27 @@ func NewGetClientAttributeListPageDataUseCaseUngrouped(clientAttributeRepo clien
 // Execute performs the get client attribute list page data operation
 func (uc *GetClientAttributeListPageDataUseCase) Execute(ctx context.Context, req *clientattributepb.GetClientAttributeListPageDataRequest) (*clientattributepb.GetClientAttributeListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClientAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Apply default values for pagination, filtering, sorting, and search
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.ClientAttribute.GetClientAttributeListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.list_page_data_failed", "Failed to retrieve client attribute list page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.list_page_data_failed", "Failed to retrieve client attribute list page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -92,23 +92,23 @@ func (uc *GetClientAttributeListPageDataUseCase) Execute(ctx context.Context, re
 // validateInput validates the input request
 func (uc *GetClientAttributeListPageDataUseCase) validateInput(ctx context.Context, req *clientattributepb.GetClientAttributeListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
 	}
 
 	// Validate pagination if provided
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
 		}
 		if req.Pagination.Limit > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
 		}
 	}
 
 	// Validate search if provided
 	if req.Search != nil && req.Search.Query != "" {
 		if len(req.Search.Query) < 2 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
 		}
 	}
 

@@ -18,9 +18,9 @@ type ReadStageRepositories struct {
 
 // ReadStageServices groups all business service dependencies
 type ReadStageServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadStageUseCase handles the business logic for reading stages
@@ -48,9 +48,9 @@ func NewReadStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) *R
 	}
 
 	services := ReadStageServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadStageUseCase(repositories, services)
@@ -59,14 +59,14 @@ func NewReadStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) *R
 // Execute performs the read stage operation
 func (uc *ReadStageUseCase) Execute(ctx context.Context, req *stagepb.ReadStageRequest) (*stagepb.ReadStageResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
 	}
 
 	// Business validation
@@ -79,7 +79,7 @@ func (uc *ReadStageUseCase) Execute(ctx context.Context, req *stagepb.ReadStageR
 	enrichedRequest := req
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -91,10 +91,10 @@ func (uc *ReadStageUseCase) Execute(ctx context.Context, req *stagepb.ReadStageR
 func (uc *ReadStageUseCase) executeWithTransaction(ctx context.Context, req *stagepb.ReadStageRequest) (*stagepb.ReadStageResponse, error) {
 	var result *stagepb.ReadStageResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "stage.errors.read_failed", "Stage read failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "stage.errors.read_failed", "Stage read failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -117,17 +117,17 @@ func (uc *ReadStageUseCase) executeCore(ctx context.Context, req *stagepb.ReadSt
 func (uc *ReadStageUseCase) validateBusinessRules(ctx context.Context, req *stagepb.ReadStageRequest) error {
 	// Business rule: Request data validation
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.data_required", "Stage data is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.data_required", "Stage data is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: Stage ID is required
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.id_required", "Stage ID is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.id_required", "Stage ID is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: Stage ID format validation
 	if err := uc.validateStageID(req.Data.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.id_invalid", "Stage ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.id_invalid", "Stage ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

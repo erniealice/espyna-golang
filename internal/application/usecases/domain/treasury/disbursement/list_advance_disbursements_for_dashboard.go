@@ -21,8 +21,8 @@ type ListAdvanceDisbursementsForDashboardRepositories struct {
 
 // ListAdvanceDisbursementsForDashboardServices groups infra services.
 type ListAdvanceDisbursementsForDashboardServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListAdvanceDisbursementsForDashboardUseCase projects active buying-side
@@ -50,7 +50,7 @@ func (uc *ListAdvanceDisbursementsForDashboardUseCase) Execute(
 	}
 	_ = req
 
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"treasury_disbursement", ports.ActionList); err != nil {
 		return nil, err
 	}

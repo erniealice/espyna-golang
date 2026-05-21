@@ -9,10 +9,10 @@ import (
 // InitializeFinance creates all finance use cases from provider repositories.
 func InitializeFinance(
 	repos *domain.FinanceRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*finance.FinanceUseCases, error) {
 	return finance.NewUseCases(
 		finance.FinanceRepositories{

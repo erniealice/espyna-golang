@@ -19,8 +19,8 @@ ports/
 │   ├── auth_config.go          # AuthConfigAdapter
 │   ├── storage.go              # StorageProvider, StorageError
 │   ├── storage_config.go       # StorageConfigAdapter
-│   ├── id.go                   # IDService
-│   ├── transaction.go          # TransactionService
+│   ├── id.go                   # IDGenerator
+│   ├── transaction.go          # Transactor
 │   └── migration.go            # MigrationService
 │
 ├── integration/                # External service integration ports
@@ -29,10 +29,10 @@ ports/
 │
 ├── domain/                     # Domain-specific ports
 │   ├── workflow.go             # WorkflowEngineService, ExecutorRegistry
-│   └── translation.go          # TranslationService
+│   └── translation.go          # Translator
 │
 └── security/                   # Security and authorization ports
-    ├── authorization.go        # AuthorizationService, AuthorizationProvider
+    ├── authorization.go        # Authorizer, AuthorizationProvider
     └── errors.go               # AuthorizationError, error codes
 ```
 
@@ -59,7 +59,7 @@ import (
 // Use types from specific packages
 var db infrastructure.DatabaseProvider
 var email integration.EmailProvider
-var authz security.AuthorizationService
+var authz security.Authorizer
 ```
 
 ## Critical Distinction: Ports vs Proto Contracts
@@ -204,10 +204,10 @@ type EmailProvider interface {
 Each service interface has a NoOp implementation for testing/fallback:
 ```go
 // Create fallback services
-idService := ports.NewNoOpIDService()
-txService := ports.NewNoOpTransactionService()
-authzService := ports.NewNoOpAuthorizationService()
-translationService := ports.NewNoOpTranslationService()
+idService := ports.NewNoOpIDGenerator()
+txService := ports.NewNoOpTransactor()
+authzService := ports.NewNoOpAuthorizer()
+translationService := ports.NewNoOpTranslator()
 ```
 
 ---

@@ -18,9 +18,9 @@ type ActivateSupplierContractPriceScheduleRepositories struct {
 
 // ActivateSupplierContractPriceScheduleServices groups service dependencies.
 type ActivateSupplierContractPriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ActivateSupplierContractPriceScheduleUseCase transitions SCHEDULED -> ACTIVE.
@@ -45,18 +45,18 @@ func NewActivateSupplierContractPriceScheduleUseCase(
 
 // Execute performs the activate operation.
 func (uc *ActivateSupplierContractPriceScheduleUseCase) Execute(ctx context.Context, req *scpspb.ActivateSupplierContractPriceScheduleRequest) (*scpspb.ActivateSupplierContractPriceScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContractPriceSchedule, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractPriceScheduleId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.validation.id_required", "Supplier contract price schedule ID is required [DEFAULT]"))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *scpspb.ActivateSupplierContractPriceScheduleResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("supplier contract price schedule activation failed: %w", err)
@@ -81,7 +81,7 @@ func (uc *ActivateSupplierContractPriceScheduleUseCase) executeCore(ctx context.
 		return nil, fmt.Errorf("failed to read schedule: %w", err)
 	}
 	if len(readResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.errors.not_found", "[ERR-DEFAULT] Schedule not found"))
 	}
 	target := readResp.Data[0]
@@ -106,7 +106,7 @@ func (uc *ActivateSupplierContractPriceScheduleUseCase) executeCore(ctx context.
 
 	resp, err := uc.repositories.SupplierContractPriceSchedule.ActivateSupplierContractPriceSchedule(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract_price_schedule.errors.activate_failed", "[ERR-DEFAULT] Failed to activate schedule")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

@@ -21,10 +21,10 @@ type CreateExpenditureLineItemRepositories struct {
 
 // CreateExpenditureLineItemServices groups all business service dependencies
 type CreateExpenditureLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateExpenditureLineItemUseCase handles the business logic for creating expenditure line items
@@ -46,14 +46,14 @@ func NewCreateExpenditureLineItemUseCase(
 
 // Execute performs the create expenditure line item operation
 func (uc *CreateExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb.CreateExpenditureLineItemRequest) (*pb.CreateExpenditureLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureLineItem, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *pb.CreateExpenditureLineItemResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("expenditure line item creation failed: %w", err)
@@ -72,12 +72,12 @@ func (uc *CreateExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb
 
 func (uc *CreateExpenditureLineItemUseCase) executeCore(ctx context.Context, req *pb.CreateExpenditureLineItemRequest) (*pb.CreateExpenditureLineItemResponse, error) {
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_line_item.validation.data_required", "Expenditure line item data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_line_item.validation.data_required", "Expenditure line item data is required [DEFAULT]"))
 	}
 
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

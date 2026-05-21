@@ -16,10 +16,10 @@ type CreateCriteriaThresholdRepositories struct {
 }
 
 type CreateCriteriaThresholdServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateCriteriaThresholdUseCase handles the business logic for creating criteria thresholds
@@ -42,13 +42,13 @@ func NewCreateCriteriaThresholdUseCase(
 // Execute performs the create criteria threshold operation
 func (uc *CreateCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.CreateCriteriaThresholdRequest) (*pb.CreateCriteriaThresholdResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCriteriaThreshold, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.data_required", "[ERR-DEFAULT] Criteria threshold data is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.data_required", "[ERR-DEFAULT] Criteria threshold data is required"))
 	}
 
 	// Business validation
@@ -60,7 +60,7 @@ func (uc *CreateCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.C
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req, enrichedData)
 	}
 
@@ -71,7 +71,7 @@ func (uc *CreateCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.C
 // executeWithTransaction executes creation within a transaction
 func (uc *CreateCriteriaThresholdUseCase) executeWithTransaction(ctx context.Context, req *pb.CreateCriteriaThresholdRequest, enrichedData *pb.CriteriaThreshold) (*pb.CreateCriteriaThresholdResponse, error) {
 	var result *pb.CreateCriteriaThresholdResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req, enrichedData)
 		if err != nil {
 			return err
@@ -92,7 +92,7 @@ func (uc *CreateCriteriaThresholdUseCase) executeCore(ctx context.Context, req *
 		Data: enrichedData,
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.errors.creation_failed", "[ERR-DEFAULT] Criteria threshold creation failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.errors.creation_failed", "[ERR-DEFAULT] Criteria threshold creation failed"))
 	}
 	return resp, nil
 }
@@ -103,7 +103,7 @@ func (uc *CreateCriteriaThresholdUseCase) applyBusinessLogic(data *pb.CriteriaTh
 
 	// Business logic: Generate ID if not provided
 	if data.Id == "" {
-		data.Id = uc.services.IDService.GenerateID()
+		data.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Business logic: Set creation audit fields
@@ -118,10 +118,10 @@ func (uc *CreateCriteriaThresholdUseCase) applyBusinessLogic(data *pb.CriteriaTh
 // validateBusinessRules enforces business constraints
 func (uc *CreateCriteriaThresholdUseCase) validateBusinessRules(ctx context.Context, data *pb.CriteriaThreshold) error {
 	if data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.data_required", "[ERR-DEFAULT] Criteria threshold data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.data_required", "[ERR-DEFAULT] Criteria threshold data is required"))
 	}
 	if data.OutcomeCriteriaId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.criteria_id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.criteria_id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
 	}
 
 	return nil

@@ -19,9 +19,9 @@ type DeleteEventRepositories struct {
 
 // DeleteEventServices groups all business service dependencies
 type DeleteEventServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteEventUseCase handles the business logic for deleting events
@@ -50,9 +50,9 @@ func NewDeleteEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 	}
 
 	services := DeleteEventServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &DeleteEventUseCase{
@@ -64,13 +64,13 @@ func NewDeleteEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 // Execute performs the delete event operation
 func (uc *DeleteEventUseCase) Execute(ctx context.Context, req *eventpb.DeleteEventRequest) (*eventpb.DeleteEventResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEvent, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *DeleteEventUseCase) Execute(ctx context.Context, req *eventpb.DeleteEv
 func (uc *DeleteEventUseCase) executeWithTransaction(ctx context.Context, req *eventpb.DeleteEventRequest) (*eventpb.DeleteEventResponse, error) {
 	var result *eventpb.DeleteEventResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "event.errors.deletion_failed", "Event deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "event.errors.deletion_failed", "Event deletion failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -123,13 +123,13 @@ func (uc *DeleteEventUseCase) executeCore(ctx context.Context, req *eventpb.Dele
 // validateInput validates the input request
 func (uc *DeleteEventUseCase) validateInput(ctx context.Context, req *eventpb.DeleteEventRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.data_required", "Academic event data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.id_required", "Event ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.id_required", "Event ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -144,14 +144,14 @@ func (uc *DeleteEventUseCase) getExistingEvent(ctx context.Context, eventID stri
 	if err != nil {
 		// Check if this is a not found error from repository
 		if contains := contextutil.Contains(err.Error(), "not found"); contains {
-			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
 			return nil, errors.New(errorMessage)
 		}
 		return nil, err
 	}
 
 	if len(resp.Data) == 0 {
-		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.TranslationService, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "event.errors.not_found", map[string]interface{}{"eventId": eventID}, "Event not found [DEFAULT]")
 		return nil, errors.New(errorMessage)
 	}
 
@@ -175,7 +175,7 @@ func (uc *DeleteEventUseCase) validateDeletionRules(ctx context.Context, event *
 		}
 
 		// For recent past events, enforce the business rule
-		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.cannot_delete_started", "Cannot delete classes that have already started [DEFAULT]")
+		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.cannot_delete_started", "Cannot delete classes that have already started [DEFAULT]")
 		return errors.New(errorMessage)
 	}
 
@@ -184,7 +184,7 @@ func (uc *DeleteEventUseCase) validateDeletionRules(ctx context.Context, event *
 	if event.StartDateTimeUtc > 0 {
 		oneHourFromNow := now.Add(time.Hour).UnixMilli()
 		if event.StartDateTimeUtc < oneHourFromNow && event.StartDateTimeUtc > now.UnixMilli() {
-			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event.validation.cannot_delete_soon", "Cannot delete classes starting within the next hour [DEFAULT]")
+			errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event.validation.cannot_delete_soon", "Cannot delete classes starting within the next hour [DEFAULT]")
 			return errors.New(errorMessage)
 		}
 	}

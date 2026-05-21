@@ -19,9 +19,9 @@ type UpdateExpenditureAttributeRepositories struct {
 
 // UpdateExpenditureAttributeServices groups all business service dependencies
 type UpdateExpenditureAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateExpenditureAttributeUseCase handles the business logic for updating expenditure attributes
@@ -43,14 +43,14 @@ func NewUpdateExpenditureAttributeUseCase(
 
 // Execute performs the update expenditure attribute operation
 func (uc *UpdateExpenditureAttributeUseCase) Execute(ctx context.Context, req *pb.UpdateExpenditureAttributeRequest) (*pb.UpdateExpenditureAttributeResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureAttribute, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *pb.UpdateExpenditureAttributeResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("expenditure attribute update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdateExpenditureAttributeUseCase) Execute(ctx context.Context, req *p
 
 func (uc *UpdateExpenditureAttributeUseCase) executeCore(ctx context.Context, req *pb.UpdateExpenditureAttributeRequest) (*pb.UpdateExpenditureAttributeResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_attribute.validation.id_required", "Expenditure attribute ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_attribute.validation.id_required", "Expenditure attribute ID is required [DEFAULT]"))
 	}
 
 	now := time.Now()

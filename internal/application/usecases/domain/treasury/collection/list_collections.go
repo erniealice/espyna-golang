@@ -17,9 +17,9 @@ type ListCollectionsRepositories struct {
 
 // ListCollectionsServices groups all business service dependencies
 type ListCollectionsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListCollectionsUseCase handles the business logic for listing collections
@@ -41,13 +41,13 @@ func NewListCollectionsUseCase(
 
 // Execute performs the list collections operation
 func (uc *ListCollectionsUseCase) Execute(ctx context.Context, req *collectionpb.ListCollectionsRequest) (*collectionpb.ListCollectionsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityCollection, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Collection.ListCollections(ctx, req)

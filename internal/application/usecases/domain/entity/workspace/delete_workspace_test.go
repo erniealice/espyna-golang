@@ -32,9 +32,9 @@ func createTestDeleteWorkspaceUseCase(businessType string) *DeleteWorkspaceUseCa
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := DeleteWorkspaceServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeleteWorkspaceUseCase(repositories, services)
@@ -51,9 +51,9 @@ func TestDeleteWorkspaceUseCase_Execute_Success(t *testing.T) {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteWorkspaceServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	deleteUseCase := NewDeleteWorkspaceUseCase(deleteRepositories, deleteServices)
 
@@ -62,7 +62,7 @@ func TestDeleteWorkspaceUseCase_Execute_Success(t *testing.T) {
 		Workspace: sharedWorkspaceRepo,
 	}
 	readServices := ReadWorkspaceServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	readUseCase := NewReadWorkspaceUseCase(readRepositories, readServices)
 
@@ -118,5 +118,5 @@ func TestDeleteWorkspaceUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "workspace.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace.validation.id_required", useCase.services.Translator, ctx)
 }

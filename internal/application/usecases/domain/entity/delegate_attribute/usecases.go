@@ -27,10 +27,10 @@ type DelegateAttributeRepositories struct {
 
 // DelegateAttributeServices groups all business service dependencies for delegate attribute use cases
 type DelegateAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of delegate attribute use cases
@@ -41,18 +41,18 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateDelegateAttributeRepositories(repositories)
 	createServices := CreateDelegateAttributeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadDelegateAttributeRepositories{
 		DelegateAttribute: repositories.DelegateAttribute,
 	}
 	readServices := ReadDelegateAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateDelegateAttributeRepositories{
@@ -61,40 +61,40 @@ func NewUseCases(
 		Attribute:         repositories.Attribute,
 	}
 	updateServices := UpdateDelegateAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteDelegateAttributeRepositories{
 		DelegateAttribute: repositories.DelegateAttribute,
 	}
 	deleteServices := DeleteDelegateAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListDelegateAttributesRepositories{
 		DelegateAttribute: repositories.DelegateAttribute,
 	}
 	listServices := ListDelegateAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetDelegateAttributeListPageDataRepositories{
 		DelegateAttribute: repositories.DelegateAttribute,
 	}
 	getListPageDataServices := GetDelegateAttributeListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetDelegateAttributeItemPageDataRepositories{
 		DelegateAttribute: repositories.DelegateAttribute,
 	}
 	getItemPageDataServices := GetDelegateAttributeItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -114,7 +114,7 @@ func NewUseCasesUngrouped(
 	delegateAttributeRepo delegateattributepb.DelegateAttributeDomainServiceServer,
 	delegateRepo delegatepb.DelegateDomainServiceServer,
 	attributeRepo attributepb.AttributeDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := DelegateAttributeRepositories{
@@ -124,9 +124,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := DelegateAttributeServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

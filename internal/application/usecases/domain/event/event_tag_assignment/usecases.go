@@ -26,10 +26,10 @@ type EventTagAssignmentRepositories struct {
 
 // EventTagAssignmentServices groups all business service dependencies for event_tag_assignment use cases
 type EventTagAssignmentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of event_tag_assignment use cases
@@ -43,31 +43,31 @@ func NewUseCases(
 		EventTag:           repositories.EventTag,
 	}
 	createServices := CreateEventTagAssignmentServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadEventTagAssignmentRepositories{EventTagAssignment: repositories.EventTagAssignment}
 	readServices := ReadEventTagAssignmentServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteEventTagAssignmentRepositories{EventTagAssignment: repositories.EventTagAssignment}
 	deleteServices := DeleteEventTagAssignmentServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListEventTagAssignmentsRepositories{EventTagAssignment: repositories.EventTagAssignment}
 	listServices := ListEventTagAssignmentsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	setRepos := SetEventTagAssignmentsRepositories{
@@ -76,10 +76,10 @@ func NewUseCases(
 		EventTag:           repositories.EventTag,
 	}
 	setServices := SetEventTagAssignmentsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	listUC := NewListEventTagAssignmentsUseCase(listRepos, listServices)

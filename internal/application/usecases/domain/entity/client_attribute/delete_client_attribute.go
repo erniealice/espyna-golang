@@ -19,9 +19,9 @@ type DeleteClientAttributeRepositories struct {
 
 // DeleteClientAttributeServices groups all business service dependencies
 type DeleteClientAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteClientAttributeUseCase handles the business logic for deleting client attributes
@@ -50,9 +50,9 @@ func NewDeleteClientAttributeUseCaseUngrouped(clientAttributeRepo clientattribut
 	}
 
 	services := DeleteClientAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteClientAttributeUseCase(repositories, services)
@@ -61,7 +61,7 @@ func NewDeleteClientAttributeUseCaseUngrouped(clientAttributeRepo clientattribut
 // Execute performs the delete client attribute operation
 func (uc *DeleteClientAttributeUseCase) Execute(ctx context.Context, req *clientattributepb.DeleteClientAttributeRequest) (*clientattributepb.DeleteClientAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClientAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -73,14 +73,14 @@ func (uc *DeleteClientAttributeUseCase) Execute(ctx context.Context, req *client
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.ClientAttribute.DeleteClientAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.deletion_failed", "Client attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.deletion_failed", "Client attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -90,13 +90,13 @@ func (uc *DeleteClientAttributeUseCase) Execute(ctx context.Context, req *client
 // validateInput validates the input request
 func (uc *DeleteClientAttributeUseCase) validateInput(ctx context.Context, req *clientattributepb.DeleteClientAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.data_required", "Client attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.data_required", "Client attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.id_required", "Client attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.id_required", "Client attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

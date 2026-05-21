@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// IDService provides ID generation functionality for the application
+// IDGenerator provides ID generation functionality for the application
 // This interface abstracts ID generation to support different implementations
-type IDService interface {
+type IDGenerator interface {
 	// GenerateID creates a new unique identifier
 	GenerateID() string
 
@@ -22,26 +22,26 @@ type IDService interface {
 	GetProviderInfo() string
 }
 
-// NewNoOpIDService creates a fallback ID service for testing/compatibility
-func NewNoOpIDService() IDService {
-	return &NoOpIDService{}
+// NewNoOpIDGenerator creates a fallback ID service for testing/compatibility
+func NewNoOpIDGenerator() IDGenerator {
+	return &NoOpIDGenerator{}
 }
 
-// NoOpIDService provides fallback functionality when no ID service is configured
-type NoOpIDService struct{}
+// NoOpIDGenerator provides fallback functionality when no ID service is configured
+type NoOpIDGenerator struct{}
 
-func (s *NoOpIDService) GenerateID() string {
+func (s *NoOpIDGenerator) GenerateID() string {
 	return fmt.Sprintf("noop_%d", time.Now().UnixNano())
 }
 
-func (s *NoOpIDService) GenerateIDWithPrefix(prefix string) string {
+func (s *NoOpIDGenerator) GenerateIDWithPrefix(prefix string) string {
 	return fmt.Sprintf("%s_noop_%d", prefix, time.Now().UnixNano())
 }
 
-func (s *NoOpIDService) IsEnabled() bool {
+func (s *NoOpIDGenerator) IsEnabled() bool {
 	return false
 }
 
-func (s *NoOpIDService) GetProviderInfo() string {
+func (s *NoOpIDGenerator) GetProviderInfo() string {
 	return "NoOp ID Service (fallback)"
 }

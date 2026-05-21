@@ -18,9 +18,9 @@ type ListFiscalPeriodsRepositories struct {
 
 // ListFiscalPeriodsServices groups all business service dependencies
 type ListFiscalPeriodsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListFiscalPeriodsUseCase handles the business logic for listing fiscal periods
@@ -43,20 +43,20 @@ func NewListFiscalPeriodsUseCase(
 // Execute performs the list fiscal periods operation
 func (uc *ListFiscalPeriodsUseCase) Execute(ctx context.Context, req *fiscalperiodpb.ListFiscalPeriodsRequest) (*fiscalperiodpb.ListFiscalPeriodsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFiscalPeriod, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -66,7 +66,7 @@ func (uc *ListFiscalPeriodsUseCase) Execute(ctx context.Context, req *fiscalperi
 	}
 	resp, err := uc.repositories.FiscalPeriod.ListFiscalPeriods(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.errors.list_failed", "[ERR-DEFAULT] Failed to list fiscal periods")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.errors.list_failed", "[ERR-DEFAULT] Failed to list fiscal periods")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -76,7 +76,7 @@ func (uc *ListFiscalPeriodsUseCase) Execute(ctx context.Context, req *fiscalperi
 // validateInput validates the input request
 func (uc *ListFiscalPeriodsUseCase) validateInput(ctx context.Context, req *fiscalperiodpb.ListFiscalPeriodsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	return nil
 }

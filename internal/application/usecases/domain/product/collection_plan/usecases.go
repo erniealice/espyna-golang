@@ -16,10 +16,10 @@ type CollectionPlanRepositories struct {
 
 // CollectionPlanServices groups all business service dependencies for collection plan use cases
 type CollectionPlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all collection plan-related use cases
@@ -41,60 +41,60 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateCollectionPlanRepositories(repositories)
 	createServices := CreateCollectionPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadCollectionPlanRepositories{
 		CollectionPlan: repositories.CollectionPlan,
 	}
 	readServices := ReadCollectionPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateCollectionPlanRepositories(repositories)
 	updateServices := UpdateCollectionPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteCollectionPlanRepositories{
 		CollectionPlan: repositories.CollectionPlan,
 	}
 	deleteServices := DeleteCollectionPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListCollectionPlansRepositories{
 		CollectionPlan: repositories.CollectionPlan,
 	}
 	listServices := ListCollectionPlansServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetCollectionPlanListPageDataRepositories{
 		CollectionPlan: repositories.CollectionPlan,
 	}
 	listPageDataServices := GetCollectionPlanListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetCollectionPlanItemPageDataRepositories{
 		CollectionPlan: repositories.CollectionPlan,
 	}
 	itemPageDataServices := GetCollectionPlanItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

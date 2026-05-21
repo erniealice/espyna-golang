@@ -16,9 +16,9 @@ type GetWorkflowItemPageDataRepositories struct {
 }
 
 type GetWorkflowItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetWorkflowItemPageDataUseCase handles the business logic for getting workflow item page data
@@ -44,7 +44,7 @@ func (uc *GetWorkflowItemPageDataUseCase) Execute(
 	req *workflowpb.GetWorkflowItemPageDataRequest,
 ) (*workflowpb.GetWorkflowItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetWorkflowItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetWorkflowItemPageDataUseCase) executeWithTransaction(
 ) (*workflowpb.GetWorkflowItemPageDataResponse, error) {
 	var result *workflowpb.GetWorkflowItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workflow.errors.item_page_data_failed",
 				"workflow item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetWorkflowItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow.errors.read_failed",
 			"failed to retrieve workflow: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetWorkflowItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow.errors.not_found",
 			"workflow not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetWorkflowItemPageDataUseCase) executeCore(
 	if workflow.Id != req.WorkflowId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow.errors.id_mismatch",
 			"retrieved workflow ID does not match requested ID",
 		))
@@ -162,7 +162,7 @@ func (uc *GetWorkflowItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow.validation.request_required",
 			"request is required",
 		))
@@ -171,7 +171,7 @@ func (uc *GetWorkflowItemPageDataUseCase) validateInput(
 	if req.WorkflowId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow.validation.id_required",
 			"workflow ID is required",
 		))
@@ -189,7 +189,7 @@ func (uc *GetWorkflowItemPageDataUseCase) validateBusinessRules(
 	if len(workflowId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workflow.validation.id_too_short",
 			"workflow ID is too short",
 		))

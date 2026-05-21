@@ -23,9 +23,9 @@ type DeleteRolePermissionRepositories struct {
 
 // DeleteRolePermissionServices groups all business service dependencies
 type DeleteRolePermissionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteRolePermissionUseCase handles the business logic for deleting role permissions
@@ -49,7 +49,7 @@ func NewDeleteRolePermissionUseCase(
 // Deprecated: Use NewDeleteRolePermissionUseCase with grouped parameters instead
 func NewDeleteRolePermissionUseCaseUngrouped(
 	rolePermissionRepo rolepermissionpb.RolePermissionDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *DeleteRolePermissionUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := DeleteRolePermissionRepositories{
@@ -59,9 +59,9 @@ func NewDeleteRolePermissionUseCaseUngrouped(
 	}
 
 	services := DeleteRolePermissionServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteRolePermissionUseCase(repositories, services)
@@ -71,27 +71,27 @@ func NewDeleteRolePermissionUseCaseUngrouped(
 func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, req *rolepermissionpb.DeleteRolePermissionRequest) (*rolepermissionpb.DeleteRolePermissionResponse, error) {
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRolePermission, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.input_validation_failed", "Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.input_validation_failed", "Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.business_rule_validation_failed", "Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.business_rule_validation_failed", "Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.RolePermission.DeleteRolePermission(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.deletion_failed", "Role-Permission deletion failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.deletion_failed", "Role-Permission deletion failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -104,13 +104,13 @@ func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 func (uc *DeleteRolePermissionUseCase) validateInput(ctx context.Context, req *rolepermissionpb.DeleteRolePermissionRequest) error {
 
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.request_required", "Request is required for role-permissions"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.request_required", "Request is required for role-permissions"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.data_required", "Role-Permission data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.data_required", "Role-Permission data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.id_required", "Role-Permission ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.id_required", "Role-Permission ID is required"))
 	}
 	return nil
 }

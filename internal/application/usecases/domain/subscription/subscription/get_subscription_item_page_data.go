@@ -16,9 +16,9 @@ type GetSubscriptionItemPageDataRepositories struct {
 }
 
 type GetSubscriptionItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSubscriptionItemPageDataUseCase handles the business logic for getting subscription item page data
@@ -44,7 +44,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) Execute(
 	req *subscriptionpb.GetSubscriptionItemPageDataRequest,
 ) (*subscriptionpb.GetSubscriptionItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetSubscriptionItemPageDataUseCase) executeWithTransaction(
 ) (*subscriptionpb.GetSubscriptionItemPageDataResponse, error) {
 	var result *subscriptionpb.GetSubscriptionItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"subscription.errors.item_page_data_failed",
 				"subscription item page data retrieval failed: %w",
 			), err)
@@ -108,7 +108,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.errors.item_page_data_failed",
 			"failed to retrieve subscription item page data: %w",
 		), err)
@@ -117,7 +117,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) executeCore(
 	if itemResp == nil || itemResp.GetSubscription() == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.errors.not_found",
 			"subscription not found",
 		))
@@ -127,7 +127,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) executeCore(
 	if subscription.GetId() != req.SubscriptionId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.errors.id_mismatch",
 			"retrieved subscription ID does not match requested ID",
 		))
@@ -147,7 +147,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.request_required",
 			"request is required",
 		))
@@ -156,7 +156,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) validateInput(
 	if req.SubscriptionId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.id_required",
 			"subscription ID is required",
 		))
@@ -174,7 +174,7 @@ func (uc *GetSubscriptionItemPageDataUseCase) validateBusinessRules(
 	if len(subscriptionId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.id_too_short",
 			"subscription ID is too short",
 		))

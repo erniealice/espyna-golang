@@ -12,10 +12,10 @@ type CriteriaOptionRepositories struct {
 
 // CriteriaOptionServices groups all business service dependencies
 type CriteriaOptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all criteria_option-related use cases
@@ -39,73 +39,73 @@ func NewUseCases(
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	createServices := CreateCriteriaOptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadCriteriaOptionRepositories{
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	readServices := ReadCriteriaOptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateCriteriaOptionRepositories{
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	updateServices := UpdateCriteriaOptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteCriteriaOptionRepositories{
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	deleteServices := DeleteCriteriaOptionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListCriteriaOptionsRepositories{
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	listServices := ListCriteriaOptionsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetCriteriaOptionListPageDataRepositories{
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	listPageDataServices := GetCriteriaOptionListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetCriteriaOptionItemPageDataRepositories{
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	itemPageDataServices := GetCriteriaOptionItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByCriteriaRepos := ListByCriteriaRepositories{
 		CriteriaOption: repositories.CriteriaOption,
 	}
 	listByCriteriaServices := ListByCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

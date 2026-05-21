@@ -17,9 +17,9 @@ type ListRevenuesRepositories struct {
 
 // ListRevenuesServices groups all business service dependencies
 type ListRevenuesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListRevenuesUseCase handles the business logic for listing revenues
@@ -41,13 +41,13 @@ func NewListRevenuesUseCase(
 
 // Execute performs the list revenues operation
 func (uc *ListRevenuesUseCase) Execute(ctx context.Context, req *revenuepb.ListRevenuesRequest) (*revenuepb.ListRevenuesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenue, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Revenue.ListRevenues(ctx, req)

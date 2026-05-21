@@ -20,9 +20,9 @@ type UpdateCollectionRepositories struct {
 
 // UpdateCollectionServices groups all business service dependencies
 type UpdateCollectionServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // UpdateCollectionUseCase handles the business logic for updating collections
@@ -45,13 +45,13 @@ func NewUpdateCollectionUseCase(
 // Execute performs the update collection operation
 func (uc *UpdateCollectionUseCase) Execute(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollection, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Use transaction service if available, otherwise execute directly.
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -62,7 +62,7 @@ func (uc *UpdateCollectionUseCase) Execute(ctx context.Context, req *collectionp
 func (uc *UpdateCollectionUseCase) executeWithTransaction(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
 	var result *collectionpb.UpdateCollectionResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			// Wrapping the error inside the transaction ensures it can be rolled back.
@@ -94,7 +94,7 @@ func (uc *UpdateCollectionUseCase) executeCore(ctx context.Context, req *collect
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection.errors.not_found",
 				map[string]interface{}{"collectionId": req.Data.Id},
 				"Collection not found [DEFAULT]",
@@ -124,16 +124,16 @@ func (uc *UpdateCollectionUseCase) executeCore(ctx context.Context, req *collect
 // validateInput validates the input request
 func (uc *UpdateCollectionUseCase) validateInput(ctx context.Context, req *collectionpb.UpdateCollectionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.request_required", "Request is required for course collections [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.request_required", "Request is required for course collections [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.data_required", "Course collection data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.data_required", "Course collection data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.id_required", "Course collection ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.id_required", "Course collection ID is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.name_required", "Course collection name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.name_required", "Course collection name is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -154,18 +154,18 @@ func (uc *UpdateCollectionUseCase) validateBusinessRules(ctx context.Context, co
 	// Validate collection name length
 	name := strings.TrimSpace(collection.Name)
 	if len(name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.name_too_short", "Collection name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.name_too_short", "Collection name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.name_too_long", "Collection name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.name_too_long", "Collection name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate description length if provided
 	if collection.Description != "" {
 		description := strings.TrimSpace(collection.Description)
 		if len(description) > 500 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "collection.validation.description_too_long", "Collection description cannot exceed 500 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.description_too_long", "Collection description cannot exceed 500 characters [DEFAULT]"))
 		}
 	}
 

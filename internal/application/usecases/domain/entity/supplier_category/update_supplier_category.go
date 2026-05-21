@@ -17,10 +17,10 @@ type UpdateSupplierCategoryRepositories struct {
 
 // UpdateSupplierCategoryServices groups all business service dependencies
 type UpdateSupplierCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UpdateSupplierCategoryUseCase handles the business logic for updating supplier categories
@@ -48,10 +48,10 @@ func NewUpdateSupplierCategoryUseCaseUngrouped(supplierCategoryRepo suppliercate
 	}
 
 	services := UpdateSupplierCategoryServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewUpdateSupplierCategoryUseCase(repositories, services)
@@ -59,12 +59,12 @@ func NewUpdateSupplierCategoryUseCaseUngrouped(supplierCategoryRepo suppliercate
 
 func (uc *UpdateSupplierCategoryUseCase) Execute(ctx context.Context, req *suppliercategorypb.UpdateSupplierCategoryRequest) (*suppliercategorypb.UpdateSupplierCategoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_category", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -73,10 +73,10 @@ func (uc *UpdateSupplierCategoryUseCase) Execute(ctx context.Context, req *suppl
 func (uc *UpdateSupplierCategoryUseCase) executeWithTransaction(ctx context.Context, req *suppliercategorypb.UpdateSupplierCategoryRequest) (*suppliercategorypb.UpdateSupplierCategoryResponse, error) {
 	var result *suppliercategorypb.UpdateSupplierCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "supplier_category.errors.update_failed", "Supplier category update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "supplier_category.errors.update_failed", "Supplier category update failed [DEFAULT]")
 			return errors.New(translatedError + ": " + err.Error())
 		}
 		result = res
@@ -99,13 +99,13 @@ func (uc *UpdateSupplierCategoryUseCase) executeCore(ctx context.Context, req *s
 
 func (uc *UpdateSupplierCategoryUseCase) validateInput(ctx context.Context, req *suppliercategorypb.UpdateSupplierCategoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.data_required", "Supplier category data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.data_required", "Supplier category data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.id_required", "Supplier category ID is required for update [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.id_required", "Supplier category ID is required for update [DEFAULT]"))
 	}
 	return nil
 }

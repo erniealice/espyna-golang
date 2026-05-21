@@ -18,9 +18,9 @@ type DeletePlanAttributeRepositories struct {
 
 // DeletePlanAttributeServices groups all business service dependencies
 type DeletePlanAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeletePlanAttributeUseCase handles the business logic for deleting plan attributes
@@ -43,7 +43,7 @@ func NewDeletePlanAttributeUseCase(
 // Execute performs the delete plan attribute operation
 func (uc *DeletePlanAttributeUseCase) Execute(ctx context.Context, req *planattributepb.DeletePlanAttributeRequest) (*planattributepb.DeletePlanAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlanAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *DeletePlanAttributeUseCase) Execute(ctx context.Context, req *planattr
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"plan_attribute.errors.not_found",
 				map[string]interface{}{"planAttributeId": req.Data.Id},
 				"Plan attribute not found [DEFAULT]",
@@ -70,7 +70,7 @@ func (uc *DeletePlanAttributeUseCase) Execute(ctx context.Context, req *planattr
 			return nil, errors.New(translatedError)
 		}
 		// Handle other repository errors
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.errors.deletion_failed", "Plan attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.errors.deletion_failed", "Plan attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -80,13 +80,13 @@ func (uc *DeletePlanAttributeUseCase) Execute(ctx context.Context, req *planattr
 // validateInput validates the input request
 func (uc *DeletePlanAttributeUseCase) validateInput(ctx context.Context, req *planattributepb.DeletePlanAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.validation.data_required", "Data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.validation.data_required", "Data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan_attribute.validation.id_required", "Plan attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_attribute.validation.id_required", "Plan attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

@@ -18,8 +18,8 @@ type CommonUseCases struct {
 func NewCommonUseCases(
 	attributeRepo attributepb.AttributeDomainServiceServer,
 	categoryRepo categorypb.CategoryDomainServiceServer,
-	translationService ports.TranslationService,
-	idService ports.IDService,
+	translationService ports.Translator,
+	idService ports.IDGenerator,
 ) *CommonUseCases {
 	uc := &CommonUseCases{}
 
@@ -29,9 +29,9 @@ func NewCommonUseCases(
 			Attribute: attributeRepo,
 		}
 		attributeServices := attributeUseCases.AttributeServices{
-			TransactionService: ports.NewNoOpTransactionService(),
-			TranslationService: translationService,
-			IDService:          idService,
+			Transactor:  ports.NewNoOpTransactor(),
+			Translator:  translationService,
+			IDGenerator: idService,
 		}
 		uc.Attribute = attributeUseCases.NewUseCases(attributeRepositories, attributeServices)
 	}
@@ -42,9 +42,9 @@ func NewCommonUseCases(
 			Category: categoryRepo,
 		}
 		categoryServices := categoryUseCases.CategoryServices{
-			TransactionService: ports.NewNoOpTransactionService(),
-			TranslationService: translationService,
-			IDService:          idService,
+			Transactor:  ports.NewNoOpTransactor(),
+			Translator:  translationService,
+			IDGenerator: idService,
 		}
 		uc.Category = categoryUseCases.NewUseCases(categoryRepositories, categoryServices)
 	}

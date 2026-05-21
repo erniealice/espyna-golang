@@ -12,10 +12,10 @@ type CriteriaThresholdRepositories struct {
 
 // CriteriaThresholdServices groups all business service dependencies
 type CriteriaThresholdServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all criteria_threshold-related use cases
@@ -39,73 +39,73 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	createServices := CreateCriteriaThresholdServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadCriteriaThresholdRepositories{
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	readServices := ReadCriteriaThresholdServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateCriteriaThresholdRepositories{
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	updateServices := UpdateCriteriaThresholdServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteCriteriaThresholdRepositories{
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	deleteServices := DeleteCriteriaThresholdServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListCriteriaThresholdsRepositories{
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	listServices := ListCriteriaThresholdsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetCriteriaThresholdListPageDataRepositories{
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	listPageDataServices := GetCriteriaThresholdListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetCriteriaThresholdItemPageDataRepositories{
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	itemPageDataServices := GetCriteriaThresholdItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByCriteriaRepos := ListByCriteriaRepositories{
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	listByCriteriaServices := ListByCriteriaServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

@@ -17,9 +17,9 @@ type ListRevenueCategoriesRepositories struct {
 
 // ListRevenueCategoriesServices groups all business service dependencies
 type ListRevenueCategoriesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListRevenueCategoriesUseCase handles the business logic for listing revenue categories
@@ -41,13 +41,13 @@ func NewListRevenueCategoriesUseCase(
 
 // Execute performs the list revenue categories operation
 func (uc *ListRevenueCategoriesUseCase) Execute(ctx context.Context, req *pb.ListRevenueCategoriesRequest) (*pb.ListRevenueCategoriesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueCategory, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue_category.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_category.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.RevenueCategory.ListRevenueCategories(ctx, req)

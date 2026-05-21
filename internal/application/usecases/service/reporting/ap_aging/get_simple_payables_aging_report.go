@@ -25,19 +25,19 @@ import (
 // `service.reporting.ap_aging`.
 type GetSimplePayablesAgingReportUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetSimplePayablesAgingReportUseCase wires the use case with nil-safe
 // dependency contract.
 func NewGetSimplePayablesAgingReportUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetSimplePayablesAgingReportUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetSimplePayablesAgingReportUseCase{
 		reporter:             r,

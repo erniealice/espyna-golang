@@ -16,9 +16,9 @@ type ListByJobTemplateRepositories struct {
 }
 
 type ListByJobTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListByJobTemplateUseCase handles the business logic for listing phases by job template
@@ -41,7 +41,7 @@ func NewListByJobTemplateUseCase(
 // Execute performs the list by job template operation
 func (uc *ListByJobTemplateUseCase) Execute(ctx context.Context, req *pb.ListByJobTemplateRequest) (*pb.ListByJobTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplatePhase, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListByJobTemplateUseCase) Execute(ctx context.Context, req *pb.ListByJ
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListByJobTemplateUseCase) Execute(ctx context.Context, req *pb.ListByJ
 func (uc *ListByJobTemplateUseCase) executeWithTransaction(ctx context.Context, req *pb.ListByJobTemplateRequest) (*pb.ListByJobTemplateResponse, error) {
 	var result *pb.ListByJobTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "job_template_phase.errors.list_by_job_template_failed", "job template phase listing by template failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "job_template_phase.errors.list_by_job_template_failed", "job template phase listing by template failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListByJobTemplateUseCase) executeWithTransaction(ctx context.Context, 
 func (uc *ListByJobTemplateUseCase) executeCore(ctx context.Context, req *pb.ListByJobTemplateRequest) (*pb.ListByJobTemplateResponse, error) {
 	resp, err := uc.repositories.JobTemplatePhase.ListByJobTemplate(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.errors.list_by_job_template_failed", "failed to list job template phases by template: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.errors.list_by_job_template_failed", "failed to list job template phases by template: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *ListByJobTemplateUseCase) executeCore(ctx context.Context, req *pb.Lis
 // validateInput validates the input request
 func (uc *ListByJobTemplateUseCase) validateInput(ctx context.Context, req *pb.ListByJobTemplateRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.validation.request_required", "request is required"))
 	}
 	if req.JobTemplateId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.validation.job_template_id_required", "job template ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.validation.job_template_id_required", "job template ID is required"))
 	}
 
 	return nil

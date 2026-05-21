@@ -18,9 +18,9 @@ type ListAttachmentsByEntityRepositories struct {
 
 // ListAttachmentsByEntityServices groups all business service dependencies
 type ListAttachmentsByEntityServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListAttachmentsByEntityUseCase handles listing attachments filtered by module_key + foreign_key
@@ -42,13 +42,13 @@ func NewListAttachmentsByEntityUseCase(
 
 // Execute lists attachments belonging to a specific entity (identified by moduleKey + entityID)
 func (uc *ListAttachmentsByEntityUseCase) Execute(ctx context.Context, moduleKey, entityID string) (*attachmentpb.ListAttachmentsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAttachment, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if moduleKey == "" || entityID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "attachment.validation.entity_required", "Module key and entity ID are required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "attachment.validation.entity_required", "Module key and entity ID are required [DEFAULT]"))
 	}
 
 	return uc.repositories.Attachment.ListAttachments(ctx, &attachmentpb.ListAttachmentsRequest{

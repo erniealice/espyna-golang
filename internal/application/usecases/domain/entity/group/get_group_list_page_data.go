@@ -20,9 +20,9 @@ type GetGroupListPageDataRepositories struct {
 
 // GetGroupListPageDataServices groups all business service dependencies
 type GetGroupListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetGroupListPageDataUseCase handles the business logic for getting group list page data
@@ -51,9 +51,9 @@ func NewGetGroupListPageDataUseCaseUngrouped(groupRepo grouppb.GroupDomainServic
 	}
 
 	services := GetGroupListPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetGroupListPageDataUseCase(repositories, services)
@@ -62,27 +62,27 @@ func NewGetGroupListPageDataUseCaseUngrouped(groupRepo grouppb.GroupDomainServic
 // Execute performs the get group list page data operation
 func (uc *GetGroupListPageDataUseCase) Execute(ctx context.Context, req *grouppb.GetGroupListPageDataRequest) (*grouppb.GetGroupListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroup, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Apply default values for pagination, filtering, sorting, and search
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Group.GetGroupListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.errors.list_page_data_failed", "Failed to retrieve group list page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.errors.list_page_data_failed", "Failed to retrieve group list page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -92,23 +92,23 @@ func (uc *GetGroupListPageDataUseCase) Execute(ctx context.Context, req *grouppb
 // validateInput validates the input request
 func (uc *GetGroupListPageDataUseCase) validateInput(ctx context.Context, req *grouppb.GetGroupListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
 	}
 
 	// Validate pagination if provided
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.pagination_limit_invalid", "Pagination limit must be non-negative [DEFAULT]"))
 		}
 		if req.Pagination.Limit > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.pagination_limit_exceeded", "Pagination limit cannot exceed 1000 [DEFAULT]"))
 		}
 	}
 
 	// Validate search if provided
 	if req.Search != nil && req.Search.Query != "" {
 		if len(req.Search.Query) < 2 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.search_query_too_short", "Search query must be at least 2 characters [DEFAULT]"))
 		}
 	}
 

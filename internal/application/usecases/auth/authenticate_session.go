@@ -37,10 +37,10 @@ type AuthenticateSessionRepositories struct {
 	User    userpb.UserDomainServiceServer
 }
 
-// AuthenticateSessionServices groups application services. No AuthorizationService —
+// AuthenticateSessionServices groups application services. No Authorizer —
 // this use case establishes identity; permission checks cannot run before it.
 type AuthenticateSessionServices struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // AuthenticateSessionUseCase resolves an opaque session token into an Identity.
@@ -65,7 +65,7 @@ func (uc *AuthenticateSessionUseCase) Execute(
 ) (*AuthenticateSessionResponse, error) {
 	if req == nil || req.Token == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.missing_token", "Session token is required [DEFAULT]"))
 	}
 
@@ -74,19 +74,19 @@ func (uc *AuthenticateSessionUseCase) Execute(
 	})
 	if err != nil || sessResp == nil || len(sessResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.session_invalid", "Invalid or expired session [DEFAULT]"))
 	}
 	sess := sessResp.Data[0]
 
 	if !sess.Active {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.session_inactive", "Session has been invalidated [DEFAULT]"))
 	}
 	if sess.ExpiresAt > 0 && sess.ExpiresAt <= time.Now().UnixMilli() {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.session_expired", "Session has expired [DEFAULT]"))
 	}
 
@@ -95,7 +95,7 @@ func (uc *AuthenticateSessionUseCase) Execute(
 	})
 	if err != nil || userResp == nil || len(userResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.session_user_missing", "Authenticated user not found [DEFAULT]"))
 	}
 	user := userResp.Data[0]

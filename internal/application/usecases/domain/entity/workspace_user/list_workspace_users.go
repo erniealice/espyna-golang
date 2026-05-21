@@ -19,9 +19,9 @@ type ListWorkspaceUsersRepositories struct {
 
 // ListWorkspaceUsersServices groups all business service dependencies
 type ListWorkspaceUsersServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListWorkspaceUsersUseCase handles the business logic for listing workspace users
@@ -54,9 +54,9 @@ func NewListWorkspaceUsersUseCaseUngrouped(
 	}
 
 	services := ListWorkspaceUsersServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListWorkspaceUsersUseCase(repositories, services)
@@ -70,7 +70,7 @@ func (uc *ListWorkspaceUsersUseCase) Execute(ctx context.Context, req *workspace
 	}
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspaceUser, ports.ActionList); err != nil {
 		return nil, err
 	}

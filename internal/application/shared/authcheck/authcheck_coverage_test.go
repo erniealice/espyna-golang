@@ -19,7 +19,7 @@ import (
 //   - integration: external service adapters (email, payment, scheduler, tabular)
 //     that don't need permission checks
 //   - common:      cross-domain helpers (attribute, category) that are called by
-//     other use cases and don't carry AuthorizationService
+//     other use cases and don't carry Authorizer
 //   - auth:        identity-lifecycle use cases (login, authenticate_session,
 //     issue_session, invalidate_session, register, password-reset).
 //     These either establish identity (so authorization cannot run before

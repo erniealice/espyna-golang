@@ -46,9 +46,9 @@ type UseCases struct {
 }
 
 // Services groups application services consumed by every wrapper.
-// TranslationService backs error-message localization; no
-// AuthorizationService — these use cases establish/terminate identity, so
+// Translator backs error-message localization; no
+// Authorizer — these use cases establish/terminate identity, so
 // per the invariant on usecases/auth/usecases.go authcheck cannot apply.
 type Services struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }

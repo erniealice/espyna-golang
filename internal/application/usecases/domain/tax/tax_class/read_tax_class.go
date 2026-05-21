@@ -17,8 +17,8 @@ type ReadTaxClassRepositories struct {
 
 // ReadTaxClassServices groups service dependencies.
 type ReadTaxClassServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadTaxClassUseCase handles reading a tax_class.
@@ -34,12 +34,12 @@ func NewReadTaxClassUseCase(repositories ReadTaxClassRepositories, services Read
 
 // Execute performs the read tax_class operation.
 func (uc *ReadTaxClassUseCase) Execute(ctx context.Context, req *taxclasspb.ReadTaxClassRequest) (*taxclasspb.ReadTaxClassResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxClass, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_class.validation.id_required", "Tax Class ID is required [DEFAULT]"))
 	}
 	return uc.repositories.TaxClass.ReadTaxClass(ctx, req)

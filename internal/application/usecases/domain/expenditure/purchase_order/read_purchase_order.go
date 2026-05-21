@@ -17,9 +17,9 @@ type ReadPurchaseOrderRepositories struct {
 
 // ReadPurchaseOrderServices groups all business service dependencies
 type ReadPurchaseOrderServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadPurchaseOrderUseCase handles the business logic for reading a purchase order
@@ -41,7 +41,7 @@ func NewReadPurchaseOrderUseCase(
 
 // Execute performs the read purchase order operation
 func (uc *ReadPurchaseOrderUseCase) Execute(ctx context.Context, req *purchaseorderpb.ReadPurchaseOrderRequest) (*purchaseorderpb.ReadPurchaseOrderResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrder, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -58,13 +58,13 @@ func (uc *ReadPurchaseOrderUseCase) Execute(ctx context.Context, req *purchaseor
 
 func (uc *ReadPurchaseOrderUseCase) validateInput(ctx context.Context, req *purchaseorderpb.ReadPurchaseOrderRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

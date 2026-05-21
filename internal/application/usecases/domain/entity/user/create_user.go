@@ -20,10 +20,10 @@ type CreateUserRepositories struct {
 
 // CreateUserServices groups all business service dependencies
 type CreateUserServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateUserUseCase handles the business logic for creating users
@@ -45,17 +45,17 @@ func NewCreateUserUseCase(
 
 // NewCreateUserUseCaseUngrouped creates use case with individual parameters
 // Deprecated: Use NewCreateUserUseCase with grouped parameters instead
-func NewCreateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer, authorizationService ports.AuthorizationService) *CreateUserUseCase {
+func NewCreateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer, authorizationService ports.Authorizer) *CreateUserUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := CreateUserRepositories{
 		User: userRepo,
 	}
 
 	services := CreateUserServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  authorizationService,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateUserUseCase(repositories, services)
@@ -64,13 +64,13 @@ func NewCreateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer, auth
 // Execute performs the create user operation
 func (uc *CreateUserUseCase) Execute(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityUser, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req *userpb.CreateUser
 func (uc *CreateUserUseCase) executeWithTransaction(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
 	var result *userpb.CreateUserResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "user.errors.creation_failed", "User creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "user.errors.creation_failed", "User creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -113,7 +113,7 @@ func (uc *CreateUserUseCase) executeCore(ctx context.Context, req *userpb.Create
 		Data: enrichedUser,
 	})
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.errors.creation_failed", "User creation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.creation_failed", "User creation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -126,7 +126,7 @@ func (uc *CreateUserUseCase) applyBusinessLogic(user *userpb.User) *userpb.User 
 
 	// Business logic: Generate User ID if not provided
 	if user.Id == "" {
-		user.Id = uc.services.IDService.GenerateID()
+		user.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Business logic: Set active status for new users
@@ -145,40 +145,40 @@ func (uc *CreateUserUseCase) applyBusinessLogic(user *userpb.User) *userpb.User 
 func (uc *CreateUserUseCase) validateBusinessRules(ctx context.Context, user *userpb.User) error {
 	// Business rule: Required data validation
 	if user == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.data_required", "[ERR-DEFAULT] User data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.data_required", "[ERR-DEFAULT] User data is required"))
 	}
 	if user.FirstName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.first_name_required", "[ERR-DEFAULT] First name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.first_name_required", "[ERR-DEFAULT] First name is required"))
 	}
 	if user.LastName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.last_name_required", "User last name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.last_name_required", "User last name is required [DEFAULT]"))
 	}
 	if user.EmailAddress == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.email_required", "User email address is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.email_required", "User email address is required [DEFAULT]"))
 	}
 
 	// Business rule: Email format validation
 	if err := uc.validateEmail(user.EmailAddress); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.email_invalid", "[ERR-DEFAULT] Invalid email format"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.email_invalid", "[ERR-DEFAULT] Invalid email format"))
 	}
 
 	// Business rule: Name length constraints
 	fullName := user.FirstName + " " + user.LastName
 	if len(fullName) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.full_name_too_short", "User full name must be at least 3 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.full_name_too_short", "User full name must be at least 3 characters long [DEFAULT]"))
 	}
 
 	if len(fullName) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.full_name_too_long", "User full name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.full_name_too_long", "User full name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Business rule: Individual name part validation
 	if len(user.FirstName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.first_name_too_short", "First name must be at least 1 character long [DEFAULT]"))
 	}
 
 	if len(user.LastName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "user.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.last_name_too_short", "Last name must be at least 1 character long [DEFAULT]"))
 	}
 
 	return nil

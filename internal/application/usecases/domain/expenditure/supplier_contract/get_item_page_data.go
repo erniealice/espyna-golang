@@ -18,9 +18,9 @@ type GetSupplierContractItemPageDataRepositories struct {
 
 // GetSupplierContractItemPageDataServices groups service dependencies.
 type GetSupplierContractItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetSupplierContractItemPageDataUseCase handles fetching single supplier contract detail data.
@@ -39,12 +39,12 @@ func NewGetSupplierContractItemPageDataUseCase(
 
 // Execute performs the get supplier contract item page data operation.
 func (uc *GetSupplierContractItemPageDataUseCase) Execute(ctx context.Context, req *suppliercontractpb.GetSupplierContractItemPageDataRequest) (*suppliercontractpb.GetSupplierContractItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	if uc.repositories.SupplierContract == nil {
@@ -52,7 +52,7 @@ func (uc *GetSupplierContractItemPageDataUseCase) Execute(ctx context.Context, r
 	}
 	resp, err := uc.repositories.SupplierContract.GetSupplierContractItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load supplier contract")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

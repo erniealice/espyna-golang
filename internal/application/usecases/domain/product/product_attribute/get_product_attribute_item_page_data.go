@@ -16,9 +16,9 @@ type GetProductAttributeItemPageDataRepositories struct {
 }
 
 type GetProductAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetProductAttributeItemPageDataUseCase handles the business logic for getting product attribute item page data
@@ -44,7 +44,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) Execute(
 	req *productattributepb.GetProductAttributeItemPageDataRequest,
 ) (*productattributepb.GetProductAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityProductAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetProductAttributeItemPageDataUseCase) executeWithTransaction(
 ) (*productattributepb.GetProductAttributeItemPageDataResponse, error) {
 	var result *productattributepb.GetProductAttributeItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"product_attribute.errors.item_page_data_failed",
 				"product attribute item page data retrieval failed: %w",
 			), err)
@@ -112,7 +112,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_attribute.errors.read_failed",
 			"failed to retrieve product attribute: %w",
 		), err)
@@ -121,7 +121,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_attribute.errors.not_found",
 			"product attribute not found",
 		))
@@ -134,7 +134,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) executeCore(
 	if productAttribute.Id != req.ProductAttributeId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_attribute.errors.id_mismatch",
 			"retrieved product attribute ID does not match requested ID",
 		))
@@ -161,7 +161,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_attribute.validation.request_required",
 			"request is required",
 		))
@@ -170,7 +170,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) validateInput(
 	if req.ProductAttributeId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_attribute.validation.id_required",
 			"product attribute ID is required",
 		))
@@ -188,7 +188,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) validateBusinessRules(
 	if len(productAttributeId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"product_attribute.validation.id_too_short",
 			"product attribute ID is too short",
 		))

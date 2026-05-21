@@ -42,7 +42,7 @@ type Repositories struct {
 
 // Services groups application services.
 type Services struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // Deps groups the constructor inputs the umbrella initializer threads to the
@@ -51,9 +51,9 @@ type Services struct {
 // `NewDashboardUseCases` factory in the sibling package can pass it through
 // unchanged.
 type Deps struct {
-	Location           LocationDashboardRepository
-	LocationArea       LocationAreaDashboardRepository
-	TranslationService ports.TranslationService
+	Location     LocationDashboardRepository
+	LocationArea LocationAreaDashboardRepository
+	Translator   ports.Translator
 }
 
 // NewUseCases wires every location-dashboard service use case from grouped
@@ -69,7 +69,7 @@ func NewUseCases(deps *Deps) *UseCases {
 				Location:     deps.Location,
 				LocationArea: deps.LocationArea,
 			},
-			GetLocationDashboardServices{TranslationService: deps.TranslationService},
+			GetLocationDashboardServices{Translator: deps.Translator},
 		),
 	}
 }

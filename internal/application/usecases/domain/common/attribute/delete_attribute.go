@@ -17,9 +17,9 @@ type DeleteAttributeRepositories struct {
 
 // DeleteAttributeServices groups all business service dependencies
 type DeleteAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteAttributeUseCase handles the business logic for deleting attributes
@@ -48,8 +48,8 @@ func NewDeleteAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 	}
 
 	services := DeleteAttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteAttributeUseCase(repositories, services)
@@ -58,7 +58,7 @@ func NewDeleteAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 // Execute performs the delete attribute operation
 func (uc *DeleteAttributeUseCase) Execute(ctx context.Context, req *attributepb.DeleteAttributeRequest) (*attributepb.DeleteAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"attribute", ports.ActionDelete); err != nil {
 		return nil, err
 	}

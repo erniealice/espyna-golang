@@ -19,9 +19,9 @@ type ListSubscriptionsByPricePlanRepositories struct {
 
 // ListSubscriptionsByPricePlanServices groups service dependencies.
 type ListSubscriptionsByPricePlanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSubscriptionsByPricePlanUseCase resolves every subscription whose
@@ -47,7 +47,7 @@ func (uc *ListSubscriptionsByPricePlanUseCase) Execute(
 	ctx context.Context,
 	req *subscriptionpb.ListSubscriptionsByPricePlanRequest,
 ) (*subscriptionpb.ListSubscriptionsByPricePlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -56,9 +56,9 @@ func (uc *ListSubscriptionsByPricePlanUseCase) Execute(
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *subscriptionpb.ListSubscriptionsByPricePlanResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return err
@@ -83,7 +83,7 @@ func (uc *ListSubscriptionsByPricePlanUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.errors.list_by_price_plan_failed",
 			"failed to list subscriptions for price plan: %w",
 		), err)
@@ -98,7 +98,7 @@ func (uc *ListSubscriptionsByPricePlanUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.request_required",
 			"request is required",
 		))
@@ -106,7 +106,7 @@ func (uc *ListSubscriptionsByPricePlanUseCase) validateInput(
 	if req.PricePlanId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"subscription.validation.price_plan_id_required",
 			"price_plan_id is required",
 		))

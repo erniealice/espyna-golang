@@ -20,9 +20,9 @@ type UpdateAttributeRepositories struct {
 
 // UpdateAttributeServices groups all business service dependencies
 type UpdateAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateAttributeUseCase handles the business logic for updating attributes
@@ -51,8 +51,8 @@ func NewUpdateAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 	}
 
 	services := UpdateAttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateAttributeUseCase(repositories, services)
@@ -61,13 +61,13 @@ func NewUpdateAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 // Execute performs the update attribute operation
 func (uc *UpdateAttributeUseCase) Execute(ctx context.Context, req *attributepb.UpdateAttributeRequest) (*attributepb.UpdateAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"attribute", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -79,7 +79,7 @@ func (uc *UpdateAttributeUseCase) Execute(ctx context.Context, req *attributepb.
 func (uc *UpdateAttributeUseCase) executeWithTransaction(ctx context.Context, req *attributepb.UpdateAttributeRequest) (*attributepb.UpdateAttributeResponse, error) {
 	var result *attributepb.UpdateAttributeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf("attribute update failed: %w", err)

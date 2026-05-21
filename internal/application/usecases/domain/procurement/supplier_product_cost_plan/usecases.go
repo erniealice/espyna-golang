@@ -10,10 +10,10 @@ type Repositories struct {
 }
 
 type Services struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 type UseCases struct {
@@ -30,31 +30,31 @@ func NewUseCases(repos Repositories, svcs Services) *UseCases {
 	return &UseCases{
 		CreateSupplierProductCostPlan: NewCreateSupplierProductCostPlanUseCase(
 			CreateSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			CreateSupplierProductCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService, IDService: svcs.IDService},
+			CreateSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
 		),
 		ReadSupplierProductCostPlan: NewReadSupplierProductCostPlanUseCase(
 			ReadSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			ReadSupplierProductCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ReadSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		UpdateSupplierProductCostPlan: NewUpdateSupplierProductCostPlanUseCase(
 			UpdateSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			UpdateSupplierProductCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			UpdateSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		DeleteSupplierProductCostPlan: NewDeleteSupplierProductCostPlanUseCase(
 			DeleteSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			DeleteSupplierProductCostPlanServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			DeleteSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		ListSupplierProductCostPlans: NewListSupplierProductCostPlansUseCase(
 			ListSupplierProductCostPlansRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			ListSupplierProductCostPlansServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ListSupplierProductCostPlansServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierProductCostPlanListPageData: NewGetSupplierProductCostPlanListPageDataUseCase(
 			GetSupplierProductCostPlanListPageDataRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			GetSupplierProductCostPlanListPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetSupplierProductCostPlanListPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierProductCostPlanItemPageData: NewGetSupplierProductCostPlanItemPageDataUseCase(
 			GetSupplierProductCostPlanItemPageDataRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			GetSupplierProductCostPlanItemPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetSupplierProductCostPlanItemPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 	}
 }

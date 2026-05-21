@@ -343,7 +343,7 @@ func (r *PostgresProductPlanRepository) ListByPlan(
 	var items []*productplanpb.ProductPlan
 	for rows.Next() {
 		var (
-			id            string
+			id           string
 			name         string
 			description  *string
 			productId    string

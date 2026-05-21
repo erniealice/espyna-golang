@@ -28,8 +28,8 @@ func (r *PostgresJournalEntryRepository) CountByStatus(
 	}
 
 	var (
-		query    string
-		args     []any
+		query string
+		args  []any
 	)
 
 	if since.IsZero() {

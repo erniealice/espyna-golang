@@ -21,9 +21,9 @@ type ReadEventProductRepositories struct {
 
 // ReadEventProductServices groups all business service dependencies
 type ReadEventProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadEventProductUseCase handles the business logic for reading event product associations
@@ -56,9 +56,9 @@ func NewReadEventProductUseCaseUngrouped(
 	}
 
 	services := ReadEventProductServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &ReadEventProductUseCase{
@@ -70,39 +70,39 @@ func NewReadEventProductUseCaseUngrouped(
 // Execute performs the read event product operation
 func (uc *ReadEventProductUseCase) Execute(ctx context.Context, req *eventproductpb.ReadEventProductRequest) (*eventproductpb.ReadEventProductResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventProduct, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 
 	if req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.errors.authorization_failed", "Authorization failed for event product")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventProduct, ports.ActionRead)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.errors.authorization_failed", "Authorization failed for event product")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.errors.authorization_failed", "Authorization failed for event product")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")
 		return nil, errors.New(translatedError)
 	}
 

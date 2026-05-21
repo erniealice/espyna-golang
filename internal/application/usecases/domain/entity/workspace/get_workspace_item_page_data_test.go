@@ -66,9 +66,9 @@ func TestGetWorkspaceItemPageDataUseCase_Execute_Success(t *testing.T) {
 		Workspace: mockRepo,
 	}
 	services := GetWorkspaceItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
@@ -118,9 +118,9 @@ func TestGetWorkspaceItemPageDataUseCase_Execute_NotFound(t *testing.T) {
 		Workspace: mockRepo,
 	}
 	services := GetWorkspaceItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
@@ -155,9 +155,9 @@ func TestGetWorkspaceItemPageDataUseCase_Execute_RepositoryError(t *testing.T) {
 		Workspace: mockRepo,
 	}
 	services := GetWorkspaceItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
@@ -204,9 +204,9 @@ func TestGetWorkspaceItemPageDataUseCase_Execute_IdMismatch(t *testing.T) {
 		Workspace: mockRepo,
 	}
 	services := GetWorkspaceItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
@@ -237,9 +237,9 @@ func TestGetWorkspaceItemPageDataUseCase_Execute_WithTransaction(t *testing.T) {
 		Workspace: mockRepo,
 	}
 	services := GetWorkspaceItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
@@ -271,7 +271,7 @@ func TestGetWorkspaceItemPageDataUseCase_validateInput_NilRequest(t *testing.T) 
 	// Setup
 	repositories := GetWorkspaceItemPageDataRepositories{}
 	services := GetWorkspaceItemPageDataServices{
-		TranslationService: ports.NewNoOpTranslationService(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
 
@@ -289,7 +289,7 @@ func TestGetWorkspaceItemPageDataUseCase_validateInput_EmptyWorkspaceId(t *testi
 	// Setup
 	repositories := GetWorkspaceItemPageDataRepositories{}
 	services := GetWorkspaceItemPageDataServices{
-		TranslationService: ports.NewNoOpTranslationService(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
 
@@ -310,7 +310,7 @@ func TestGetWorkspaceItemPageDataUseCase_validateBusinessRules_ShortId(t *testin
 	// Setup
 	repositories := GetWorkspaceItemPageDataRepositories{}
 	services := GetWorkspaceItemPageDataServices{
-		TranslationService: ports.NewNoOpTranslationService(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
 
@@ -328,7 +328,7 @@ func TestGetWorkspaceItemPageDataUseCase_validateBusinessRules_ValidId(t *testin
 	// Setup
 	repositories := GetWorkspaceItemPageDataRepositories{}
 	services := GetWorkspaceItemPageDataServices{
-		TranslationService: ports.NewNoOpTranslationService(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
 
@@ -346,7 +346,7 @@ func TestGetWorkspaceItemPageDataUseCase_processWorkspaceForUser(t *testing.T) {
 	// Setup
 	repositories := GetWorkspaceItemPageDataRepositories{}
 	services := GetWorkspaceItemPageDataServices{
-		TranslationService: ports.NewNoOpTranslationService(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
 
@@ -382,8 +382,8 @@ func TestGetWorkspaceItemPageDataUseCase_checkAuthorizationPermissions_NoService
 	// Setup without authorization service
 	repositories := GetWorkspaceItemPageDataRepositories{}
 	services := GetWorkspaceItemPageDataServices{
-		AuthorizationService: nil, // No service
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // No service
+		Translator: ports.NewNoOpTranslator(),
 	}
 	useCase := NewGetWorkspaceItemPageDataUseCase(repositories, services)
 

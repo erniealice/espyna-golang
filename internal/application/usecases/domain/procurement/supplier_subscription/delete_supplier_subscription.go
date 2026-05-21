@@ -16,9 +16,9 @@ type DeleteSupplierSubscriptionRepositories struct {
 }
 
 type DeleteSupplierSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type DeleteSupplierSubscriptionUseCase struct {
@@ -34,16 +34,16 @@ func NewDeleteSupplierSubscriptionUseCase(
 }
 
 func (uc *DeleteSupplierSubscriptionUseCase) Execute(ctx context.Context, req *suppliersubscriptionpb.DeleteSupplierSubscriptionRequest) (*suppliersubscriptionpb.DeleteSupplierSubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierSubscription, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_subscription.validation.id_required", "supplier subscription ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_subscription.validation.id_required", "supplier subscription ID is required"))
 	}
 	result, err := uc.repositories.SupplierSubscription.DeleteSupplierSubscription(ctx, req)
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_subscription.errors.deletion_failed", "supplier subscription deletion failed")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_subscription.errors.deletion_failed", "supplier subscription deletion failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 	return result, nil

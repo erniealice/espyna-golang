@@ -20,10 +20,10 @@ type CreateAdminRepositories struct {
 
 // CreateAdminServices groups all business service dependencies
 type CreateAdminServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateAdminUseCase handles the business logic for creating admins
@@ -46,18 +46,18 @@ func NewCreateAdminUseCase(
 // Execute performs the create admin operation
 func (uc *CreateAdminUseCase) Execute(ctx context.Context, req *adminpb.CreateAdminRequest) (*adminpb.CreateAdminResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityAdmin, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -69,10 +69,10 @@ func (uc *CreateAdminUseCase) Execute(ctx context.Context, req *adminpb.CreateAd
 func (uc *CreateAdminUseCase) executeWithTransaction(ctx context.Context, req *adminpb.CreateAdminRequest) (*adminpb.CreateAdminResponse, error) {
 	var result *adminpb.CreateAdminResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "admin.errors.creation_failed", "[ERR-DEFAULT] Admin creation failed")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "admin.errors.creation_failed", "[ERR-DEFAULT] Admin creation failed")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -107,12 +107,12 @@ func (uc *CreateAdminUseCase) applyBusinessLogic(admin *adminpb.Admin) *adminpb.
 
 	// Business logic: Generate Admin ID if not provided
 	if admin.Id == "" {
-		admin.Id = uc.services.IDService.GenerateID()
+		admin.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Business logic: Generate User ID if not provided
 	if admin.User != nil && admin.User.Id == "" {
-		admin.User.Id = uc.services.IDService.GenerateID()
+		admin.User.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Business logic: Set active status for new admins
@@ -143,43 +143,43 @@ func (uc *CreateAdminUseCase) applyBusinessLogic(admin *adminpb.Admin) *adminpb.
 func (uc *CreateAdminUseCase) validateBusinessRules(ctx context.Context, admin *adminpb.Admin) error {
 	// Business rule: Required data validation
 	if admin == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.data_required", "[ERR-DEFAULT] Admin data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.data_required", "[ERR-DEFAULT] Admin data is required"))
 	}
 	if admin.User == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.user_data_required", "[ERR-DEFAULT] User data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.user_data_required", "[ERR-DEFAULT] User data is required"))
 	}
 	if admin.User.FirstName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.first_name_required", "[ERR-DEFAULT] First name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.first_name_required", "[ERR-DEFAULT] First name is required"))
 	}
 	if admin.User.LastName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.last_name_required", "[ERR-DEFAULT] Last name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.last_name_required", "[ERR-DEFAULT] Last name is required"))
 	}
 	if admin.User.EmailAddress == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_required", "[ERR-DEFAULT] Email is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.email_required", "[ERR-DEFAULT] Email is required"))
 	}
 
 	// Business rule: Email format validation
 	if err := uc.validateEmail(admin.User.EmailAddress); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.email_invalid", "[ERR-DEFAULT] Invalid email format"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.email_invalid", "[ERR-DEFAULT] Invalid email format"))
 	}
 
 	// Business rule: Name length constraints
 	fullName := admin.User.FirstName + " " + admin.User.LastName
 	if len(fullName) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.full_name_too_short", "[ERR-DEFAULT] Full name is too short"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.full_name_too_short", "[ERR-DEFAULT] Full name is too short"))
 	}
 
 	if len(fullName) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.full_name_too_long", "[ERR-DEFAULT] Full name is too long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.full_name_too_long", "[ERR-DEFAULT] Full name is too long"))
 	}
 
 	// Business rule: Individual name part validation
 	if len(admin.User.FirstName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.first_name_too_short", "[ERR-DEFAULT] First name is too short"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.first_name_too_short", "[ERR-DEFAULT] First name is too short"))
 	}
 
 	if len(admin.User.LastName) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.validation.last_name_too_short", "[ERR-DEFAULT] Last name is too short"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.validation.last_name_too_short", "[ERR-DEFAULT] Last name is too short"))
 	}
 
 	return nil

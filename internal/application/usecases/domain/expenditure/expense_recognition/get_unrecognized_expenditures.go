@@ -15,8 +15,8 @@ type GetUnrecognizedExpendituresRepositories struct {
 
 // GetUnrecognizedExpendituresServices groups service dependencies.
 type GetUnrecognizedExpendituresServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // GetUnrecognizedExpendituresUseCase returns the IDs of expenditures lacking a
@@ -36,7 +36,7 @@ func NewGetUnrecognizedExpendituresUseCase(
 
 // Execute performs the get-unrecognized-expenditures operation.
 func (uc *GetUnrecognizedExpendituresUseCase) Execute(ctx context.Context, req *expenserecognitionpb.GetUnrecognizedExpendituresRequest) (*expenserecognitionpb.GetUnrecognizedExpendituresResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionList); err != nil {
 		return nil, err
 	}

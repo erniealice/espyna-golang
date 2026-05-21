@@ -17,9 +17,9 @@ type DeleteJobTemplateRepositories struct {
 
 // DeleteJobTemplateServices groups all business service dependencies
 type DeleteJobTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteJobTemplateUseCase handles the business logic for deleting job templates
@@ -42,7 +42,7 @@ func NewDeleteJobTemplateUseCase(
 // Execute performs the delete job template operation
 func (uc *DeleteJobTemplateUseCase) Execute(ctx context.Context, req *pb.DeleteJobTemplateRequest) (*pb.DeleteJobTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job_template", ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (uc *DeleteJobTemplateUseCase) Execute(ctx context.Context, req *pb.DeleteJ
 	// Call repository
 	result, err := uc.repositories.JobTemplate.DeleteJobTemplate(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.errors.deletion_failed", "job template deletion failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.errors.deletion_failed", "job template deletion failed [DEFAULT]"))
 	}
 
 	return result, nil
@@ -64,10 +64,10 @@ func (uc *DeleteJobTemplateUseCase) Execute(ctx context.Context, req *pb.DeleteJ
 // validateInput validates the input request
 func (uc *DeleteJobTemplateUseCase) validateInput(ctx context.Context, req *pb.DeleteJobTemplateRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.request_required", "request is required"))
 	}
 	if req.Data == nil || req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.id_required", "job template ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.id_required", "job template ID is required"))
 	}
 	return nil
 }

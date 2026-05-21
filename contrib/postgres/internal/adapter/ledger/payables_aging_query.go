@@ -223,10 +223,10 @@ func scanPayablesAgingRows(rows *sql.Rows) ([]*payagingpb.PayablesAgingRow, *pay
 		row := &payagingpb.PayablesAgingRow{
 			RowKey: rowKey,
 			Buckets: &payagingpb.PayablesAgingBuckets{
-				Current:    currentAmt,
-				Days_1_30:  days1_30,
-				Days_31_60: days31_60,
-				Days_61_90: days61_90,
+				Current:     currentAmt,
+				Days_1_30:   days1_30,
+				Days_31_60:  days31_60,
+				Days_61_90:  days61_90,
 				DaysOver_90: daysOver90,
 			},
 			TotalOutstanding: totalOutstanding,

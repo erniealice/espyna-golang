@@ -12,10 +12,10 @@ type SupplierContractRepositories struct {
 
 // SupplierContractServices groups all business service dependencies for supplier contract use cases.
 type SupplierContractServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all supplier-contract-related use cases.
@@ -43,95 +43,95 @@ func NewUseCases(
 		CreateSupplierContract: NewCreateSupplierContractUseCase(
 			CreateSupplierContractRepositories{SupplierContract: repositories.SupplierContract},
 			CreateSupplierContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadSupplierContract: NewReadSupplierContractUseCase(
 			ReadSupplierContractRepositories{SupplierContract: repositories.SupplierContract},
 			ReadSupplierContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		UpdateSupplierContract: NewUpdateSupplierContractUseCase(
 			UpdateSupplierContractRepositories{SupplierContract: repositories.SupplierContract},
 			UpdateSupplierContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		DeleteSupplierContract: NewDeleteSupplierContractUseCase(
 			DeleteSupplierContractRepositories{SupplierContract: repositories.SupplierContract},
 			DeleteSupplierContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		ListSupplierContracts: NewListSupplierContractsUseCase(
 			ListSupplierContractsRepositories{SupplierContract: repositories.SupplierContract},
 			ListSupplierContractsServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		GetSupplierContractListPageData: NewGetSupplierContractListPageDataUseCase(
 			GetSupplierContractListPageDataRepositories{SupplierContract: repositories.SupplierContract},
 			GetSupplierContractListPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		GetSupplierContractItemPageData: NewGetSupplierContractItemPageDataUseCase(
 			GetSupplierContractItemPageDataRepositories{SupplierContract: repositories.SupplierContract},
 			GetSupplierContractItemPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		ApproveSupplierContract: NewApproveSupplierContractUseCase(
 			ApproveSupplierContractRepositories{SupplierContract: repositories.SupplierContract},
 			ApproveSupplierContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		TerminateSupplierContract: NewTerminateSupplierContractUseCase(
 			TerminateSupplierContractRepositories{SupplierContract: repositories.SupplierContract},
 			TerminateSupplierContractServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 		RegisterRelease: NewRegisterReleaseUseCase(
 			RegisterReleaseRepositories{SupplierContract: repositories.SupplierContract},
 			RegisterReleaseServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		RegisterBilling: NewRegisterBillingUseCase(
 			RegisterBillingRepositories{SupplierContract: repositories.SupplierContract},
 			RegisterBillingServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		RegisterCredit: NewRegisterCreditUseCase(
 			RegisterCreditRepositories{SupplierContract: repositories.SupplierContract},
 			RegisterCreditServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

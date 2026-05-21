@@ -15,10 +15,10 @@ func InitializePayroll(
 	repos *domain.PayrollRepositories,
 	entityRepos *domain.EntityRepositories,
 	expenditureRepos *domain.ExpenditureRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*payroll.PayrollUseCases, error) {
 	cross := payroll.CrossDomainRepositories{}
 	if entityRepos != nil {

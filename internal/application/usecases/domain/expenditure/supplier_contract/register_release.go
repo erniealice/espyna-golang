@@ -35,8 +35,8 @@ type RegisterReleaseRepositories struct {
 
 // RegisterReleaseServices groups service dependencies.
 type RegisterReleaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // RegisterReleaseUseCase increments released_amount when a PO is created against a contract.
@@ -56,16 +56,16 @@ func NewRegisterReleaseUseCase(
 
 // Execute performs the register release operation.
 func (uc *RegisterReleaseUseCase) Execute(ctx context.Context, req RegisterReleaseRequest) error {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionUpdate); err != nil {
 		return err
 	}
 	if req.ContractID == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	if req.ReleasedCentavos <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.amount_required", "Released amount must be positive [DEFAULT]"))
 	}
 	balanceRepo, ok := uc.repositories.SupplierContract.(BalanceRepository)

@@ -17,9 +17,9 @@ type DeleteRevenueLineItemRepositories struct {
 
 // DeleteRevenueLineItemServices groups all business service dependencies
 type DeleteRevenueLineItemServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteRevenueLineItemUseCase handles the business logic for deleting revenue line items
@@ -41,13 +41,13 @@ func NewDeleteRevenueLineItemUseCase(
 
 // Execute performs the delete revenue line item operation
 func (uc *DeleteRevenueLineItemUseCase) Execute(ctx context.Context, req *pb.DeleteRevenueLineItemRequest) (*pb.DeleteRevenueLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueLineItem, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue_line_item.validation.id_required", "Revenue line item ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_line_item.validation.id_required", "Revenue line item ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.RevenueLineItem.DeleteRevenueLineItem(ctx, req)

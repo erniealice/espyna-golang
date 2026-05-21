@@ -19,10 +19,10 @@ type TenantSubscriptionRepositories struct {
 
 // TenantSubscriptionServices groups service dependencies.
 type TenantSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all tenant_subscription use cases.
@@ -52,7 +52,7 @@ type CreateTenantSubscriptionUseCase struct {
 }
 
 func (uc *CreateTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.CreateTenantSubscriptionRequest) (*tenantsubscriptionpb.CreateTenantSubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantSubscription, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *CreateTenantSubscriptionUseCase) Execute(ctx context.Context, req *ten
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -76,7 +76,7 @@ type ReadTenantSubscriptionUseCase struct {
 }
 
 func (uc *ReadTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.ReadTenantSubscriptionRequest) (*tenantsubscriptionpb.ReadTenantSubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantSubscription, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type UpdateTenantSubscriptionUseCase struct {
 }
 
 func (uc *UpdateTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.UpdateTenantSubscriptionRequest) (*tenantsubscriptionpb.UpdateTenantSubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantSubscription, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ type DeleteTenantSubscriptionUseCase struct {
 }
 
 func (uc *DeleteTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.DeleteTenantSubscriptionRequest) (*tenantsubscriptionpb.DeleteTenantSubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantSubscription, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ type ListTenantSubscriptionsUseCase struct {
 }
 
 func (uc *ListTenantSubscriptionsUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.ListTenantSubscriptionsRequest) (*tenantsubscriptionpb.ListTenantSubscriptionsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantSubscription, ports.ActionRead); err != nil {
 		return nil, err
 	}

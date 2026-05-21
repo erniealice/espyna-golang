@@ -28,9 +28,9 @@ func createTestListRolePermissionsUseCase(businessType string) *ListRolePermissi
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListRolePermissionsServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	return NewListRolePermissionsUseCase(repositories, services)
 }
@@ -42,9 +42,9 @@ func TestListRolePermissionsUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockRolePermissionRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListRolePermissionsServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	useCase := NewListRolePermissionsUseCase(ListRolePermissionsRepositories{RolePermission: mockRepo}, services)
 
@@ -70,9 +70,9 @@ func TestListRolePermissionsUseCase_Execute_AfterDelete(t *testing.T) {
 	deleteRepositories := DeleteRolePermissionRepositories{RolePermission: mockRepo}
 	standardDeleteServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteRolePermissionServices{
-		AuthorizationService: standardDeleteServices.AuthorizationService,
-		TransactionService:   standardDeleteServices.TransactionService,
-		TranslationService:   standardDeleteServices.TranslationService,
+		Authorizer: standardDeleteServices.Authorizer,
+		Transactor: standardDeleteServices.Transactor,
+		Translator: standardDeleteServices.Translator,
 	}
 	deleteUseCase := NewDeleteRolePermissionUseCase(deleteRepositories, deleteServices)
 
@@ -83,9 +83,9 @@ func TestListRolePermissionsUseCase_Execute_AfterDelete(t *testing.T) {
 	// --- Now list the role-permissions ---
 	standardListServices := testutil.CreateStandardServices(false, true)
 	listServices := ListRolePermissionsServices{
-		AuthorizationService: standardListServices.AuthorizationService,
-		TransactionService:   standardListServices.TransactionService,
-		TranslationService:   standardListServices.TranslationService,
+		Authorizer: standardListServices.Authorizer,
+		Transactor: standardListServices.Transactor,
+		Translator: standardListServices.Translator,
 	}
 	listUseCase := NewListRolePermissionsUseCase(ListRolePermissionsRepositories{RolePermission: mockRepo}, listServices)
 

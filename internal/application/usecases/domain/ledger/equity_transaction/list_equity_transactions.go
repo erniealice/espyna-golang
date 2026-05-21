@@ -18,9 +18,9 @@ type ListEquityTransactionsRepositories struct {
 
 // ListEquityTransactionsServices groups all business service dependencies.
 type ListEquityTransactionsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListEquityTransactionsUseCase handles the business logic for listing equity transactions.
@@ -42,13 +42,13 @@ func NewListEquityTransactionsUseCase(
 
 // Execute performs the list equity transactions operation.
 func (uc *ListEquityTransactionsUseCase) Execute(ctx context.Context, req *equitytransactionpb.ListEquityTransactionsRequest) (*equitytransactionpb.ListEquityTransactionsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityEquityTransaction, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if uc.repositories.EquityTransaction == nil {
@@ -57,7 +57,7 @@ func (uc *ListEquityTransactionsUseCase) Execute(ctx context.Context, req *equit
 
 	resp, err := uc.repositories.EquityTransaction.ListEquityTransactions(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_transaction.errors.list_failed", "[ERR-DEFAULT] Failed to list equity transactions")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_transaction.errors.list_failed", "[ERR-DEFAULT] Failed to list equity transactions")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

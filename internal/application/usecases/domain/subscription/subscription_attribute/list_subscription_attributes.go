@@ -17,9 +17,9 @@ type ListSubscriptionAttributesRepositories struct {
 
 // ListSubscriptionAttributesServices groups all business service dependencies
 type ListSubscriptionAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSubscriptionAttributesUseCase handles the business logic for listing subscription attributes
@@ -42,7 +42,7 @@ func NewListSubscriptionAttributesUseCase(
 // Execute performs the list subscription attributes operation
 func (uc *ListSubscriptionAttributesUseCase) Execute(ctx context.Context, req *subscriptionattributepb.ListSubscriptionAttributesRequest) (*subscriptionattributepb.ListSubscriptionAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscriptionAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *ListSubscriptionAttributesUseCase) Execute(ctx context.Context, req *s
 // validateInput validates the input request
 func (uc *ListSubscriptionAttributesUseCase) validateInput(ctx context.Context, req *subscriptionattributepb.ListSubscriptionAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_attribute.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	return nil
 }

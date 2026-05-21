@@ -19,9 +19,9 @@ type ReadResourceRepositories struct {
 
 // ReadResourceServices groups all business service dependencies
 type ReadResourceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadResourceUseCase handles the business logic for reading a resource
@@ -44,7 +44,7 @@ func NewReadResourceUseCase(
 // Execute performs the read resource operation
 func (uc *ReadResourceUseCase) Execute(ctx context.Context, req *resourcepb.ReadResourceRequest) (*resourcepb.ReadResourceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityResource, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *ReadResourceUseCase) Execute(ctx context.Context, req *resourcepb.Read
 
 	// Not found error
 	if resp == nil || resp.Data == nil || len(resp.Data) == 0 {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.errors.not_found", "Resource with ID \"{resourceId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.errors.not_found", "Resource with ID \"{resourceId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{resourceId}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}
@@ -73,13 +73,13 @@ func (uc *ReadResourceUseCase) Execute(ctx context.Context, req *resourcepb.Read
 // validateInput validates the input request
 func (uc *ReadResourceUseCase) validateInput(ctx context.Context, req *resourcepb.ReadResourceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.validation.request_required", "Request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.validation.request_required", "Request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.validation.data_required", "Resource data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.validation.data_required", "Resource data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "resource.validation.id_required", "Resource ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "resource.validation.id_required", "Resource ID is required [DEFAULT]"))
 	}
 	return nil
 }

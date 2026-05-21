@@ -16,9 +16,9 @@ type ListByGroupRepositories struct {
 }
 
 type ListByGroupServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListByGroupUseCase handles the business logic for listing outcome criteria by group
@@ -41,7 +41,7 @@ func NewListByGroupUseCase(
 // Execute performs the list by group operation
 func (uc *ListByGroupUseCase) Execute(ctx context.Context, req *pb.ListOutcomeCriteriasByGroupRequest) (*pb.ListOutcomeCriteriasByGroupResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityOutcomeCriteria, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListByGroupUseCase) Execute(ctx context.Context, req *pb.ListOutcomeCr
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListByGroupUseCase) Execute(ctx context.Context, req *pb.ListOutcomeCr
 func (uc *ListByGroupUseCase) executeWithTransaction(ctx context.Context, req *pb.ListOutcomeCriteriasByGroupRequest) (*pb.ListOutcomeCriteriasByGroupResponse, error) {
 	var result *pb.ListOutcomeCriteriasByGroupResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "outcome_criteria.errors.list_by_group_failed", "outcome criteria listing by group failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "outcome_criteria.errors.list_by_group_failed", "outcome criteria listing by group failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListByGroupUseCase) executeWithTransaction(ctx context.Context, req *p
 func (uc *ListByGroupUseCase) executeCore(ctx context.Context, req *pb.ListOutcomeCriteriasByGroupRequest) (*pb.ListOutcomeCriteriasByGroupResponse, error) {
 	resp, err := uc.repositories.OutcomeCriteria.ListByGroup(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.errors.list_by_group_failed", "failed to list outcome criteria by group: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.list_by_group_failed", "failed to list outcome criteria by group: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *ListByGroupUseCase) executeCore(ctx context.Context, req *pb.ListOutco
 // validateInput validates the input request
 func (uc *ListByGroupUseCase) validateInput(ctx context.Context, req *pb.ListOutcomeCriteriasByGroupRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.request_required", "request is required"))
 	}
 	if req.CriteriaGroupId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "outcome_criteria.validation.group_id_required", "group ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.group_id_required", "group ID is required"))
 	}
 
 	return nil

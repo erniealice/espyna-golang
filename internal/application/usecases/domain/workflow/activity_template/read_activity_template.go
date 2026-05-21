@@ -20,9 +20,9 @@ type ReadActivityTemplateRepositories struct {
 
 // ReadActivityTemplateServices groups all business service dependencies
 type ReadActivityTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadActivityTemplateUseCase handles the business logic for reading activity templates
@@ -50,9 +50,9 @@ func NewReadActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTempla
 	}
 
 	services := ReadActivityTemplateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadActivityTemplateUseCase(repositories, services)
@@ -61,14 +61,14 @@ func NewReadActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTempla
 // Execute performs the read activity template operation
 func (uc *ReadActivityTemplateUseCase) Execute(ctx context.Context, req *activityTemplatepb.ReadActivityTemplateRequest) (*activityTemplatepb.ReadActivityTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"activity_template", ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.request_required", "Request is required for activity templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity_template.validation.request_required", "Request is required for activity templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -77,7 +77,7 @@ func (uc *ReadActivityTemplateUseCase) Execute(ctx context.Context, req *activit
 	}
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req.Data)
 	}
 
@@ -89,10 +89,10 @@ func (uc *ReadActivityTemplateUseCase) Execute(ctx context.Context, req *activit
 func (uc *ReadActivityTemplateUseCase) executeWithTransaction(ctx context.Context, activityTemplate *activityTemplatepb.ActivityTemplate) (*activityTemplatepb.ReadActivityTemplateResponse, error) {
 	var result *activityTemplatepb.ReadActivityTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, activityTemplate)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "activity_template.errors.read_failed", "Activity template read failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "activity_template.errors.read_failed", "Activity template read failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -117,17 +117,17 @@ func (uc *ReadActivityTemplateUseCase) executeCore(ctx context.Context, activity
 func (uc *ReadActivityTemplateUseCase) validateBusinessRules(ctx context.Context, activityTemplate *activityTemplatepb.ActivityTemplate) error {
 	// Business rule: Required data validation
 	if activityTemplate == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.data_required", "Activity template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity_template.validation.data_required", "Activity template data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for reading
 	if activityTemplate.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.id_required", "Activity template ID is required for read operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity_template.validation.id_required", "Activity template ID is required for read operations [DEFAULT]"))
 	}
 
 	// Business rule: ID format validation
 	if err := uc.validateActivityTemplateID(activityTemplate.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity_template.validation.id_invalid", "Activity template ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity_template.validation.id_invalid", "Activity template ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

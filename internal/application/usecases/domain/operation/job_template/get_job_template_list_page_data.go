@@ -18,9 +18,9 @@ type GetJobTemplateListPageDataRepositories struct {
 
 // GetJobTemplateListPageDataServices groups all business service dependencies
 type GetJobTemplateListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetJobTemplateListPageDataUseCase handles the business logic for getting job template list page data
@@ -43,17 +43,17 @@ func NewGetJobTemplateListPageDataUseCase(
 // Execute performs the get job template list page data operation
 func (uc *GetJobTemplateListPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobTemplateListPageDataRequest) (*pb.GetJobTemplateListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job_template", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.request_required", "Request is required for job template list page data"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.request_required", "Request is required for job template list page data"))
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *GetJobTemplateListPageDataUseCase) Execute(ctx context.Context, req *p
 func (uc *GetJobTemplateListPageDataUseCase) executeWithTransaction(ctx context.Context, req *pb.GetJobTemplateListPageDataRequest) (*pb.GetJobTemplateListPageDataResponse, error) {
 	var result *pb.GetJobTemplateListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "job_template.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load job template list")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "job_template.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load job template list")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res

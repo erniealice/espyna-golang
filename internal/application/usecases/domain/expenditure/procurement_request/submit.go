@@ -18,8 +18,8 @@ type SubmitProcurementRequestRepositories struct {
 
 // SubmitProcurementRequestServices groups service dependencies.
 type SubmitProcurementRequestServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // SubmitProcurementRequestUseCase transitions a request from DRAFT → SUBMITTED.
@@ -38,17 +38,17 @@ func NewSubmitProcurementRequestUseCase(
 
 // Execute performs the submit procurement request operation.
 func (uc *SubmitProcurementRequestUseCase) Execute(ctx context.Context, req *procurementrequestpb.SubmitProcurementRequestRequest) (*procurementrequestpb.SubmitProcurementRequestResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequest, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetProcurementRequestId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.validation.id_required", "Procurement request ID is required [DEFAULT]"))
 	}
 	resp, err := uc.repositories.ProcurementRequest.SubmitProcurementRequest(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.errors.submit_failed", "[ERR-DEFAULT] Failed to submit procurement request")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

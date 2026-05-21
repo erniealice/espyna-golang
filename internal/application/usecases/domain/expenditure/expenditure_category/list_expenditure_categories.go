@@ -17,9 +17,9 @@ type ListExpenditureCategoriesRepositories struct {
 
 // ListExpenditureCategoriesServices groups all business service dependencies
 type ListExpenditureCategoriesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListExpenditureCategoriesUseCase handles the business logic for listing expenditure categories
@@ -41,13 +41,13 @@ func NewListExpenditureCategoriesUseCase(
 
 // Execute performs the list expenditure categories operation
 func (uc *ListExpenditureCategoriesUseCase) Execute(ctx context.Context, req *pb.ListExpenditureCategoriesRequest) (*pb.ListExpenditureCategoriesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditureCategory, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure_category.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure_category.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	return uc.repositories.ExpenditureCategory.ListExpenditureCategories(ctx, req)

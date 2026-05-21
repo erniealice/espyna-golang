@@ -16,9 +16,9 @@ type GetSupplierProductPlanListPageDataRepositories struct {
 }
 
 type GetSupplierProductPlanListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type GetSupplierProductPlanListPageDataUseCase struct {
@@ -34,19 +34,19 @@ func NewGetSupplierProductPlanListPageDataUseCase(
 }
 
 func (uc *GetSupplierProductPlanListPageDataUseCase) Execute(ctx context.Context, req *supplierproductplanpb.GetSupplierProductPlanListPageDataRequest) (*supplierproductplanpb.GetSupplierProductPlanListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySupplierProductPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_product_plan.validation.request_required", "request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_product_plan.validation.request_required", "request is required"))
 	}
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *supplierproductplanpb.GetSupplierProductPlanListPageDataResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.SupplierProductPlan.GetSupplierProductPlanListPageData(txCtx, req)
 			if err != nil {
-				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "supplier_product_plan.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load supplier product plan list: %w"), err)
+				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "supplier_product_plan.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load supplier product plan list: %w"), err)
 			}
 			result = res
 			return nil

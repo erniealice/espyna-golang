@@ -17,8 +17,8 @@ type ReadExpenseRecognitionRepositories struct {
 
 // ReadExpenseRecognitionServices groups service dependencies.
 type ReadExpenseRecognitionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadExpenseRecognitionUseCase handles reading a recognition.
@@ -37,12 +37,12 @@ func NewReadExpenseRecognitionUseCase(
 
 // Execute performs the read operation.
 func (uc *ReadExpenseRecognitionUseCase) Execute(ctx context.Context, req *expenserecognitionpb.ReadExpenseRecognitionRequest) (*expenserecognitionpb.ReadExpenseRecognitionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition.validation.id_required", "Expense recognition ID is required [DEFAULT]"))
 	}
 	return uc.repositories.ExpenseRecognition.ReadExpenseRecognition(ctx, req)

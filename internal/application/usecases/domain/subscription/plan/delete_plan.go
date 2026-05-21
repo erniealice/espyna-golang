@@ -17,9 +17,9 @@ type DeletePlanRepositories struct {
 
 // DeletePlanServices groups all business service dependencies
 type DeletePlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeletePlanUseCase handles the business logic for deleting plans
@@ -42,7 +42,7 @@ func NewDeletePlanUseCase(
 // Execute performs the delete plan operation
 func (uc *DeletePlanUseCase) Execute(ctx context.Context, req *planpb.DeletePlanRequest) (*planpb.DeletePlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlan, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *DeletePlanUseCase) Execute(ctx context.Context, req *planpb.DeletePlan
 	// Call repository
 	result, err := uc.repositories.Plan.DeletePlan(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.deletion_failed", "plan deletion failed [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.errors.deletion_failed", "plan deletion failed [DEFAULT]"))
 	}
 
 	return result, nil
@@ -69,13 +69,13 @@ func (uc *DeletePlanUseCase) Execute(ctx context.Context, req *planpb.DeletePlan
 // validateInput validates the input request
 func (uc *DeletePlanUseCase) validateInput(ctx context.Context, req *planpb.DeletePlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.request_required", "request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.data_required", "plan data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.data_required", "plan data is required"))
 	}
 	if req.Data.Id == nil || *req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.id_required", "plan ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.id_required", "plan ID is required"))
 	}
 	return nil
 }
@@ -84,7 +84,7 @@ func (uc *DeletePlanUseCase) validateInput(ctx context.Context, req *planpb.Dele
 func (uc *DeletePlanUseCase) validateBusinessRules(ctx context.Context, req *planpb.DeletePlanRequest) error {
 	// Validate plan ID format
 	if req.Data.Id == nil || len(*req.Data.Id) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.id_too_short", "plan ID must be at least 3 characters long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.id_too_short", "plan ID must be at least 3 characters long"))
 	}
 
 	// Additional business rules for deletion can be added here

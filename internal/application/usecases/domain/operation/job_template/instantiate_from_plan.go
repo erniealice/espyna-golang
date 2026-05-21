@@ -35,8 +35,8 @@ type InstantiateJobsFromPlanRepositories struct {
 
 // InstantiateJobsFromPlanServices is kept for legacy wiring symmetry.
 type InstantiateJobsFromPlanServices struct {
-	TransactionService ports.TransactionService
-	IDService          ports.IDService
+	Transactor  ports.Transactor
+	IDGenerator ports.IDGenerator
 }
 
 // InstantiateJobsFromPlanUseCase is a deprecated compatibility shim.

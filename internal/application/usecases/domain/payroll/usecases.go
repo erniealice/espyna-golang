@@ -73,26 +73,26 @@ type PayrollUseCases struct {
 func NewUseCases(
 	repos PayrollRepositories,
 	cross CrossDomainRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *PayrollUseCases {
 	runServices := payrollrunuc.Services{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idService,
+		Authorizer:  authSvc,
+		Transactor:  txSvc,
+		Translator:  i18nSvc,
+		IDGenerator: idService,
 	}
 	runRepos := payrollrunuc.Repositories{
 		PayrollRun: repos.PayrollRun,
 	}
 
 	remittanceServices := payrollremittanceuc.Services{
-		AuthorizationService: authSvc,
-		TransactionService:   txSvc,
-		TranslationService:   i18nSvc,
-		IDService:            idService,
+		Authorizer:  authSvc,
+		Transactor:  txSvc,
+		Translator:  i18nSvc,
+		IDGenerator: idService,
 	}
 	remittanceRepos := payrollremittanceuc.Repositories{
 		PayrollRemittance: repos.PayrollRemittance,

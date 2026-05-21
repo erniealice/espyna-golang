@@ -310,7 +310,7 @@ func (uc *ContinueWorkflowUseCase) createNextStage(ctx context.Context, workflow
 	// Create new stage
 	now := time.Now()
 	newStage := &stagepb.Stage{
-		Id:              uc.services.IDService.GenerateID(),
+		Id:              uc.services.IDGenerator.GenerateID(),
 		WorkflowId:      workflow.Id,
 		StageTemplateId: nextTemplate.Id,
 		Status:          "pending",
@@ -344,7 +344,7 @@ func (uc *ContinueWorkflowUseCase) createStageActivities(ctx context.Context, st
 
 	for _, template := range activityTemplates {
 		activity := &activitypb.Activity{
-			Id:                 uc.services.IDService.GenerateID(),
+			Id:                 uc.services.IDGenerator.GenerateID(),
 			StageId:            stageId,
 			ActivityTemplateId: template.Id,
 			Name:               template.Name,

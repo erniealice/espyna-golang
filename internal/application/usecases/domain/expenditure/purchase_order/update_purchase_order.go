@@ -19,9 +19,9 @@ type UpdatePurchaseOrderRepositories struct {
 
 // UpdatePurchaseOrderServices groups all business service dependencies
 type UpdatePurchaseOrderServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdatePurchaseOrderUseCase handles the business logic for updating purchase orders
@@ -43,14 +43,14 @@ func NewUpdatePurchaseOrderUseCase(
 
 // Execute performs the update purchase order operation
 func (uc *UpdatePurchaseOrderUseCase) Execute(ctx context.Context, req *purchaseorderpb.UpdatePurchaseOrderRequest) (*purchaseorderpb.UpdatePurchaseOrderResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrder, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *purchaseorderpb.UpdatePurchaseOrderResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("purchase order update failed: %w", err)
@@ -69,7 +69,7 @@ func (uc *UpdatePurchaseOrderUseCase) Execute(ctx context.Context, req *purchase
 
 func (uc *UpdatePurchaseOrderUseCase) executeCore(ctx context.Context, req *purchaseorderpb.UpdatePurchaseOrderRequest) (*purchaseorderpb.UpdatePurchaseOrderResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.id_required", "Purchase order ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.id_required", "Purchase order ID is required [DEFAULT]"))
 	}
 
 	// Set date_modified

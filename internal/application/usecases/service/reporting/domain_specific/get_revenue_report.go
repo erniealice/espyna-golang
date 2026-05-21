@@ -16,18 +16,18 @@ import (
 // revenue pivot report.
 type GetRevenueReportUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetRevenueReportUseCase wires the use case with nil-safe deps.
 func NewGetRevenueReportUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetRevenueReportUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetRevenueReportUseCase{
 		reporter:             r,

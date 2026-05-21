@@ -12,8 +12,8 @@ import (
 // GetGrossProfitReportUseCase handles the business logic for generating a gross profit report.
 type GetGrossProfitReportUseCase struct {
 	reportingService     ports.LedgerReportingService
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetGrossProfitReportUseCase creates a new use case with its reporting service dependency.
@@ -21,15 +21,15 @@ func NewGetGrossProfitReportUseCase(svc ports.LedgerReportingService) *GetGrossP
 	return &GetGrossProfitReportUseCase{
 		reportingService:     svc,
 		authorizationService: nil,
-		translationService:   ports.NewNoOpTranslationService(),
+		translationService:   ports.NewNoOpTranslator(),
 	}
 }
 
 // NewGetGrossProfitReportUseCaseWithServices creates a new use case with full service dependencies.
 func NewGetGrossProfitReportUseCaseWithServices(
 	svc ports.LedgerReportingService,
-	authService ports.AuthorizationService,
-	translationService ports.TranslationService,
+	authService ports.Authorizer,
+	translationService ports.Translator,
 ) *GetGrossProfitReportUseCase {
 	return &GetGrossProfitReportUseCase{
 		reportingService:     svc,

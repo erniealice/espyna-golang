@@ -15,7 +15,7 @@ import (
 func init() {
 	registry.RegisterTranslationProvider(
 		"noop",
-		func() ports.TranslationService {
+		func() ports.Translator {
 			return NewNoOpTranslationAdapter()
 		},
 		nil, // No config transformer needed
@@ -24,7 +24,7 @@ func init() {
 }
 
 // buildFromEnv creates a noop translation service.
-func buildFromEnv() (ports.TranslationService, error) {
+func buildFromEnv() (ports.Translator, error) {
 	adapter := NewNoOpTranslationAdapter()
 	log.Printf("✅ NoOp translation provider initialized (returns keys as-is)")
 	return adapter, nil
@@ -63,4 +63,4 @@ func (a *NoOpTranslationAdapter) IsEnabled() bool {
 	return true // NoOp is always "enabled" - it just doesn't do anything
 }
 
-var _ ports.TranslationService = (*NoOpTranslationAdapter)(nil)
+var _ ports.Translator = (*NoOpTranslationAdapter)(nil)

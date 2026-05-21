@@ -16,9 +16,9 @@ type GetByJobRepositories struct {
 }
 
 type GetByJobServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetByJobUseCase handles the business logic for getting job outcome summary by job
@@ -41,7 +41,7 @@ func NewGetByJobUseCase(
 // Execute performs the get by job operation
 func (uc *GetByJobUseCase) Execute(ctx context.Context, req *pb.GetJobOutcomeSummaryByJobRequest) (*pb.GetJobOutcomeSummaryByJobResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobOutcomeSummary, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *GetByJobUseCase) Execute(ctx context.Context, req *pb.GetJobOutcomeSum
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *GetByJobUseCase) Execute(ctx context.Context, req *pb.GetJobOutcomeSum
 func (uc *GetByJobUseCase) executeWithTransaction(ctx context.Context, req *pb.GetJobOutcomeSummaryByJobRequest) (*pb.GetJobOutcomeSummaryByJobResponse, error) {
 	var result *pb.GetJobOutcomeSummaryByJobResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "job_outcome_summary.errors.get_by_job_failed", "get job outcome summary by job failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "job_outcome_summary.errors.get_by_job_failed", "get job outcome summary by job failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *GetByJobUseCase) executeWithTransaction(ctx context.Context, req *pb.G
 func (uc *GetByJobUseCase) executeCore(ctx context.Context, req *pb.GetJobOutcomeSummaryByJobRequest) (*pb.GetJobOutcomeSummaryByJobResponse, error) {
 	resp, err := uc.repositories.JobOutcomeSummary.GetByJob(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.errors.get_by_job_failed", "failed to get job outcome summary by job: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.errors.get_by_job_failed", "failed to get job outcome summary by job: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *GetByJobUseCase) executeCore(ctx context.Context, req *pb.GetJobOutcom
 // validateInput validates the input request
 func (uc *GetByJobUseCase) validateInput(ctx context.Context, req *pb.GetJobOutcomeSummaryByJobRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.validation.request_required", "request is required"))
 	}
 	if req.JobId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_outcome_summary.validation.job_id_required", "job ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.validation.job_id_required", "job ID is required"))
 	}
 
 	return nil

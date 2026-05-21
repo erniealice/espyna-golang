@@ -19,19 +19,19 @@ import (
 // reporter, translates the response back.
 type GetCollectionSummaryReportUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetCollectionSummaryReportUseCase wires the use case with nil-safe
 // dependency contract (same as GetReceivablesAgingReportUseCase).
 func NewGetCollectionSummaryReportUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetCollectionSummaryReportUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetCollectionSummaryReportUseCase{
 		reporter:             r,

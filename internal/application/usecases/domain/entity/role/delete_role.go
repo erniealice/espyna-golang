@@ -18,9 +18,9 @@ type DeleteRoleRepositories struct {
 
 // DeleteRoleServices groups all business service dependencies
 type DeleteRoleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteRoleUseCase handles the business logic for deleting roles
@@ -49,9 +49,9 @@ func NewDeleteRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *Del
 	}
 
 	services := DeleteRoleServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteRoleUseCase(repositories, services)
@@ -60,13 +60,13 @@ func NewDeleteRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *Del
 // Execute performs the delete role operation
 func (uc *DeleteRoleUseCase) Execute(ctx context.Context, req *rolepb.DeleteRoleRequest) (*rolepb.DeleteRoleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRole, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -78,10 +78,10 @@ func (uc *DeleteRoleUseCase) Execute(ctx context.Context, req *rolepb.DeleteRole
 func (uc *DeleteRoleUseCase) executeWithTransaction(ctx context.Context, req *rolepb.DeleteRoleRequest) (*rolepb.DeleteRoleResponse, error) {
 	var result *rolepb.DeleteRoleResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "role.errors.deletion_failed", "Role deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "role.errors.deletion_failed", "Role deletion failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -113,13 +113,13 @@ func (uc *DeleteRoleUseCase) executeCore(ctx context.Context, req *rolepb.Delete
 // validateInput validates the input request
 func (uc *DeleteRoleUseCase) validateInput(ctx context.Context, req *rolepb.DeleteRoleRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.request_required", "Request is required for roles [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.request_required", "Request is required for roles [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.data_required", "Role data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.data_required", "Role data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.id_required", "Role ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.id_required", "Role ID is required [DEFAULT]"))
 	}
 	return nil
 }

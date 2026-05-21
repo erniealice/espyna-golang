@@ -15,9 +15,9 @@ type DeleteJobTemplatePhaseRepositories struct {
 }
 
 type DeleteJobTemplatePhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteJobTemplatePhaseUseCase handles the business logic for deleting job template phases
@@ -40,7 +40,7 @@ func NewDeleteJobTemplatePhaseUseCase(
 // Execute performs the delete job template phase operation
 func (uc *DeleteJobTemplatePhaseUseCase) Execute(ctx context.Context, req *pb.DeleteJobTemplatePhaseRequest) (*pb.DeleteJobTemplatePhaseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplatePhase, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *DeleteJobTemplatePhaseUseCase) Execute(ctx context.Context, req *pb.De
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -63,7 +63,7 @@ func (uc *DeleteJobTemplatePhaseUseCase) Execute(ctx context.Context, req *pb.De
 func (uc *DeleteJobTemplatePhaseUseCase) executeWithTransaction(ctx context.Context, req *pb.DeleteJobTemplatePhaseRequest) (*pb.DeleteJobTemplatePhaseResponse, error) {
 	var result *pb.DeleteJobTemplatePhaseResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -85,12 +85,12 @@ func (uc *DeleteJobTemplatePhaseUseCase) executeCore(ctx context.Context, req *p
 		Data: &pb.JobTemplatePhase{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.errors.not_found", "[ERR-DEFAULT] Job template phase not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.errors.not_found", "[ERR-DEFAULT] Job template phase not found"))
 	}
 
 	resp, err := uc.repositories.JobTemplatePhase.DeleteJobTemplatePhase(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.errors.deletion_failed", "[ERR-DEFAULT] Job template phase deletion failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.errors.deletion_failed", "[ERR-DEFAULT] Job template phase deletion failed"))
 	}
 	return resp, nil
 }
@@ -98,13 +98,13 @@ func (uc *DeleteJobTemplatePhaseUseCase) executeCore(ctx context.Context, req *p
 // validateInput validates the input request
 func (uc *DeleteJobTemplatePhaseUseCase) validateInput(ctx context.Context, req *pb.DeleteJobTemplatePhaseRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.validation.data_required", "[ERR-DEFAULT] Job template phase data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.validation.data_required", "[ERR-DEFAULT] Job template phase data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_phase.validation.id_required", "[ERR-DEFAULT] Job template phase ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.validation.id_required", "[ERR-DEFAULT] Job template phase ID is required"))
 	}
 	return nil
 }

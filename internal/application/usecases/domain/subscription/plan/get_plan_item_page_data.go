@@ -18,10 +18,10 @@ type GetPlanItemPageDataRepositories struct {
 
 // GetPlanItemPageDataServices groups all business service dependencies
 type GetPlanItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // GetPlanItemPageDataUseCase handles the business logic for getting plan item page data
@@ -44,14 +44,14 @@ func NewGetPlanItemPageDataUseCase(
 // Execute performs the get plan item page data operation
 func (uc *GetPlanItemPageDataUseCase) Execute(ctx context.Context, req *planpb.GetPlanItemPageDataRequest) (*planpb.GetPlanItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlan, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", "Request is required for plan item page data"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.request_required", "Request is required for plan item page data"))
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
@@ -64,7 +64,7 @@ func (uc *GetPlanItemPageDataUseCase) Execute(ctx context.Context, req *planpb.G
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -76,10 +76,10 @@ func (uc *GetPlanItemPageDataUseCase) Execute(ctx context.Context, req *planpb.G
 func (uc *GetPlanItemPageDataUseCase) executeWithTransaction(ctx context.Context, req *planpb.GetPlanItemPageDataRequest) (*planpb.GetPlanItemPageDataResponse, error) {
 	var result *planpb.GetPlanItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "plan.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load plan details")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "plan.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load plan details")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -101,16 +101,16 @@ func (uc *GetPlanItemPageDataUseCase) executeCore(ctx context.Context, req *plan
 // validateInput validates the input request
 func (uc *GetPlanItemPageDataUseCase) validateInput(ctx context.Context, req *planpb.GetPlanItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.PlanId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.id_required", "Plan ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.id_required", "Plan ID is required"))
 	}
 
 	// Validate ID format (basic validation)
 	if len(req.PlanId) > 255 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.id_too_long", "Plan ID cannot exceed 255 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.id_too_long", "Plan ID cannot exceed 255 characters"))
 	}
 
 	return nil

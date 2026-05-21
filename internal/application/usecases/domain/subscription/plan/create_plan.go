@@ -20,10 +20,10 @@ type CreatePlanRepositories struct {
 
 // CreatePlanServices groups all business service dependencies
 type CreatePlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePlanUseCase handles the business logic for creating plans
@@ -46,13 +46,13 @@ func NewCreatePlanUseCase(
 // Execute performs the create plan operation
 func (uc *CreatePlanUseCase) Execute(ctx context.Context, req *planpb.CreatePlanRequest) (*planpb.CreatePlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlan, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -62,7 +62,7 @@ func (uc *CreatePlanUseCase) Execute(ctx context.Context, req *planpb.CreatePlan
 func (uc *CreatePlanUseCase) executeWithTransaction(ctx context.Context, req *planpb.CreatePlanRequest) (*planpb.CreatePlanResponse, error) {
 	var result *planpb.CreatePlanResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -82,18 +82,18 @@ func (uc *CreatePlanUseCase) executeCore(ctx context.Context, req *planpb.Create
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.authorization_failed", "Authorization failed for academic year plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.errors.authorization_failed", "Authorization failed for academic year plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityPlan, ports.ActionCreate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.authorization_failed", "Authorization failed for academic year plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.errors.authorization_failed", "Authorization failed for academic year plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.authorization_failed", "Authorization failed for academic year plans [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.errors.authorization_failed", "Authorization failed for academic year plans [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -124,10 +124,10 @@ func (uc *CreatePlanUseCase) executeCore(ctx context.Context, req *planpb.Create
 // validateInput validates the input request
 func (uc *CreatePlanUseCase) validateInput(ctx context.Context, req *planpb.CreatePlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.data_required", "plan data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.data_required", "plan data is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -138,8 +138,8 @@ func (uc *CreatePlanUseCase) enrichPlanData(plan *planpb.Plan) error {
 
 	// Always generate a new Plan ID, overriding any passed ID
 	var newId string
-	if uc.services.IDService != nil {
-		newId = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		newId = uc.services.IDGenerator.GenerateID()
 	} else {
 		newId = fmt.Sprintf("plan-%d", now.UnixNano())
 	}
@@ -159,20 +159,20 @@ func (uc *CreatePlanUseCase) enrichPlanData(plan *planpb.Plan) error {
 func (uc *CreatePlanUseCase) validateBusinessRules(ctx context.Context, plan *planpb.Plan) error {
 	// Validate name is required
 	if strings.TrimSpace(plan.Name) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.name_required", "plan name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.name_required", "plan name is required [DEFAULT]"))
 	}
 
 	// Validate name length
 	if len(plan.Name) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.name_too_short", "plan name must be at least 3 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.name_too_short", "plan name must be at least 3 characters long [DEFAULT]"))
 	}
 	if len(plan.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.name_too_long", "plan name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.name_too_long", "plan name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Validate description length (only if provided)
 	if plan.Description != nil && len(*plan.Description) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.description_too_long", "plan description cannot exceed 500 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.description_too_long", "plan description cannot exceed 500 characters [DEFAULT]"))
 	}
 
 	return nil

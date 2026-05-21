@@ -16,7 +16,7 @@ import (
 //   - "lyngua" → Lyngua translation provider (default)
 //   - "file" → File-based translation provider
 //   - "noop" → NoOp translation provider (returns keys as-is)
-func CreateTranslationService() (ports.TranslationService, error) {
+func CreateTranslationService() (ports.Translator, error) {
 	providerName := strings.ToLower(os.Getenv("CONFIG_TRANSLATION_PROVIDER"))
 
 	// Default to lyngua if not specified

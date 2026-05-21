@@ -12,9 +12,9 @@ type AttributeRepositories struct {
 
 // AttributeServices groups all business service dependencies for attribute use cases
 type AttributeServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
-	IDService          ports.IDService
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all attribute-related use cases
@@ -34,33 +34,33 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateAttributeRepositories(repositories)
 	createServices := CreateAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
-		IDService:          services.IDService,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadAttributeRepositories(repositories)
 	readServices := ReadAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateAttributeRepositories(repositories)
 	updateServices := UpdateAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteAttributeRepositories(repositories)
 	deleteServices := DeleteAttributeServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListAttributesRepositories(repositories)
 	listServices := ListAttributesServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -81,8 +81,8 @@ func NewUseCasesUngrouped(attributeRepo attributepb.AttributeDomainServiceServer
 	}
 
 	services := AttributeServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

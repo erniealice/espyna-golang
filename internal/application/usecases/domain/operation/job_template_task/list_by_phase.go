@@ -16,9 +16,9 @@ type ListByPhaseRepositories struct {
 }
 
 type ListByPhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListByPhaseUseCase handles the business logic for listing tasks by phase
@@ -41,7 +41,7 @@ func NewListByPhaseUseCase(
 // Execute performs the list by phase operation
 func (uc *ListByPhaseUseCase) Execute(ctx context.Context, req *pb.ListJobTemplateTasksByPhaseRequest) (*pb.ListJobTemplateTasksByPhaseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplateTask, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListByPhaseUseCase) Execute(ctx context.Context, req *pb.ListJobTempla
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListByPhaseUseCase) Execute(ctx context.Context, req *pb.ListJobTempla
 func (uc *ListByPhaseUseCase) executeWithTransaction(ctx context.Context, req *pb.ListJobTemplateTasksByPhaseRequest) (*pb.ListJobTemplateTasksByPhaseResponse, error) {
 	var result *pb.ListJobTemplateTasksByPhaseResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "job_template_task.errors.list_by_phase_failed", "job template task listing by phase failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "job_template_task.errors.list_by_phase_failed", "job template task listing by phase failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListByPhaseUseCase) executeWithTransaction(ctx context.Context, req *p
 func (uc *ListByPhaseUseCase) executeCore(ctx context.Context, req *pb.ListJobTemplateTasksByPhaseRequest) (*pb.ListJobTemplateTasksByPhaseResponse, error) {
 	resp, err := uc.repositories.JobTemplateTask.ListByPhase(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.errors.list_by_phase_failed", "failed to list job template tasks by phase: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.errors.list_by_phase_failed", "failed to list job template tasks by phase: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *ListByPhaseUseCase) executeCore(ctx context.Context, req *pb.ListJobTe
 // validateInput validates the input request
 func (uc *ListByPhaseUseCase) validateInput(ctx context.Context, req *pb.ListJobTemplateTasksByPhaseRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.request_required", "request is required"))
 	}
 	if req.JobTemplatePhaseId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.phase_id_required", "job template phase ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.phase_id_required", "job template phase ID is required"))
 	}
 
 	return nil

@@ -39,10 +39,10 @@ type MaterializeBillingEventsForJobRepositories struct {
 // MaterializeBillingEventsForJobServices mirrors the standard service struct
 // pattern used by every other use case in this package.
 type MaterializeBillingEventsForJobServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // MaterializeBillingEventsForJobUseCase generates BillingEvent rows for a Job
@@ -89,13 +89,13 @@ type MaterializeBillingEventsForJobResponse struct {
 func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 	ctx context.Context, req MaterializeBillingEventsForJobRequest,
 ) (*MaterializeBillingEventsForJobResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req.JobID == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"job.validation.id_required",
 			"job ID is required [DEFAULT]",
 		))
@@ -105,7 +105,7 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 		uc.repositories.JobPhase == nil ||
 		uc.repositories.BillingEvent == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"job.errors.materialize_repositories_unavailable",
 			"materialize_billing_events_for_job is missing required repositories [DEFAULT]",
 		))
@@ -115,7 +115,7 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 	jobResp, err := uc.repositories.Job.ReadJob(ctx, &pb.ReadJobRequest{Data: &pb.Job{Id: req.JobID}})
 	if err != nil || jobResp == nil || len(jobResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"job.errors.not_found",
 			"job not found [DEFAULT]",
 		))
@@ -124,7 +124,7 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 
 	if job.GetBillingRuleType() != enumspb.BillingRuleType_BILLING_RULE_TYPE_MILESTONE {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"job.errors.not_milestone_billing",
 			"job is not milestone-billed [DEFAULT]",
 		))
@@ -136,7 +136,7 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 	}
 	if subscriptionID == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"job.errors.subscription_required",
 			"subscription_id is required to materialize billing events [DEFAULT]",
 		))
@@ -146,7 +146,7 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 	templateID := job.GetJobTemplateId()
 	if templateID == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"job.errors.template_required",
 			"job_template_id is required to materialize billing events [DEFAULT]",
 		))
@@ -293,8 +293,8 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 			jpID := jp.GetId()
 			ev.JobPhaseId = &jpID
 		}
-		if uc.services.IDService != nil {
-			ev.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			ev.Id = uc.services.IDGenerator.GenerateID()
 		}
 		resp, err := uc.repositories.BillingEvent.CreateBillingEvent(
 			ctx, &billingeventpb.CreateBillingEventRequest{Data: ev},

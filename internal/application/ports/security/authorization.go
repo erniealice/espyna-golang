@@ -2,9 +2,9 @@ package security
 
 import "context"
 
-// AuthorizationService defines the interface for authorization operations
+// Authorizer defines the interface for authorization operations
 // This interface is framework-agnostic and resides in the application layer
-type AuthorizationService interface {
+type Authorizer interface {
 	// HasPermission checks if a user has a specific permission
 	HasPermission(ctx context.Context, userID, permission string) (bool, error)
 
@@ -32,7 +32,7 @@ type AuthorizationService interface {
 	IsEnabled() bool
 }
 
-// NoOpAuthorizationService provides a non-operational fallback that allows all actions.
+// NoOpAuthorizer provides a non-operational fallback that allows all actions.
 type noOpAuthorizationService struct{}
 
 func (s *noOpAuthorizationService) HasPermission(ctx context.Context, userID, permission string) (bool, error) {
@@ -60,7 +60,7 @@ func (s *noOpAuthorizationService) IsEnabled() bool {
 	return false
 }
 
-func NewNoOpAuthorizationService() AuthorizationService {
+func NewNoOpAuthorizer() Authorizer {
 	return &noOpAuthorizationService{}
 }
 

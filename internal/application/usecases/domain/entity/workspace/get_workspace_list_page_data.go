@@ -17,9 +17,9 @@ type GetWorkspaceListPageDataRepositories struct {
 }
 
 type GetWorkspaceListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetWorkspaceListPageDataUseCase handles the business logic for getting workspace list page data
@@ -45,7 +45,7 @@ func (uc *GetWorkspaceListPageDataUseCase) Execute(
 	req *workspacepb.GetWorkspaceListPageDataRequest,
 ) (*workspacepb.GetWorkspaceListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspace, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *GetWorkspaceListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -76,12 +76,12 @@ func (uc *GetWorkspaceListPageDataUseCase) executeWithTransaction(
 ) (*workspacepb.GetWorkspaceListPageDataResponse, error) {
 	var result *workspacepb.GetWorkspaceListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.errors.list_page_data_failed",
 				"workspace list page data retrieval failed: %w",
 			), err)
@@ -108,7 +108,7 @@ func (uc *GetWorkspaceListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace.errors.list_page_data_failed",
 			"failed to retrieve workspace list page data: %w",
 		), err)
@@ -131,7 +131,7 @@ func (uc *GetWorkspaceListPageDataUseCase) applySecurityFiltering(
 	}
 
 	// Apply user-specific filtering if authorization service is available
-	if uc.services.AuthorizationService != nil {
+	if uc.services.Authorizer != nil {
 		filteredWorkspaces := make([]*workspacepb.Workspace, 0, len(workspaceSlice))
 
 		for _, workspace := range workspaceSlice {
@@ -161,7 +161,7 @@ func (uc *GetWorkspaceListPageDataUseCase) checkWorkspaceViewPermission(
 	ctx context.Context,
 	workspaceId string,
 ) (bool, error) {
-	if uc.services.AuthorizationService == nil {
+	if uc.services.Authorizer == nil {
 		// If no authorization service, allow access (fallback for testing)
 		return true, nil
 	}
@@ -183,7 +183,7 @@ func (uc *GetWorkspaceListPageDataUseCase) checkAuthorizationPermissions(
 	ctx context.Context,
 	req *workspacepb.GetWorkspaceListPageDataRequest,
 ) error {
-	if uc.services.AuthorizationService == nil {
+	if uc.services.Authorizer == nil {
 		// No authorization service available, skip check
 		return nil
 	}
@@ -207,7 +207,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace.validation.request_required",
 			"request is required",
 		))
@@ -252,7 +252,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))
@@ -264,7 +264,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validatePagination(
 		if method.Offset.Page < 1 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.validation.invalid_page",
 				"page number must be greater than 0",
 			))
@@ -274,7 +274,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validatePagination(
 		if method.Cursor.Token == "" {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.validation.invalid_cursor",
 				"cursor token cannot be empty",
 			))
@@ -292,7 +292,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateFilters(
 	if len(filters.Filters) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace.validation.empty_filters",
 			"filters cannot be empty when filter request is provided",
 		))
@@ -303,7 +303,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateFilters(
 		if filter.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.validation.filter_field_required",
 				"filter field is required for filter %d",
 			), i)
@@ -313,7 +313,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateFilters(
 		if !uc.isValidWorkspaceField(filter.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.validation.invalid_filter_field",
 				"invalid filter field: %s",
 			), filter.Field)
@@ -331,7 +331,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateSort(
 	if len(sort.Fields) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace.validation.empty_sort_fields",
 			"sort fields cannot be empty when sort request is provided",
 		))
@@ -342,7 +342,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateSort(
 		if sortField.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.validation.sort_field_required",
 				"sort field is required for sort field %d",
 			), i)
@@ -352,7 +352,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateSort(
 		if !uc.isValidWorkspaceField(sortField.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.validation.invalid_sort_field",
 				"invalid sort field: %s",
 			), sortField.Field)
@@ -370,7 +370,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateSearch(
 	if search.Query == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace.validation.empty_search_query",
 			"search query cannot be empty when search request is provided",
 		))
@@ -382,7 +382,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateSearch(
 			if !uc.isValidWorkspaceField(field) {
 				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 					ctx,
-					uc.services.TranslationService,
+					uc.services.Translator,
 					"workspace.validation.invalid_search_field",
 					"invalid search field: %s",
 				), field)
@@ -393,7 +393,7 @@ func (uc *GetWorkspaceListPageDataUseCase) validateSearch(
 		if search.Options.MaxResults < 0 || search.Options.MaxResults > 1000 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace.validation.invalid_max_results",
 				"max results must be between 0 and 1000",
 			))

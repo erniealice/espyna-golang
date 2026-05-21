@@ -16,8 +16,8 @@ type ReadCategoryRepositories struct {
 
 // ReadCategoryServices groups all business service dependencies
 type ReadCategoryServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadCategoryUseCase handles the business logic for reading categories
@@ -45,8 +45,8 @@ func NewReadCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainServi
 	}
 
 	services := ReadCategoryServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadCategoryUseCase(repositories, services)

@@ -19,17 +19,17 @@ import (
 // In test mode (mock_db build tag), it returns a mock service that passes through keys.
 //
 // For actual lyngua support, use the lyngua adapter with the lyngua build tag.
-func NewLynguaTranslationService() ports.TranslationService {
+func NewLynguaTranslationService() ports.Translator {
 	return mock.NewMockTranslationService()
 }
 
 // NewFileTranslationService returns a mock translation service for testing.
 // This function is for backwards compatibility with existing tests.
-func NewFileTranslationService(path string) ports.TranslationService {
+func NewFileTranslationService(path string) ports.Translator {
 	return mock.NewMockTranslationService()
 }
 
 // NewMockTranslationService returns a mock translation service for testing.
-func NewMockTranslationService() ports.TranslationService {
+func NewMockTranslationService() ports.Translator {
 	return mock.NewMockTranslationService()
 }

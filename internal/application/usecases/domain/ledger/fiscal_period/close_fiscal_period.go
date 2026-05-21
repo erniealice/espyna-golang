@@ -18,9 +18,9 @@ type CloseFiscalPeriodRepositories struct {
 
 // CloseFiscalPeriodServices groups all business service dependencies
 type CloseFiscalPeriodServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // CloseFiscalPeriodUseCase handles the business logic for closing fiscal periods.
@@ -47,19 +47,19 @@ func NewCloseFiscalPeriodUseCase(
 // Execute performs the close fiscal period operation
 func (uc *CloseFiscalPeriodUseCase) Execute(ctx context.Context, req *fiscalperiodpb.CloseFiscalPeriodRequest) (*fiscalperiodpb.CloseFiscalPeriodResponse, error) {
 	// Authorization check — closing requires update-level access
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFiscalPeriod, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -70,10 +70,10 @@ func (uc *CloseFiscalPeriodUseCase) Execute(ctx context.Context, req *fiscalperi
 func (uc *CloseFiscalPeriodUseCase) executeWithTransaction(ctx context.Context, req *fiscalperiodpb.CloseFiscalPeriodRequest) (*fiscalperiodpb.CloseFiscalPeriodResponse, error) {
 	var result *fiscalperiodpb.CloseFiscalPeriodResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "fiscal_period.errors.close_failed", "Fiscal period close failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "fiscal_period.errors.close_failed", "Fiscal period close failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -94,7 +94,7 @@ func (uc *CloseFiscalPeriodUseCase) executeCore(ctx context.Context, req *fiscal
 	}
 	resp, err := uc.repositories.FiscalPeriod.CloseFiscalPeriod(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.errors.close_failed", "[ERR-DEFAULT] Fiscal period close failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.errors.close_failed", "[ERR-DEFAULT] Fiscal period close failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -104,13 +104,13 @@ func (uc *CloseFiscalPeriodUseCase) executeCore(ctx context.Context, req *fiscal
 // validateInput validates the input request
 func (uc *CloseFiscalPeriodUseCase) validateInput(ctx context.Context, req *fiscalperiodpb.CloseFiscalPeriodRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.FiscalPeriodId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.id_required", "[ERR-DEFAULT] Fiscal period ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.id_required", "[ERR-DEFAULT] Fiscal period ID is required"))
 	}
 	if req.ClosedBy == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.closed_by_required", "[ERR-DEFAULT] Closed by (user ID) is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.closed_by_required", "[ERR-DEFAULT] Closed by (user ID) is required"))
 	}
 	return nil
 }

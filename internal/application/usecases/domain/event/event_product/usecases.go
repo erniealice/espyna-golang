@@ -25,10 +25,10 @@ type EventProductRepositories struct {
 
 // EventProductServices groups all business service dependencies for event product use cases
 type EventProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // NewUseCases creates a new collection of event product use cases
@@ -43,10 +43,10 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	createServices := CreateEventProductServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadEventProductRepositories{
@@ -55,9 +55,9 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	readServices := ReadEventProductServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateEventProductRepositories{
@@ -66,9 +66,9 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	updateServices := UpdateEventProductServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteEventProductRepositories{
@@ -77,9 +77,9 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	deleteServices := DeleteEventProductServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListEventProductsRepositories{
@@ -88,9 +88,9 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	listServices := ListEventProductsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -108,7 +108,7 @@ func NewUseCasesUngrouped(
 	eventProductRepo eventproductpb.EventProductDomainServiceServer,
 	eventRepo eventpb.EventDomainServiceServer,
 	productRepo productpb.ProductDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := EventProductRepositories{
@@ -118,9 +118,9 @@ func NewUseCasesUngrouped(
 	}
 
 	services := EventProductServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services)

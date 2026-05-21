@@ -22,9 +22,9 @@ type ListDelegateClientsRepositories struct {
 
 // ListDelegateClientsServices groups all business service dependencies
 type ListDelegateClientsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDelegateClientsUseCase handles the business logic for listing delegate clients
@@ -48,7 +48,7 @@ func NewListDelegateClientsUseCase(
 // Deprecated: Use NewListDelegateClientsUseCase with grouped parameters instead
 func NewListDelegateClientsUseCaseUngrouped(
 	delegateClientRepo delegateclientpb.DelegateClientDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *ListDelegateClientsUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := ListDelegateClientsRepositories{
@@ -58,9 +58,9 @@ func NewListDelegateClientsUseCaseUngrouped(
 	}
 
 	services := ListDelegateClientsServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListDelegateClientsUseCase(repositories, services)
@@ -69,32 +69,32 @@ func NewListDelegateClientsUseCaseUngrouped(
 // Execute performs the list delegate clients operation
 func (uc *ListDelegateClientsUseCase) Execute(ctx context.Context, req *delegateclientpb.ListDelegateClientsRequest) (*delegateclientpb.ListDelegateClientsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateClient, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
 	}
 
 	// Business logic pre-processing
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.DelegateClient.ListDelegateClients(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.list_failed", "Failed to retrieve Delegate-Client relationships [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.list_failed", "Failed to retrieve Delegate-Client relationships [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic post-processing (if needed)
 	if err := uc.processListResults(ctx, resp); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.errors.result_processing_failed", "Result processing failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.errors.result_processing_failed", "Result processing failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -104,7 +104,7 @@ func (uc *ListDelegateClientsUseCase) Execute(ctx context.Context, req *delegate
 // validateInput validates the input request
 func (uc *ListDelegateClientsUseCase) validateInput(ctx context.Context, req *delegateclientpb.ListDelegateClientsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_client.validation.request_required", "Request is required for Delegate-Client relationships [DEFAULT]"))
 	}
 	return nil
 }

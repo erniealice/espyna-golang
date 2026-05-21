@@ -136,10 +136,10 @@ type ExpenditureUseCases struct {
 // run engine logs an "amortizer_unavailable" attempt outcome in that case.
 func NewUseCases(
 	repos ExpenditureRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 	amortizeAdvDis *treasurydisbursementUseCases.AmortizeAdvanceDisbursementUseCase,
 ) *ExpenditureUseCases {
 	expenditureUC := expenditureUseCases.NewUseCases(
@@ -148,10 +148,10 @@ func NewUseCases(
 			PaymentTerm: repos.PaymentTerm,
 		},
 		expenditureUseCases.ExpenditureServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -160,10 +160,10 @@ func NewUseCases(
 			ExpenditureLineItem: repos.ExpenditureLineItem,
 		},
 		expenditureLineItemUseCases.ExpenditureLineItemServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -172,10 +172,10 @@ func NewUseCases(
 			ExpenditureCategory: repos.ExpenditureCategory,
 		},
 		expenditureCategoryUseCases.ExpenditureCategoryServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -184,10 +184,10 @@ func NewUseCases(
 			ExpenditureAttribute: repos.ExpenditureAttribute,
 		},
 		expenditureAttributeUseCases.ExpenditureAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -196,10 +196,10 @@ func NewUseCases(
 			Prepayment: repos.Prepayment,
 		},
 		prepaymentUseCases.PrepaymentServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -209,10 +209,10 @@ func NewUseCases(
 			PaymentTerm:   repos.PaymentTerm,
 		},
 		purchaseOrderUseCases.PurchaseOrderServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -221,10 +221,10 @@ func NewUseCases(
 			PurchaseOrderLineItem: repos.PurchaseOrderLineItem,
 		},
 		purchaseOrderLineItemUseCases.PurchaseOrderLineItemServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -233,10 +233,10 @@ func NewUseCases(
 			SupplierContract: repos.SupplierContract,
 		},
 		supplierContractUseCases.SupplierContractServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -245,10 +245,10 @@ func NewUseCases(
 			SupplierContractLine: repos.SupplierContractLine,
 		},
 		supplierContractLineUseCases.SupplierContractLineServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -257,10 +257,10 @@ func NewUseCases(
 			ProcurementRequest: repos.ProcurementRequest,
 		},
 		procurementRequestUseCases.ProcurementRequestServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -269,10 +269,10 @@ func NewUseCases(
 			ProcurementRequestLine: repos.ProcurementRequestLine,
 		},
 		procurementRequestLineUseCases.ProcurementRequestLineServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -281,10 +281,10 @@ func NewUseCases(
 			SupplierContractPriceSchedule: repos.SupplierContractPriceSchedule,
 		},
 		supplierContractPriceScheduleUseCases.SupplierContractPriceScheduleServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -293,10 +293,10 @@ func NewUseCases(
 			SupplierContractPriceScheduleLine: repos.SupplierContractPriceScheduleLine,
 		},
 		supplierContractPriceScheduleLineUseCases.SupplierContractPriceScheduleLineServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -309,10 +309,10 @@ func NewUseCases(
 			SupplierSubscription:   repos.SupplierSubscription,
 		},
 		expenseRecognitionUseCases.ExpenseRecognitionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -321,10 +321,10 @@ func NewUseCases(
 			ExpenseRecognitionLine: repos.ExpenseRecognitionLine,
 		},
 		expenseRecognitionLineUseCases.ExpenseRecognitionLineServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -334,10 +334,10 @@ func NewUseCases(
 			AccruedExpenseSettlement: repos.AccruedExpenseSettlement,
 		},
 		accruedExpenseUseCases.AccruedExpenseServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -346,10 +346,10 @@ func NewUseCases(
 			AccruedExpenseSettlement: repos.AccruedExpenseSettlement,
 		},
 		accruedExpenseSettlementUseCases.AccruedExpenseSettlementServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -370,10 +370,10 @@ func NewUseCases(
 			SupplierProductCostPlan: repos.SupplierProductCostPlan,
 		},
 		expenseRecognitionUseCases.RecognizeExpenseFromSupplierSubscriptionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -387,8 +387,8 @@ func NewUseCases(
 			Expenditure:          repos.Expenditure,
 		},
 		expenseRecognitionRunUseCases.ListExpenseRunCandidatesServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 
@@ -413,10 +413,10 @@ func NewUseCases(
 			AttemptWriter:         attemptWriter,
 		},
 		expenseRecognitionRunUseCases.GenerateExpenseRunServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 		recognizeFromSupplierSub,
 		amortizeAdvDis,
@@ -437,10 +437,10 @@ func NewUseCases(
 			ExpenseRecognitionRun: repos.ExpenseRecognitionRun,
 		},
 		expenseRecognitionRunUseCases.ExpenseRecognitionRunServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 	if expenseRecognitionRunUC != nil {

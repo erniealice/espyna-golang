@@ -17,9 +17,9 @@ type GetEventAttributeItemPageDataRepositories struct {
 }
 
 type GetEventAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetEventAttributeItemPageDataUseCase handles the business logic for getting event attribute item page data
@@ -45,7 +45,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) Execute(
 	req *eventattributepb.GetEventAttributeItemPageDataRequest,
 ) (*eventattributepb.GetEventAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -76,12 +76,12 @@ func (uc *GetEventAttributeItemPageDataUseCase) executeWithTransaction(
 ) (*eventattributepb.GetEventAttributeItemPageDataResponse, error) {
 	var result *eventattributepb.GetEventAttributeItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"event_attribute.errors.item_page_data_failed",
 				"event attribute item page data retrieval failed: %w",
 			), err)
@@ -113,7 +113,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_attribute.errors.read_failed",
 			"failed to retrieve event attribute: %w",
 		), err)
@@ -122,7 +122,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_attribute.errors.not_found",
 			"event attribute not found",
 		))
@@ -135,7 +135,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) executeCore(
 	if eventAttribute.Id != req.EventAttributeId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_attribute.errors.id_mismatch",
 			"retrieved event attribute ID does not match requested ID",
 		))
@@ -162,7 +162,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_attribute.validation.request_required",
 			"Request is required for event attributes [DEFAULT]",
 		))
@@ -172,7 +172,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) validateInput(
 	if strings.TrimSpace(req.EventAttributeId) == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_attribute.validation.id_required",
 			"Event attribute ID is required [DEFAULT]",
 		))
@@ -182,7 +182,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) validateInput(
 	if len(req.EventAttributeId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_attribute.validation.id_too_short",
 			"Event attribute ID must be at least 3 characters [DEFAULT]",
 		))
@@ -200,7 +200,7 @@ func (uc *GetEventAttributeItemPageDataUseCase) validateBusinessRules(
 	if len(eventAttributeId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"event_attribute.validation.id_too_short",
 			"event attribute ID is too short",
 		))

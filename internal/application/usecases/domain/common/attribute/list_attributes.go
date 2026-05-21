@@ -16,9 +16,9 @@ type ListAttributesRepositories struct {
 
 // ListAttributesServices groups all business service dependencies
 type ListAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListAttributesUseCase handles the business logic for listing attributes
@@ -47,8 +47,8 @@ func NewListAttributesUseCaseUngrouped(attributeRepo attributepb.AttributeDomain
 	}
 
 	services := ListAttributesServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListAttributesUseCase(repositories, services)
@@ -57,7 +57,7 @@ func NewListAttributesUseCaseUngrouped(attributeRepo attributepb.AttributeDomain
 // Execute performs the list attributes operation
 func (uc *ListAttributesUseCase) Execute(ctx context.Context, req *attributepb.ListAttributesRequest) (*attributepb.ListAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"attribute", ports.ActionList); err != nil {
 		return nil, err
 	}

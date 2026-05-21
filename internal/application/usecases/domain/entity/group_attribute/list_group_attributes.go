@@ -19,9 +19,9 @@ type ListGroupAttributesRepositories struct {
 
 // ListGroupAttributesServices groups all business service dependencies
 type ListGroupAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListGroupAttributesUseCase handles the business logic for listing group attributes
@@ -50,9 +50,9 @@ func NewListGroupAttributesUseCaseUngrouped(groupAttributeRepo groupattributepb.
 	}
 
 	services := ListGroupAttributesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListGroupAttributesUseCase(repositories, services)
@@ -61,27 +61,27 @@ func NewListGroupAttributesUseCaseUngrouped(groupAttributeRepo groupattributepb.
 // Execute performs the list group attributes operation
 func (uc *ListGroupAttributesUseCase) Execute(ctx context.Context, req *groupattributepb.ListGroupAttributesRequest) (*groupattributepb.ListGroupAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroupAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Apply default values for pagination
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.GroupAttribute.ListGroupAttributes(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.list_failed", "Failed to retrieve group attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.list_failed", "Failed to retrieve group attributes [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -91,7 +91,7 @@ func (uc *ListGroupAttributesUseCase) Execute(ctx context.Context, req *groupatt
 // validateInput validates the input request
 func (uc *ListGroupAttributesUseCase) validateInput(ctx context.Context, req *groupattributepb.ListGroupAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.request_required", "Request is required for group attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.request_required", "Request is required for group attributes [DEFAULT]"))
 	}
 
 	// No additional business rules for listing group attributes

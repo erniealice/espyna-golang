@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	"github.com/erniealice/espyna-golang/database/operations"
+	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 
 // TimeBucket is a generic (period, value) tuple for time-series aggregates,

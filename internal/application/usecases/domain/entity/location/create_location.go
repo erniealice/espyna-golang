@@ -20,10 +20,10 @@ type CreateLocationRepositories struct {
 
 // CreateLocationServices groups all business service dependencies
 type CreateLocationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateLocationUseCase handles the business logic for creating locations
@@ -52,10 +52,10 @@ func NewCreateLocationUseCaseUngrouped(locationRepo locationpb.LocationDomainSer
 	}
 
 	services := CreateLocationServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateLocationUseCase(repositories, services)
@@ -64,13 +64,13 @@ func NewCreateLocationUseCaseUngrouped(locationRepo locationpb.LocationDomainSer
 // Execute performs the create location operation
 func (uc *CreateLocationUseCase) Execute(ctx context.Context, req *locationpb.CreateLocationRequest) (*locationpb.CreateLocationResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLocation, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *CreateLocationUseCase) Execute(ctx context.Context, req *locationpb.Cr
 func (uc *CreateLocationUseCase) executeWithTransaction(ctx context.Context, req *locationpb.CreateLocationRequest) (*locationpb.CreateLocationResponse, error) {
 	var result *locationpb.CreateLocationResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "location.errors.creation_failed", "Location creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "location.errors.creation_failed", "Location creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -122,10 +122,10 @@ func (uc *CreateLocationUseCase) executeCore(ctx context.Context, req *locationp
 // validateInput validates the input request
 func (uc *CreateLocationUseCase) validateInput(ctx context.Context, req *locationpb.CreateLocationRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.data_required", "[ERR-DEFAULT] Location data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.data_required", "[ERR-DEFAULT] Location data is required"))
 	}
 
 	// Trim leading and trailing spaces
@@ -137,10 +137,10 @@ func (uc *CreateLocationUseCase) validateInput(ctx context.Context, req *locatio
 	}
 
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.name_required", "[ERR-DEFAULT] Name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.name_required", "[ERR-DEFAULT] Name is required"))
 	}
 	if req.Data.Address == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.address_required", "[ERR-DEFAULT] Address is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.address_required", "[ERR-DEFAULT] Address is required"))
 	}
 	return nil
 }
@@ -151,7 +151,7 @@ func (uc *CreateLocationUseCase) enrichLocationData(location *locationpb.Locatio
 
 	// Generate Location ID if not provided
 	if location.Id == "" {
-		location.Id = uc.services.IDService.GenerateID()
+		location.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set location audit fields
@@ -168,17 +168,17 @@ func (uc *CreateLocationUseCase) enrichLocationData(location *locationpb.Locatio
 func (uc *CreateLocationUseCase) validateBusinessRules(ctx context.Context, location *locationpb.Location) error {
 	// Validate name length
 	if len(location.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 100 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 100 characters"))
 	}
 
 	// Validate address length
 	if len(location.Address) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.address_too_long", "[ERR-DEFAULT] Address must not exceed 500 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.address_too_long", "[ERR-DEFAULT] Address must not exceed 500 characters"))
 	}
 
 	// Validate description length if provided
 	if location.Description != nil && len(*location.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 1000 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 1000 characters"))
 	}
 
 	return nil

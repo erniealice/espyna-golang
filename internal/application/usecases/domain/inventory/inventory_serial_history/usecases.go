@@ -12,10 +12,10 @@ type InventorySerialHistoryRepositories struct {
 
 // InventorySerialHistoryServices groups all business service dependencies for inventory serial history use cases
 type InventorySerialHistoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all inventory serial history-related use cases
@@ -34,31 +34,31 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateInventorySerialHistoryRepositories(repositories)
 	createServices := CreateInventorySerialHistoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadInventorySerialHistoryRepositories(repositories)
 	readServices := ReadInventorySerialHistoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteInventorySerialHistoryRepositories(repositories)
 	deleteServices := DeleteInventorySerialHistoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListInventorySerialHistoryRepositories(repositories)
 	listServices := ListInventorySerialHistoryServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

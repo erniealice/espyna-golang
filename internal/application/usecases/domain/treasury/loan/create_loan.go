@@ -22,10 +22,10 @@ type CreateLoanRepositories struct {
 
 // CreateLoanServices groups all business service dependencies.
 type CreateLoanServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateLoanUseCase handles the business logic for creating loans.
@@ -47,12 +47,12 @@ func NewCreateLoanUseCase(
 
 // Execute performs the create loan operation.
 func (uc *CreateLoanUseCase) Execute(ctx context.Context, req *loanpb.CreateLoanRequest) (*loanpb.CreateLoanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityLoan, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -62,10 +62,10 @@ func (uc *CreateLoanUseCase) Execute(ctx context.Context, req *loanpb.CreateLoan
 func (uc *CreateLoanUseCase) executeWithTransaction(ctx context.Context, req *loanpb.CreateLoanRequest) (*loanpb.CreateLoanResponse, error) {
 	var result *loanpb.CreateLoanResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "loan.errors.creation_failed", "Loan creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "loan.errors.creation_failed", "Loan creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -99,25 +99,25 @@ func (uc *CreateLoanUseCase) executeCore(ctx context.Context, req *loanpb.Create
 
 func (uc *CreateLoanUseCase) validateInput(ctx context.Context, req *loanpb.CreateLoanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.data_required", "[ERR-DEFAULT] Loan data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.data_required", "[ERR-DEFAULT] Loan data is required"))
 	}
 
 	req.Data.LenderName = strings.TrimSpace(req.Data.LenderName)
 
 	if req.Data.LenderName == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.lender_name_required", "[ERR-DEFAULT] Lender name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.lender_name_required", "[ERR-DEFAULT] Lender name is required"))
 	}
 	if req.Data.PrincipalAmount <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.principal_positive", "[ERR-DEFAULT] Principal amount must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.principal_positive", "[ERR-DEFAULT] Principal amount must be greater than zero"))
 	}
 	if req.Data.TermMonths <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.term_positive", "[ERR-DEFAULT] Term months must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.term_positive", "[ERR-DEFAULT] Term months must be greater than zero"))
 	}
 	if req.Data.InterestRate < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.interest_rate_non_negative", "[ERR-DEFAULT] Interest rate must not be negative"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.interest_rate_non_negative", "[ERR-DEFAULT] Interest rate must not be negative"))
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func (uc *CreateLoanUseCase) enrichData(loan *loanpb.Loan) error {
 	now := time.Now()
 
 	if loan.Id == "" {
-		loan.Id = uc.services.IDService.GenerateID()
+		loan.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set remaining balance to principal on creation
@@ -148,10 +148,10 @@ func (uc *CreateLoanUseCase) enrichData(loan *loanpb.Loan) error {
 
 func (uc *CreateLoanUseCase) validateBusinessRules(ctx context.Context, loan *loanpb.Loan) error {
 	if len(loan.LenderName) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.lender_name_too_long", "[ERR-DEFAULT] Lender name must not exceed 200 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.lender_name_too_long", "[ERR-DEFAULT] Lender name must not exceed 200 characters"))
 	}
 	if loan.TermMonths > 600 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan.validation.term_too_long", "[ERR-DEFAULT] Term must not exceed 600 months (50 years)"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan.validation.term_too_long", "[ERR-DEFAULT] Term must not exceed 600 months (50 years)"))
 	}
 	return nil
 }

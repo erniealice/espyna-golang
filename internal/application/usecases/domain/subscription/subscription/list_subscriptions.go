@@ -16,9 +16,9 @@ type ListSubscriptionsRepositories struct {
 }
 
 type ListSubscriptionsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSubscriptionsUseCase handles the business logic for listing subscriptions
@@ -41,7 +41,7 @@ func NewListSubscriptionsUseCase(
 // Execute performs the list subscriptions operation
 func (uc *ListSubscriptionsUseCase) Execute(ctx context.Context, req *subscriptionpb.ListSubscriptionsRequest) (*subscriptionpb.ListSubscriptionsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (uc *ListSubscriptionsUseCase) Execute(ctx context.Context, req *subscripti
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -68,10 +68,10 @@ func (uc *ListSubscriptionsUseCase) executeWithTransaction(ctx context.Context, 
 	var result *subscriptionpb.ListSubscriptionsResponse
 
 	// For read operations, we might not strictly need a transaction, but we use the service for consistency
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "subscription.errors.list_failed", "subscription listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "subscription.errors.list_failed", "subscription listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -87,7 +87,7 @@ func (uc *ListSubscriptionsUseCase) executeWithTransaction(ctx context.Context, 
 func (uc *ListSubscriptionsUseCase) executeCore(ctx context.Context, req *subscriptionpb.ListSubscriptionsRequest) (*subscriptionpb.ListSubscriptionsResponse, error) {
 	resp, err := uc.repositories.Subscription.ListSubscriptions(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.list_failed", "subscription listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.errors.list_failed", "subscription listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -95,7 +95,7 @@ func (uc *ListSubscriptionsUseCase) executeCore(ctx context.Context, req *subscr
 // validateInput validates the input request
 func (uc *ListSubscriptionsUseCase) validateInput(ctx context.Context, req *subscriptionpb.ListSubscriptionsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.request_required", "request is required"))
 	}
 
 	// Note: ListSubscriptionsRequest is empty in the protobuf definition

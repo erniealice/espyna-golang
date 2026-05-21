@@ -34,8 +34,8 @@ func createTestReadDelegateClientUseCase(businessType string) *ReadDelegateClien
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadDelegateClientServices{
-		AuthorizationService: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
+		Translator: standardServices.Translator,
 	}
 	return NewReadDelegateClientUseCase(repositories, services)
 }
@@ -93,5 +93,5 @@ func TestReadDelegateClientUseCase_Execute_EmptyId(t *testing.T) {
 	}
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedError(t, err, "delegate_client.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "delegate_client.validation.id_required", useCase.services.Translator, ctx)
 }

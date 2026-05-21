@@ -31,9 +31,9 @@ func createTestDeleteGroupUseCase(businessType string, supportsTransaction bool)
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := DeleteGroupServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeleteGroupUseCase(repositories, services)
@@ -51,9 +51,9 @@ func TestDeleteGroupUseCase_Execute_Success(t *testing.T) {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	deleteServices := DeleteGroupServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 	useCase := NewDeleteGroupUseCase(deleteRepositories, deleteServices)
 
@@ -77,7 +77,7 @@ func TestDeleteGroupUseCase_Execute_Success(t *testing.T) {
 	}
 	readStandardServices := testutil.CreateStandardServices(false, true)
 	readServices := ReadGroupServices{
-		TranslationService: readStandardServices.TranslationService,
+		Translator: readStandardServices.Translator,
 	}
 	readUseCase := NewReadGroupUseCase(readRepositories, readServices)
 

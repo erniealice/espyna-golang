@@ -18,9 +18,9 @@ type DeleteActivityRepositories struct {
 
 // DeleteActivityServices groups all business service dependencies
 type DeleteActivityServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteActivityUseCase handles the business logic for deleting activities
@@ -48,9 +48,9 @@ func NewDeleteActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 	}
 
 	services := DeleteActivityServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteActivityUseCase(repositories, services)
@@ -59,14 +59,14 @@ func NewDeleteActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 // Execute performs the delete activity operation
 func (uc *DeleteActivityUseCase) Execute(ctx context.Context, req *activitypb.DeleteActivityRequest) (*activitypb.DeleteActivityResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"activity", ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.request_required", "Request is required for activities [DEFAULT]"))
 	}
 
 	// Business validation
@@ -83,7 +83,7 @@ func (uc *DeleteActivityUseCase) Execute(ctx context.Context, req *activitypb.De
 	enrichedRequest := uc.applyBusinessLogic(req)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -95,10 +95,10 @@ func (uc *DeleteActivityUseCase) Execute(ctx context.Context, req *activitypb.De
 func (uc *DeleteActivityUseCase) executeWithTransaction(ctx context.Context, req *activitypb.DeleteActivityRequest) (*activitypb.DeleteActivityResponse, error) {
 	var result *activitypb.DeleteActivityResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "activity.errors.delete_failed", "Activity deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "activity.errors.delete_failed", "Activity deletion failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -146,17 +146,17 @@ func (uc *DeleteActivityUseCase) validateActivityExists(ctx context.Context, act
 	}
 	activityRes, err := uc.repositories.Activity.ReadActivity(ctx, activityReadReq)
 	if err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.activity_not_found", "Activity not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.activity_not_found", "Activity not found [DEFAULT]"))
 	}
 	if activityRes == nil || len(activityRes.Data) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.activity_not_found", "Activity not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.activity_not_found", "Activity not found [DEFAULT]"))
 	}
 
 	existingActivity := activityRes.Data[0]
 
 	// Business rule: Cannot delete inactive activity
 	if !existingActivity.Active {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.errors.activity_already_inactive", "Activity is already inactive [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.errors.activity_already_inactive", "Activity is already inactive [DEFAULT]"))
 	}
 
 	return nil
@@ -166,17 +166,17 @@ func (uc *DeleteActivityUseCase) validateActivityExists(ctx context.Context, act
 func (uc *DeleteActivityUseCase) validateBusinessRules(ctx context.Context, req *activitypb.DeleteActivityRequest) error {
 	// Business rule: Request data validation
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.data_required", "Activity data is required for delete operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.data_required", "Activity data is required for delete operations [DEFAULT]"))
 	}
 
 	// Business rule: Activity ID is required
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.id_required", "Activity ID is required for delete operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.id_required", "Activity ID is required for delete operations [DEFAULT]"))
 	}
 
 	// Business rule: Activity ID format validation
 	if err := uc.validateActivityID(req.Data.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "activity.validation.id_invalid", "Activity ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "activity.validation.id_invalid", "Activity ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

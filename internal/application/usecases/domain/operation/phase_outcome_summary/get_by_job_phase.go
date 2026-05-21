@@ -16,9 +16,9 @@ type GetByJobPhaseRepositories struct {
 }
 
 type GetByJobPhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetByJobPhaseUseCase handles the business logic for getting phase outcome summary by job phase
@@ -41,7 +41,7 @@ func NewGetByJobPhaseUseCase(
 // Execute performs the get by job phase operation
 func (uc *GetByJobPhaseUseCase) Execute(ctx context.Context, req *pb.GetPhaseOutcomeSummaryByJobPhaseRequest) (*pb.GetPhaseOutcomeSummaryByJobPhaseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPhaseOutcomeSummary, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *GetByJobPhaseUseCase) Execute(ctx context.Context, req *pb.GetPhaseOut
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *GetByJobPhaseUseCase) Execute(ctx context.Context, req *pb.GetPhaseOut
 func (uc *GetByJobPhaseUseCase) executeWithTransaction(ctx context.Context, req *pb.GetPhaseOutcomeSummaryByJobPhaseRequest) (*pb.GetPhaseOutcomeSummaryByJobPhaseResponse, error) {
 	var result *pb.GetPhaseOutcomeSummaryByJobPhaseResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "phase_outcome_summary.errors.get_by_job_phase_failed", "get phase outcome summary by job phase failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "phase_outcome_summary.errors.get_by_job_phase_failed", "get phase outcome summary by job phase failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *GetByJobPhaseUseCase) executeWithTransaction(ctx context.Context, req 
 func (uc *GetByJobPhaseUseCase) executeCore(ctx context.Context, req *pb.GetPhaseOutcomeSummaryByJobPhaseRequest) (*pb.GetPhaseOutcomeSummaryByJobPhaseResponse, error) {
 	resp, err := uc.repositories.PhaseOutcomeSummary.GetByJobPhase(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.errors.get_by_job_phase_failed", "failed to get phase outcome summary by job phase: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.errors.get_by_job_phase_failed", "failed to get phase outcome summary by job phase: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,10 +91,10 @@ func (uc *GetByJobPhaseUseCase) executeCore(ctx context.Context, req *pb.GetPhas
 // validateInput validates the input request
 func (uc *GetByJobPhaseUseCase) validateInput(ctx context.Context, req *pb.GetPhaseOutcomeSummaryByJobPhaseRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.request_required", "request is required"))
 	}
 	if req.JobPhaseId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.job_phase_id_required", "job phase ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.job_phase_id_required", "job phase ID is required"))
 	}
 
 	return nil

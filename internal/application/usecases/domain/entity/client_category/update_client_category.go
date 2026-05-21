@@ -17,10 +17,10 @@ type UpdateClientCategoryRepositories struct {
 
 // UpdateClientCategoryServices groups all business service dependencies
 type UpdateClientCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UpdateClientCategoryUseCase handles the business logic for updating client categories
@@ -48,10 +48,10 @@ func NewUpdateClientCategoryUseCaseUngrouped(clientCategoryRepo clientcategorypb
 	}
 
 	services := UpdateClientCategoryServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewUpdateClientCategoryUseCase(repositories, services)
@@ -59,12 +59,12 @@ func NewUpdateClientCategoryUseCaseUngrouped(clientCategoryRepo clientcategorypb
 
 func (uc *UpdateClientCategoryUseCase) Execute(ctx context.Context, req *clientcategorypb.UpdateClientCategoryRequest) (*clientcategorypb.UpdateClientCategoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"client_category", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -73,10 +73,10 @@ func (uc *UpdateClientCategoryUseCase) Execute(ctx context.Context, req *clientc
 func (uc *UpdateClientCategoryUseCase) executeWithTransaction(ctx context.Context, req *clientcategorypb.UpdateClientCategoryRequest) (*clientcategorypb.UpdateClientCategoryResponse, error) {
 	var result *clientcategorypb.UpdateClientCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "client_category.errors.update_failed", "Client category update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "client_category.errors.update_failed", "Client category update failed [DEFAULT]")
 			return errors.New(translatedError + ": " + err.Error())
 		}
 		result = res
@@ -107,13 +107,13 @@ func (uc *UpdateClientCategoryUseCase) executeCore(ctx context.Context, req *cli
 
 func (uc *UpdateClientCategoryUseCase) validateInput(ctx context.Context, req *clientcategorypb.UpdateClientCategoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.data_required", "Client category data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.data_required", "Client category data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.id_required", "Client category ID is required for update [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.id_required", "Client category ID is required for update [DEFAULT]"))
 	}
 	return nil
 }

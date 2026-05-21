@@ -18,9 +18,9 @@ type ReadRoleRepositories struct {
 
 // ReadRoleServices groups all business service dependencies
 type ReadRoleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadRoleUseCase handles the business logic for reading roles
@@ -49,9 +49,9 @@ func NewReadRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *ReadR
 	}
 
 	services := ReadRoleServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadRoleUseCase(repositories, services)
@@ -59,7 +59,7 @@ func NewReadRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *ReadR
 
 func (uc *ReadRoleUseCase) Execute(ctx context.Context, req *rolepb.ReadRoleRequest) (*rolepb.ReadRoleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRole, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (uc *ReadRoleUseCase) Execute(ctx context.Context, req *rolepb.ReadRoleRequ
 
 	// Not found error
 	if len(resp.Data) == 0 || resp.Data[0].Id == "" { // Assuming resp.Data will be nil or have empty ID if not found
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.errors.not_found", "Role with ID \"{roleId}\" not found [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.errors.not_found", "Role with ID \"{roleId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{roleId}", req.Data.Id)
 		return nil, errors.New(translatedError)
 	}
@@ -88,13 +88,13 @@ func (uc *ReadRoleUseCase) Execute(ctx context.Context, req *rolepb.ReadRoleRequ
 // validateInput validates the input request
 func (uc *ReadRoleUseCase) validateInput(ctx context.Context, req *rolepb.ReadRoleRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.request_required", "Request is required for roles [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.request_required", "Request is required for roles [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.data_required", "Role data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.data_required", "Role data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.id_required", "Role ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.id_required", "Role ID is required [DEFAULT]"))
 	}
 	return nil
 }

@@ -20,18 +20,18 @@ import (
 // the helper `balanceMapToRows` defined in `list_client_balances.go`.
 type ListSupplierBalancesUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewListSupplierBalancesUseCase wires the use case with nil-safe deps.
 func NewListSupplierBalancesUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *ListSupplierBalancesUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &ListSupplierBalancesUseCase{
 		reporter:             r,

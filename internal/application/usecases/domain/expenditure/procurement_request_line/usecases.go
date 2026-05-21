@@ -12,10 +12,10 @@ type ProcurementRequestLineRepositories struct {
 
 // ProcurementRequestLineServices groups all business service dependencies.
 type ProcurementRequestLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all procurement request line use cases.
@@ -38,52 +38,52 @@ func NewUseCases(
 		CreateProcurementRequestLine: NewCreateProcurementRequestLineUseCase(
 			CreateProcurementRequestLineRepositories{ProcurementRequestLine: repositories.ProcurementRequestLine},
 			CreateProcurementRequestLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadProcurementRequestLine: NewReadProcurementRequestLineUseCase(
 			ReadProcurementRequestLineRepositories{ProcurementRequestLine: repositories.ProcurementRequestLine},
 			ReadProcurementRequestLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateProcurementRequestLine: NewUpdateProcurementRequestLineUseCase(
 			UpdateProcurementRequestLineRepositories{ProcurementRequestLine: repositories.ProcurementRequestLine},
 			UpdateProcurementRequestLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteProcurementRequestLine: NewDeleteProcurementRequestLineUseCase(
 			DeleteProcurementRequestLineRepositories{ProcurementRequestLine: repositories.ProcurementRequestLine},
 			DeleteProcurementRequestLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListProcurementRequestLines: NewListProcurementRequestLinesUseCase(
 			ListProcurementRequestLinesRepositories{ProcurementRequestLine: repositories.ProcurementRequestLine},
 			ListProcurementRequestLinesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		GetProcurementRequestLineListPageData: NewGetProcurementRequestLineListPageDataUseCase(
 			GetProcurementRequestLineListPageDataRepositories{ProcurementRequestLine: repositories.ProcurementRequestLine},
 			GetProcurementRequestLineListPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		GetProcurementRequestLineItemPageData: NewGetProcurementRequestLineItemPageDataUseCase(
 			GetProcurementRequestLineItemPageDataRepositories{ProcurementRequestLine: repositories.ProcurementRequestLine},
 			GetProcurementRequestLineItemPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

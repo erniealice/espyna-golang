@@ -23,8 +23,8 @@ type FindByPartyTypeTaxRegistrationKindRepositories struct {
 
 // FindByPartyTypeTaxRegistrationKindServices groups service dependencies.
 type FindByPartyTypeTaxRegistrationKindServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // FindByPartyTypeTaxRegistrationKindUseCase wraps the adapter's FindByPartyType method.
@@ -45,12 +45,12 @@ func NewFindByPartyTypeTaxRegistrationKindUseCase(
 
 // Execute returns all TaxRegistrationKind rows applicable for the given party type.
 func (uc *FindByPartyTypeTaxRegistrationKindUseCase) Execute(ctx context.Context, partyType string) ([]*taxregistrationkindpb.TaxRegistrationKind, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRegistrationKind, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if partyType == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration_kind.validation.party_type_required", "Party type is required [DEFAULT]"))
 	}
 

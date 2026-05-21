@@ -17,9 +17,9 @@ type GetPhaseOutcomeSummaryListPageDataRepositories struct {
 }
 
 type GetPhaseOutcomeSummaryListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPhaseOutcomeSummaryListPageDataUseCase handles the business logic for getting phase outcome summary list page data
@@ -45,7 +45,7 @@ func (uc *GetPhaseOutcomeSummaryListPageDataUseCase) Execute(
 	req *pb.GetPhaseOutcomeSummaryListPageDataRequest,
 ) (*pb.GetPhaseOutcomeSummaryListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPhaseOutcomeSummary, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *GetPhaseOutcomeSummaryListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -71,12 +71,12 @@ func (uc *GetPhaseOutcomeSummaryListPageDataUseCase) executeWithTransaction(
 ) (*pb.GetPhaseOutcomeSummaryListPageDataResponse, error) {
 	var result *pb.GetPhaseOutcomeSummaryListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"phase_outcome_summary.errors.list_page_data_failed",
 				"phase outcome summary list page data retrieval failed: %w",
 			), err)
@@ -100,7 +100,7 @@ func (uc *GetPhaseOutcomeSummaryListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"phase_outcome_summary.errors.list_page_data_failed",
 			"failed to retrieve phase outcome summary list page data: %w",
 		), err)
@@ -116,7 +116,7 @@ func (uc *GetPhaseOutcomeSummaryListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"phase_outcome_summary.validation.request_required",
 			"request is required",
 		))
@@ -139,7 +139,7 @@ func (uc *GetPhaseOutcomeSummaryListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"phase_outcome_summary.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))

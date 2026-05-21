@@ -17,9 +17,9 @@ type ListDelegatesRepositories struct {
 
 // ListDelegatesServices groups all business service dependencies
 type ListDelegatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDelegatesUseCase handles the business logic for listing delegates
@@ -48,9 +48,9 @@ func NewListDelegatesUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainServ
 	}
 
 	services := ListDelegatesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListDelegatesUseCase(repositories, services)
@@ -59,14 +59,14 @@ func NewListDelegatesUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainServ
 // Execute performs the list delegates operation
 func (uc *ListDelegatesUseCase) Execute(ctx context.Context, req *delegatepb.ListDelegatesRequest) (*delegatepb.ListDelegatesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegate, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate.validation.request_required", "Request is required for Parent/Guardians"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate.validation.request_required", "Request is required for Parent/Guardians"))
 	}
 
 	// Call repository

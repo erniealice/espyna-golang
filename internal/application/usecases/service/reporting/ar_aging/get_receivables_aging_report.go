@@ -25,8 +25,8 @@ import (
 // service-driven domain its own proto package per Q-SDM-LEDGER-INTERFACE.
 type GetReceivablesAgingReportUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetReceivablesAgingReportUseCase wires the use case. Any dep may be
@@ -34,11 +34,11 @@ type GetReceivablesAgingReportUseCase struct {
 // the reporter is missing.
 func NewGetReceivablesAgingReportUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetReceivablesAgingReportUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetReceivablesAgingReportUseCase{
 		reporter:             r,

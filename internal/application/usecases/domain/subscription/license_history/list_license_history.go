@@ -17,9 +17,9 @@ type ListLicenseHistoryRepositories struct {
 
 // ListLicenseHistoryServices groups all business service dependencies
 type ListLicenseHistoryServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
+	Authorizer ports.Authorizer // RBAC and permissions
+	Transactor ports.Transactor // Database transactions
+	Translator ports.Translator // i18n error messages
 }
 
 // ListLicenseHistoryUseCase handles the business logic for listing license history entries
@@ -42,7 +42,7 @@ func NewListLicenseHistoryUseCase(
 // Execute performs the list license history operation
 func (uc *ListLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehistorypb.ListLicenseHistoryRequest) (*licensehistorypb.ListLicenseHistoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicenseHistory, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (uc *ListLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehi
 // validateInput validates the input request
 func (uc *ListLicenseHistoryUseCase) validateInput(ctx context.Context, req *licensehistorypb.ListLicenseHistoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.request_required", "request is required [DEFAULT]"))
 	}
 	return nil
 }

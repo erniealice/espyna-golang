@@ -19,9 +19,9 @@ type ListStagesRepositories struct {
 
 // ListStagesServices groups all business service dependencies
 type ListStagesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListStagesUseCase handles the business logic for listing stages
@@ -49,9 +49,9 @@ func NewListStagesUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) *
 	}
 
 	services := ListStagesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListStagesUseCase(repositories, services)
@@ -60,14 +60,14 @@ func NewListStagesUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) *
 // Execute performs the list stages operation
 func (uc *ListStagesUseCase) Execute(ctx context.Context, req *stagepb.ListStagesRequest) (*stagepb.ListStagesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage", ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
 	}
 
 	// Business validation
@@ -79,7 +79,7 @@ func (uc *ListStagesUseCase) Execute(ctx context.Context, req *stagepb.ListStage
 	enrichedRequest := uc.applyBusinessLogic(req)
 
 	// Use transaction service if available (for consistent reads)
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -91,10 +91,10 @@ func (uc *ListStagesUseCase) Execute(ctx context.Context, req *stagepb.ListStage
 func (uc *ListStagesUseCase) executeWithTransaction(ctx context.Context, req *stagepb.ListStagesRequest) (*stagepb.ListStagesResponse, error) {
 	var result *stagepb.ListStagesResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "stage.errors.list_failed", "Stage listing failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "stage.errors.list_failed", "Stage listing failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -140,10 +140,10 @@ func (uc *ListStagesUseCase) validateBusinessRules(ctx context.Context, req *sta
 	// Business rule: Pagination validation if provided
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.limit_negative", "Limit cannot be negative [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.limit_negative", "Limit cannot be negative [DEFAULT]"))
 		}
 		if req.Pagination.Limit > 1000 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.limit_too_large", "Limit cannot exceed 1000 [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.limit_too_large", "Limit cannot exceed 1000 [DEFAULT]"))
 		}
 	}
 

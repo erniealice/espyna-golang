@@ -12,10 +12,10 @@ type TaskOutcomeRepositories struct {
 
 // TaskOutcomeServices groups all business service dependencies
 type TaskOutcomeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all task_outcome-related use cases
@@ -41,91 +41,91 @@ func NewUseCases(
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	createServices := CreateTaskOutcomeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadTaskOutcomeRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	readServices := ReadTaskOutcomeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateTaskOutcomeRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	updateServices := UpdateTaskOutcomeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteTaskOutcomeRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	deleteServices := DeleteTaskOutcomeServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListTaskOutcomesRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	listServices := ListTaskOutcomesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetTaskOutcomeListPageDataRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	listPageDataServices := GetTaskOutcomeListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetTaskOutcomeItemPageDataRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	itemPageDataServices := GetTaskOutcomeItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByJobTaskRepos := ListByJobTaskRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	listByJobTaskServices := ListByJobTaskServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByJobPhaseRepos := ListByJobPhaseRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	listByJobPhaseServices := ListByJobPhaseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByJobRepos := ListByJobRepositories{
 		TaskOutcome: repositories.TaskOutcome,
 	}
 	listByJobServices := ListByJobServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

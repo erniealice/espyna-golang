@@ -19,10 +19,10 @@ type TenantPaymentMethodRepositories struct {
 
 // TenantPaymentMethodServices groups service dependencies.
 type TenantPaymentMethodServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all tenant_payment_method use cases.
@@ -52,7 +52,7 @@ type CreateTenantPaymentMethodUseCase struct {
 }
 
 func (uc *CreateTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.CreateTenantPaymentMethodRequest) (*tenantpaymentmethodpb.CreateTenantPaymentMethodResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantPaymentMethod, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *CreateTenantPaymentMethodUseCase) Execute(ctx context.Context, req *te
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -76,7 +76,7 @@ type ReadTenantPaymentMethodUseCase struct {
 }
 
 func (uc *ReadTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.ReadTenantPaymentMethodRequest) (*tenantpaymentmethodpb.ReadTenantPaymentMethodResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantPaymentMethod, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type UpdateTenantPaymentMethodUseCase struct {
 }
 
 func (uc *UpdateTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.UpdateTenantPaymentMethodRequest) (*tenantpaymentmethodpb.UpdateTenantPaymentMethodResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantPaymentMethod, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ type DeleteTenantPaymentMethodUseCase struct {
 }
 
 func (uc *DeleteTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.DeleteTenantPaymentMethodRequest) (*tenantpaymentmethodpb.DeleteTenantPaymentMethodResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantPaymentMethod, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ type ListTenantPaymentMethodsUseCase struct {
 }
 
 func (uc *ListTenantPaymentMethodsUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.ListTenantPaymentMethodsRequest) (*tenantpaymentmethodpb.ListTenantPaymentMethodsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTenantPaymentMethod, ports.ActionRead); err != nil {
 		return nil, err
 	}

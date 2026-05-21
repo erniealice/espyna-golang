@@ -15,9 +15,9 @@ type GetPaymentTermItemPageDataRepositories struct {
 
 // GetPaymentTermItemPageDataServices groups service dependencies for GetPaymentTermItemPageData use case
 type GetPaymentTermItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPaymentTermItemPageDataUseCase handles getting individual payment term item data
@@ -44,7 +44,7 @@ func (uc *GetPaymentTermItemPageDataUseCase) Execute(
 	req *paymenttermpb.GetPaymentTermItemPageDataRequest,
 ) (*paymenttermpb.GetPaymentTermItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"payment_term", ports.ActionRead); err != nil {
 		return nil, err
 	}

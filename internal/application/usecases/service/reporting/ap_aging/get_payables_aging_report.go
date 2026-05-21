@@ -26,8 +26,8 @@ import (
 // Q-SDM-LEDGER-INTERFACE.
 type GetPayablesAgingReportUseCase struct {
 	reporter             reporter
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetPayablesAgingReportUseCase wires the use case. Any dep may be
@@ -35,11 +35,11 @@ type GetPayablesAgingReportUseCase struct {
 // the reporter is missing.
 func NewGetPayablesAgingReportUseCase(
 	r reporter,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GetPayablesAgingReportUseCase {
 	if i18nSvc == nil {
-		i18nSvc = ports.NewNoOpTranslationService()
+		i18nSvc = ports.NewNoOpTranslator()
 	}
 	return &GetPayablesAgingReportUseCase{
 		reporter:             r,

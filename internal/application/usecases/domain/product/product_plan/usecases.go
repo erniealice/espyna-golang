@@ -16,10 +16,10 @@ type ProductPlanRepositories struct {
 
 // ProductPlanServices groups all business service dependencies for product plan use cases
 type ProductPlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // ReadProductPlanRepositories groups all repository dependencies
@@ -29,9 +29,9 @@ type ReadProductPlanRepositories struct {
 
 // ReadProductPlanServices groups all business service dependencies
 type ReadProductPlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteProductPlanRepositories groups all repository dependencies
@@ -41,9 +41,9 @@ type DeleteProductPlanRepositories struct {
 
 // DeleteProductPlanServices groups all business service dependencies
 type DeleteProductPlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ListProductPlansRepositories groups all repository dependencies
@@ -53,9 +53,9 @@ type ListProductPlansRepositories struct {
 
 // ListProductPlansServices groups all business service dependencies
 type ListProductPlansServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // UseCases contains all product plan-related use cases
@@ -77,62 +77,62 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateProductPlanRepositories(repositories)
 	createServices := CreateProductPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadProductPlanRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	readServices := ReadProductPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateProductPlanRepositories(repositories)
 	updateServices := UpdateProductPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteProductPlanRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	deleteServices := DeleteProductPlanServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListProductPlansRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	listServices := ListProductPlansServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetProductPlanListPageDataRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	listPageDataServices := GetProductPlanListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetProductPlanItemPageDataRepositories{
 		ProductPlan: repositories.ProductPlan,
 	}
 	itemPageDataServices := GetProductPlanItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

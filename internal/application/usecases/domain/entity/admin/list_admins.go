@@ -17,9 +17,9 @@ type ListAdminsRepositories struct {
 
 // ListAdminsServices groups all business service dependencies
 type ListAdminsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListAdminsUseCase handles the business logic for listing admins
@@ -42,7 +42,7 @@ func NewListAdminsUseCase(
 // Execute performs the list admins operation
 func (uc *ListAdminsUseCase) Execute(ctx context.Context, req *adminpb.ListAdminsRequest) (*adminpb.ListAdminsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityAdmin, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (uc *ListAdminsUseCase) Execute(ctx context.Context, req *adminpb.ListAdmin
 	// Call repository
 	resp, err := uc.repositories.Admin.ListAdmins(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "admin.errors.list_failed", "[ERR-DEFAULT] Failed to load admin list")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "admin.errors.list_failed", "[ERR-DEFAULT] Failed to load admin list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

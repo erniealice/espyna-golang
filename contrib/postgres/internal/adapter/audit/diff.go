@@ -1,6 +1,5 @@
 //go:build postgresql
 
-
 package audit
 
 import (
@@ -14,7 +13,7 @@ import (
 // DiffAndLogRequest carries all metadata needed to compute a field-level
 // diff and write one audit log entry.
 type DiffAndLogRequest struct {
-	WorkspaceID    string         // tenant scope — required
+	WorkspaceID    string // tenant scope — required
 	EntityType     string
 	EntityID       string
 	Domain         string         // "centymo", "entydad", "fycha", "fayna"

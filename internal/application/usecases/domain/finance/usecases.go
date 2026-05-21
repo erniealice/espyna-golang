@@ -24,10 +24,10 @@ type FinanceUseCases struct {
 // NewUseCases creates all finance use cases with proper constructor injection.
 func NewUseCases(
 	repos FinanceRepositories,
-	authSvc ports.AuthorizationService,
-	_ ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	_ ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *FinanceUseCases {
 	// Wire the ForexRateMutator via type assertion.
 	// The postgres adapter implements ForexRateMutator; when nil, RecordOperatorRate
@@ -42,9 +42,9 @@ func NewUseCases(
 			ForexRate: repos.ForexRate,
 		},
 		forexRateUseCases.ForexRateServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -55,9 +55,9 @@ func NewUseCases(
 			Mutator:   mutator,
 		},
 		forexRateUseCases.RecordOperatorRateServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -68,8 +68,8 @@ func NewUseCases(
 			Mutator:   mutator,
 		},
 		forexRateUseCases.FindMostRecentForexRateServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 

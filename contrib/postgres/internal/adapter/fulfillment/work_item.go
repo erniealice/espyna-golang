@@ -12,9 +12,9 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -352,7 +352,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			workspaceID       string
 			revenueID         string
 			supplierID        sql.NullString
-			deliveryMode string
+			deliveryMode      string
 			status            string
 			providerStatus    string
 			providerReference string
@@ -400,7 +400,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			Active:            active,
 			WorkspaceId:       workspaceID,
 			RevenueId:         revenueID,
-			DeliveryMode: deliveryMode,
+			DeliveryMode:      deliveryMode,
 			Status:            status,
 			ProviderStatus:    providerStatus,
 			ProviderReference: providerReference,
@@ -505,22 +505,22 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	row := r.db.QueryRowContext(ctx, query, req.Id, workspaceID)
 
 	var (
-		id                string
-		dateCreated       time.Time
-		dateModified      time.Time
-		active            bool
+		id                 string
+		dateCreated        time.Time
+		dateModified       time.Time
+		active             bool
 		scannedWorkspaceID string
-		revenueID         string
-		supplierID        sql.NullString
-		deliveryMode string
-		status            string
-		providerStatus    string
-		providerReference string
-		deliveryCost      int64
-		currency          string
-		expenditureID     sql.NullString
-		supplierName      string
-		revenueReference  string
+		revenueID          string
+		supplierID         sql.NullString
+		deliveryMode       string
+		status             string
+		providerStatus     string
+		providerReference  string
+		deliveryCost       int64
+		currency           string
+		expenditureID      sql.NullString
+		supplierName       string
+		revenueReference   string
 	)
 
 	err := row.Scan(
@@ -549,12 +549,12 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	}
 
 	f := &pb.Fulfillment{
-		Id:           id,
-		Active:       active,
-		WorkspaceId:  scannedWorkspaceID,
-		RevenueId:    revenueID,
-		DeliveryMode: deliveryMode,
-		Status:       status,
+		Id:                id,
+		Active:            active,
+		WorkspaceId:       scannedWorkspaceID,
+		RevenueId:         revenueID,
+		DeliveryMode:      deliveryMode,
+		Status:            status,
 		ProviderStatus:    providerStatus,
 		ProviderReference: providerReference,
 		DeliveryCost:      deliveryCost,
@@ -592,17 +592,17 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	var items []*pb.FulfillmentItem
 	for itemRows.Next() {
 		var (
-			itemID              string
-			itemFulfillmentID   string
-			revenueLineItemID   string
-			productID           string
-			itemMethod          string
-			sourceType          sql.NullString
-			sourceID            sql.NullString
-			quantityOrdered     float64
-			quantityDelivered   float64
-			itemStatus          string
-			notes               string
+			itemID            string
+			itemFulfillmentID string
+			revenueLineItemID string
+			productID         string
+			itemMethod        string
+			sourceType        sql.NullString
+			sourceID          sql.NullString
+			quantityOrdered   float64
+			quantityDelivered float64
+			itemStatus        string
+			notes             string
 		)
 		if err := itemRows.Scan(
 			&itemID, &itemFulfillmentID, &revenueLineItemID, &productID, &itemMethod,
@@ -616,7 +616,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 			FulfillmentId:     itemFulfillmentID,
 			RevenueLineItemId: revenueLineItemID,
 			ProductId:         productID,
-			DeliveryMode: itemMethod,
+			DeliveryMode:      itemMethod,
 			QuantityOrdered:   quantityOrdered,
 			QuantityDelivered: quantityDelivered,
 			Status:            itemStatus,
@@ -705,16 +705,16 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	var returns []*pb.FulfillmentReturn
 	for returnRows.Next() {
 		var (
-			retID           string
-			retFulfillID    string
-			retReason       string
-			retStatus       string
-			refundAmount    sql.NullFloat64
-			retCurrency     string
-			processedByID   sql.NullString
-			retNotes        string
-			retActive       bool
-			retDateCreated  time.Time
+			retID          string
+			retFulfillID   string
+			retReason      string
+			retStatus      string
+			refundAmount   sql.NullFloat64
+			retCurrency    string
+			processedByID  sql.NullString
+			retNotes       string
+			retActive      bool
+			retDateCreated time.Time
 		)
 		if err := returnRows.Scan(
 			&retID, &retFulfillID, &retReason, &retStatus, &refundAmount, &retCurrency,

@@ -19,9 +19,9 @@ type DeleteDelegateAttributeRepositories struct {
 
 // DeleteDelegateAttributeServices groups all business service dependencies
 type DeleteDelegateAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteDelegateAttributeUseCase handles the business logic for deleting delegate attributes
@@ -50,9 +50,9 @@ func NewDeleteDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateat
 	}
 
 	services := DeleteDelegateAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteDelegateAttributeUseCase(repositories, services)
@@ -61,7 +61,7 @@ func NewDeleteDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateat
 // Execute performs the delete delegate attribute operation
 func (uc *DeleteDelegateAttributeUseCase) Execute(ctx context.Context, req *delegateattributepb.DeleteDelegateAttributeRequest) (*delegateattributepb.DeleteDelegateAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -73,14 +73,14 @@ func (uc *DeleteDelegateAttributeUseCase) Execute(ctx context.Context, req *dele
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.DelegateAttribute.DeleteDelegateAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.deletion_failed", "Delegate attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.deletion_failed", "Delegate attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -90,13 +90,13 @@ func (uc *DeleteDelegateAttributeUseCase) Execute(ctx context.Context, req *dele
 // validateInput validates the input request
 func (uc *DeleteDelegateAttributeUseCase) validateInput(ctx context.Context, req *delegateattributepb.DeleteDelegateAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.request_required", "Request is required for delegate attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.request_required", "Request is required for delegate attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.data_required", "Delegate attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.data_required", "Delegate attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.id_required", "Delegate attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.id_required", "Delegate attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

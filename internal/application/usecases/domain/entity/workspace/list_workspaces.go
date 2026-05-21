@@ -17,9 +17,9 @@ type ListWorkspacesRepositories struct {
 
 // ListWorkspacesServices groups all business service dependencies
 type ListWorkspacesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListWorkspacesUseCase handles the business logic for listing workspaces
@@ -48,9 +48,9 @@ func NewListWorkspacesUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomain
 	}
 
 	services := ListWorkspacesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListWorkspacesUseCase(repositories, services)
@@ -58,7 +58,7 @@ func NewListWorkspacesUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomain
 
 func (uc *ListWorkspacesUseCase) Execute(ctx context.Context, req *workspacepb.ListWorkspacesRequest) (*workspacepb.ListWorkspacesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspace, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (uc *ListWorkspacesUseCase) Execute(ctx context.Context, req *workspacepb.L
 	// Call repository
 	resp, err := uc.repositories.Workspace.ListWorkspaces(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.errors.list_failed", "Failed to retrieve workspaces [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.errors.list_failed", "Failed to retrieve workspaces [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

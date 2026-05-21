@@ -393,8 +393,8 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 		if productID != nil {
 			inventoryItem.ProductId = productID
 			inventoryItem.Product = &productpb.Product{
-				Id:       *productID,
-				Name:     productName,
+				Id:           *productID,
+				Name:         productName,
 				TrackingMode: trackingMode,
 			}
 		}

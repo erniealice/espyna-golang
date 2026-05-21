@@ -16,9 +16,9 @@ type GetWorkspaceUserItemPageDataRepositories struct {
 }
 
 type GetWorkspaceUserItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetWorkspaceUserItemPageDataUseCase handles the business logic for getting workspace user item page data
@@ -44,7 +44,7 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) Execute(
 	req *workspaceuserpb.GetWorkspaceUserItemPageDataRequest,
 ) (*workspaceuserpb.GetWorkspaceUserItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspaceUser, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -75,12 +75,12 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) executeWithTransaction(
 ) (*workspaceuserpb.GetWorkspaceUserItemPageDataResponse, error) {
 	var result *workspaceuserpb.GetWorkspaceUserItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"workspace_user.errors.item_page_data_failed",
 				"workspace user item page data retrieval failed: %w",
 			), err)
@@ -113,7 +113,7 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace_user.validation.request_required",
 			"request is required",
 		))
@@ -122,7 +122,7 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) validateInput(
 	if req.WorkspaceUserId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace_user.validation.id_required",
 			"workspace user ID is required",
 		))
@@ -140,7 +140,7 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) validateBusinessRules(
 	if len(workspaceUserId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"workspace_user.validation.id_too_short",
 			"workspace user ID is too short",
 		))

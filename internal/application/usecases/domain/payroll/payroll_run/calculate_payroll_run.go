@@ -17,17 +17,17 @@ import (
 // generic handler machinery as other use cases.
 type CalculatePayrollRunUseCase struct {
 	orchestrator         *payroll.Orchestrator
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
-	transactionService   ports.TransactionService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
+	transactionService   ports.Transactor
 }
 
 // NewCalculatePayrollRunUseCase wires the use case.
 func NewCalculatePayrollRunUseCase(
 	orchestrator *payroll.Orchestrator,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
-	txSvc ports.TransactionService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
+	txSvc ports.Transactor,
 ) *CalculatePayrollRunUseCase {
 	return &CalculatePayrollRunUseCase{
 		orchestrator:         orchestrator,
@@ -80,15 +80,15 @@ func errResponse(msg string) *payrollrunpb.CalculatePayrollRunResponse {
 // GeneratePayCyclesUseCase wraps the orchestrator's cycle generation.
 type GeneratePayCyclesUseCase struct {
 	orchestrator         *payroll.Orchestrator
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGeneratePayCyclesUseCase wires the use case.
 func NewGeneratePayCyclesUseCase(
 	orchestrator *payroll.Orchestrator,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
 ) *GeneratePayCyclesUseCase {
 	return &GeneratePayCyclesUseCase{
 		orchestrator:         orchestrator,

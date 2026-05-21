@@ -15,9 +15,9 @@ type DeleteSubscriptionRepositories struct {
 }
 
 type DeleteSubscriptionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteSubscriptionUseCase handles the business logic for deleting subscriptions
@@ -40,7 +40,7 @@ func NewDeleteSubscriptionUseCase(
 // Execute performs the delete subscription operation
 func (uc *DeleteSubscriptionUseCase) Execute(ctx context.Context, req *subscriptionpb.DeleteSubscriptionRequest) (*subscriptionpb.DeleteSubscriptionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *DeleteSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -68,7 +68,7 @@ func (uc *DeleteSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 func (uc *DeleteSubscriptionUseCase) executeWithTransaction(ctx context.Context, req *subscriptionpb.DeleteSubscriptionRequest) (*subscriptionpb.DeleteSubscriptionResponse, error) {
 	var result *subscriptionpb.DeleteSubscriptionResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -90,12 +90,12 @@ func (uc *DeleteSubscriptionUseCase) executeCore(ctx context.Context, req *subsc
 		Data: &subscriptionpb.Subscription{Id: req.Data.Id},
 	})
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.errors.not_found", "[ERR-DEFAULT] Subscription not found"))
 	}
 
 	resp, err := uc.repositories.Subscription.DeleteSubscription(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.errors.deletion_failed", "[ERR-DEFAULT] Subscription deletion failed"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.errors.deletion_failed", "[ERR-DEFAULT] Subscription deletion failed"))
 	}
 	return resp, nil
 }
@@ -103,13 +103,13 @@ func (uc *DeleteSubscriptionUseCase) executeCore(ctx context.Context, req *subsc
 // validateInput validates the input request
 func (uc *DeleteSubscriptionUseCase) validateInput(ctx context.Context, req *subscriptionpb.DeleteSubscriptionRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.data_required", "[ERR-DEFAULT] Subscription data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.data_required", "[ERR-DEFAULT] Subscription data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_required", "[ERR-DEFAULT] Subscription ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.id_required", "[ERR-DEFAULT] Subscription ID is required"))
 	}
 	return nil
 }
@@ -118,7 +118,7 @@ func (uc *DeleteSubscriptionUseCase) validateInput(ctx context.Context, req *sub
 func (uc *DeleteSubscriptionUseCase) validateBusinessRules(ctx context.Context, subscription *subscriptionpb.Subscription) error {
 	// Validate subscription ID format
 	if len(subscription.Id) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "subscription.validation.id_too_short", "[ERR-DEFAULT] Subscription ID is too short"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.id_too_short", "[ERR-DEFAULT] Subscription ID is too short"))
 	}
 
 	return nil

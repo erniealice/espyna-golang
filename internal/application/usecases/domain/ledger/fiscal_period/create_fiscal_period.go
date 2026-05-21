@@ -22,10 +22,10 @@ type CreateFiscalPeriodRepositories struct {
 
 // CreateFiscalPeriodServices groups all business service dependencies
 type CreateFiscalPeriodServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateFiscalPeriodUseCase handles the business logic for creating fiscal periods
@@ -48,13 +48,13 @@ func NewCreateFiscalPeriodUseCase(
 // Execute performs the create fiscal period operation
 func (uc *CreateFiscalPeriodUseCase) Execute(ctx context.Context, req *fiscalperiodpb.CreateFiscalPeriodRequest) (*fiscalperiodpb.CreateFiscalPeriodResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFiscalPeriod, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -66,10 +66,10 @@ func (uc *CreateFiscalPeriodUseCase) Execute(ctx context.Context, req *fiscalper
 func (uc *CreateFiscalPeriodUseCase) executeWithTransaction(ctx context.Context, req *fiscalperiodpb.CreateFiscalPeriodRequest) (*fiscalperiodpb.CreateFiscalPeriodResponse, error) {
 	var result *fiscalperiodpb.CreateFiscalPeriodResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "fiscal_period.errors.creation_failed", "Fiscal period creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "fiscal_period.errors.creation_failed", "Fiscal period creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -109,25 +109,25 @@ func (uc *CreateFiscalPeriodUseCase) executeCore(ctx context.Context, req *fisca
 // validateInput validates the input request
 func (uc *CreateFiscalPeriodUseCase) validateInput(ctx context.Context, req *fiscalperiodpb.CreateFiscalPeriodRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.data_required", "[ERR-DEFAULT] Fiscal period data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.data_required", "[ERR-DEFAULT] Fiscal period data is required"))
 	}
 
 	// Trim leading and trailing spaces
 	req.Data.Name = strings.TrimSpace(req.Data.Name)
 
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.name_required", "[ERR-DEFAULT] Name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.name_required", "[ERR-DEFAULT] Name is required"))
 	}
 
 	// Dates are required
 	if req.Data.StartDate == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.start_date_required", "[ERR-DEFAULT] Start date is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.start_date_required", "[ERR-DEFAULT] Start date is required"))
 	}
 	if req.Data.EndDate == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.end_date_required", "[ERR-DEFAULT] End date is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.end_date_required", "[ERR-DEFAULT] End date is required"))
 	}
 
 	return nil
@@ -139,7 +139,7 @@ func (uc *CreateFiscalPeriodUseCase) enrichFiscalPeriodData(period *fiscalperiod
 
 	// Generate Fiscal Period ID if not provided
 	if period.Id == "" {
-		period.Id = uc.services.IDService.GenerateID()
+		period.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set status to OPEN if not set
@@ -161,22 +161,22 @@ func (uc *CreateFiscalPeriodUseCase) enrichFiscalPeriodData(period *fiscalperiod
 func (uc *CreateFiscalPeriodUseCase) validateBusinessRules(ctx context.Context, period *fiscalperiodpb.FiscalPeriod) error {
 	// Validate name length
 	if len(period.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 100 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 100 characters"))
 	}
 
 	// Start date must be before end date
 	if period.StartDate >= period.EndDate {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.invalid_date_range", "[ERR-DEFAULT] Start date must be before end date"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.invalid_date_range", "[ERR-DEFAULT] Start date must be before end date"))
 	}
 
 	// Fiscal year must be a reasonable value
 	if period.FiscalYear < 1900 || period.FiscalYear > 2100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.invalid_fiscal_year", "[ERR-DEFAULT] Fiscal year must be between 1900 and 2100"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.invalid_fiscal_year", "[ERR-DEFAULT] Fiscal year must be between 1900 and 2100"))
 	}
 
 	// Period number must be 1–12 (monthly periods within a fiscal year)
 	if period.PeriodNumber != 0 && (period.PeriodNumber < 1 || period.PeriodNumber > 12) {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.invalid_period_number", "[ERR-DEFAULT] Period number must be between 1 and 12"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.invalid_period_number", "[ERR-DEFAULT] Period number must be between 1 and 12"))
 	}
 
 	return nil

@@ -17,9 +17,9 @@ type ListInvoicesRepositories struct {
 
 // ListInvoicesServices groups all business service dependencies
 type ListInvoicesServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService   // Current: Text translation and localization
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator // Current: Text translation and localization
 }
 
 // ListInvoicesUseCase handles the business logic for listing invoices
@@ -42,7 +42,7 @@ func NewListInvoicesUseCase(
 // Execute performs the list invoices operation
 func (uc *ListInvoicesUseCase) Execute(ctx context.Context, req *invoicepb.ListInvoicesRequest) (*invoicepb.ListInvoicesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityInvoice, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -50,18 +50,18 @@ func (uc *ListInvoicesUseCase) Execute(ctx context.Context, req *invoicepb.ListI
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityInvoice, ports.ActionList)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -87,7 +87,7 @@ func (uc *ListInvoicesUseCase) Execute(ctx context.Context, req *invoicepb.ListI
 // validateInput validates the input request
 func (uc *ListInvoicesUseCase) validateInput(ctx context.Context, req *invoicepb.ListInvoicesRequest) error {
 	if req == nil {
-		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "invoice.validation.request_required", "request is required")
+		errorMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.validation.request_required", "request is required")
 		return errors.New(errorMsg)
 	}
 	return nil

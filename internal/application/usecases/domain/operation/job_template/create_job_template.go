@@ -20,10 +20,10 @@ type CreateJobTemplateRepositories struct {
 
 // CreateJobTemplateServices groups all business service dependencies
 type CreateJobTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateJobTemplateUseCase handles the business logic for creating job templates
@@ -46,13 +46,13 @@ func NewCreateJobTemplateUseCase(
 // Execute performs the create job template operation
 func (uc *CreateJobTemplateUseCase) Execute(ctx context.Context, req *pb.CreateJobTemplateRequest) (*pb.CreateJobTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"job_template", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -62,7 +62,7 @@ func (uc *CreateJobTemplateUseCase) Execute(ctx context.Context, req *pb.CreateJ
 func (uc *CreateJobTemplateUseCase) executeWithTransaction(ctx context.Context, req *pb.CreateJobTemplateRequest) (*pb.CreateJobTemplateResponse, error) {
 	var result *pb.CreateJobTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -106,10 +106,10 @@ func (uc *CreateJobTemplateUseCase) executeCore(ctx context.Context, req *pb.Cre
 // validateInput validates the input request
 func (uc *CreateJobTemplateUseCase) validateInput(ctx context.Context, req *pb.CreateJobTemplateRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.data_required", "job template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.data_required", "job template data is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -119,8 +119,8 @@ func (uc *CreateJobTemplateUseCase) enrichData(data *pb.JobTemplate) error {
 	now := time.Now()
 
 	// Always generate a new ID, overriding any passed ID
-	if uc.services.IDService != nil {
-		data.Id = uc.services.IDService.GenerateID()
+	if uc.services.IDGenerator != nil {
+		data.Id = uc.services.IDGenerator.GenerateID()
 	} else {
 		data.Id = fmt.Sprintf("job_template-%d", now.UnixNano())
 	}
@@ -142,10 +142,10 @@ func (uc *CreateJobTemplateUseCase) enrichData(data *pb.JobTemplate) error {
 // validateBusinessRules enforces business constraints
 func (uc *CreateJobTemplateUseCase) validateBusinessRules(ctx context.Context, data *pb.JobTemplate) error {
 	if strings.TrimSpace(data.Name) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.name_required", "job template name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.name_required", "job template name is required [DEFAULT]"))
 	}
 	if len(data.Name) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template.validation.name_too_long", "job template name cannot exceed 200 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template.validation.name_too_long", "job template name cannot exceed 200 characters [DEFAULT]"))
 	}
 	return nil
 }

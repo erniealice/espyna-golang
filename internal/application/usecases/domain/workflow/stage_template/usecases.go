@@ -14,10 +14,10 @@ type StageTemplateRepositories struct {
 
 // StageTemplateServices groups all business service dependencies for stage template use cases
 type StageTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Required for Create use case
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator // Required for Create use case
 }
 
 // UseCases contains all stage template-related use cases
@@ -40,19 +40,19 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateStageTemplateRepositories(repositories)
 	createServices := CreateStageTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadStageTemplateRepositories{
 		StageTemplate: repositories.StageTemplate,
 	}
 	readServices := ReadStageTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateStageTemplateRepositories{
@@ -60,27 +60,27 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	updateServices := UpdateStageTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteStageTemplateRepositories{
 		StageTemplate: repositories.StageTemplate,
 	}
 	deleteServices := DeleteStageTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListStageTemplatesRepositories{
 		StageTemplate: repositories.StageTemplate,
 	}
 	listServices := ListStageTemplatesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetStageTemplateListPageDataRepositories{
@@ -88,8 +88,8 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getListPageDataServices := GetStageTemplateListPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetStageTemplateItemPageDataRepositories{
@@ -97,16 +97,16 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getItemPageDataServices := GetStageTemplateItemPageDataServices{
-		TransactionService: services.TransactionService,
-		TranslationService: services.TranslationService,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	// TODO: Implement when GetStageTemplatesByWorkflow use case is available
 	// getByWorkflowRepos := GetStageTemplatesByWorkflowRepositories(repositories)
 	// getByWorkflowServices := GetStageTemplatesByWorkflowServices{
-	// 	AuthorizationService: services.AuthorizationService,
-	// 	TransactionService:   services.TransactionService,
-	// 	TranslationService:   services.TranslationService,
+	// 	Authorizer: services.Authorizer,
+	// 	Transactor:   services.Transactor,
+	// 	Translator:   services.Translator,
 	// }
 
 	return &UseCases{
@@ -131,10 +131,10 @@ func NewUseCasesUngrouped(stageTemplateRepo stageTemplatepb.StageTemplateDomainS
 	}
 
 	services := StageTemplateServices{
-		AuthorizationService: nil, // Will be injected later by container
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil, // Will be injected later by container
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewUseCases(repositories, services)

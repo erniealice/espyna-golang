@@ -23,9 +23,9 @@ type UpdateEventClientRepositories struct {
 
 // UpdateEventClientServices groups all business service dependencies
 type UpdateEventClientServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // UpdateEventClientUseCase handles the business logic for updating event client associations
@@ -56,9 +56,9 @@ func NewUpdateEventClientUseCaseUngrouped(eventClientRepo eventclientpb.EventCli
 	}
 
 	services := UpdateEventClientServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &UpdateEventClientUseCase{
@@ -70,7 +70,7 @@ func NewUpdateEventClientUseCaseUngrouped(eventClientRepo eventclientpb.EventCli
 // Execute performs the update event client operation
 func (uc *UpdateEventClientUseCase) Execute(ctx context.Context, req *eventclientpb.UpdateEventClientRequest) (*eventclientpb.UpdateEventClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventClient, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -78,18 +78,18 @@ func (uc *UpdateEventClientUseCase) Execute(ctx context.Context, req *eventclien
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventClient, ports.ActionUpdate)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")
 		return nil, errors.New(translatedError)
 	}
 

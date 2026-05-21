@@ -17,9 +17,9 @@ type ListDeferredRevenuesRepositories struct {
 
 // ListDeferredRevenuesServices groups all business service dependencies
 type ListDeferredRevenuesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDeferredRevenuesUseCase handles the business logic for listing deferred revenues
@@ -41,13 +41,13 @@ func NewListDeferredRevenuesUseCase(
 
 // Execute performs the list deferred revenues operation
 func (uc *ListDeferredRevenuesUseCase) Execute(ctx context.Context, req *deferredrevenuepb.ListDeferredRevenuesRequest) (*deferredrevenuepb.ListDeferredRevenuesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDeferredRevenue, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "deferred_revenue.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "deferred_revenue.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	if uc.repositories.DeferredRevenue == nil {

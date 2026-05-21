@@ -58,8 +58,8 @@ type ListExpenseRunCandidatesRepositories struct {
 
 // ListExpenseRunCandidatesServices groups infra services.
 type ListExpenseRunCandidatesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ListExpenseRunCandidatesUseCase enumerates pending recognition candidates
@@ -93,11 +93,11 @@ func (uc *ListExpenseRunCandidatesUseCase) Execute(
 	ctx context.Context,
 	req *expenserecognitionrunpb.ListExpenseRunCandidatesRequest,
 ) (*expenserecognitionrunpb.ListExpenseRunCandidatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionCreate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierSubscription, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (uc *ListExpenseRunCandidatesUseCase) Execute(
 	asOfTime, err := time.Parse("2006-01-02", asOfDate)
 	if err != nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"expense_recognition.validation.invalid_as_of_date",
 			"as_of_date must be YYYY-MM-DD [DEFAULT]",
 		))

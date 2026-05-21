@@ -18,9 +18,9 @@ type ReadLicenseHistoryRepositories struct {
 
 // ReadLicenseHistoryServices groups all business service dependencies
 type ReadLicenseHistoryServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
+	Authorizer ports.Authorizer // RBAC and permissions
+	Transactor ports.Transactor // Database transactions
+	Translator ports.Translator // i18n error messages
 }
 
 // ReadLicenseHistoryUseCase handles the business logic for reading license history entries
@@ -43,7 +43,7 @@ func NewReadLicenseHistoryUseCase(
 // Execute performs the read license history operation
 func (uc *ReadLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehistorypb.ReadLicenseHistoryRequest) (*licensehistorypb.ReadLicenseHistoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicenseHistory, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (uc *ReadLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehi
 			// Handle as not found - translate and return
 			translatedError := contextutil.GetTranslatedMessageWithContextAndTags(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"license_history.errors.not_found",
 				map[string]interface{}{"historyId": req.Data.Id},
 				"License history not found [DEFAULT]",
@@ -84,13 +84,13 @@ func (uc *ReadLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehi
 // validateInput validates the input request
 func (uc *ReadLicenseHistoryUseCase) validateInput(ctx context.Context, req *licensehistorypb.ReadLicenseHistoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.data_required", "license history data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.data_required", "license history data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license_history.validation.id_required", "license history ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license_history.validation.id_required", "license history ID is required [DEFAULT]"))
 	}
 	return nil
 }

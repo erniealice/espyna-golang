@@ -28,10 +28,10 @@ type RecognizeFromExpenditureRepositories struct {
 
 // RecognizeFromExpenditureServices groups service dependencies.
 type RecognizeFromExpenditureServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // RecognizeFromExpenditureUseCase converts a posted Expenditure into one or more
@@ -60,12 +60,12 @@ func NewRecognizeFromExpenditureUseCase(
 
 // Execute performs the recognize-from-expenditure operation.
 func (uc *RecognizeFromExpenditureUseCase) Execute(ctx context.Context, req *expenserecognitionpb.RecognizeFromExpenditureRequest) (*expenserecognitionpb.RecognizeFromExpenditureResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetExpenditureId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition.validation.expenditure_id_required", "Expenditure ID is required [DEFAULT]"))
 	}
 
@@ -109,7 +109,7 @@ func (uc *RecognizeFromExpenditureUseCase) Execute(ctx context.Context, req *exp
 			})
 			if subErr == nil && subResp != nil && len(subResp.Data) > 0 {
 				if subResp.Data[0].GetWorkspaceId() != wsID {
-					return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+					return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 						"expense_recognition.errors.supplier_subscription_workspace_mismatch",
 						"supplier subscription does not belong to the current workspace"))
 				}
@@ -118,7 +118,7 @@ func (uc *RecognizeFromExpenditureUseCase) Execute(ctx context.Context, req *exp
 	}
 
 	now := time.Now()
-	id := uc.services.IDService.GenerateID()
+	id := uc.services.IDGenerator.GenerateID()
 	expenditureID := req.GetExpenditureId()
 	createData := &expenserecognitionpb.ExpenseRecognition{
 		Id:                 id,
@@ -156,7 +156,7 @@ func (uc *RecognizeFromExpenditureUseCase) Execute(ctx context.Context, req *exp
 		})
 		if listErr == nil && listResp != nil {
 			for _, eli := range listResp.Data {
-				lineID := uc.services.IDService.GenerateID()
+				lineID := uc.services.IDGenerator.GenerateID()
 				eliID := eli.GetId()
 				lineData := &expenserecognitionlinepb.ExpenseRecognitionLine{
 					Id:                    lineID,

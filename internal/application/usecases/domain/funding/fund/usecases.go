@@ -22,10 +22,10 @@ type FundRepositories struct {
 
 // FundServices groups service dependencies.
 type FundServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all fund use cases.
@@ -55,7 +55,7 @@ type CreateFundUseCase struct {
 }
 
 func (uc *CreateFundUseCase) Execute(ctx context.Context, req *fundpb.CreateFundRequest) (*fundpb.CreateFundResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFund, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (uc *CreateFundUseCase) Execute(ctx context.Context, req *fundpb.CreateFund
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -79,7 +79,7 @@ type ReadFundUseCase struct {
 }
 
 func (uc *ReadFundUseCase) Execute(ctx context.Context, req *fundpb.ReadFundRequest) (*fundpb.ReadFundResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFund, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ type UpdateFundUseCase struct {
 }
 
 func (uc *UpdateFundUseCase) Execute(ctx context.Context, req *fundpb.UpdateFundRequest) (*fundpb.UpdateFundResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFund, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ type DeleteFundUseCase struct {
 }
 
 func (uc *DeleteFundUseCase) Execute(ctx context.Context, req *fundpb.DeleteFundRequest) (*fundpb.DeleteFundResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFund, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ type ListFundsUseCase struct {
 }
 
 func (uc *ListFundsUseCase) Execute(ctx context.Context, req *fundpb.ListFundsRequest) (*fundpb.ListFundsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFund, ports.ActionRead); err != nil {
 		return nil, err
 	}

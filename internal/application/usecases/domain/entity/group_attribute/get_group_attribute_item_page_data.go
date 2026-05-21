@@ -20,9 +20,9 @@ type GetGroupAttributeItemPageDataRepositories struct {
 
 // GetGroupAttributeItemPageDataServices groups all business service dependencies
 type GetGroupAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetGroupAttributeItemPageDataUseCase handles the business logic for getting group attribute item page data
@@ -51,9 +51,9 @@ func NewGetGroupAttributeItemPageDataUseCaseUngrouped(groupAttributeRepo groupat
 	}
 
 	services := GetGroupAttributeItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetGroupAttributeItemPageDataUseCase(repositories, services)
@@ -62,21 +62,21 @@ func NewGetGroupAttributeItemPageDataUseCaseUngrouped(groupAttributeRepo groupat
 // Execute performs the get group attribute item page data operation
 func (uc *GetGroupAttributeItemPageDataUseCase) Execute(ctx context.Context, req *groupattributepb.GetGroupAttributeItemPageDataRequest) (*groupattributepb.GetGroupAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroupAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.GroupAttribute.GetGroupAttributeItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.errors.item_page_data_failed", "Failed to retrieve group attribute item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.errors.item_page_data_failed", "Failed to retrieve group attribute item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -86,17 +86,17 @@ func (uc *GetGroupAttributeItemPageDataUseCase) Execute(ctx context.Context, req
 // validateInput validates the input request
 func (uc *GetGroupAttributeItemPageDataUseCase) validateInput(ctx context.Context, req *groupattributepb.GetGroupAttributeItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.request_required", "Request is required for group attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.request_required", "Request is required for group attributes [DEFAULT]"))
 	}
 
 	// Validate group attribute ID
 	if strings.TrimSpace(req.GroupAttributeId) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.id_required", "Group attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.id_required", "Group attribute ID is required [DEFAULT]"))
 	}
 
 	// Basic ID format validation
 	if len(req.GroupAttributeId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group_attribute.validation.id_too_short", "Group attribute ID must be at least 3 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group_attribute.validation.id_too_short", "Group attribute ID must be at least 3 characters [DEFAULT]"))
 	}
 
 	return nil

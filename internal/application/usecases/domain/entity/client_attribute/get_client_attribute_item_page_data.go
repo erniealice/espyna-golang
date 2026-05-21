@@ -20,9 +20,9 @@ type GetClientAttributeItemPageDataRepositories struct {
 
 // GetClientAttributeItemPageDataServices groups all business service dependencies
 type GetClientAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetClientAttributeItemPageDataUseCase handles the business logic for getting client attribute item page data
@@ -51,9 +51,9 @@ func NewGetClientAttributeItemPageDataUseCaseUngrouped(clientAttributeRepo clien
 	}
 
 	services := GetClientAttributeItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetClientAttributeItemPageDataUseCase(repositories, services)
@@ -62,21 +62,21 @@ func NewGetClientAttributeItemPageDataUseCaseUngrouped(clientAttributeRepo clien
 // Execute performs the get client attribute item page data operation
 func (uc *GetClientAttributeItemPageDataUseCase) Execute(ctx context.Context, req *clientattributepb.GetClientAttributeItemPageDataRequest) (*clientattributepb.GetClientAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityClientAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.ClientAttribute.GetClientAttributeItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.errors.item_page_data_failed", "Failed to retrieve client attribute item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.errors.item_page_data_failed", "Failed to retrieve client attribute item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -86,17 +86,17 @@ func (uc *GetClientAttributeItemPageDataUseCase) Execute(ctx context.Context, re
 // validateInput validates the input request
 func (uc *GetClientAttributeItemPageDataUseCase) validateInput(ctx context.Context, req *clientattributepb.GetClientAttributeItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.request_required", "Request is required for client attributes [DEFAULT]"))
 	}
 
 	// Validate client attribute ID
 	if strings.TrimSpace(req.ClientAttributeId) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.id_required", "Client attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.id_required", "Client attribute ID is required [DEFAULT]"))
 	}
 
 	// Basic ID format validation
 	if len(req.ClientAttributeId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_attribute.validation.id_too_short", "Client attribute ID must be at least 3 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_attribute.validation.id_too_short", "Client attribute ID must be at least 3 characters [DEFAULT]"))
 	}
 
 	return nil

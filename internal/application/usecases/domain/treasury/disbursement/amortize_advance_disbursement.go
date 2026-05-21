@@ -35,10 +35,10 @@ type AmortizeAdvanceDisbursementRepositories struct {
 
 // AmortizeAdvanceDisbursementServices groups infra services.
 type AmortizeAdvanceDisbursementServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // AmortizeAdvanceDisbursementUseCase mirrors AmortizeAdvanceCollectionUseCase.
@@ -65,25 +65,25 @@ func (uc *AmortizeAdvanceDisbursementUseCase) Execute(
 	if req == nil {
 		req = &disbursementpb.AmortizeAdvanceDisbursementRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTreasuryDisbursement, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"expense_recognition", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryDisbursementId()) == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.validation.id_required",
 			"treasury_disbursement_id is required [DEFAULT]",
 		))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var out *disbursementpb.AmortizeAdvanceDisbursementResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, execErr := uc.executeCore(txCtx, req)
 			if execErr != nil {
 				return execErr
@@ -112,7 +112,7 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 	}
 	if readResp == nil || len(readResp.GetData()) == 0 {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.not_found",
 			"treasury_disbursement not found [DEFAULT]",
 		))
@@ -123,7 +123,7 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 	// 2. Validate advance kind/status.
 	if adv.GetAdvanceKind() != advancekindpb.AdvanceKind_ADVANCE_KIND_TIME_BASED {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.amortize_requires_time_based",
 			"AmortizeAdvanceDisbursement requires advance_kind=TIME_BASED [DEFAULT]",
 		))
@@ -131,7 +131,7 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 	}
 	if adv.GetAdvanceStatus() != advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE {
 		err := errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"treasury_disbursement.errors.amortize_requires_active",
 			"AmortizeAdvanceDisbursement requires advance_status=ACTIVE [DEFAULT]",
 		))
@@ -312,7 +312,7 @@ func (uc *AmortizeAdvanceDisbursementUseCase) insertRecognition(
 	req *disbursementpb.AmortizeAdvanceDisbursementRequest,
 	idempotencyKey string,
 ) (string, error) {
-	recID := uc.services.IDService.GenerateID()
+	recID := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)

@@ -33,12 +33,12 @@ func (uc *InvalidateSessionUseCase) Execute(
 ) (*authpb.InvalidateSessionResponse, error) {
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.validation.request_required", "Session invalidation request is required [DEFAULT]"))
 	}
 	if uc.inner == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.service_unavailable", "Auth service is not available [DEFAULT]"))
 	}
 

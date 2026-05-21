@@ -23,10 +23,10 @@ type CreatePurchaseOrderRepositories struct {
 
 // CreatePurchaseOrderServices groups all business service dependencies
 type CreatePurchaseOrderServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreatePurchaseOrderUseCase handles the business logic for creating purchase orders
@@ -48,17 +48,17 @@ func NewCreatePurchaseOrderUseCase(
 
 // Execute performs the create purchase order operation
 func (uc *CreatePurchaseOrderUseCase) Execute(ctx context.Context, req *purchaseorderpb.CreatePurchaseOrderRequest) (*purchaseorderpb.CreatePurchaseOrderResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPurchaseOrder, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *purchaseorderpb.CreatePurchaseOrderResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
-				translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "purchase_order.errors.creation_failed", "Purchase order creation failed [DEFAULT]")
+				translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "purchase_order.errors.creation_failed", "Purchase order creation failed [DEFAULT]")
 				return fmt.Errorf("%s: %w", translatedError, err)
 			}
 			result = res
@@ -90,10 +90,10 @@ func (uc *CreatePurchaseOrderUseCase) executeCore(ctx context.Context, req *purc
 
 func (uc *CreatePurchaseOrderUseCase) validateInput(ctx context.Context, req *purchaseorderpb.CreatePurchaseOrderRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "purchase_order.validation.data_required", "[ERR-DEFAULT] Purchase order data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "purchase_order.validation.data_required", "[ERR-DEFAULT] Purchase order data is required"))
 	}
 	return nil
 }
@@ -101,7 +101,7 @@ func (uc *CreatePurchaseOrderUseCase) validateInput(ctx context.Context, req *pu
 func (uc *CreatePurchaseOrderUseCase) enrichPurchaseOrderData(p *purchaseorderpb.PurchaseOrder) error {
 	now := time.Now()
 	if p.Id == "" {
-		p.Id = uc.services.IDService.GenerateID()
+		p.Id = uc.services.IDGenerator.GenerateID()
 	}
 	p.DateCreated = &[]int64{now.UnixMilli()}[0]
 	p.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

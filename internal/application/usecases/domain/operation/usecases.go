@@ -119,10 +119,10 @@ type OperationUseCases struct {
 // NewUseCases creates all operation use cases with proper constructor injection
 func NewUseCases(
 	repos OperationRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *OperationUseCases {
 	jobUC := jobUseCases.NewUseCases(
 		jobUseCases.JobRepositories{
@@ -136,10 +136,10 @@ func NewUseCases(
 			ProductPricePlan: repos.ProductPricePlan,
 		},
 		jobUseCases.JobServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -149,140 +149,140 @@ func NewUseCases(
 			BillingEvent: repos.BillingEvent,
 		},
 		jobPhaseUseCases.JobPhaseServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	jobTaskUC := jobTaskUseCases.NewUseCases(
 		jobTaskUseCases.JobTaskRepositories{JobTask: repos.JobTask},
 		jobTaskUseCases.JobTaskServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	jobTemplateUC := jobTemplateUseCases.NewUseCases(
 		jobTemplateUseCases.JobTemplateRepositories{JobTemplate: repos.JobTemplate},
 		jobTemplateUseCases.JobTemplateServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	jobTemplatePhaseUC := jobTemplatePhaseUseCases.NewUseCases(
 		jobTemplatePhaseUseCases.JobTemplatePhaseRepositories{JobTemplatePhase: repos.JobTemplatePhase},
 		jobTemplatePhaseUseCases.JobTemplatePhaseServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	jobTemplateTaskUC := jobTemplateTaskUseCases.NewUseCases(
 		jobTemplateTaskUseCases.JobTemplateTaskRepositories{JobTemplateTask: repos.JobTemplateTask},
 		jobTemplateTaskUseCases.JobTemplateTaskServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	jobActivityUC := jobActivityUseCases.NewUseCases(
 		jobActivityUseCases.JobActivityRepositories{JobActivity: repos.JobActivity},
 		jobActivityUseCases.JobActivityServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	outcomeCriteriaUC := outcomeCriteriaUseCases.NewUseCases(
 		outcomeCriteriaUseCases.OutcomeCriteriaRepositories{OutcomeCriteria: repos.OutcomeCriteria},
 		outcomeCriteriaUseCases.OutcomeCriteriaServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	criteriaThresholdUC := criteriaThresholdUseCases.NewUseCases(
 		criteriaThresholdUseCases.CriteriaThresholdRepositories{CriteriaThreshold: repos.CriteriaThreshold},
 		criteriaThresholdUseCases.CriteriaThresholdServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	criteriaOptionUC := criteriaOptionUseCases.NewUseCases(
 		criteriaOptionUseCases.CriteriaOptionRepositories{CriteriaOption: repos.CriteriaOption},
 		criteriaOptionUseCases.CriteriaOptionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	templateTaskCriteriaUC := templateTaskCriteriaUseCases.NewUseCases(
 		templateTaskCriteriaUseCases.TemplateTaskCriteriaRepositories{TemplateTaskCriteria: repos.TemplateTaskCriteria},
 		templateTaskCriteriaUseCases.TemplateTaskCriteriaServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	taskOutcomeUC := taskOutcomeUseCases.NewUseCases(
 		taskOutcomeUseCases.TaskOutcomeRepositories{TaskOutcome: repos.TaskOutcome},
 		taskOutcomeUseCases.TaskOutcomeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	taskOutcomeCheckUC := taskOutcomeCheckUseCases.NewUseCases(
 		taskOutcomeCheckUseCases.TaskOutcomeCheckRepositories{TaskOutcomeCheck: repos.TaskOutcomeCheck},
 		taskOutcomeCheckUseCases.TaskOutcomeCheckServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	phaseOutcomeSummaryUC := phaseOutcomeSummaryUseCases.NewUseCases(
 		phaseOutcomeSummaryUseCases.PhaseOutcomeSummaryRepositories{PhaseOutcomeSummary: repos.PhaseOutcomeSummary},
 		phaseOutcomeSummaryUseCases.PhaseOutcomeSummaryServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	jobOutcomeSummaryUC := jobOutcomeSummaryUseCases.NewUseCases(
 		jobOutcomeSummaryUseCases.JobOutcomeSummaryRepositories{JobOutcomeSummary: repos.JobOutcomeSummary},
 		jobOutcomeSummaryUseCases.JobOutcomeSummaryServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -299,8 +299,8 @@ func NewUseCases(
 			JobTemplateRelation: repos.JobTemplateRelation,
 		},
 		jobTemplateRelationUseCases.JobTemplateRelationServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 

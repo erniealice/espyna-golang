@@ -30,8 +30,8 @@ func createTestListWorkspaceUsersUseCase(businessType string) *ListWorkspaceUser
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ListWorkspaceUsersServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
+		Translator: standardServices.Translator,
 	}
 	return NewListWorkspaceUsersUseCase(repositories, services)
 }
@@ -43,8 +43,8 @@ func TestListWorkspaceUsersUseCase_Execute_Success(t *testing.T) {
 	mockRepo := entity.NewMockWorkspaceUserRepository(businessType)
 	standardServices := testutil.CreateStandardServices(false, true)
 	useCase := NewListWorkspaceUsersUseCase(ListWorkspaceUsersRepositories{WorkspaceUser: mockRepo}, ListWorkspaceUsersServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth().SetUserWorkspaces("test-user", "workspace-elementary", "workspace-middle", "workspace-high"),
+		Translator: standardServices.Translator,
 	})
 
 	// The mock data for education/workspace-user has 3 entries

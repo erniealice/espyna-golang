@@ -12,10 +12,10 @@ type EquityTransactionRepositories struct {
 
 // EquityTransactionServices groups all business service dependencies for equity transaction use cases.
 type EquityTransactionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all equity transaction-related use cases.
@@ -32,24 +32,24 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateEquityTransactionRepositories(repositories)
 	createServices := CreateEquityTransactionServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	listRepos := ListEquityTransactionsRepositories(repositories)
 	listServices := ListEquityTransactionsServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	getListPageDataRepos := GetEquityTransactionListPageDataRepositories(repositories)
 	getListPageDataServices := GetEquityTransactionListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

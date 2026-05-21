@@ -596,14 +596,14 @@ func (r *PostgresProcurementRequestRepository) SpawnPurchaseOrder(ctx context.Co
 
 	for lineRows.Next() {
 		var (
-			prlID             string
-			description       string
-			quantity          float64
-			estimatedUnitP    int64
-			estimatedTotalP   int64
-			lineNum           int32
-			expCategoryID     *string
-			lineLocationID    *string
+			prlID           string
+			description     string
+			quantity        float64
+			estimatedUnitP  int64
+			estimatedTotalP int64
+			lineNum         int32
+			expCategoryID   *string
+			lineLocationID  *string
 		)
 		if err = lineRows.Scan(&prlID, &description, &quantity, &estimatedUnitP, &estimatedTotalP,
 			&lineNum, &expCategoryID, &lineLocationID); err != nil {

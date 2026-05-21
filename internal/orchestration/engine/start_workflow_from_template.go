@@ -36,11 +36,11 @@ func NewStartWorkflowFromTemplateUseCase(repos EngineRepositories, svcs EngineSe
 func (uc *StartWorkflowFromTemplateUseCase) Execute(ctx context.Context, req *enginepb.StartWorkflowRequest) (*enginepb.StartWorkflowResponse, error) {
 	totalStart := time.Now()
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_engine.validation.request_required", "Request is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_engine.validation.request_required", "Request is required [DEFAULT]"))
 	}
 
 	if req.WorkflowTemplateId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow_engine.validation.template_id_required", "Workflow template ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_engine.validation.template_id_required", "Workflow template ID is required [DEFAULT]"))
 	}
 
 	// 1. Fetch WorkflowTemplate (via cache)
@@ -66,7 +66,7 @@ func (uc *StartWorkflowFromTemplateUseCase) Execute(ctx context.Context, req *en
 
 	// 3. Create Workflow instance
 	t2 := time.Now()
-	workflowID := uc.services.IDService.GenerateID()
+	workflowID := uc.services.IDGenerator.GenerateID()
 	now := time.Now()
 
 	// Wrap input under "input" key for YAML workflow JSONPath access ($.input.field)
@@ -119,7 +119,7 @@ func (uc *StartWorkflowFromTemplateUseCase) Execute(ctx context.Context, req *en
 	// 5. Create first Stage instance if we have a stage template (Lazy instantiation)
 	if firstStageTemplate != nil {
 		t4 := time.Now()
-		stageID := uc.services.IDService.GenerateID()
+		stageID := uc.services.IDGenerator.GenerateID()
 		stage := &stagepb.Stage{
 			Id:              stageID,
 			WorkflowId:      workflowID,

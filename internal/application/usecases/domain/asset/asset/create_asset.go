@@ -22,10 +22,10 @@ type CreateAssetRepositories struct {
 
 // CreateAssetServices groups all business service dependencies
 type CreateAssetServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateAssetUseCase handles the business logic for creating assets
@@ -53,10 +53,10 @@ func NewCreateAssetUseCaseUngrouped(assetRepo assetpb.AssetDomainServiceServer) 
 	}
 
 	services := CreateAssetServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateAssetUseCase(repositories, services)
@@ -65,13 +65,13 @@ func NewCreateAssetUseCaseUngrouped(assetRepo assetpb.AssetDomainServiceServer) 
 // Execute performs the create asset operation
 func (uc *CreateAssetUseCase) Execute(ctx context.Context, req *assetpb.CreateAssetRequest) (*assetpb.CreateAssetResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAsset, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -83,10 +83,10 @@ func (uc *CreateAssetUseCase) Execute(ctx context.Context, req *assetpb.CreateAs
 func (uc *CreateAssetUseCase) executeWithTransaction(ctx context.Context, req *assetpb.CreateAssetRequest) (*assetpb.CreateAssetResponse, error) {
 	var result *assetpb.CreateAssetResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "asset.errors.creation_failed", "Asset creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "asset.errors.creation_failed", "Asset creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -123,10 +123,10 @@ func (uc *CreateAssetUseCase) executeCore(ctx context.Context, req *assetpb.Crea
 // validateInput validates the input request
 func (uc *CreateAssetUseCase) validateInput(ctx context.Context, req *assetpb.CreateAssetRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.data_required", "[ERR-DEFAULT] Asset data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.data_required", "[ERR-DEFAULT] Asset data is required"))
 	}
 
 	// Trim leading and trailing spaces
@@ -138,13 +138,13 @@ func (uc *CreateAssetUseCase) validateInput(ctx context.Context, req *assetpb.Cr
 	}
 
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.name_required", "[ERR-DEFAULT] Name is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.name_required", "[ERR-DEFAULT] Name is required"))
 	}
 	if req.Data.AcquisitionCost <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.acquisition_cost_required", "[ERR-DEFAULT] Acquisition cost must be greater than zero"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.acquisition_cost_required", "[ERR-DEFAULT] Acquisition cost must be greater than zero"))
 	}
 	if req.Data.AssetCategoryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.category_id_required", "[ERR-DEFAULT] Asset category is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.category_id_required", "[ERR-DEFAULT] Asset category is required"))
 	}
 	return nil
 }
@@ -155,7 +155,7 @@ func (uc *CreateAssetUseCase) enrichAssetData(asset *assetpb.Asset) error {
 
 	// Generate Asset ID if not provided
 	if asset.Id == "" {
-		asset.Id = uc.services.IDService.GenerateID()
+		asset.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set asset audit fields
@@ -172,32 +172,32 @@ func (uc *CreateAssetUseCase) enrichAssetData(asset *assetpb.Asset) error {
 func (uc *CreateAssetUseCase) validateBusinessRules(ctx context.Context, asset *assetpb.Asset) error {
 	// Validate name length
 	if len(asset.Name) > 200 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 200 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.name_too_long", "[ERR-DEFAULT] Name must not exceed 200 characters"))
 	}
 
 	// Validate asset number length
 	if len(asset.AssetNumber) > 50 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.asset_number_too_long", "[ERR-DEFAULT] Asset number must not exceed 50 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.asset_number_too_long", "[ERR-DEFAULT] Asset number must not exceed 50 characters"))
 	}
 
 	// Validate description length if provided
 	if asset.Description != nil && len(*asset.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 1000 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 1000 characters"))
 	}
 
 	// Validate salvage value is not negative
 	if asset.SalvageValue < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.salvage_value_negative", "[ERR-DEFAULT] Salvage value must not be negative"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.salvage_value_negative", "[ERR-DEFAULT] Salvage value must not be negative"))
 	}
 
 	// Validate salvage value does not exceed acquisition cost
 	if asset.SalvageValue > asset.AcquisitionCost {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.salvage_exceeds_cost", "[ERR-DEFAULT] Salvage value must not exceed acquisition cost"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.salvage_exceeds_cost", "[ERR-DEFAULT] Salvage value must not exceed acquisition cost"))
 	}
 
 	// Validate useful life is positive when provided
 	if asset.UsefulLifeMonths < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "asset.validation.useful_life_negative", "[ERR-DEFAULT] Useful life must not be negative"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.useful_life_negative", "[ERR-DEFAULT] Useful life must not be negative"))
 	}
 
 	return nil

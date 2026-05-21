@@ -25,10 +25,10 @@ type CreateLicenseRepositories struct {
 
 // CreateLicenseServices groups all business service dependencies
 type CreateLicenseServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
-	IDService            ports.IDService            // UUID generation
+	Authorizer  ports.Authorizer  // RBAC and permissions
+	Transactor  ports.Transactor  // Database transactions
+	Translator  ports.Translator  // i18n error messages
+	IDGenerator ports.IDGenerator // UUID generation
 }
 
 // CreateLicenseUseCase handles the business logic for creating licenses
@@ -54,13 +54,13 @@ func NewCreateLicenseUseCase(
 // Execute performs the create license operation
 func (uc *CreateLicenseUseCase) Execute(ctx context.Context, req *licensepb.CreateLicenseRequest) (*licensepb.CreateLicenseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicense, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -69,11 +69,11 @@ func (uc *CreateLicenseUseCase) Execute(ctx context.Context, req *licensepb.Crea
 // executeWithTransaction performs the create license operation within a transaction
 func (uc *CreateLicenseUseCase) executeWithTransaction(ctx context.Context, req *licensepb.CreateLicenseRequest) (*licensepb.CreateLicenseResponse, error) {
 	var result *licensepb.CreateLicenseResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(ctx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(ctx context.Context) error {
 		var txErr error
 		result, txErr = uc.executeCore(ctx, req)
 		if txErr != nil {
-			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.creation_failed", "license creation failed [DEFAULT]")
+			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.creation_failed", "license creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", errMsg, txErr)
 		}
 		return nil
@@ -153,16 +153,16 @@ func (uc *CreateLicenseUseCase) executeCore(ctx context.Context, req *licensepb.
 // validateInput validates the input request
 func (uc *CreateLicenseUseCase) validateInput(ctx context.Context, req *licensepb.CreateLicenseRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.data_required", "license data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.data_required", "license data is required [DEFAULT]"))
 	}
 	if req.Data.SubscriptionId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.subscription_id_required", "subscription ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.subscription_id_required", "subscription ID is required [DEFAULT]"))
 	}
 	if req.Data.PlanId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.plan_id_required", "plan ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.plan_id_required", "plan ID is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -175,10 +175,10 @@ func (uc *CreateLicenseUseCase) validateEntityReferences(ctx context.Context, li
 			Data: &subscriptionpb.Subscription{Id: license.SubscriptionId},
 		})
 		if err != nil || subResp == nil || len(subResp.Data) == 0 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.subscription_not_found", "subscription not found [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.subscription_not_found", "subscription not found [DEFAULT]"))
 		}
 		if !subResp.Data[0].Active {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.subscription_not_active", "subscription is not active [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.subscription_not_active", "subscription is not active [DEFAULT]"))
 		}
 	}
 
@@ -191,7 +191,7 @@ func (uc *CreateLicenseUseCase) enrichLicenseData(license *licensepb.License) er
 
 	// Generate License ID if not provided
 	if license.Id == "" {
-		license.Id = uc.services.IDService.GenerateID()
+		license.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Generate license key if not provided (format: LIC-{YYYY}-{RANDOM})

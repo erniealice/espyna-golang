@@ -34,9 +34,9 @@ func createTestUpdateDelegateClientUseCase(businessType string, supportsTransact
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := UpdateDelegateClientServices{
-		AuthorizationService: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewDisabledAuth(), // Use disabled auth to match other modules
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewUpdateDelegateClientUseCase(repositories, services)
@@ -90,7 +90,7 @@ func TestUpdateDelegateClientUseCase_Execute_NotFound(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 	// The actual error will be from the repository layer for non-existent entities
-	testutil.AssertTranslatedError(t, err, "delegate_client.errors.update_failed", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "delegate_client.errors.update_failed", useCase.services.Translator, ctx)
 }
 
 func TestUpdateDelegateClientUseCase_Execute_InvalidReference(t *testing.T) {
@@ -108,5 +108,5 @@ func TestUpdateDelegateClientUseCase_Execute_InvalidReference(t *testing.T) {
 
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
-	testutil.AssertTranslatedErrorWithContext(t, err, "delegate_client.errors.delegate_not_found", "{\"delegateId\": \"parent-999\"}", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedErrorWithContext(t, err, "delegate_client.errors.delegate_not_found", "{\"delegateId\": \"parent-999\"}", useCase.services.Translator, ctx)
 }

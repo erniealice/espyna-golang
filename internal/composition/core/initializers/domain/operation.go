@@ -16,10 +16,10 @@ import (
 func InitializeOperation(
 	repos *domain.OperationRepositories,
 	subRepos *domain.SubscriptionRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*operation.OperationUseCases, error) {
 	opRepos := operation.OperationRepositories{
 		Job:                 repos.Job,

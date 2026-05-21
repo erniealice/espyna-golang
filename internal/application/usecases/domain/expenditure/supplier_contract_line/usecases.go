@@ -12,10 +12,10 @@ type SupplierContractLineRepositories struct {
 
 // SupplierContractLineServices groups all business service dependencies.
 type SupplierContractLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all supplier contract line use cases.
@@ -38,52 +38,52 @@ func NewUseCases(
 		CreateSupplierContractLine: NewCreateSupplierContractLineUseCase(
 			CreateSupplierContractLineRepositories{SupplierContractLine: repositories.SupplierContractLine},
 			CreateSupplierContractLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 		ReadSupplierContractLine: NewReadSupplierContractLineUseCase(
 			ReadSupplierContractLineRepositories{SupplierContractLine: repositories.SupplierContractLine},
 			ReadSupplierContractLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		UpdateSupplierContractLine: NewUpdateSupplierContractLineUseCase(
 			UpdateSupplierContractLineRepositories{SupplierContractLine: repositories.SupplierContractLine},
 			UpdateSupplierContractLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		DeleteSupplierContractLine: NewDeleteSupplierContractLineUseCase(
 			DeleteSupplierContractLineRepositories{SupplierContractLine: repositories.SupplierContractLine},
 			DeleteSupplierContractLineServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListSupplierContractLines: NewListSupplierContractLinesUseCase(
 			ListSupplierContractLinesRepositories{SupplierContractLine: repositories.SupplierContractLine},
 			ListSupplierContractLinesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		GetSupplierContractLineListPageData: NewGetSupplierContractLineListPageDataUseCase(
 			GetSupplierContractLineListPageDataRepositories{SupplierContractLine: repositories.SupplierContractLine},
 			GetSupplierContractLineListPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		GetSupplierContractLineItemPageData: NewGetSupplierContractLineItemPageDataUseCase(
 			GetSupplierContractLineItemPageDataRepositories{SupplierContractLine: repositories.SupplierContractLine},
 			GetSupplierContractLineItemPageDataServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

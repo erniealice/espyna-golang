@@ -18,9 +18,9 @@ type PostJournalEntryRepositories struct {
 
 // PostJournalEntryServices groups all business service dependencies
 type PostJournalEntryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // PostJournalEntryUseCase handles the business logic for posting journal entries.
@@ -46,19 +46,19 @@ func NewPostJournalEntryUseCase(
 // Execute performs the post journal entry operation
 func (uc *PostJournalEntryUseCase) Execute(ctx context.Context, req *journalentrypb.PostJournalEntryRequest) (*journalentrypb.PostJournalEntryResponse, error) {
 	// Authorization check — posting is a lifecycle action beyond standard CRUD
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityJournalEntry, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -69,10 +69,10 @@ func (uc *PostJournalEntryUseCase) Execute(ctx context.Context, req *journalentr
 func (uc *PostJournalEntryUseCase) executeWithTransaction(ctx context.Context, req *journalentrypb.PostJournalEntryRequest) (*journalentrypb.PostJournalEntryResponse, error) {
 	var result *journalentrypb.PostJournalEntryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "journal_entry.errors.post_failed", "Journal entry posting failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "journal_entry.errors.post_failed", "Journal entry posting failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -97,7 +97,7 @@ func (uc *PostJournalEntryUseCase) executeCore(ctx context.Context, req *journal
 	}
 	resp, err := uc.repositories.JournalEntry.PostJournalEntry(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.errors.post_failed", "[ERR-DEFAULT] Journal entry posting failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.errors.post_failed", "[ERR-DEFAULT] Journal entry posting failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -107,13 +107,13 @@ func (uc *PostJournalEntryUseCase) executeCore(ctx context.Context, req *journal
 // validateInput validates the input request
 func (uc *PostJournalEntryUseCase) validateInput(ctx context.Context, req *journalentrypb.PostJournalEntryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.JournalEntryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.id_required", "[ERR-DEFAULT] Journal entry ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.id_required", "[ERR-DEFAULT] Journal entry ID is required"))
 	}
 	if req.PostedBy == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.posted_by_required", "[ERR-DEFAULT] Posted by (user ID) is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.posted_by_required", "[ERR-DEFAULT] Posted by (user ID) is required"))
 	}
 	return nil
 }

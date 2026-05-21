@@ -18,9 +18,9 @@ type TerminateSupplierContractRepositories struct {
 
 // TerminateSupplierContractServices groups service dependencies.
 type TerminateSupplierContractServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // TerminateSupplierContractUseCase transitions a contract to TERMINATED (terminal state).
@@ -39,18 +39,18 @@ func NewTerminateSupplierContractUseCase(
 
 // Execute performs the terminate supplier contract operation.
 func (uc *TerminateSupplierContractUseCase) Execute(ctx context.Context, req *suppliercontractpb.TerminateSupplierContractRequest) (*suppliercontractpb.TerminateSupplierContractResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entitySupplierContract, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.validation.id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 
 	resp, err := uc.repositories.SupplierContract.TerminateSupplierContract(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"supplier_contract.errors.terminate_failed", "[ERR-DEFAULT] Failed to terminate supplier contract")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

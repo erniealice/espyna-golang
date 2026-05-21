@@ -90,10 +90,10 @@ type SubscriptionUseCases struct {
 // that don't need to gate on cross-row state.
 func NewUseCases(
 	repos SubscriptionRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
 	refChecker ports.ReferenceChecker,
 ) *SubscriptionUseCases {
@@ -104,20 +104,20 @@ func NewUseCases(
 	balanceUC := balanceUseCases.NewUseCases(
 		balanceUseCases.BalanceRepositories{Balance: repos.Balance},
 		balanceUseCases.BalanceServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
 	invoiceUC := invoiceUseCases.NewUseCases(
 		invoiceUseCases.InvoiceRepositories{Invoice: repos.Invoice},
 		invoiceUseCases.InvoiceServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -132,21 +132,21 @@ func NewUseCases(
 			Client:           repos.Client,
 		},
 		planUseCases.PlanServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
-			ReferenceChecker:     refChecker,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ReferenceChecker: refChecker,
 		},
 	)
 
 	planSettingsUC := planSettingsUseCases.NewUseCases(
 		planSettingsUseCases.PlanSettingsRepositories{PlanSettings: repos.PlanSettings},
 		planSettingsUseCases.PlanSettingsServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -158,21 +158,21 @@ func NewUseCases(
 			Client:        repos.Client,
 		},
 		pricePlanUseCases.PricePlanServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
-			ReferenceChecker:     refChecker,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ReferenceChecker: refChecker,
 		},
 	)
 
 	priceScheduleUC := priceScheduleUseCases.NewUseCases(
 		priceScheduleUseCases.PriceScheduleRepositories{PriceSchedule: repos.PriceSchedule},
 		priceScheduleUseCases.PriceScheduleServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -183,10 +183,10 @@ func NewUseCases(
 			ProductPlan:      repos.ProductPlan,
 		},
 		productPricePlanUseCases.ProductPricePlanServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -197,10 +197,10 @@ func NewUseCases(
 			PricePlan:    repos.PricePlan,
 		},
 		subscriptionUseCases.SubscriptionServices{
-			AuthorizationService:    authSvc,
-			TransactionService:      txSvc,
-			TranslationService:      i18nSvc,
-			IDService:               idService,
+			Authorizer:              authSvc,
+			Transactor:              txSvc,
+			Translator:              i18nSvc,
+			IDGenerator:             idService,
 			JobTemplateInstantiator: jobTemplateInstantiator,
 		},
 	)
@@ -212,10 +212,10 @@ func NewUseCases(
 			Attribute:        repos.Attribute,
 		},
 		balanceAttributeUseCases.BalanceAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -226,10 +226,10 @@ func NewUseCases(
 			Attribute:        repos.Attribute,
 		},
 		invoiceAttributeUseCases.InvoiceAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -240,10 +240,10 @@ func NewUseCases(
 			Attribute:     repos.Attribute,
 		},
 		planAttributeUseCases.PlanAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -254,10 +254,10 @@ func NewUseCases(
 			Attribute:             repos.Attribute,
 		},
 		subscriptionAttributeUseCases.SubscriptionAttributeServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -267,9 +267,9 @@ func NewUseCases(
 	billingEventUC := billingEventUseCases.NewUseCases(
 		billingEventUseCases.BillingEventRepositories{BillingEvent: repos.BillingEvent},
 		billingEventUseCases.BillingEventServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Transactor: txSvc,
+			Translator: i18nSvc,
 		},
 	)
 

@@ -21,10 +21,10 @@ type SupersedeTaxRegistrationRepositories struct {
 
 // SupersedeTaxRegistrationServices groups service dependencies.
 type SupersedeTaxRegistrationServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // SupersedeTaxRegistrationRequest is the input for superseding a tax_registration.
@@ -57,27 +57,27 @@ func NewSupersedeTaxRegistrationUseCase(repositories SupersedeTaxRegistrationRep
 // Execute performs the supersede operation.
 func (uc *SupersedeTaxRegistrationUseCase) Execute(ctx context.Context, req *SupersedeTaxRegistrationRequest) (*taxregistrationpb.TaxRegistration, error) {
 	// Supersede is an "update" action in CRUD permission terms.
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityTaxRegistration, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.PriorID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.prior_id_required", "Prior Tax Registration ID is required [DEFAULT]"))
 	}
 	if req.NewData == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.data_required", "New Tax Registration data is required [DEFAULT]"))
 	}
 	if req.NewData.TaxRegistrationKindId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.kind_id_required", "Tax Registration Kind is required [DEFAULT]"))
 	}
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *taxregistrationpb.TaxRegistration
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("tax_registration supersession failed: %w", err)
@@ -102,12 +102,12 @@ func (uc *SupersedeTaxRegistrationUseCase) executeCore(ctx context.Context, req 
 		return nil, fmt.Errorf("read prior tax_registration: %w", err)
 	}
 	if priorResp == nil || len(priorResp.GetData()) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.not_found", "Prior Tax Registration not found [DEFAULT]"))
 	}
 	prior := priorResp.GetData()[0]
 	if prior.GetStatus() != taxregistrationpb.TaxRegistrationStatus_TAX_REGISTRATION_STATUS_ACTIVE {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.validation.not_active", "Only ACTIVE registrations can be superseded [DEFAULT]"))
 	}
 
@@ -140,7 +140,7 @@ func (uc *SupersedeTaxRegistrationUseCase) executeCore(ctx context.Context, req 
 	now := time.Now()
 	newRow := req.NewData
 	if newRow.Id == "" {
-		newRow.Id = uc.services.IDService.GenerateID()
+		newRow.Id = uc.services.IDGenerator.GenerateID()
 	}
 	newRow.Status = taxregistrationpb.TaxRegistrationStatus_TAX_REGISTRATION_STATUS_ACTIVE
 	newRow.Active = true
@@ -179,7 +179,7 @@ func (uc *SupersedeTaxRegistrationUseCase) executeCore(ctx context.Context, req 
 		return nil, fmt.Errorf("create new tax_registration (supersession): %w", err)
 	}
 	if createResp == nil || len(createResp.GetData()) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"tax_registration.errors.create_failed", "Failed to create superseding tax_registration [DEFAULT]"))
 	}
 	return createResp.GetData()[0], nil

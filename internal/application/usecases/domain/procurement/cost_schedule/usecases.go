@@ -12,10 +12,10 @@ type Repositories struct {
 
 // Services groups all business service dependencies for cost_schedule use cases
 type Services struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all cost_schedule-related use cases
@@ -35,35 +35,35 @@ func NewUseCases(repos Repositories, svcs Services) *UseCases {
 	return &UseCases{
 		CreateCostSchedule: NewCreateCostScheduleUseCase(
 			CreateCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			CreateCostScheduleServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService, IDService: svcs.IDService},
+			CreateCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
 		),
 		ReadCostSchedule: NewReadCostScheduleUseCase(
 			ReadCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			ReadCostScheduleServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ReadCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		UpdateCostSchedule: NewUpdateCostScheduleUseCase(
 			UpdateCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			UpdateCostScheduleServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			UpdateCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		DeleteCostSchedule: NewDeleteCostScheduleUseCase(
 			DeleteCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			DeleteCostScheduleServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			DeleteCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		ListCostSchedules: NewListCostSchedulesUseCase(
 			ListCostSchedulesRepositories{CostSchedule: repos.CostSchedule},
-			ListCostSchedulesServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			ListCostSchedulesServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetCostScheduleListPageData: NewGetCostScheduleListPageDataUseCase(
 			GetCostScheduleListPageDataRepositories{CostSchedule: repos.CostSchedule},
-			GetCostScheduleListPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetCostScheduleListPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetCostScheduleItemPageData: NewGetCostScheduleItemPageDataUseCase(
 			GetCostScheduleItemPageDataRepositories{CostSchedule: repos.CostSchedule},
-			GetCostScheduleItemPageDataServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			GetCostScheduleItemPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		FindApplicableCostSchedule: NewFindApplicableCostScheduleUseCase(
 			FindApplicableCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			FindApplicableCostScheduleServices{AuthorizationService: svcs.AuthorizationService, TransactionService: svcs.TransactionService, TranslationService: svcs.TranslationService},
+			FindApplicableCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 	}
 }

@@ -22,9 +22,9 @@ type UpdateStageTemplateRepositories struct {
 
 // UpdateStageTemplateServices groups all business service dependencies
 type UpdateStageTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateStageTemplateUseCase handles the business logic for updating stage templates
@@ -53,9 +53,9 @@ func NewUpdateStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.St
 	}
 
 	services := UpdateStageTemplateServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateStageTemplateUseCase(repositories, services)
@@ -64,14 +64,14 @@ func NewUpdateStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.St
 // Execute performs the update stage template operation
 func (uc *UpdateStageTemplateUseCase) Execute(ctx context.Context, req *stageTemplatepb.UpdateStageTemplateRequest) (*stageTemplatepb.UpdateStageTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage_template", ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.request_required", "Request is required for stage templates [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.request_required", "Request is required for stage templates [DEFAULT]"))
 	}
 
 	// Business validation
@@ -83,7 +83,7 @@ func (uc *UpdateStageTemplateUseCase) Execute(ctx context.Context, req *stageTem
 	enrichedStageTemplate := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedStageTemplate)
 	}
 
@@ -95,10 +95,10 @@ func (uc *UpdateStageTemplateUseCase) Execute(ctx context.Context, req *stageTem
 func (uc *UpdateStageTemplateUseCase) executeWithTransaction(ctx context.Context, enrichedStageTemplate *stageTemplatepb.StageTemplate) (*stageTemplatepb.UpdateStageTemplateResponse, error) {
 	var result *stageTemplatepb.UpdateStageTemplateResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedStageTemplate)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "stage_template.errors.update_failed", "Stage template update failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "stage_template.errors.update_failed", "Stage template update failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -134,56 +134,56 @@ func (uc *UpdateStageTemplateUseCase) applyBusinessLogic(stageTemplate *stageTem
 func (uc *UpdateStageTemplateUseCase) validateBusinessRules(ctx context.Context, stageTemplate *stageTemplatepb.StageTemplate) error {
 	// Business rule: Required data validation
 	if stageTemplate == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.data_required", "Stage template data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.data_required", "Stage template data is required [DEFAULT]"))
 	}
 
 	// Business rule: ID is required for updating
 	if stageTemplate.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.id_required", "Stage template ID is required for update operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.id_required", "Stage template ID is required for update operations [DEFAULT]"))
 	}
 
 	// Business rule: Name is required
 	if stageTemplate.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.name_required", "Stage template name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.name_required", "Stage template name is required [DEFAULT]"))
 	}
 
 	// Business rule: Workflow Template ID is required (foreign key)
 	if stageTemplate.WorkflowTemplateId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.workflow_template_id_required", "Workflow Template ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.workflow_template_id_required", "Workflow Template ID is required [DEFAULT]"))
 	}
 
 	// Business rule: Validate foreign key - workflow template must exist
 	if err := uc.validateWorkflowTemplateExists(ctx, stageTemplate.WorkflowTemplateId); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.workflow_template_not_found", "Referenced workflow template does not exist [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.workflow_template_not_found", "Referenced workflow template does not exist [DEFAULT]"))
 	}
 
 	// Business rule: Name length constraints
 	if len(stageTemplate.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.name_too_short", "Stage template name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.name_too_short", "Stage template name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(stageTemplate.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.name_too_long", "Stage template name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.name_too_long", "Stage template name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Business rule: Name format validation
 	if err := uc.validateStageTemplateName(stageTemplate.Name); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.name_invalid", "Stage template name contains invalid characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.name_invalid", "Stage template name contains invalid characters [DEFAULT]"))
 	}
 
 	// Business rule: Description length constraints
 	if stageTemplate.Description != nil && len(*stageTemplate.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.description_too_long", "Stage template description cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.description_too_long", "Stage template description cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// Business rule: Order index validation if provided
 	if stageTemplate.OrderIndex != nil && *stageTemplate.OrderIndex < 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.order_index_negative", "Order index cannot be negative [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.order_index_negative", "Order index cannot be negative [DEFAULT]"))
 	}
 
 	// Business rule: Condition expression length constraints if provided
 	if stageTemplate.ConditionExpression != nil && len(*stageTemplate.ConditionExpression) > 2000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage_template.validation.condition_expression_too_long", "Condition expression cannot exceed 2000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage_template.validation.condition_expression_too_long", "Condition expression cannot exceed 2000 characters [DEFAULT]"))
 	}
 
 	return nil

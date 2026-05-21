@@ -22,10 +22,10 @@ type CreateJournalEntryRepositories struct {
 
 // CreateJournalEntryServices groups all business service dependencies
 type CreateJournalEntryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateJournalEntryUseCase handles the business logic for creating journal entries
@@ -48,13 +48,13 @@ func NewCreateJournalEntryUseCase(
 // Execute performs the create journal entry operation
 func (uc *CreateJournalEntryUseCase) Execute(ctx context.Context, req *journalentrypb.CreateJournalEntryRequest) (*journalentrypb.CreateJournalEntryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityJournalEntry, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -66,10 +66,10 @@ func (uc *CreateJournalEntryUseCase) Execute(ctx context.Context, req *journalen
 func (uc *CreateJournalEntryUseCase) executeWithTransaction(ctx context.Context, req *journalentrypb.CreateJournalEntryRequest) (*journalentrypb.CreateJournalEntryResponse, error) {
 	var result *journalentrypb.CreateJournalEntryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "journal_entry.errors.creation_failed", "Journal entry creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "journal_entry.errors.creation_failed", "Journal entry creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -109,17 +109,17 @@ func (uc *CreateJournalEntryUseCase) executeCore(ctx context.Context, req *journ
 // validateInput validates the input request
 func (uc *CreateJournalEntryUseCase) validateInput(ctx context.Context, req *journalentrypb.CreateJournalEntryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.data_required", "[ERR-DEFAULT] Journal entry data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.data_required", "[ERR-DEFAULT] Journal entry data is required"))
 	}
 
 	// Trim leading and trailing spaces
 	req.Data.Description = strings.TrimSpace(req.Data.Description)
 
 	if req.Data.Description == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.description_required", "[ERR-DEFAULT] Description is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.description_required", "[ERR-DEFAULT] Description is required"))
 	}
 
 	return nil
@@ -131,7 +131,7 @@ func (uc *CreateJournalEntryUseCase) enrichJournalEntryData(entry *journalentryp
 
 	// Generate Journal Entry ID if not provided
 	if entry.Id == "" {
-		entry.Id = uc.services.IDService.GenerateID()
+		entry.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Generate entry_number if not provided.
@@ -195,7 +195,7 @@ func (uc *CreateJournalEntryUseCase) enrichJournalEntryData(entry *journalentryp
 func (uc *CreateJournalEntryUseCase) validateBusinessRules(ctx context.Context, entry *journalentrypb.JournalEntry) error {
 	// Validate description length
 	if len(entry.Description) > 500 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "journal_entry.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 500 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "journal_entry.validation.description_too_long", "[ERR-DEFAULT] Description must not exceed 500 characters"))
 	}
 
 	return nil

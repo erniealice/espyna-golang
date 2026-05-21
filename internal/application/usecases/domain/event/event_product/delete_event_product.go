@@ -21,9 +21,9 @@ type DeleteEventProductRepositories struct {
 
 // DeleteEventProductServices groups all business service dependencies
 type DeleteEventProductServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // DeleteEventProductUseCase handles the business logic for deleting event product associations
@@ -54,9 +54,9 @@ func NewDeleteEventProductUseCaseUngrouped(eventProductRepo eventproductpb.Event
 	}
 
 	services := DeleteEventProductServices{
-		AuthorizationService: nil, // Will be injected later if needed
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later if needed
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return &DeleteEventProductUseCase{
@@ -68,7 +68,7 @@ func NewDeleteEventProductUseCaseUngrouped(eventProductRepo eventproductpb.Event
 // Execute performs the delete event product operation
 func (uc *DeleteEventProductUseCase) Execute(ctx context.Context, req *eventproductpb.DeleteEventProductRequest) (*eventproductpb.DeleteEventProductResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventProduct, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -76,18 +76,18 @@ func (uc *DeleteEventProductUseCase) Execute(ctx context.Context, req *eventprod
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.errors.authorization_failed", "Authorization failed for event product")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := ports.EntityPermission(ports.EntityEventProduct, ports.ActionDelete)
-	hasPerm, err := uc.services.AuthorizationService.HasPermission(ctx, userID, permission)
+	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.errors.authorization_failed", "Authorization failed for event product")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_product.errors.authorization_failed", "Authorization failed for event product")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")
 		return nil, errors.New(translatedError)
 	}
 

@@ -17,9 +17,9 @@ type ReadRevenueAttributeRepositories struct {
 
 // ReadRevenueAttributeServices groups all business service dependencies
 type ReadRevenueAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadRevenueAttributeUseCase handles the business logic for reading a revenue attribute
@@ -41,13 +41,13 @@ func NewReadRevenueAttributeUseCase(
 
 // Execute performs the read revenue attribute operation
 func (uc *ReadRevenueAttributeUseCase) Execute(ctx context.Context, req *pb.ReadRevenueAttributeRequest) (*pb.ReadRevenueAttributeResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenueAttribute, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue_attribute.validation.id_required", "Revenue attribute ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_attribute.validation.id_required", "Revenue attribute ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.RevenueAttribute.ReadRevenueAttribute(ctx, req)

@@ -38,10 +38,10 @@ import (
 // initServiceAuth needs them.
 func InitializeAll(
 	db *sql.DB,
-	authSvc ports.AuthorizationService,
-	i18nSvc ports.TranslationService,
-	txSvc ports.TransactionService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	i18nSvc ports.Translator,
+	txSvc ports.Transactor,
+	idSvc ports.IDGenerator,
 	entityRepos *domain.EntityRepositories,
 	ledgerRepos *domain.LedgerRepositories,
 	payrollRepos *domain.PayrollRepositories,
@@ -54,9 +54,9 @@ func InitializeAll(
 	ledgerReportingSvc any,
 ) (*svcusecases.ServiceUseCases, error) {
 	deps := &svcusecases.Deps{
-		DB:                   db,
-		AuthorizationService: authSvc,
-		TranslationService:   i18nSvc,
+		DB:         db,
+		Authorizer: authSvc,
+		Translator: i18nSvc,
 	}
 
 	auditUC := initServiceAudit(db, authSvc, i18nSvc)

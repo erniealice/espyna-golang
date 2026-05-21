@@ -19,10 +19,10 @@ type RecognizeFromContractRepositories struct {
 
 // RecognizeFromContractServices groups service dependencies.
 type RecognizeFromContractServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // RecognizeFromContractUseCase converts a recurring contract cycle into a
@@ -43,16 +43,16 @@ func NewRecognizeFromContractUseCase(
 
 // Execute performs the recognize-from-contract operation.
 func (uc *RecognizeFromContractUseCase) Execute(ctx context.Context, req *expenserecognitionpb.RecognizeFromContractRequest) (*expenserecognitionpb.RecognizeFromContractResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition.validation.contract_id_required", "Supplier contract ID is required [DEFAULT]"))
 	}
 	if req.GetCycleDate() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition.validation.cycle_date_required", "Cycle date is required [DEFAULT]"))
 	}
 
@@ -62,7 +62,7 @@ func (uc *RecognizeFromContractUseCase) Execute(ctx context.Context, req *expens
 	}
 
 	now := time.Now()
-	id := uc.services.IDService.GenerateID()
+	id := uc.services.IDGenerator.GenerateID()
 	contractID := req.GetSupplierContractId()
 	cycleDate := req.GetCycleDate()
 	createReq := &expenserecognitionpb.CreateExpenseRecognitionRequest{

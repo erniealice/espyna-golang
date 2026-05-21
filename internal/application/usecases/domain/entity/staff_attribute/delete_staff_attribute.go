@@ -19,9 +19,9 @@ type DeleteStaffAttributeRepositories struct {
 
 // DeleteStaffAttributeServices groups all business service dependencies
 type DeleteStaffAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteStaffAttributeUseCase handles the business logic for deleting staff attributes
@@ -50,9 +50,9 @@ func NewDeleteStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb
 	}
 
 	services := DeleteStaffAttributeServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteStaffAttributeUseCase(repositories, services)
@@ -61,7 +61,7 @@ func NewDeleteStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb
 // Execute performs the delete staff attribute operation
 func (uc *DeleteStaffAttributeUseCase) Execute(ctx context.Context, req *staffattributepb.DeleteStaffAttributeRequest) (*staffattributepb.DeleteStaffAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityStaffAttribute, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -73,14 +73,14 @@ func (uc *DeleteStaffAttributeUseCase) Execute(ctx context.Context, req *staffat
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.business_rule_validation_failed", "Business rule validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.StaffAttribute.DeleteStaffAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.errors.deletion_failed", "Staff attribute deletion failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.errors.deletion_failed", "Staff attribute deletion failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -90,13 +90,13 @@ func (uc *DeleteStaffAttributeUseCase) Execute(ctx context.Context, req *staffat
 // validateInput validates the input request
 func (uc *DeleteStaffAttributeUseCase) validateInput(ctx context.Context, req *staffattributepb.DeleteStaffAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.request_required", "Request is required for staff attributes [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.data_required", "Staff attribute data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.data_required", "Staff attribute data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "staff_attribute.validation.id_required", "Staff attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff_attribute.validation.id_required", "Staff attribute ID is required [DEFAULT]"))
 	}
 	return nil
 }

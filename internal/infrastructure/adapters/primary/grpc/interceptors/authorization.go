@@ -16,11 +16,11 @@ import (
 
 // AuthorizationInterceptor provides authorization interceptor for gRPC requests
 type AuthorizationInterceptor struct {
-	authorizationService ports.AuthorizationService
+	authorizationService ports.Authorizer
 }
 
 // NewAuthorizationInterceptor creates a new authorization interceptor instance
-func NewAuthorizationInterceptor(authorizationService ports.AuthorizationService) *AuthorizationInterceptor {
+func NewAuthorizationInterceptor(authorizationService ports.Authorizer) *AuthorizationInterceptor {
 	return &AuthorizationInterceptor{
 		authorizationService: authorizationService,
 	}

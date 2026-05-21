@@ -16,8 +16,8 @@ type ListCategoriesRepositories struct {
 
 // ListCategoriesServices groups all business service dependencies
 type ListCategoriesServices struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListCategoriesUseCase handles the business logic for listing categories
@@ -45,8 +45,8 @@ func NewListCategoriesUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 	}
 
 	services := ListCategoriesServices{
-		TransactionService: ports.NewNoOpTransactionService(),
-		TranslationService: ports.NewNoOpTranslationService(),
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListCategoriesUseCase(repositories, services)

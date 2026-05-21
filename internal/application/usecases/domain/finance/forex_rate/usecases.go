@@ -14,9 +14,9 @@ type ForexRateRepositories struct {
 
 // ForexRateServices groups all business service dependencies.
 type ForexRateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all forex_rate use cases.
@@ -33,23 +33,23 @@ func NewUseCases(repositories ForexRateRepositories, services ForexRateServices)
 		ReadForexRate: NewReadForexRateUseCase(
 			ReadForexRateRepositories{ForexRate: repositories.ForexRate},
 			ReadForexRateServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListForexRates: NewListForexRatesUseCase(
 			ListForexRatesRepositories{ForexRate: repositories.ForexRate},
 			ListForexRatesServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		RecordOperatorRate: NewRecordOperatorRateUseCase(
 			RecordOperatorRateRepositories{ForexRate: repositories.ForexRate},
 			RecordOperatorRateServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
-				IDService:            services.IDService,
+				Authorizer:  services.Authorizer,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
 			},
 		),
 	}

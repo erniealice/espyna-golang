@@ -20,9 +20,9 @@ type GetStageTemplateListPageDataRepositories struct {
 }
 
 type GetStageTemplateListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetStageTemplateListPageDataUseCase handles the business logic for getting stage template list page data
@@ -50,7 +50,7 @@ func (uc *GetStageTemplateListPageDataUseCase) Execute(
 	req *stageTemplatepb.GetStageTemplateListPageDataRequest,
 ) (*stageTemplatepb.GetStageTemplateListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage_template", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *GetStageTemplateListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -76,12 +76,12 @@ func (uc *GetStageTemplateListPageDataUseCase) executeWithTransaction(
 ) (*stageTemplatepb.GetStageTemplateListPageDataResponse, error) {
 	var result *stageTemplatepb.GetStageTemplateListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.errors.list_page_data_failed",
 				"stage template list page data retrieval failed: %w",
 			), err)
@@ -107,7 +107,7 @@ func (uc *GetStageTemplateListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"stage_template.errors.list_failed",
 			"failed to retrieve stage templates: %w",
 		), err)
@@ -135,7 +135,7 @@ func (uc *GetStageTemplateListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"stage_template.errors.processing_failed",
 			"failed to process stage template list data: %w",
 		), err)
@@ -149,7 +149,7 @@ func (uc *GetStageTemplateListPageDataUseCase) executeCore(
 		} else {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.errors.type_conversion_failed",
 				"failed to convert item to stage template type",
 			))
@@ -181,7 +181,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"stage_template.validation.request_required",
 			"request is required",
 		))
@@ -226,7 +226,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"stage_template.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))
@@ -238,7 +238,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validatePagination(
 		if method.Offset.Page < 1 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.validation.invalid_page",
 				"page number must be greater than 0",
 			))
@@ -248,7 +248,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validatePagination(
 		if method.Cursor.Token == "" {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.validation.invalid_cursor",
 				"cursor token cannot be empty",
 			))
@@ -266,7 +266,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateFilters(
 	if len(filters.Filters) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"stage_template.validation.empty_filters",
 			"filters cannot be empty when filter request is provided",
 		))
@@ -277,7 +277,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateFilters(
 		if filter.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.validation.filter_field_required",
 				"filter field is required for filter %d",
 			), i)
@@ -287,7 +287,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateFilters(
 		if !uc.isValidStageTemplateField(filter.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.validation.invalid_filter_field",
 				"invalid filter field: %s",
 			), filter.Field)
@@ -305,7 +305,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateSort(
 	if len(sort.Fields) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"stage_template.validation.empty_sort_fields",
 			"sort fields cannot be empty when sort request is provided",
 		))
@@ -316,7 +316,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateSort(
 		if sortField.Field == "" {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.validation.sort_field_required",
 				"sort field is required for sort field %d",
 			), i)
@@ -326,7 +326,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateSort(
 		if !uc.isValidStageTemplateField(sortField.Field) {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.validation.invalid_sort_field",
 				"invalid sort field: %s",
 			), sortField.Field)
@@ -344,7 +344,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateSearch(
 	if search.Query == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"stage_template.validation.empty_search_query",
 			"search query cannot be empty when search request is provided",
 		))
@@ -356,7 +356,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateSearch(
 			if !uc.isValidStageTemplateField(field) {
 				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 					ctx,
-					uc.services.TranslationService,
+					uc.services.Translator,
 					"stage_template.validation.invalid_search_field",
 					"invalid search field: %s",
 				), field)
@@ -367,7 +367,7 @@ func (uc *GetStageTemplateListPageDataUseCase) validateSearch(
 		if search.Options.MaxResults < 0 || search.Options.MaxResults > 1000 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(
 				ctx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"stage_template.validation.invalid_max_results",
 				"max results must be between 0 and 1000",
 			))

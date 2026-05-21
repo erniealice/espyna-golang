@@ -17,8 +17,8 @@ type CountActiveByClientIdsRepositories struct {
 // CountActiveByClientIdsServices groups service dependencies for
 // the CountActiveByClientIds use case.
 type CountActiveByClientIdsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // CountActiveByClientIdsUseCase counts active subscriptions grouped by client ID.
@@ -40,7 +40,7 @@ func NewCountActiveByClientIdsUseCase(
 
 // Execute performs an authorization check then delegates to the repository.
 func (uc *CountActiveByClientIdsUseCase) Execute(ctx context.Context, req *subscriptionpb.CountActiveByClientIdsRequest) (*subscriptionpb.CountActiveByClientIdsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntitySubscription, ports.ActionList); err != nil {
 		return nil, err
 	}

@@ -38,9 +38,9 @@ import (
 // Schedule fields. Other candidates land their typed fields here when
 // their proto + use case ship.
 type Deps struct {
-	DB                   *sql.DB
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	DB         *sql.DB
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 
 	AdminPermission        admin.PermissionDashboardRepository
 	AdminRole              admin.RoleDashboardRepository
@@ -157,16 +157,16 @@ func NewDashboardUseCases(deps *Deps) *DashboardUseCases {
 	}
 	return &DashboardUseCases{
 		Admin: admin.NewUseCases(&admin.Deps{
-			Permission:         deps.AdminPermission,
-			Role:               deps.AdminRole,
-			WorkspaceUser:      deps.AdminWorkspaceUser,
-			WorkspaceUserRole:  deps.AdminWorkspaceUserRole,
-			TranslationService: deps.TranslationService,
+			Permission:        deps.AdminPermission,
+			Role:              deps.AdminRole,
+			WorkspaceUser:     deps.AdminWorkspaceUser,
+			WorkspaceUserRole: deps.AdminWorkspaceUserRole,
+			Translator:        deps.Translator,
 		}),
 		Location: location.NewUseCases(&location.Deps{
-			Location:           deps.Location,
-			LocationArea:       deps.LocationArea,
-			TranslationService: deps.TranslationService,
+			Location:     deps.Location,
+			LocationArea: deps.LocationArea,
+			Translator:   deps.Translator,
 		}), // Wave B P1.C.2 LANDED
 		Ledger: ledger.NewUseCases(&ledger.Deps{
 			Account:      deps.LedgerAccount,
@@ -182,14 +182,14 @@ func NewDashboardUseCases(deps *Deps) *DashboardUseCases {
 			Collection:  deps.TreasuryCollection,
 		}), // Wave B P1.C.5 LANDED 2026-05-21 (unified Loan+Cash)
 		Payroll: payroll.NewUseCases(&payroll.Deps{
-			PayrollRun:         deps.PayrollRun,
-			PayrollRemittance:  deps.PayrollRemittance,
-			TranslationService: deps.TranslationService,
+			PayrollRun:        deps.PayrollRun,
+			PayrollRemittance: deps.PayrollRemittance,
+			Translator:        deps.Translator,
 		}), // Wave B P1.C.6 LANDED
 		Schedule: schedule.NewUseCases(&schedule.Deps{
-			EntityDashboard:      deps.ScheduleEntityDashboard,
-			AuthorizationService: deps.AuthorizationService,
-			TranslationService:   deps.TranslationService,
+			EntityDashboard: deps.ScheduleEntityDashboard,
+			Authorizer:      deps.Authorizer,
+			Translator:      deps.Translator,
 		}),
 		Expenditure: expenditure.NewUseCases(&expenditure.Deps{
 			Expenditure: deps.Expenditure,

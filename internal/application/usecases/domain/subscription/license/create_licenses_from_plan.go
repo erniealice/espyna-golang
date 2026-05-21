@@ -27,10 +27,10 @@ type CreateLicensesFromPlanRepositories struct {
 
 // CreateLicensesFromPlanServices groups all business service dependencies
 type CreateLicensesFromPlanServices struct {
-	AuthorizationService ports.AuthorizationService // RBAC and permissions
-	TransactionService   ports.TransactionService   // Database transactions
-	TranslationService   ports.TranslationService   // i18n error messages
-	IDService            ports.IDService            // UUID generation
+	Authorizer  ports.Authorizer  // RBAC and permissions
+	Transactor  ports.Transactor  // Database transactions
+	Translator  ports.Translator  // i18n error messages
+	IDGenerator ports.IDGenerator // UUID generation
 }
 
 // CreateLicensesFromPlanUseCase handles the business logic for bulk license creation from a plan
@@ -56,13 +56,13 @@ func NewCreateLicensesFromPlanUseCase(
 // Execute performs the create licenses from plan operation
 func (uc *CreateLicensesFromPlanUseCase) Execute(ctx context.Context, req *licensepb.CreateLicensesFromPlanRequest) (*licensepb.CreateLicensesFromPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicense, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check for transaction support and route accordingly
-	if uc.services.TransactionService != nil {
+	if uc.services.Transactor != nil {
 		return uc.executeWithTransaction(ctx, req)
 	}
 	return uc.executeCore(ctx, req)
@@ -71,11 +71,11 @@ func (uc *CreateLicensesFromPlanUseCase) Execute(ctx context.Context, req *licen
 // executeWithTransaction performs the bulk license creation within a transaction
 func (uc *CreateLicensesFromPlanUseCase) executeWithTransaction(ctx context.Context, req *licensepb.CreateLicensesFromPlanRequest) (*licensepb.CreateLicensesFromPlanResponse, error) {
 	var result *licensepb.CreateLicensesFromPlanResponse
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(ctx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(ctx context.Context) error {
 		var txErr error
 		result, txErr = uc.executeCore(ctx, req)
 		if txErr != nil {
-			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.bulk_creation_failed", "bulk license creation failed [DEFAULT]")
+			errMsg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.bulk_creation_failed", "bulk license creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", errMsg, txErr)
 		}
 		return nil
@@ -132,7 +132,7 @@ func (uc *CreateLicensesFromPlanUseCase) executeCore(ctx context.Context, req *l
 
 	for i := int32(1); i <= req.Quantity; i++ {
 		license := &licensepb.License{
-			Id:                 uc.services.IDService.GenerateID(),
+			Id:                 uc.services.IDGenerator.GenerateID(),
 			SubscriptionId:     req.SubscriptionId,
 			PlanId:             req.PlanId,
 			LicenseKey:         uc.generateLicenseKey(),
@@ -244,19 +244,19 @@ func (uc *CreateLicensesFromPlanUseCase) generateLicenseKey() string {
 // validateInput validates the input request
 func (uc *CreateLicensesFromPlanUseCase) validateInput(ctx context.Context, req *licensepb.CreateLicensesFromPlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.request_required", "request is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.request_required", "request is required [DEFAULT]"))
 	}
 	if req.SubscriptionId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.subscription_id_required", "subscription ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.subscription_id_required", "subscription ID is required [DEFAULT]"))
 	}
 	if req.PlanId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.plan_id_required", "plan ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.plan_id_required", "plan ID is required [DEFAULT]"))
 	}
 	if req.Quantity <= 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.quantity_required", "quantity must be greater than 0 [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.quantity_required", "quantity must be greater than 0 [DEFAULT]"))
 	}
 	if req.Quantity > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.validation.quantity_too_large", "quantity cannot exceed 1000 [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.validation.quantity_too_large", "quantity cannot exceed 1000 [DEFAULT]"))
 	}
 	return nil
 }
@@ -267,10 +267,10 @@ func (uc *CreateLicensesFromPlanUseCase) validateAndGetSubscription(ctx context.
 		Data: &subscriptionpb.Subscription{Id: subscriptionID},
 	})
 	if err != nil || subResp == nil || len(subResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.subscription_not_found", "subscription not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.subscription_not_found", "subscription not found [DEFAULT]"))
 	}
 	if !subResp.Data[0].Active {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.subscription_not_active", "subscription is not active [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.subscription_not_active", "subscription is not active [DEFAULT]"))
 	}
 	return subResp.Data[0], nil
 }
@@ -281,10 +281,10 @@ func (uc *CreateLicensesFromPlanUseCase) validatePlanExists(ctx context.Context,
 		Data: &planpb.Plan{Id: &planID},
 	})
 	if err != nil || planResp == nil || len(planResp.Data) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.plan_not_found", "plan not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.plan_not_found", "plan not found [DEFAULT]"))
 	}
 	if !planResp.Data[0].Active {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "license.errors.plan_not_active", "plan is not active [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "license.errors.plan_not_active", "plan is not active [DEFAULT]"))
 	}
 	return nil
 }

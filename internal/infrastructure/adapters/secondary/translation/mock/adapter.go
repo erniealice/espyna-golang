@@ -18,7 +18,7 @@ import (
 func init() {
 	registry.RegisterTranslationProvider(
 		"mock",
-		func() ports.TranslationService {
+		func() ports.Translator {
 			return NewMockTranslationService()
 		},
 		nil, // No config transformer needed
@@ -27,7 +27,7 @@ func init() {
 }
 
 // buildFromEnv creates a mock translation service.
-func buildFromEnv() (ports.TranslationService, error) {
+func buildFromEnv() (ports.Translator, error) {
 	return NewMockTranslationService(), nil
 }
 
@@ -81,4 +81,4 @@ func (s *MockTranslationService) IsEnabled() bool {
 	return true
 }
 
-var _ ports.TranslationService = (*MockTranslationService)(nil)
+var _ ports.Translator = (*MockTranslationService)(nil)

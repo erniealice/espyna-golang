@@ -17,9 +17,9 @@ type ListSuppliersRepositories struct {
 
 // ListSuppliersServices groups all business service dependencies
 type ListSuppliersServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListSuppliersUseCase handles the business logic for listing suppliers
@@ -47,9 +47,9 @@ func NewListSuppliersUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServ
 	}
 
 	services := ListSuppliersServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListSuppliersUseCase(repositories, services)
@@ -58,7 +58,7 @@ func NewListSuppliersUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServ
 // Execute performs the list suppliers operation
 func (uc *ListSuppliersUseCase) Execute(ctx context.Context, req *supplierpb.ListSuppliersRequest) (*supplierpb.ListSuppliersResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (uc *ListSuppliersUseCase) Execute(ctx context.Context, req *supplierpb.Lis
 	// Call repository
 	resp, err := uc.repositories.Supplier.ListSuppliers(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier.errors.list_failed", "Failed to retrieve suppliers [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier.errors.list_failed", "Failed to retrieve suppliers [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

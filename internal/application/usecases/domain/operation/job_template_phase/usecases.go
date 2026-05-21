@@ -12,10 +12,10 @@ type JobTemplatePhaseRepositories struct {
 
 // JobTemplatePhaseServices groups all business service dependencies
 type JobTemplatePhaseServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all job_template_phase-related use cases
@@ -39,73 +39,73 @@ func NewUseCases(
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	createServices := CreateJobTemplatePhaseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadJobTemplatePhaseRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	readServices := ReadJobTemplatePhaseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateJobTemplatePhaseRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	updateServices := UpdateJobTemplatePhaseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteJobTemplatePhaseRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	deleteServices := DeleteJobTemplatePhaseServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListJobTemplatePhasesRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	listServices := ListJobTemplatePhasesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetJobTemplatePhaseListPageDataRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	listPageDataServices := GetJobTemplatePhaseListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetJobTemplatePhaseItemPageDataRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	itemPageDataServices := GetJobTemplatePhaseItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listByJobTemplateRepos := ListByJobTemplateRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	listByJobTemplateServices := ListByJobTemplateServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

@@ -73,11 +73,11 @@ type EngineRepositories struct {
 
 // EngineServices groups all business service dependencies
 type EngineServices struct {
-    AuthorizationService ports.AuthorizationService
-    TransactionService   ports.TransactionService
-    TranslationService   ports.TranslationService
-    IDService            ports.IDService
-    ExecutorRegistry     ports.ExecutorRegistry  // Maps use_case_code -> executor
+    Authorizer       ports.Authorizer
+    Transactor       ports.Transactor
+    Translator       ports.Translator
+    IDGenerator      ports.IDGenerator
+    ExecutorRegistry ports.ExecutorRegistry  // Maps use_case_code -> executor
 }
 ```
 

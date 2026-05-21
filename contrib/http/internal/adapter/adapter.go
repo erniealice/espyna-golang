@@ -16,11 +16,11 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/composition/contracts"
 	"github.com/erniealice/espyna-golang/composition/core"
 	"github.com/erniealice/espyna-golang/composition/routing"
 	"github.com/erniealice/espyna-golang/composition/routing/customization"
+	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 )
 

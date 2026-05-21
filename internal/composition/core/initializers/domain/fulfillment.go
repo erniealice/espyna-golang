@@ -9,20 +9,20 @@ import (
 // InitializeFulfillment creates all fulfillment use cases from provider repositories.
 func InitializeFulfillment(
 	repos *domain.FulfillmentRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*fulfillment.UseCases, error) {
 	return fulfillment.NewUseCases(
 		fulfillment.Repositories{
 			Fulfillment: repos.Fulfillment,
 		},
 		fulfillment.Services{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idSvc,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idSvc,
 		},
 	), nil
 }

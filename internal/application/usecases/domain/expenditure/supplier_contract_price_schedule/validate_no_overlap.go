@@ -51,7 +51,7 @@
 // candidate's `date_time_start` inside a single transaction. The
 // validator handles the truncate IN-LINE: it issues UPDATE on the
 // prior row before returning. The caller is already inside a
-// `TransactionService.ExecuteInTransaction` envelope (per
+// `Transactor.ExecuteInTransaction` envelope (per
 // `create.go` / `update.go`), so the UPDATE and the subsequent
 // INSERT-of-candidate commit together or roll back together.
 //

@@ -17,9 +17,9 @@ type ReadWorkspaceRepositories struct {
 
 // ReadWorkspaceServices groups all business service dependencies
 type ReadWorkspaceServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadWorkspaceUseCase handles the business logic for reading a workspace
@@ -48,9 +48,9 @@ func NewReadWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomainS
 	}
 
 	services := ReadWorkspaceServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadWorkspaceUseCase(repositories, services)
@@ -59,7 +59,7 @@ func NewReadWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomainS
 // Execute performs the read workspace operation
 func (uc *ReadWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.ReadWorkspaceRequest) (*workspacepb.ReadWorkspaceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityWorkspace, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -80,13 +80,13 @@ func (uc *ReadWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.Re
 // validateInput validates the input request
 func (uc *ReadWorkspaceUseCase) validateInput(ctx context.Context, req *workspacepb.ReadWorkspaceRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.request_required", "Request is required for workspaces [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.data_required", "Workspace data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.data_required", "Workspace data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
 	}
 	return nil
 }

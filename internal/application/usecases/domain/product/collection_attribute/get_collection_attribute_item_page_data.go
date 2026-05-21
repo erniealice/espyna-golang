@@ -17,9 +17,9 @@ type GetCollectionAttributeItemPageDataRepositories struct {
 }
 
 type GetCollectionAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetCollectionAttributeItemPageDataUseCase handles the business logic for getting product attribute item page data
@@ -45,7 +45,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) Execute(
 	req *collectionattributepb.GetCollectionAttributeItemPageDataRequest,
 ) (*collectionattributepb.GetCollectionAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCollectionAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -76,12 +76,12 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) executeWithTransaction(
 ) (*collectionattributepb.GetCollectionAttributeItemPageDataResponse, error) {
 	var result *collectionattributepb.GetCollectionAttributeItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"collection_attribute.errors.item_page_data_failed",
 				"product attribute item page data retrieval failed: %w",
 			), err)
@@ -113,7 +113,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.errors.read_failed",
 			"failed to retrieve product attribute: %w",
 		), err)
@@ -122,7 +122,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.errors.not_found",
 			"product attribute not found",
 		))
@@ -135,7 +135,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) executeCore(
 	if productAttribute.Id != req.CollectionAttributeId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.errors.id_mismatch",
 			"retrieved product attribute ID does not match requested ID",
 		))
@@ -162,7 +162,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.request_required",
 			"Request is required for collection attributes [DEFAULT]",
 		))
@@ -172,7 +172,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) validateInput(
 	if strings.TrimSpace(req.CollectionAttributeId) == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.id_required",
 			"Collection attribute ID is required [DEFAULT]",
 		))
@@ -182,7 +182,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) validateInput(
 	if len(req.CollectionAttributeId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.id_too_short",
 			"Collection attribute ID must be at least 3 characters [DEFAULT]",
 		))
@@ -200,7 +200,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) validateBusinessRules(
 	if len(productAttributeId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"collection_attribute.validation.id_too_short",
 			"product attribute ID is too short",
 		))

@@ -69,18 +69,18 @@ type TaxUseCases struct {
 // NewUseCases creates all tax use cases with proper constructor injection.
 func NewUseCases(
 	repos TaxRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *TaxUseCases {
 	taxAuthorityUC := taxAuthorityUseCases.NewUseCases(
 		taxAuthorityUseCases.TaxAuthorityRepositories{
 			TaxAuthority: repos.TaxAuthority,
 		},
 		taxAuthorityUseCases.TaxAuthorityServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 
@@ -89,8 +89,8 @@ func NewUseCases(
 			TaxRegistrationKind: repos.TaxRegistrationKind,
 		},
 		taxRegistrationKindUseCases.TaxRegistrationKindServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 
@@ -99,8 +99,8 @@ func NewUseCases(
 			TaxTreatment: repos.TaxTreatment,
 		},
 		taxTreatmentUseCases.TaxTreatmentServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 
@@ -109,8 +109,8 @@ func NewUseCases(
 			TaxClass: repos.TaxClass,
 		},
 		taxClassUseCases.TaxClassServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 
@@ -119,8 +119,8 @@ func NewUseCases(
 			TaxRate: repos.TaxRate,
 		},
 		taxRateUseCases.TaxRateServices{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
+			Authorizer: authSvc,
+			Translator: i18nSvc,
 		},
 	)
 
@@ -130,10 +130,10 @@ func NewUseCases(
 			TaxRegistrationKind: repos.TaxRegistrationKind,
 		},
 		taxRegistrationUseCases.TaxRegistrationServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -153,10 +153,10 @@ func NewUseCases(
 			WithholdingCertificate: repos.WithholdingCertificate,
 		},
 		computeTaxesUseCases.ComputeTaxesServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 

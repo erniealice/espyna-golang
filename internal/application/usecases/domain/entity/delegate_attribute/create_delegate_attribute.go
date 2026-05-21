@@ -24,10 +24,10 @@ type CreateDelegateAttributeRepositories struct {
 
 // CreateDelegateAttributeServices groups all business service dependencies
 type CreateDelegateAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateDelegateAttributeUseCase handles the business logic for creating delegate attributes
@@ -53,7 +53,7 @@ func NewCreateDelegateAttributeUseCaseUngrouped(
 	delegateAttributeRepo delegateattributepb.DelegateAttributeDomainServiceServer,
 	delegateRepo delegatepb.DelegateDomainServiceServer,
 	attributeRepo attributepb.AttributeDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *CreateDelegateAttributeUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := CreateDelegateAttributeRepositories{
@@ -63,10 +63,10 @@ func NewCreateDelegateAttributeUseCaseUngrouped(
 	}
 
 	services := CreateDelegateAttributeServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  authorizationService,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateDelegateAttributeUseCase(repositories, services)
@@ -83,14 +83,14 @@ func (uc *CreateDelegateAttributeUseCase) Execute(ctx context.Context, req *dele
 	}
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateAttribute, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichDelegateAttributeData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.enrichment_failed", "Business logic enrichment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -102,7 +102,7 @@ func (uc *CreateDelegateAttributeUseCase) Execute(ctx context.Context, req *dele
 	// Call repository
 	resp, err := uc.repositories.DelegateAttribute.CreateDelegateAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.creation_failed", "Delegate attribute creation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.creation_failed", "Delegate attribute creation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -112,19 +112,19 @@ func (uc *CreateDelegateAttributeUseCase) Execute(ctx context.Context, req *dele
 // validateInput validates the input request
 func (uc *CreateDelegateAttributeUseCase) validateInput(ctx context.Context, req *delegateattributepb.CreateDelegateAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.data_required", "[ERR-DEFAULT] Delegate attribute data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.data_required", "[ERR-DEFAULT] Delegate attribute data is required"))
 	}
 	if req.Data.DelegateId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.delegate_id_required", "[ERR-DEFAULT] Delegate ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.delegate_id_required", "[ERR-DEFAULT] Delegate ID is required"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.attribute_id_required", "[ERR-DEFAULT] Attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.attribute_id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.value_required", "[ERR-DEFAULT] Attribute value is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.value_required", "[ERR-DEFAULT] Attribute value is required"))
 	}
 	return nil
 }
@@ -135,7 +135,7 @@ func (uc *CreateDelegateAttributeUseCase) enrichDelegateAttributeData(delegateAt
 
 	// Generate DelegateAttribute ID
 	if delegateAttribute.Id == "" {
-		delegateAttribute.Id = uc.services.IDService.GenerateID()
+		delegateAttribute.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set delegate attribute audit fields
@@ -152,11 +152,11 @@ func (uc *CreateDelegateAttributeUseCase) enrichDelegateAttributeData(delegateAt
 func (uc *CreateDelegateAttributeUseCase) validateBusinessRules(ctx context.Context, delegateAttribute *delegateattributepb.DelegateAttribute) error {
 	// Validate value length
 	if len(strings.TrimSpace(delegateAttribute.Value)) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.value_empty", "Value cannot be empty [DEFAULT]"))
 	}
 
 	if len(delegateAttribute.Value) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.value_too_long", "Value cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// TODO: Additional business rules
@@ -175,16 +175,16 @@ func (uc *CreateDelegateAttributeUseCase) validateEntityReferences(ctx context.C
 			Data: &delegatepb.Delegate{Id: delegateAttribute.DelegateId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.delegate_reference_validation_failed", "Failed to validate delegate entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.delegate_reference_validation_failed", "Failed to validate delegate entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if delegate == nil || delegate.Data == nil || len(delegate.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.delegate_not_found", "[ERR-DEFAULT] Delegate not found")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.delegate_not_found", "[ERR-DEFAULT] Delegate not found")
 			translatedError = strings.ReplaceAll(translatedError, "{delegateId}", delegateAttribute.DelegateId)
 			return errors.New(translatedError)
 		}
 		if !delegate.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.delegate_not_active", "Referenced delegate with ID '{delegateId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.delegate_not_active", "Referenced delegate with ID '{delegateId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{delegateId}", delegateAttribute.DelegateId)
 			return errors.New(translatedError)
 		}
@@ -196,16 +196,16 @@ func (uc *CreateDelegateAttributeUseCase) validateEntityReferences(ctx context.C
 			Data: &attributepb.Attribute{Id: delegateAttribute.AttributeId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.attribute_not_found", "[ERR-DEFAULT] Attribute not found")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.attribute_not_found", "[ERR-DEFAULT] Attribute not found")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", delegateAttribute.AttributeId)
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active [DEFAULT]")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", delegateAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

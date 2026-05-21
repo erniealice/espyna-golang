@@ -20,10 +20,10 @@ type CreateRoleRepositories struct {
 
 // CreateRoleServices groups all business service dependencies
 type CreateRoleServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateRoleUseCase handles the business logic for creating roles
@@ -52,10 +52,10 @@ func NewCreateRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *Cre
 	}
 
 	services := CreateRoleServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateRoleUseCase(repositories, services)
@@ -64,13 +64,13 @@ func NewCreateRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *Cre
 // Execute performs the create role operation
 func (uc *CreateRoleUseCase) Execute(ctx context.Context, req *rolepb.CreateRoleRequest) (*rolepb.CreateRoleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRole, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -82,10 +82,10 @@ func (uc *CreateRoleUseCase) Execute(ctx context.Context, req *rolepb.CreateRole
 func (uc *CreateRoleUseCase) executeWithTransaction(ctx context.Context, req *rolepb.CreateRoleRequest) (*rolepb.CreateRoleResponse, error) {
 	var result *rolepb.CreateRoleResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "role.errors.creation_failed", "Role creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "role.errors.creation_failed", "Role creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -122,13 +122,13 @@ func (uc *CreateRoleUseCase) executeCore(ctx context.Context, req *rolepb.Create
 // validateInput validates the input request
 func (uc *CreateRoleUseCase) validateInput(ctx context.Context, req *rolepb.CreateRoleRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.request_required", "Request is required for roles [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.request_required", "Request is required for roles [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.data_required", "Role data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.data_required", "Role data is required [DEFAULT]"))
 	}
 	if req.Data.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.name_required", "Role name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.name_required", "Role name is required [DEFAULT]"))
 	}
 	return nil
 }
@@ -139,7 +139,7 @@ func (uc *CreateRoleUseCase) enrichRoleData(role *rolepb.Role) error {
 
 	// Generate Role ID if not provided
 	if role.Id == "" {
-		role.Id = uc.services.IDService.GenerateID()
+		role.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set default color if not provided
@@ -161,22 +161,22 @@ func (uc *CreateRoleUseCase) enrichRoleData(role *rolepb.Role) error {
 func (uc *CreateRoleUseCase) validateBusinessRules(ctx context.Context, role *rolepb.Role) error {
 	// Validate name length
 	if len(role.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.name_too_short", "Role name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.name_too_short", "Role name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(role.Name) > 50 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.name_too_long", "Role name cannot exceed 50 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.name_too_long", "Role name cannot exceed 50 characters [DEFAULT]"))
 	}
 
 	// Validate description length if provided
 	if role.Description != "" && len(role.Description) > 255 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.description_too_long", "Role description cannot exceed 255 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.description_too_long", "Role description cannot exceed 255 characters [DEFAULT]"))
 	}
 
 	// Validate color format (hex color)
 	if role.Color != "" {
 		if err := uc.validateHexColor(role.Color); err != nil {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role.validation.color_invalid", "Color must be a valid hex color (e.g., #FF0000 or #F00) [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role.validation.color_invalid", "Color must be a valid hex color (e.g., #FF0000 or #F00) [DEFAULT]"))
 		}
 	}
 

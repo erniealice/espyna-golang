@@ -7,17 +7,17 @@ import (
 	"net/http"
 	"strings"
 
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
 	"github.com/erniealice/espyna-golang/ports"
+	contextutil "github.com/erniealice/espyna-golang/shared/context"
 )
 
 // AuthorizationMiddleware provides authorization middleware for vanilla HTTP requests
 type AuthorizationMiddleware struct {
-	authorizationService ports.AuthorizationService
+	authorizationService ports.Authorizer
 }
 
 // NewAuthorizationMiddleware creates a new authorization middleware instance
-func NewAuthorizationMiddleware(authorizationService ports.AuthorizationService) *AuthorizationMiddleware {
+func NewAuthorizationMiddleware(authorizationService ports.Authorizer) *AuthorizationMiddleware {
 	return &AuthorizationMiddleware{
 		authorizationService: authorizationService,
 	}

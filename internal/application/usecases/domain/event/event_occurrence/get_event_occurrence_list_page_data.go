@@ -17,9 +17,9 @@ type GetEventOccurrenceListPageDataRepositories struct {
 
 // GetEventOccurrenceListPageDataServices groups all business service dependencies
 type GetEventOccurrenceListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetEventOccurrenceListPageDataUseCase handles the business logic for getting event occurrence list page data
@@ -42,7 +42,7 @@ func NewGetEventOccurrenceListPageDataUseCase(
 // Execute performs the get event occurrence list page data operation
 func (uc *GetEventOccurrenceListPageDataUseCase) Execute(ctx context.Context, req *eventoccurrencepb.GetEventOccurrenceListPageDataRequest) (*eventoccurrencepb.GetEventOccurrenceListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventOccurrence, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -78,13 +78,13 @@ func (uc *GetEventOccurrenceListPageDataUseCase) ExecuteForCalendarRange(
 	req *eventoccurrencepb.GetEventOccurrenceListPageDataRequest,
 ) (*eventoccurrencepb.GetEventOccurrenceListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityEventOccurrence, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "event_occurrence.validation.request_required", "request is required")
+		errorMessage := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_occurrence.validation.request_required", "request is required")
 		return nil, errors.New(errorMessage)
 	}
 

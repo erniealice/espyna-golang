@@ -24,10 +24,10 @@ type CreateLocationAttributeRepositories struct {
 
 // CreateLocationAttributeServices groups all business service dependencies
 type CreateLocationAttributeServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateLocationAttributeUseCase handles the business logic for creating location attributes
@@ -53,7 +53,7 @@ func NewCreateLocationAttributeUseCaseUngrouped(
 	locationAttributeRepo locationattributepb.LocationAttributeDomainServiceServer,
 	locationRepo locationpb.LocationDomainServiceServer,
 	attributeRepo attributepb.AttributeDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *CreateLocationAttributeUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := CreateLocationAttributeRepositories{
@@ -63,10 +63,10 @@ func NewCreateLocationAttributeUseCaseUngrouped(
 	}
 
 	services := CreateLocationAttributeServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  authorizationService,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateLocationAttributeUseCase(repositories, services)
@@ -74,13 +74,13 @@ func NewCreateLocationAttributeUseCaseUngrouped(
 
 func (uc *CreateLocationAttributeUseCase) Execute(ctx context.Context, req *locationattributepb.CreateLocationAttributeRequest) (*locationattributepb.CreateLocationAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLocationAttribute, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -92,10 +92,10 @@ func (uc *CreateLocationAttributeUseCase) Execute(ctx context.Context, req *loca
 func (uc *CreateLocationAttributeUseCase) executeWithTransaction(ctx context.Context, req *locationattributepb.CreateLocationAttributeRequest) (*locationattributepb.CreateLocationAttributeResponse, error) {
 	var result *locationattributepb.CreateLocationAttributeResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "location_attribute.errors.creation_failed", "Location attribute creation failed")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "location_attribute.errors.creation_failed", "Location attribute creation failed")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -117,7 +117,7 @@ func (uc *CreateLocationAttributeUseCase) executeCore(ctx context.Context, req *
 
 	// Business logic and enrichment
 	if err := uc.enrichLocationAttributeData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.enrichment_failed", "Business logic enrichment failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.enrichment_failed", "Business logic enrichment failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -129,7 +129,7 @@ func (uc *CreateLocationAttributeUseCase) executeCore(ctx context.Context, req *
 	// Call repository
 	resp, err := uc.repositories.LocationAttribute.CreateLocationAttribute(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.creation_failed", "Location attribute creation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.creation_failed", "Location attribute creation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -139,19 +139,19 @@ func (uc *CreateLocationAttributeUseCase) executeCore(ctx context.Context, req *
 // validateInput validates the input request
 func (uc *CreateLocationAttributeUseCase) validateInput(ctx context.Context, req *locationattributepb.CreateLocationAttributeRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.LocationId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.location_id_required", "[ERR-DEFAULT] Location ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.location_id_required", "[ERR-DEFAULT] Location ID is required"))
 	}
 	if req.Data.AttributeId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.attribute_id_required", "[ERR-DEFAULT] Attribute ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.attribute_id_required", "[ERR-DEFAULT] Attribute ID is required"))
 	}
 	if req.Data.Value == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.value_required", "[ERR-DEFAULT] Value is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.value_required", "[ERR-DEFAULT] Value is required"))
 	}
 	return nil
 }
@@ -162,7 +162,7 @@ func (uc *CreateLocationAttributeUseCase) enrichLocationAttributeData(locationAt
 
 	// Generate LocationAttribute ID
 	if locationAttribute.Id == "" {
-		locationAttribute.Id = uc.services.IDService.GenerateID()
+		locationAttribute.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set location attribute audit fields
@@ -179,11 +179,11 @@ func (uc *CreateLocationAttributeUseCase) enrichLocationAttributeData(locationAt
 func (uc *CreateLocationAttributeUseCase) validateBusinessRules(ctx context.Context, locationAttribute *locationattributepb.LocationAttribute) error {
 	// Validate value length
 	if len(strings.TrimSpace(locationAttribute.Value)) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.value_empty", "Value cannot be empty"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.value_empty", "Value cannot be empty"))
 	}
 
 	if len(locationAttribute.Value) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.validation.value_too_long", "Value cannot exceed 1000 characters"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.validation.value_too_long", "Value cannot exceed 1000 characters"))
 	}
 
 	// TODO: Additional business rules
@@ -203,16 +203,16 @@ func (uc *CreateLocationAttributeUseCase) validateEntityReferences(ctx context.C
 			Data: &locationpb.Location{Id: locationAttribute.LocationId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.location_reference_validation_failed", "Failed to validate location entity reference")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.location_reference_validation_failed", "Failed to validate location entity reference")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if location == nil || location.Data == nil || len(location.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.location_not_found", "Referenced location with ID '{locationId}' does not exist")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.location_not_found", "Referenced location with ID '{locationId}' does not exist")
 			translatedError = strings.ReplaceAll(translatedError, "{locationId}", locationAttribute.LocationId)
 			return errors.New(translatedError)
 		}
 		if !location.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.location_not_active", "Referenced location with ID '{locationId}' is not active")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.location_not_active", "Referenced location with ID '{locationId}' is not active")
 			translatedError = strings.ReplaceAll(translatedError, "{locationId}", locationAttribute.LocationId)
 			return errors.New(translatedError)
 		}
@@ -224,16 +224,16 @@ func (uc *CreateLocationAttributeUseCase) validateEntityReferences(ctx context.C
 			Data: &attributepb.Attribute{Id: locationAttribute.AttributeId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.attribute_reference_validation_failed", "Failed to validate attribute entity reference")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if attribute == nil || attribute.Data == nil || len(attribute.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.attribute_not_found", "Referenced attribute with ID '{attributeId}' does not exist")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.attribute_not_found", "Referenced attribute with ID '{attributeId}' does not exist")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", locationAttribute.AttributeId)
 			return errors.New(translatedError)
 		}
 		if !attribute.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "location_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "location_attribute.errors.attribute_not_active", "Referenced attribute with ID '{attributeId}' is not active")
 			translatedError = strings.ReplaceAll(translatedError, "{attributeId}", locationAttribute.AttributeId)
 			return errors.New(translatedError)
 		}

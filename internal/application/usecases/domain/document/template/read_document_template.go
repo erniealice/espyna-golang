@@ -17,9 +17,9 @@ type ReadDocumentTemplateRepositories struct {
 
 // ReadDocumentTemplateServices groups all business service dependencies
 type ReadDocumentTemplateServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadDocumentTemplateUseCase handles the business logic for reading a document template
@@ -41,13 +41,13 @@ func NewReadDocumentTemplateUseCase(
 
 // Execute performs the read document template operation
 func (uc *ReadDocumentTemplateUseCase) Execute(ctx context.Context, req *documenttemplatepb.ReadDocumentTemplateRequest) (*documenttemplatepb.ReadDocumentTemplateResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDocumentTemplate, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "document_template.validation.id_required", "Document template ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "document_template.validation.id_required", "Document template ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.DocumentTemplate.ReadDocumentTemplate(ctx, req)

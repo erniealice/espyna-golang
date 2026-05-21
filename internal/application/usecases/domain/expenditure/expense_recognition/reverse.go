@@ -19,10 +19,10 @@ type ReverseExpenseRecognitionRepositories struct {
 
 // ReverseExpenseRecognitionServices groups service dependencies.
 type ReverseExpenseRecognitionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // ReverseExpenseRecognitionUseCase creates a reversing recognition row that nets to zero
@@ -43,12 +43,12 @@ func NewReverseExpenseRecognitionUseCase(
 
 // Execute performs the reverse operation.
 func (uc *ReverseExpenseRecognitionUseCase) Execute(ctx context.Context, req *expenserecognitionpb.ReverseExpenseRecognitionRequest) (*expenserecognitionpb.ReverseExpenseRecognitionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenseRecognition, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetExpenseRecognitionId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition.validation.id_required", "Expense recognition ID is required [DEFAULT]"))
 	}
 
@@ -60,13 +60,13 @@ func (uc *ReverseExpenseRecognitionUseCase) Execute(ctx context.Context, req *ex
 		return nil, fmt.Errorf("failed to read original recognition: %w", err)
 	}
 	if len(readResp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"expense_recognition.errors.not_found", "[ERR-DEFAULT] Expense recognition not found"))
 	}
 	original := readResp.Data[0]
 
 	now := time.Now()
-	id := uc.services.IDService.GenerateID()
+	id := uc.services.IDGenerator.GenerateID()
 	originalID := original.Id
 	idempotencyKey := fmt.Sprintf("REVERSAL:%s:%s", originalID, now.UTC().Format("2006-01-02T15:04:05Z"))
 

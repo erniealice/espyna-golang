@@ -46,12 +46,12 @@ func (uc *AuthenticateSessionUseCase) Execute(
 ) (*authpb.AuthenticateSessionResponse, error) {
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.validation.request_required", "Session authentication request is required [DEFAULT]"))
 	}
 	if uc.inner == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.service_unavailable", "Auth service is not available [DEFAULT]"))
 	}
 
@@ -61,7 +61,7 @@ func (uc *AuthenticateSessionUseCase) Execute(
 	}
 	if resp == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"auth.errors.session_invalid", "Invalid or expired session [DEFAULT]"))
 	}
 

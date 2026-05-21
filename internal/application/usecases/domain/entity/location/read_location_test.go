@@ -29,7 +29,7 @@ func createTestReadLocationUseCase(businessType string) *ReadLocationUseCase {
 	}
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := ReadLocationServices{
-		TranslationService: standardServices.TranslationService,
+		Translator: standardServices.Translator,
 	}
 	return NewReadLocationUseCase(repositories, services)
 }
@@ -82,5 +82,5 @@ func TestReadLocationUseCase_Execute_EmptyId(t *testing.T) {
 		Data: &locationpb.Location{Id: ""},
 	}
 	_, err := useCase.Execute(ctx, req)
-	testutil.AssertTranslatedError(t, err, "location.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "location.validation.id_required", useCase.services.Translator, ctx)
 }

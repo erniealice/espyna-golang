@@ -12,21 +12,21 @@ import (
 
 // validDisbursementPivotDimensions is a whitelist of allowed dimension values for disbursement reports.
 var validDisbursementPivotDimensions = map[string]bool{
-	"monthly":                true,
-	"quarterly":              true,
-	"yearly":                 true,
-	"supplier":               true,
-	"supplier_category":      true,
-	"supplierCategory":       true,
-	"location":               true,
-	"location_area":          true,
-	"locationArea":           true,
-	"expenditure_category":   true,
-	"expenditureCategory":    true,
-	"disbursement_type":      true,
-	"disbursementType":       true,
-	"disbursement_method":    true,
-	"disbursementMethod":     true,
+	"monthly":              true,
+	"quarterly":            true,
+	"yearly":               true,
+	"supplier":             true,
+	"supplier_category":    true,
+	"supplierCategory":     true,
+	"location":             true,
+	"location_area":        true,
+	"locationArea":         true,
+	"expenditure_category": true,
+	"expenditureCategory":  true,
+	"disbursement_type":    true,
+	"disbursementType":     true,
+	"disbursement_method":  true,
+	"disbursementMethod":   true,
 }
 
 // normalizeDisbursementDimension converts camelCase dimension keys to snake_case for SQL switch matching.
@@ -224,13 +224,13 @@ ORDER BY row_key, col_key`,
 
 // disbursementFlatRow holds one database result row before pivoting.
 type disbursementFlatRow struct {
-	RowKey             string
-	RowID              string
-	ColKey             string
-	ColID              string
-	TotalDisbursement  int64
-	TransactionCount   int64
-	TotalQuantity      int64
+	RowKey            string
+	RowID             string
+	ColKey            string
+	ColID             string
+	TotalDisbursement int64
+	TransactionCount  int64
+	TotalQuantity     int64
 }
 
 // pivotFlatDisbursementRows transforms flat SQL result rows into the proto pivot response.

@@ -35,9 +35,9 @@ type ListAssetCategoriesWithPolicyRollupRepositories struct {
 
 // ListAssetCategoriesWithPolicyRollupServices groups all service dependencies.
 type ListAssetCategoriesWithPolicyRollupServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListAssetCategoriesWithPolicyRollupUseCase handles listing categories with rollup counts.
@@ -68,13 +68,13 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(
 	_ *assetcategorypb.ListAssetCategoriesWithPolicyRollupRequest,
 ) (*assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse, error) {
 	// Authorization check — same permission as list.
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetCategory, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if uc.repositories.AssetCategory == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"asset_category.errors.repository_unavailable", "[ERR-DEFAULT] Repository unavailable"))
 	}
 
@@ -82,7 +82,7 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(
 	if rollupRepo, ok := uc.repositories.AssetCategory.(PolicyRollupRepository); ok {
 		rows, err := rollupRepo.ListAssetCategoriesWithPolicyRollup(ctx)
 		if err != nil {
-			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+			msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 				"asset_category.errors.rollup_query_failed", "[ERR-DEFAULT] Failed to load depreciation policy rollup")
 			return nil, fmt.Errorf("%s: %w", msg, err)
 		}
@@ -97,7 +97,7 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(
 	// postgresql build tag is active and the adapter is upgraded.
 	listResp, err := uc.repositories.AssetCategory.ListAssetCategories(ctx, &assetcategorypb.ListAssetCategoriesRequest{})
 	if err != nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"asset_category.errors.list_failed", "[ERR-DEFAULT] Failed to list asset categories")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}

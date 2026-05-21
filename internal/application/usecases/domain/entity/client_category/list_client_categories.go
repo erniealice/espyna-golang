@@ -17,9 +17,9 @@ type ListClientCategoriesRepositories struct {
 
 // ListClientCategoriesServices groups all business service dependencies
 type ListClientCategoriesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListClientCategoriesUseCase handles the business logic for listing client categories
@@ -47,9 +47,9 @@ func NewListClientCategoriesUseCaseUngrouped(clientCategoryRepo clientcategorypb
 	}
 
 	services := ListClientCategoriesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListClientCategoriesUseCase(repositories, services)
@@ -57,7 +57,7 @@ func NewListClientCategoriesUseCaseUngrouped(clientCategoryRepo clientcategorypb
 
 func (uc *ListClientCategoriesUseCase) Execute(ctx context.Context, req *clientcategorypb.ListClientCategoriesRequest) (*clientcategorypb.ListClientCategoriesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"client_category", ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (uc *ListClientCategoriesUseCase) Execute(ctx context.Context, req *clientc
 
 func (uc *ListClientCategoriesUseCase) validateInput(ctx context.Context, req *clientcategorypb.ListClientCategoriesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client_category.validation.request_required", "Request is required for client categories [DEFAULT]"))
 	}
 	return nil
 }

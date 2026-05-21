@@ -31,11 +31,11 @@ type GetUserPermissionCodesRepositories struct {
 }
 
 // GetUserPermissionCodesServices groups application services.
-// TranslationService is used for error messages; no AuthorizationService
+// Translator is used for error messages; no Authorizer
 // because permission-query callers ARE the authorization layer — gating
 // the lookup itself on RBAC would be circular.
 type GetUserPermissionCodesServices struct {
-	TranslationService ports.TranslationService
+	Translator ports.Translator
 }
 
 // GetUserPermissionCodesUseCase resolves the effective ALLOW permission
@@ -75,7 +75,7 @@ func (uc *GetUserPermissionCodesUseCase) Execute(
 ) (*securitypb.GetUserPermissionCodesResponse, error) {
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.TranslationService,
+			ctx, uc.services.Translator,
 			"security.validation.request_required", "request is required"))
 	}
 	if uc.repositories.PermissionQuery == nil {
@@ -90,7 +90,7 @@ func (uc *GetUserPermissionCodesUseCase) Execute(
 	if err != nil {
 		return nil, fmt.Errorf(
 			contextutil.GetTranslatedMessageWithContext(
-				ctx, uc.services.TranslationService,
+				ctx, uc.services.Translator,
 				"security.errors.permission_lookup_failed",
 				"failed to get user permission codes: %w"),
 			err,

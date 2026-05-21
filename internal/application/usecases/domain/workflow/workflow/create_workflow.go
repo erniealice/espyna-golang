@@ -21,10 +21,10 @@ type CreateWorkflowRepositories struct {
 
 // CreateWorkflowServices groups all business service dependencies
 type CreateWorkflowServices struct {
-	AuthorizationService  ports.AuthorizationService
-	TransactionService    ports.TransactionService
-	TranslationService    ports.TranslationService
-	IDService             ports.IDService
+	Authorizer            ports.Authorizer
+	Transactor            ports.Transactor
+	Translator            ports.Translator
+	IDGenerator           ports.IDGenerator
 	WorkflowEngineService ports.WorkflowEngineService
 }
 
@@ -53,10 +53,10 @@ func NewCreateWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainSer
 	}
 
 	services := CreateWorkflowServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateWorkflowUseCase(repositories, services)
@@ -65,14 +65,14 @@ func NewCreateWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainSer
 // Execute performs the create workflow operation
 func (uc *CreateWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.CreateWorkflowRequest) (*workflowpb.CreateWorkflowResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"workflow", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.request_required", "Request is required for workflows [DEFAULT]"))
 	}
 
 	// Business validation
@@ -84,7 +84,7 @@ func (uc *CreateWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.Cr
 	enrichedWorkflow := uc.applyBusinessLogic(req.Data)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedWorkflow)
 	}
 
@@ -96,10 +96,10 @@ func (uc *CreateWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.Cr
 func (uc *CreateWorkflowUseCase) executeWithTransaction(ctx context.Context, enrichedWorkflow *workflowpb.Workflow) (*workflowpb.CreateWorkflowResponse, error) {
 	var result *workflowpb.CreateWorkflowResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedWorkflow)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "workflow.errors.creation_failed", "Workflow creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "workflow.errors.creation_failed", "Workflow creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -164,8 +164,8 @@ func (uc *CreateWorkflowUseCase) applyBusinessLogic(workflow *workflowpb.Workflo
 
 	// Business logic: Generate Workflow ID if not provided
 	if workflow.Id == "" {
-		if uc.services.IDService != nil {
-			workflow.Id = uc.services.IDService.GenerateID()
+		if uc.services.IDGenerator != nil {
+			workflow.Id = uc.services.IDGenerator.GenerateID()
 		} else {
 			// Fallback to timestamp-based ID for defensive programming
 			workflow.Id = fmt.Sprintf("workflow-%d", now.UnixNano())
@@ -193,37 +193,37 @@ func (uc *CreateWorkflowUseCase) applyBusinessLogic(workflow *workflowpb.Workflo
 func (uc *CreateWorkflowUseCase) validateBusinessRules(ctx context.Context, workflow *workflowpb.Workflow) error {
 	// Business rule: Required data validation
 	if workflow == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.data_required", "Workflow data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.data_required", "Workflow data is required [DEFAULT]"))
 	}
 
 	// Business rule: Name is required
 	if workflow.Name == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.name_required", "Workflow name is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.name_required", "Workflow name is required [DEFAULT]"))
 	}
 
 	// Business rule: Name length constraints
 	if len(workflow.Name) < 2 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.name_too_short", "Workflow name must be at least 2 characters long [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.name_too_short", "Workflow name must be at least 2 characters long [DEFAULT]"))
 	}
 
 	if len(workflow.Name) > 100 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.name_too_long", "Workflow name cannot exceed 100 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.name_too_long", "Workflow name cannot exceed 100 characters [DEFAULT]"))
 	}
 
 	// Business rule: Name format validation (alphanumeric, spaces, hyphens, underscores)
 	if err := uc.validateWorkflowName(workflow.Name); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.name_invalid", "Workflow name contains invalid characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.name_invalid", "Workflow name contains invalid characters [DEFAULT]"))
 	}
 
 	// Business rule: Description length constraints
 	if workflow.Description != nil && len(*workflow.Description) > 1000 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.description_too_long", "Workflow description cannot exceed 1000 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.description_too_long", "Workflow description cannot exceed 1000 characters [DEFAULT]"))
 	}
 
 	// Business rule: Workspace ID format validation if provided
 	if workflow.WorkspaceId != nil && *workflow.WorkspaceId != "" {
 		if len(*workflow.WorkspaceId) < 3 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "workflow.validation.workspace_id_invalid", "Workspace ID is invalid [DEFAULT]"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow.validation.workspace_id_invalid", "Workspace ID is invalid [DEFAULT]"))
 		}
 	}
 

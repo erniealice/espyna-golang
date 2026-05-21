@@ -18,9 +18,9 @@ type GetLicenseItemPageDataRepositories struct {
 
 // GetLicenseItemPageDataServices groups all business service dependencies
 type GetLicenseItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetLicenseItemPageDataUseCase handles the business logic for getting license item page data
@@ -46,7 +46,7 @@ func (uc *GetLicenseItemPageDataUseCase) Execute(
 	req *licensepb.GetLicenseItemPageDataRequest,
 ) (*licensepb.GetLicenseItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityLicense, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (uc *GetLicenseItemPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -77,12 +77,12 @@ func (uc *GetLicenseItemPageDataUseCase) executeWithTransaction(
 ) (*licensepb.GetLicenseItemPageDataResponse, error) {
 	var result *licensepb.GetLicenseItemPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"license.errors.item_page_data_failed",
 				"license item page data retrieval failed: %w",
 			), err)
@@ -114,7 +114,7 @@ func (uc *GetLicenseItemPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license.errors.read_failed",
 			"failed to retrieve license: %w",
 		), err)
@@ -123,7 +123,7 @@ func (uc *GetLicenseItemPageDataUseCase) executeCore(
 	if readResp == nil || len(readResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license.errors.not_found",
 			"license not found",
 		))
@@ -136,7 +136,7 @@ func (uc *GetLicenseItemPageDataUseCase) executeCore(
 	if license.Id != req.LicenseId {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license.errors.id_mismatch",
 			"retrieved license ID does not match requested ID",
 		))
@@ -156,7 +156,7 @@ func (uc *GetLicenseItemPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license.validation.request_required",
 			"request is required",
 		))
@@ -165,7 +165,7 @@ func (uc *GetLicenseItemPageDataUseCase) validateInput(
 	if req.LicenseId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license.validation.id_required",
 			"license ID is required",
 		))
@@ -183,7 +183,7 @@ func (uc *GetLicenseItemPageDataUseCase) validateBusinessRules(
 	if len(licenseId) < 3 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"license.validation.id_too_short",
 			"license ID is too short",
 		))

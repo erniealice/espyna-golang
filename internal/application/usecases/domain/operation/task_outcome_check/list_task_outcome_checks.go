@@ -16,9 +16,9 @@ type ListTaskOutcomeChecksRepositories struct {
 }
 
 type ListTaskOutcomeChecksServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListTaskOutcomeChecksUseCase handles the business logic for listing task outcome checks
@@ -41,7 +41,7 @@ func NewListTaskOutcomeChecksUseCase(
 // Execute performs the list task outcome checks operation
 func (uc *ListTaskOutcomeChecksUseCase) Execute(ctx context.Context, req *pb.ListTaskOutcomeChecksRequest) (*pb.ListTaskOutcomeChecksResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityTaskOutcomeCheck, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListTaskOutcomeChecksUseCase) Execute(ctx context.Context, req *pb.Lis
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListTaskOutcomeChecksUseCase) Execute(ctx context.Context, req *pb.Lis
 func (uc *ListTaskOutcomeChecksUseCase) executeWithTransaction(ctx context.Context, req *pb.ListTaskOutcomeChecksRequest) (*pb.ListTaskOutcomeChecksResponse, error) {
 	var result *pb.ListTaskOutcomeChecksResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "task_outcome_check.errors.list_failed", "task outcome check listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "task_outcome_check.errors.list_failed", "task outcome check listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListTaskOutcomeChecksUseCase) executeWithTransaction(ctx context.Conte
 func (uc *ListTaskOutcomeChecksUseCase) executeCore(ctx context.Context, req *pb.ListTaskOutcomeChecksRequest) (*pb.ListTaskOutcomeChecksResponse, error) {
 	resp, err := uc.repositories.TaskOutcomeCheck.ListTaskOutcomeChecks(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome_check.errors.list_failed", "task outcome check listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome_check.errors.list_failed", "task outcome check listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *ListTaskOutcomeChecksUseCase) executeCore(ctx context.Context, req *pb
 // validateInput validates the input request
 func (uc *ListTaskOutcomeChecksUseCase) validateInput(ctx context.Context, req *pb.ListTaskOutcomeChecksRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "task_outcome_check.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome_check.validation.request_required", "request is required"))
 	}
 
 	return nil

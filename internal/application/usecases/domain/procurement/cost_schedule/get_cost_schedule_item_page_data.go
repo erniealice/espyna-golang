@@ -16,9 +16,9 @@ type GetCostScheduleItemPageDataRepositories struct {
 }
 
 type GetCostScheduleItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 type GetCostScheduleItemPageDataUseCase struct {
@@ -34,19 +34,19 @@ func NewGetCostScheduleItemPageDataUseCase(
 }
 
 func (uc *GetCostScheduleItemPageDataUseCase) Execute(ctx context.Context, req *costschedulepb.GetCostScheduleItemPageDataRequest) (*costschedulepb.GetCostScheduleItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCostSchedule, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil || req.CostScheduleId == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "cost_schedule.validation.id_required", "cost schedule ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "cost_schedule.validation.id_required", "cost schedule ID is required"))
 	}
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *costschedulepb.GetCostScheduleItemPageDataResponse
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.repositories.CostSchedule.GetCostScheduleItemPageData(txCtx, req)
 			if err != nil {
-				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "cost_schedule.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load cost schedule details: %w"), err)
+				return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "cost_schedule.errors.get_item_page_data_failed", "[ERR-DEFAULT] Failed to load cost schedule details: %w"), err)
 			}
 			result = res
 			return nil

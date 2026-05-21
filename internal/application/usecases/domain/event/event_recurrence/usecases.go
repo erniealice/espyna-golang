@@ -12,10 +12,10 @@ type EventRecurrenceRepositories struct {
 
 // EventRecurrenceServices groups all business service dependencies for event recurrence use cases
 type EventRecurrenceServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all event recurrence-related use cases
@@ -33,59 +33,59 @@ type UseCases struct {
 func NewUseCases(
 	repositories EventRecurrenceRepositories,
 	services EventRecurrenceServices,
-	transactionService ports.TransactionService,
+	transactionService ports.Transactor,
 ) *UseCases {
 	// Build individual grouped parameters for each use case
 	createRepos := CreateEventRecurrenceRepositories(repositories)
 	createServices := CreateEventRecurrenceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  transactionService,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadEventRecurrenceRepositories(repositories)
 	readServices := ReadEventRecurrenceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdateEventRecurrenceRepositories(repositories)
 	updateServices := UpdateEventRecurrenceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeleteEventRecurrenceRepositories(repositories)
 	deleteServices := DeleteEventRecurrenceServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListEventRecurrencesRepositories(repositories)
 	listServices := ListEventRecurrencesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   transactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetEventRecurrenceListPageDataRepositories{
 		EventRecurrence: repositories.EventRecurrence,
 	}
 	listPageDataServices := GetEventRecurrenceListPageDataServices{
-		TransactionService: transactionService,
-		TranslationService: services.TranslationService,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetEventRecurrenceItemPageDataRepositories{
 		EventRecurrence: repositories.EventRecurrence,
 	}
 	itemPageDataServices := GetEventRecurrenceItemPageDataServices{
-		TransactionService: transactionService,
-		TranslationService: services.TranslationService,
+		Transactor: transactionService,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{
@@ -101,16 +101,16 @@ func NewUseCases(
 
 // NewUseCasesUngrouped creates a new collection of event recurrence use cases with individual parameters
 // Deprecated: Use NewUseCases with grouped parameters instead
-func NewUseCasesUngrouped(eventRecurrenceRepo eventrecurrencepb.EventRecurrenceDomainServiceServer, transactionService ports.TransactionService) *UseCases {
+func NewUseCasesUngrouped(eventRecurrenceRepo eventrecurrencepb.EventRecurrenceDomainServiceServer, transactionService ports.Transactor) *UseCases {
 	// Build grouped parameters internally for backward compatibility
 	repositories := EventRecurrenceRepositories{
 		EventRecurrence: eventRecurrenceRepo,
 	}
 
 	services := EventRecurrenceServices{
-		AuthorizationService: nil, // Will be injected later by container
-		TransactionService:   transactionService,
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil, // Will be injected later by container
+		Transactor: transactionService,
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUseCases(repositories, services, transactionService)

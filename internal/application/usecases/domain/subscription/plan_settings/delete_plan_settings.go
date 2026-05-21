@@ -17,9 +17,9 @@ type DeletePlanSettingsRepositories struct {
 
 // DeletePlanSettingsServices groups all business service dependencies
 type DeletePlanSettingsServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeletePlanSettingsUseCase handles the business logic for deleting plan_settings
@@ -42,7 +42,7 @@ func NewDeletePlanSettingsUseCase(
 // Execute performs the delete plan_settings operation
 func (uc *DeletePlanSettingsUseCase) Execute(ctx context.Context, req *plansettingspb.DeletePlanSettingsRequest) (*plansettingspb.DeletePlanSettingsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlanSettings, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func (uc *DeletePlanSettingsUseCase) getBusinessTypeFromContext(ctx context.Cont
 
 // getTranslatedMessage gets a translated message with fallback
 func (uc *DeletePlanSettingsUseCase) getTranslatedMessage(ctx context.Context, businessType, key, fallback string) string {
-	if uc.services.TranslationService != nil {
-		return uc.services.TranslationService.GetWithDefault(ctx, businessType, key, fallback)
+	if uc.services.Translator != nil {
+		return uc.services.Translator.GetWithDefault(ctx, businessType, key, fallback)
 	}
 	return fallback
 }

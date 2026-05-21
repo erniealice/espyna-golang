@@ -19,10 +19,10 @@ type DelegateSupplierRepositories struct {
 
 // DelegateSupplierServices groups service dependencies.
 type DelegateSupplierServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // UseCases contains all delegate_supplier use cases.
@@ -52,7 +52,7 @@ type CreateDelegateSupplierUseCase struct {
 }
 
 func (uc *CreateDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.CreateDelegateSupplierRequest) (*delegatesupplierpb.CreateDelegateSupplierResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDelegateSupplier, ports.ActionCreate); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (uc *CreateDelegateSupplierUseCase) Execute(ctx context.Context, req *deleg
 	}
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -76,7 +76,7 @@ type ReadDelegateSupplierUseCase struct {
 }
 
 func (uc *ReadDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.ReadDelegateSupplierRequest) (*delegatesupplierpb.ReadDelegateSupplierResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDelegateSupplier, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type UpdateDelegateSupplierUseCase struct {
 }
 
 func (uc *UpdateDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.UpdateDelegateSupplierRequest) (*delegatesupplierpb.UpdateDelegateSupplierResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDelegateSupplier, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ type DeleteDelegateSupplierUseCase struct {
 }
 
 func (uc *DeleteDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.DeleteDelegateSupplierRequest) (*delegatesupplierpb.DeleteDelegateSupplierResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDelegateSupplier, ports.ActionDelete); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ type ListDelegateSuppliersUseCase struct {
 }
 
 func (uc *ListDelegateSuppliersUseCase) Execute(ctx context.Context, req *delegatesupplierpb.ListDelegateSuppliersRequest) (*delegatesupplierpb.ListDelegateSuppliersResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityDelegateSupplier, ports.ActionRead); err != nil {
 		return nil, err
 	}

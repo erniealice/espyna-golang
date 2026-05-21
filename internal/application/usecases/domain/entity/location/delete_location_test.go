@@ -31,9 +31,9 @@ func createTestDeleteLocationUseCase(businessType string) *DeleteLocationUseCase
 
 	standardServices := testutil.CreateStandardServices(false, true)
 	services := DeleteLocationServices{
-		AuthorizationService: standardServices.AuthorizationService,
-		TransactionService:   standardServices.TransactionService,
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: standardServices.Authorizer,
+		Transactor: standardServices.Transactor,
+		Translator: standardServices.Translator,
 	}
 
 	return NewDeleteLocationUseCase(repositories, services)
@@ -63,7 +63,7 @@ func TestDeleteLocationUseCase_Execute_Success(t *testing.T) {
 	readUseCase := NewReadLocationUseCase(
 		ReadLocationRepositories{Location: useCase.repositories.Location},
 		ReadLocationServices{
-			TranslationService: standardServices.TranslationService,
+			Translator: standardServices.Translator,
 		},
 	)
 	readReq := &locationpb.ReadLocationRequest{Data: &locationpb.Location{Id: existingID}}
@@ -97,5 +97,5 @@ func TestDeleteLocationUseCase_Execute_EmptyId(t *testing.T) {
 		Data: &locationpb.Location{Id: ""},
 	}
 	_, err := useCase.Execute(ctx, req)
-	testutil.AssertTranslatedError(t, err, "location.validation.id_required_with_prefix", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "location.validation.id_required_with_prefix", useCase.services.Translator, ctx)
 }

@@ -42,12 +42,12 @@ import (
 
 type uuidv7 struct{}
 
-func (uuidv7) GenerateID() string                       { return uuid.New().String() }
+func (uuidv7) GenerateID() string                        { return uuid.New().String() }
 func (uuidv7) GenerateIDWithPrefix(prefix string) string { return prefix + "_" + uuid.New().String() }
-func (uuidv7) IsEnabled() bool                          { return true }
-func (uuidv7) GetProviderInfo() string                  { return "google_uuidv7" }
+func (uuidv7) IsEnabled() bool                           { return true }
+func (uuidv7) GetProviderInfo() string                   { return "google_uuidv7" }
 
-var _ ports.IDService = uuidv7{}
+var _ ports.IDGenerator = uuidv7{}
 
 func main() {
 	runID := flag.String("run-id", "", "PayrollRun.id to orchestrate")

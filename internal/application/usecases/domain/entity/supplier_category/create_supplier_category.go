@@ -19,10 +19,10 @@ type CreateSupplierCategoryRepositories struct {
 
 // CreateSupplierCategoryServices groups all business service dependencies
 type CreateSupplierCategoryServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 }
 
 // CreateSupplierCategoryUseCase handles the business logic for creating supplier categories
@@ -50,10 +50,10 @@ func NewCreateSupplierCategoryUseCaseUngrouped(supplierCategoryRepo suppliercate
 	}
 
 	services := CreateSupplierCategoryServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
-		IDService:            ports.NewNoOpIDService(),
+		Authorizer:  nil,
+		Transactor:  ports.NewNoOpTransactor(),
+		Translator:  ports.NewNoOpTranslator(),
+		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateSupplierCategoryUseCase(repositories, services)
@@ -62,13 +62,13 @@ func NewCreateSupplierCategoryUseCaseUngrouped(supplierCategoryRepo suppliercate
 // Execute performs the create supplier_category operation
 func (uc *CreateSupplierCategoryUseCase) Execute(ctx context.Context, req *suppliercategorypb.CreateSupplierCategoryRequest) (*suppliercategorypb.CreateSupplierCategoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"supplier_category", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	// Check if transaction service is available and supports transactions
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -80,10 +80,10 @@ func (uc *CreateSupplierCategoryUseCase) Execute(ctx context.Context, req *suppl
 func (uc *CreateSupplierCategoryUseCase) executeWithTransaction(ctx context.Context, req *suppliercategorypb.CreateSupplierCategoryRequest) (*suppliercategorypb.CreateSupplierCategoryResponse, error) {
 	var result *suppliercategorypb.CreateSupplierCategoryResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "supplier_category.errors.creation_failed", "Supplier category creation failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "supplier_category.errors.creation_failed", "Supplier category creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -120,16 +120,16 @@ func (uc *CreateSupplierCategoryUseCase) executeCore(ctx context.Context, req *s
 // validateInput validates the input request
 func (uc *CreateSupplierCategoryUseCase) validateInput(ctx context.Context, req *suppliercategorypb.CreateSupplierCategoryRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.request_required", "Request is required for supplier categories [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.data_required", "Supplier category data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.data_required", "Supplier category data is required [DEFAULT]"))
 	}
 	if req.Data.SupplierId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.supplier_id_required", "Supplier ID is required for supplier categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.supplier_id_required", "Supplier ID is required for supplier categories [DEFAULT]"))
 	}
 	if req.Data.CategoryId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.category_id_required", "Category ID is required for supplier categories [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.category_id_required", "Category ID is required for supplier categories [DEFAULT]"))
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func (uc *CreateSupplierCategoryUseCase) enrichSupplierCategoryData(category *su
 
 	// Generate Supplier Category ID if not provided
 	if category.Id == "" {
-		category.Id = uc.services.IDService.GenerateID()
+		category.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// Set audit fields
@@ -157,12 +157,12 @@ func (uc *CreateSupplierCategoryUseCase) enrichSupplierCategoryData(category *su
 func (uc *CreateSupplierCategoryUseCase) validateBusinessRules(ctx context.Context, category *suppliercategorypb.SupplierCategory) error {
 	// Validate supplier ID format if needed
 	if len(category.SupplierId) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.supplier_id_invalid", "Supplier ID is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.supplier_id_invalid", "Supplier ID is invalid [DEFAULT]"))
 	}
 
 	// Validate category ID format if needed
 	if len(category.CategoryId) < 1 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "supplier_category.validation.category_id_invalid", "Category ID is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "supplier_category.validation.category_id_invalid", "Category ID is invalid [DEFAULT]"))
 	}
 
 	return nil

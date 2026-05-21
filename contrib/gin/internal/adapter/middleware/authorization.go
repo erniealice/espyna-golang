@@ -12,11 +12,11 @@ import (
 
 // AuthorizationMiddleware provides authorization middleware for Gin requests
 type AuthorizationMiddleware struct {
-	authorizationService ports.AuthorizationService
+	authorizationService ports.Authorizer
 }
 
 // NewAuthorizationMiddleware creates a new authorization middleware instance
-func NewAuthorizationMiddleware(authorizationService ports.AuthorizationService) *AuthorizationMiddleware {
+func NewAuthorizationMiddleware(authorizationService ports.Authorizer) *AuthorizationMiddleware {
 	return &AuthorizationMiddleware{
 		authorizationService: authorizationService,
 	}

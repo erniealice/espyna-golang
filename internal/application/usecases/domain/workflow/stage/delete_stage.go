@@ -18,9 +18,9 @@ type DeleteStageRepositories struct {
 
 // DeleteStageServices groups all business service dependencies
 type DeleteStageServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteStageUseCase handles the business logic for deleting stages
@@ -48,9 +48,9 @@ func NewDeleteStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) 
 	}
 
 	services := DeleteStageServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewDeleteStageUseCase(repositories, services)
@@ -59,14 +59,14 @@ func NewDeleteStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) 
 // Execute performs the delete stage operation
 func (uc *DeleteStageUseCase) Execute(ctx context.Context, req *stagepb.DeleteStageRequest) (*stagepb.DeleteStageResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"stage", ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.request_required", "Request is required for stages [DEFAULT]"))
 	}
 
 	// Business validation
@@ -83,7 +83,7 @@ func (uc *DeleteStageUseCase) Execute(ctx context.Context, req *stagepb.DeleteSt
 	enrichedRequest := uc.applyBusinessLogic(req)
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, enrichedRequest)
 	}
 
@@ -95,10 +95,10 @@ func (uc *DeleteStageUseCase) Execute(ctx context.Context, req *stagepb.DeleteSt
 func (uc *DeleteStageUseCase) executeWithTransaction(ctx context.Context, req *stagepb.DeleteStageRequest) (*stagepb.DeleteStageResponse, error) {
 	var result *stagepb.DeleteStageResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "stage.errors.delete_failed", "Stage deletion failed [DEFAULT]")
+			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "stage.errors.delete_failed", "Stage deletion failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		result = res
@@ -146,17 +146,17 @@ func (uc *DeleteStageUseCase) validateStageExists(ctx context.Context, stageID s
 	}
 	stageRes, err := uc.repositories.Stage.ReadStage(ctx, stageReadReq)
 	if err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
 	}
 	if stageRes == nil || len(stageRes.Data) == 0 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.errors.stage_not_found", "Stage not found [DEFAULT]"))
 	}
 
 	existingStage := stageRes.Data[0]
 
 	// Business rule: Cannot delete inactive stage
 	if !existingStage.Active {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.errors.stage_already_inactive", "Stage is already inactive [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.errors.stage_already_inactive", "Stage is already inactive [DEFAULT]"))
 	}
 
 	return nil
@@ -166,17 +166,17 @@ func (uc *DeleteStageUseCase) validateStageExists(ctx context.Context, stageID s
 func (uc *DeleteStageUseCase) validateBusinessRules(ctx context.Context, req *stagepb.DeleteStageRequest) error {
 	// Business rule: Request data validation
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.data_required", "Stage data is required for delete operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.data_required", "Stage data is required for delete operations [DEFAULT]"))
 	}
 
 	// Business rule: Stage ID is required
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.id_required", "Stage ID is required for delete operations [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.id_required", "Stage ID is required for delete operations [DEFAULT]"))
 	}
 
 	// Business rule: Stage ID format validation
 	if err := uc.validateStageID(req.Data.Id); err != nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "stage.validation.id_invalid", "Stage ID format is invalid [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "stage.validation.id_invalid", "Stage ID format is invalid [DEFAULT]"))
 	}
 
 	return nil

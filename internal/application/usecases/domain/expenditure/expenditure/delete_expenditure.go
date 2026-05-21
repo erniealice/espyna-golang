@@ -17,9 +17,9 @@ type DeleteExpenditureRepositories struct {
 
 // DeleteExpenditureServices groups all business service dependencies
 type DeleteExpenditureServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // DeleteExpenditureUseCase handles the business logic for deleting expenditures
@@ -41,13 +41,13 @@ func NewDeleteExpenditureUseCase(
 
 // Execute performs the delete expenditure operation
 func (uc *DeleteExpenditureUseCase) Execute(ctx context.Context, req *expenditurepb.DeleteExpenditureRequest) (*expenditurepb.DeleteExpenditureResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityExpenditure, ports.ActionDelete); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "expenditure.validation.id_required", "Expenditure ID is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "expenditure.validation.id_required", "Expenditure ID is required [DEFAULT]"))
 	}
 
 	return uc.repositories.Expenditure.DeleteExpenditure(ctx, req)

@@ -18,9 +18,9 @@ type ReadEquityAccountRepositories struct {
 
 // ReadEquityAccountServices groups all business service dependencies.
 type ReadEquityAccountServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadEquityAccountUseCase handles the business logic for reading a single equity account.
@@ -42,13 +42,13 @@ func NewReadEquityAccountUseCase(
 
 // Execute performs the read equity account operation.
 func (uc *ReadEquityAccountUseCase) Execute(ctx context.Context, req *equityaccountpb.ReadEquityAccountRequest) (*equityaccountpb.ReadEquityAccountResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityEquityAccount, ports.ActionRead); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.validation.id_required", "[ERR-DEFAULT] Equity account ID is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.validation.id_required", "[ERR-DEFAULT] Equity account ID is required"))
 	}
 
 	if uc.repositories.EquityAccount == nil {
@@ -57,7 +57,7 @@ func (uc *ReadEquityAccountUseCase) Execute(ctx context.Context, req *equityacco
 
 	resp, err := uc.repositories.EquityAccount.ReadEquityAccount(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "equity_account.errors.read_failed", "[ERR-DEFAULT] Failed to read equity account")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "equity_account.errors.read_failed", "[ERR-DEFAULT] Failed to read equity account")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

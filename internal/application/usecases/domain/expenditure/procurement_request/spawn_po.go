@@ -18,9 +18,9 @@ type SpawnPurchaseOrderRepositories struct {
 
 // SpawnPurchaseOrderServices groups service dependencies.
 type SpawnPurchaseOrderServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // SpawnPurchaseOrderUseCase creates a PurchaseOrder from an APPROVED procurement request.
@@ -43,18 +43,18 @@ func NewSpawnPurchaseOrderUseCase(
 
 // Execute performs the spawn purchase order operation.
 func (uc *SpawnPurchaseOrderUseCase) Execute(ctx context.Context, req *procurementrequestpb.SpawnPurchaseOrderRequest) (*procurementrequestpb.SpawnPurchaseOrderResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequest, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetProcurementRequestId() == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.validation.id_required", "Procurement request ID is required [DEFAULT]"))
 	}
 
 	resp, err := uc.repositories.ProcurementRequest.SpawnPurchaseOrder(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request.errors.spawn_po_failed", "[ERR-DEFAULT] Failed to spawn purchase order from request")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

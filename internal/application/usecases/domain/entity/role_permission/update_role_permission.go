@@ -24,9 +24,9 @@ type UpdateRolePermissionRepositories struct {
 
 // UpdateRolePermissionServices groups all business service dependencies
 type UpdateRolePermissionServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UpdateRolePermissionUseCase handles the business logic for updating role permissions
@@ -52,7 +52,7 @@ func NewUpdateRolePermissionUseCaseUngrouped(
 	rolePermissionRepo rolepermissionpb.RolePermissionDomainServiceServer,
 	roleRepo rolepb.RoleDomainServiceServer,
 	permissionRepo permissionpb.PermissionDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *UpdateRolePermissionUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := UpdateRolePermissionRepositories{
@@ -62,9 +62,9 @@ func NewUpdateRolePermissionUseCaseUngrouped(
 	}
 
 	services := UpdateRolePermissionServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewUpdateRolePermissionUseCase(repositories, services)
@@ -74,39 +74,39 @@ func NewUpdateRolePermissionUseCaseUngrouped(
 func (uc *UpdateRolePermissionUseCase) Execute(ctx context.Context, req *rolepermissionpb.UpdateRolePermissionRequest) (*rolepermissionpb.UpdateRolePermissionResponse, error) {
 
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRolePermission, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.input_validation_failed", "Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.input_validation_failed", "Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business logic and enrichment
 	if err := uc.enrichRolePermissionData(req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.enrichment_failed", "Business logic enrichment failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.enrichment_failed", "Business logic enrichment failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.business_rule_validation_failed", "Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.business_rule_validation_failed", "Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Entity reference validation
 	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.reference_validation_failed", "Entity reference validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.reference_validation_failed", "Entity reference validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.RolePermission.UpdateRolePermission(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.update_failed", "Role-Permission update failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.update_failed", "Role-Permission update failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -117,19 +117,19 @@ func (uc *UpdateRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 func (uc *UpdateRolePermissionUseCase) validateInput(ctx context.Context, req *rolepermissionpb.UpdateRolePermissionRequest) error {
 
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.request_required", "Request is required for role-permissions"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.request_required", "Request is required for role-permissions"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.data_required", "Role-Permission data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.data_required", "Role-Permission data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.id_required", "Role-Permission ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.id_required", "Role-Permission ID is required"))
 	}
 	if req.Data.RoleId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.role_id_required", "Role ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.role_id_required", "Role ID is required"))
 	}
 	if req.Data.PermissionId == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.permission_id_required", "Permission ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.permission_id_required", "Permission ID is required"))
 	}
 	return nil
 }
@@ -150,7 +150,7 @@ func (uc *UpdateRolePermissionUseCase) validateBusinessRules(ctx context.Context
 
 	// Validate permission type
 	if rolePermission.PermissionType == permissionpb.PermissionType_PERMISSION_TYPE_UNSPECIFIED {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.permission_type_unspecified", "Permission type must be specified"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.permission_type_unspecified", "Permission type must be specified"))
 	}
 
 	return nil
@@ -165,16 +165,16 @@ func (uc *UpdateRolePermissionUseCase) validateEntityReferences(ctx context.Cont
 			Data: &rolepb.Role{Id: rolePermission.RoleId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.role_reference_validation_failed", "Failed to validate role entity reference")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.role_reference_validation_failed", "Failed to validate role entity reference")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if role == nil || role.Data == nil || len(role.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.role_not_found", "Referenced role with ID '{roleId}' does not exist")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.role_not_found", "Referenced role with ID '{roleId}' does not exist")
 			translatedError = strings.ReplaceAll(translatedError, "{roleId}", rolePermission.RoleId)
 			return errors.New(translatedError)
 		}
 		if !role.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.role_not_active", "Referenced role with ID '{roleId}' is not active")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.role_not_active", "Referenced role with ID '{roleId}' is not active")
 			translatedError = strings.ReplaceAll(translatedError, "{roleId}", rolePermission.RoleId)
 			return errors.New(translatedError)
 		}
@@ -186,16 +186,16 @@ func (uc *UpdateRolePermissionUseCase) validateEntityReferences(ctx context.Cont
 			Data: &permissionpb.Permission{Id: rolePermission.PermissionId},
 		})
 		if err != nil {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.permission_reference_validation_failed", "Failed to validate permission entity reference")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.permission_reference_validation_failed", "Failed to validate permission entity reference")
 			return fmt.Errorf("%s: %w", translatedError, err)
 		}
 		if permission == nil || permission.Data == nil || len(permission.Data) == 0 {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.permission_not_found", "Referenced permission with ID '{permissionId}' does not exist")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.permission_not_found", "Referenced permission with ID '{permissionId}' does not exist")
 			translatedError = strings.ReplaceAll(translatedError, "{permissionId}", rolePermission.PermissionId)
 			return errors.New(translatedError)
 		}
 		if !permission.Data[0].Active {
-			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.permission_not_active", "Referenced permission with ID '{permissionId}' is not active")
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.permission_not_active", "Referenced permission with ID '{permissionId}' is not active")
 			translatedError = strings.ReplaceAll(translatedError, "{permissionId}", rolePermission.PermissionId)
 			return errors.New(translatedError)
 		}

@@ -9,10 +9,10 @@ import (
 // InitializeTreasury creates all treasury use cases from provider repositories
 func InitializeTreasury(
 	repos *domain.TreasuryRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*treasury.TreasuryUseCases, error) {
 	return treasury.NewUseCases(
 		treasury.TreasuryRepositories{

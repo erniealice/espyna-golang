@@ -10,11 +10,11 @@ import (
 )
 
 // initServiceSecurity wires the service-layer Security sub-aggregate.
-func initServiceSecurity(db *sql.DB, i18nSvc ports.TranslationService) *securityusecases.UseCases {
+func initServiceSecurity(db *sql.DB, i18nSvc ports.Translator) *securityusecases.UseCases {
 	permQuery := permissionQueryFromDB(db)
 	return securityusecases.NewUseCases(
 		securityusecases.Repositories{PermissionQuery: permQuery},
-		securityusecases.Services{TranslationService: i18nSvc},
+		securityusecases.Services{Translator: i18nSvc},
 	)
 }
 

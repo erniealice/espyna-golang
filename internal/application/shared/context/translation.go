@@ -9,11 +9,11 @@ import (
 
 // TranslationHelper provides translation functionality for use cases.
 type TranslationHelper struct {
-	translationService ports.TranslationService
+	translationService ports.Translator
 }
 
 // NewTranslationHelper creates a new translation helper.
-func NewTranslationHelper(translationService ports.TranslationService) *TranslationHelper {
+func NewTranslationHelper(translationService ports.Translator) *TranslationHelper {
 	return &TranslationHelper{
 		translationService: translationService,
 	}
@@ -37,7 +37,7 @@ func (th *TranslationHelper) GetTranslatedMessageWithContext(ctx context.Context
 // Static helper functions for use cases that already have translation service in their struct
 
 // GetTranslatedMessage is a static helper for use cases that inject their own translation service.
-func GetTranslatedMessage(ctx context.Context, translationService ports.TranslationService, businessType, key, fallback string) string {
+func GetTranslatedMessage(ctx context.Context, translationService ports.Translator, businessType, key, fallback string) string {
 	if translationService != nil {
 		return translationService.GetWithDefault(ctx, businessType, key, fallback)
 	}
@@ -45,13 +45,13 @@ func GetTranslatedMessage(ctx context.Context, translationService ports.Translat
 }
 
 // GetTranslatedMessageWithContext is a static helper that extracts business type from context.
-func GetTranslatedMessageWithContext(ctx context.Context, translationService ports.TranslationService, key, fallback string) string {
+func GetTranslatedMessageWithContext(ctx context.Context, translationService ports.Translator, key, fallback string) string {
 	businessType := ExtractBusinessTypeFromContext(ctx)
 	return GetTranslatedMessage(ctx, translationService, businessType, key, fallback)
 }
 
 // GetTranslatedMessageWithContextAndTags is a static helper that extracts business type from context and applies tags.
-func GetTranslatedMessageWithContextAndTags(ctx context.Context, translationService ports.TranslationService, key string, tags map[string]interface{}, fallback string) string {
+func GetTranslatedMessageWithContextAndTags(ctx context.Context, translationService ports.Translator, key string, tags map[string]interface{}, fallback string) string {
 	businessType := ExtractBusinessTypeFromContext(ctx)
 	message := GetTranslatedMessage(ctx, translationService, businessType, key, fallback)
 

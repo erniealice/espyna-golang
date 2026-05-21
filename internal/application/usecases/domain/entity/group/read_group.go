@@ -17,9 +17,9 @@ type ReadGroupRepositories struct {
 
 // ReadGroupServices groups all business service dependencies
 type ReadGroupServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadGroupUseCase handles the business logic for reading groups
@@ -48,9 +48,9 @@ func NewReadGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) *R
 	}
 
 	services := ReadGroupServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewReadGroupUseCase(repositories, services)
@@ -58,7 +58,7 @@ func NewReadGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) *R
 
 func (uc *ReadGroupUseCase) Execute(ctx context.Context, req *grouppb.ReadGroupRequest) (*grouppb.ReadGroupResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityGroup, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -80,13 +80,13 @@ func (uc *ReadGroupUseCase) Execute(ctx context.Context, req *grouppb.ReadGroupR
 // validateInput validates the input request
 func (uc *ReadGroupUseCase) validateInput(ctx context.Context, req *grouppb.ReadGroupRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.request_required", "Request is required for groups [DEFAULT]"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.data_required", "Group data is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.data_required", "Group data is required [DEFAULT]"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "group.validation.id_required", "Group ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "group.validation.id_required", "Group ID is required [DEFAULT]"))
 	}
 	return nil
 }

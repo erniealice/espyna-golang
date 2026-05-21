@@ -29,10 +29,10 @@ func treasuryAmortizeAdvanceDisbursement(t *treasury.TreasuryUseCases) *treasury
 // passes the already-constructed pointer through.
 func InitializeExpenditure(
 	repos *domain.ExpenditureRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 	treasuryUseCases *treasury.TreasuryUseCases,
 ) (*expenditure.ExpenditureUseCases, error) {
 	// AmortizeAdvanceDisbursement is the cross-domain composition target for

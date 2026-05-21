@@ -23,9 +23,9 @@ func newGetPayrollRunListPageDataRepositories(r Repositories) GetPayrollRunListP
 
 // GetPayrollRunListPageDataServices groups all business service dependencies.
 type GetPayrollRunListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPayrollRunListPageDataUseCase handles the business logic for getting payroll run
@@ -48,18 +48,18 @@ func NewGetPayrollRunListPageDataUseCase(
 
 // Execute performs the get payroll run list page data operation.
 func (uc *GetPayrollRunListPageDataUseCase) Execute(ctx context.Context, req *payrollrunpb.GetPayrollRunListPageDataRequest) (*payrollrunpb.GetPayrollRunListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityPayrollRun, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.errors.business_rule_validation_failed", "[ERR-DEFAULT] Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -69,7 +69,7 @@ func (uc *GetPayrollRunListPageDataUseCase) Execute(ctx context.Context, req *pa
 
 	resp, err := uc.repositories.PayrollRun.GetPayrollRunListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load payroll run list")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load payroll run list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -78,18 +78,18 @@ func (uc *GetPayrollRunListPageDataUseCase) Execute(ctx context.Context, req *pa
 
 func (uc *GetPayrollRunListPageDataUseCase) validateInput(ctx context.Context, req *payrollrunpb.GetPayrollRunListPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 && (req.Pagination.Limit < 1 || req.Pagination.Limit > 100) {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.invalid_pagination_limit", "[ERR-DEFAULT] Invalid pagination limit"))
 		}
 	}
 
 	if req.Search != nil && req.Search.Query != "" {
 		if len(req.Search.Query) > 100 {
-			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "payroll_run.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "payroll_run.validation.search_query_too_long", "[ERR-DEFAULT] Search query is too long"))
 		}
 	}
 

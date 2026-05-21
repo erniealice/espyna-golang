@@ -16,9 +16,9 @@ type ListCriteriaThresholdsRepositories struct {
 }
 
 type ListCriteriaThresholdsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListCriteriaThresholdsUseCase handles the business logic for listing criteria thresholds
@@ -41,7 +41,7 @@ func NewListCriteriaThresholdsUseCase(
 // Execute performs the list criteria thresholds operation
 func (uc *ListCriteriaThresholdsUseCase) Execute(ctx context.Context, req *pb.ListCriteriaThresholdsRequest) (*pb.ListCriteriaThresholdsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCriteriaThreshold, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListCriteriaThresholdsUseCase) Execute(ctx context.Context, req *pb.Li
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListCriteriaThresholdsUseCase) Execute(ctx context.Context, req *pb.Li
 func (uc *ListCriteriaThresholdsUseCase) executeWithTransaction(ctx context.Context, req *pb.ListCriteriaThresholdsRequest) (*pb.ListCriteriaThresholdsResponse, error) {
 	var result *pb.ListCriteriaThresholdsResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "criteria_threshold.errors.list_failed", "criteria threshold listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "criteria_threshold.errors.list_failed", "criteria threshold listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListCriteriaThresholdsUseCase) executeWithTransaction(ctx context.Cont
 func (uc *ListCriteriaThresholdsUseCase) executeCore(ctx context.Context, req *pb.ListCriteriaThresholdsRequest) (*pb.ListCriteriaThresholdsResponse, error) {
 	resp, err := uc.repositories.CriteriaThreshold.ListCriteriaThresholds(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.errors.list_failed", "criteria threshold listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.errors.list_failed", "criteria threshold listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *ListCriteriaThresholdsUseCase) executeCore(ctx context.Context, req *p
 // validateInput validates the input request
 func (uc *ListCriteriaThresholdsUseCase) validateInput(ctx context.Context, req *pb.ListCriteriaThresholdsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "criteria_threshold.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "criteria_threshold.validation.request_required", "request is required"))
 	}
 
 	return nil

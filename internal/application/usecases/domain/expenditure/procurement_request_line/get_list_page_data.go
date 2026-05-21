@@ -18,8 +18,8 @@ type GetProcurementRequestLineListPageDataRepositories struct {
 
 // GetProcurementRequestLineListPageDataServices groups service dependencies.
 type GetProcurementRequestLineListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // GetProcurementRequestLineListPageDataUseCase fetches paginated request line list data.
@@ -38,17 +38,17 @@ func NewGetProcurementRequestLineListPageDataUseCase(
 
 // Execute performs the get procurement request line list page data operation.
 func (uc *GetProcurementRequestLineListPageDataUseCase) Execute(ctx context.Context, req *procurementrequestlinepb.GetProcurementRequestLineListPageDataRequest) (*procurementrequestlinepb.GetProcurementRequestLineListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequestLine, ports.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request_line.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	resp, err := uc.repositories.ProcurementRequestLine.GetProcurementRequestLineListPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request_line.errors.get_list_page_data_failed", "[ERR-DEFAULT] Failed to load procurement request line list")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}

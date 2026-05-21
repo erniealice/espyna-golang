@@ -16,9 +16,9 @@ type ListPhaseOutcomeSummariesRepositories struct {
 }
 
 type ListPhaseOutcomeSummariesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListPhaseOutcomeSummariesUseCase handles the business logic for listing phase outcome summaries
@@ -41,7 +41,7 @@ func NewListPhaseOutcomeSummariesUseCase(
 // Execute performs the list phase outcome summaries operation
 func (uc *ListPhaseOutcomeSummariesUseCase) Execute(ctx context.Context, req *pb.ListPhaseOutcomeSummarysRequest) (*pb.ListPhaseOutcomeSummarysResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPhaseOutcomeSummary, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (uc *ListPhaseOutcomeSummariesUseCase) Execute(ctx context.Context, req *pb
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -64,10 +64,10 @@ func (uc *ListPhaseOutcomeSummariesUseCase) Execute(ctx context.Context, req *pb
 func (uc *ListPhaseOutcomeSummariesUseCase) executeWithTransaction(ctx context.Context, req *pb.ListPhaseOutcomeSummarysRequest) (*pb.ListPhaseOutcomeSummarysResponse, error) {
 	var result *pb.ListPhaseOutcomeSummarysResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
-			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.TranslationService, "phase_outcome_summary.errors.list_failed", "phase outcome summary listing failed: %w"), err)
+			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "phase_outcome_summary.errors.list_failed", "phase outcome summary listing failed: %w"), err)
 		}
 		result = res
 		return nil
@@ -83,7 +83,7 @@ func (uc *ListPhaseOutcomeSummariesUseCase) executeWithTransaction(ctx context.C
 func (uc *ListPhaseOutcomeSummariesUseCase) executeCore(ctx context.Context, req *pb.ListPhaseOutcomeSummarysRequest) (*pb.ListPhaseOutcomeSummarysResponse, error) {
 	resp, err := uc.repositories.PhaseOutcomeSummary.ListPhaseOutcomeSummarys(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.errors.list_failed", "phase outcome summary listing failed: %w"), err)
+		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.errors.list_failed", "phase outcome summary listing failed: %w"), err)
 	}
 	return resp, nil
 }
@@ -91,7 +91,7 @@ func (uc *ListPhaseOutcomeSummariesUseCase) executeCore(ctx context.Context, req
 // validateInput validates the input request
 func (uc *ListPhaseOutcomeSummariesUseCase) validateInput(ctx context.Context, req *pb.ListPhaseOutcomeSummarysRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "phase_outcome_summary.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "phase_outcome_summary.validation.request_required", "request is required"))
 	}
 
 	return nil

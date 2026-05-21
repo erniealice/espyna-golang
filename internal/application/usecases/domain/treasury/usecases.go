@@ -92,20 +92,20 @@ type TreasuryUseCases struct {
 // NewUseCases creates all treasury use cases with proper constructor injection.
 func NewUseCases(
 	repos TreasuryRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idService ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idService ports.IDGenerator,
 ) *TreasuryUseCases {
 	collectionUC := collectionUseCases.NewUseCases(
 		collectionUseCases.CollectionRepositories{
 			Collection: repos.Collection,
 		},
 		collectionUseCases.CollectionServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -114,10 +114,10 @@ func NewUseCases(
 			Disbursement: repos.Disbursement,
 		},
 		disbursementUseCases.DisbursementServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -128,10 +128,10 @@ func NewUseCases(
 				DisbursementSchedule: repos.DisbursementSchedule,
 			},
 			disbursementscheduleUseCases.DisbursementScheduleServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 		)
 	}
@@ -141,10 +141,10 @@ func NewUseCases(
 			SecurityDeposit: repos.SecurityDeposit,
 		},
 		securityDepositUseCases.SecurityDepositServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -153,10 +153,10 @@ func NewUseCases(
 			PettyCashFund: repos.PettyCashFund,
 		},
 		pettyCashUseCases.PettyCashServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -170,10 +170,10 @@ func NewUseCases(
 			WithholdingCertificate: repos.WithholdingCertificate,
 		},
 		withholdingCertificateUseCases.WithholdingCertificateServices{
-			AuthorizationService: authSvc,
-			TransactionService:   txSvc,
-			TranslationService:   i18nSvc,
-			IDService:            idService,
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
 		},
 	)
 
@@ -196,10 +196,10 @@ func NewUseCases(
 				Revenue:            repos.Revenue,
 			},
 			collectionUseCases.AmortizeAdvanceCollectionServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 			collectionUC.UpdateCollection,
 		)
@@ -209,9 +209,9 @@ func NewUseCases(
 				TreasuryCollection: repos.Collection,
 			},
 			collectionUseCases.SettleUnscheduledAdvanceServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Transactor: txSvc,
+				Translator: i18nSvc,
 			},
 			collectionUC.UpdateCollection,
 		)
@@ -221,9 +221,9 @@ func NewUseCases(
 				TreasuryCollection: repos.Collection,
 			},
 			collectionUseCases.RefundUnscheduledAdvanceServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Transactor: txSvc,
+				Translator: i18nSvc,
 			},
 			collectionUC.UpdateCollection,
 		)
@@ -233,9 +233,9 @@ func NewUseCases(
 				TreasuryCollection: repos.Collection,
 			},
 			collectionUseCases.CancelAdvanceServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Transactor: txSvc,
+				Translator: i18nSvc,
 			},
 			collectionUC.UpdateCollection,
 		)
@@ -249,10 +249,10 @@ func NewUseCases(
 					CollectionBillingEvent: repos.CollectionBillingEvent,
 				},
 				collectionUseCases.RecognizeMilestoneAdvanceCollectionServices{
-					AuthorizationService: authSvc,
-					TransactionService:   txSvc,
-					TranslationService:   i18nSvc,
-					IDService:            idService,
+					Authorizer:  authSvc,
+					Transactor:  txSvc,
+					Translator:  i18nSvc,
+					IDGenerator: idService,
 				},
 				collectionUC.UpdateCollection,
 			)
@@ -263,8 +263,8 @@ func NewUseCases(
 				Collection: repos.Collection,
 			},
 			collectionUseCases.ListAdvanceCollectionsForDashboardServices{
-				AuthorizationService: authSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Translator: i18nSvc,
 			},
 		)
 	}
@@ -276,10 +276,10 @@ func NewUseCases(
 				ExpenseRecognition:   repos.ExpenseRecognition,
 			},
 			disbursementUseCases.AmortizeAdvanceDisbursementServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
-				IDService:            idService,
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
 			},
 			disbursementUC.UpdateDisbursement,
 		)
@@ -289,9 +289,9 @@ func NewUseCases(
 				TreasuryDisbursement: repos.Disbursement,
 			},
 			disbursementUseCases.SettleUnscheduledAdvanceServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Transactor: txSvc,
+				Translator: i18nSvc,
 			},
 			disbursementUC.UpdateDisbursement,
 		)
@@ -301,9 +301,9 @@ func NewUseCases(
 				TreasuryDisbursement: repos.Disbursement,
 			},
 			disbursementUseCases.RefundUnscheduledAdvanceServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Transactor: txSvc,
+				Translator: i18nSvc,
 			},
 			disbursementUC.UpdateDisbursement,
 		)
@@ -313,9 +313,9 @@ func NewUseCases(
 				TreasuryDisbursement: repos.Disbursement,
 			},
 			disbursementUseCases.CancelAdvanceServices{
-				AuthorizationService: authSvc,
-				TransactionService:   txSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Transactor: txSvc,
+				Translator: i18nSvc,
 			},
 			disbursementUC.UpdateDisbursement,
 		)
@@ -329,10 +329,10 @@ func NewUseCases(
 					DisbursementSupplierBillingEvent: repos.DisbursementSupplierBillingEvent,
 				},
 				disbursementUseCases.RecognizeMilestoneAdvanceDisbursementServices{
-					AuthorizationService: authSvc,
-					TransactionService:   txSvc,
-					TranslationService:   i18nSvc,
-					IDService:            idService,
+					Authorizer:  authSvc,
+					Transactor:  txSvc,
+					Translator:  i18nSvc,
+					IDGenerator: idService,
 				},
 				disbursementUC.UpdateDisbursement,
 			)
@@ -343,8 +343,8 @@ func NewUseCases(
 				Disbursement: repos.Disbursement,
 			},
 			disbursementUseCases.ListAdvanceDisbursementsForDashboardServices{
-				AuthorizationService: authSvc,
-				TranslationService:   i18nSvc,
+				Authorizer: authSvc,
+				Translator: i18nSvc,
 			},
 		)
 	}

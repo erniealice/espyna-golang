@@ -22,9 +22,9 @@ type ListRolePermissionsRepositories struct {
 
 // ListRolePermissionsServices groups all business service dependencies
 type ListRolePermissionsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListRolePermissionsUseCase handles the business logic for listing role permissions
@@ -48,7 +48,7 @@ func NewListRolePermissionsUseCase(
 // Deprecated: Use NewListRolePermissionsUseCase with grouped parameters instead
 func NewListRolePermissionsUseCaseUngrouped(
 	rolePermissionRepo rolepermissionpb.RolePermissionDomainServiceServer,
-	authorizationService ports.AuthorizationService,
+	authorizationService ports.Authorizer,
 ) *ListRolePermissionsUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := ListRolePermissionsRepositories{
@@ -58,9 +58,9 @@ func NewListRolePermissionsUseCaseUngrouped(
 	}
 
 	services := ListRolePermissionsServices{
-		AuthorizationService: authorizationService,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: authorizationService,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListRolePermissionsUseCase(repositories, services)
@@ -68,27 +68,27 @@ func NewListRolePermissionsUseCaseUngrouped(
 
 func (uc *ListRolePermissionsUseCase) Execute(ctx context.Context, req *rolepermissionpb.ListRolePermissionsRequest) (*rolepermissionpb.ListRolePermissionsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityRolePermission, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.input_validation_failed", "Input validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.input_validation_failed", "Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Business rule validation
 	if err := uc.validateBusinessRules(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.business_rule_validation_failed", "Business rule validation failed")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.business_rule_validation_failed", "Business rule validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.RolePermission.ListRolePermissions(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.errors.list_failed", "Failed to retrieve role-permissions")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.list_failed", "Failed to retrieve role-permissions")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -98,7 +98,7 @@ func (uc *ListRolePermissionsUseCase) Execute(ctx context.Context, req *roleperm
 // validateInput validates the input request
 func (uc *ListRolePermissionsUseCase) validateInput(ctx context.Context, req *rolepermissionpb.ListRolePermissionsRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "role_permission.validation.request_required", "Request is required for role-permissions"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.validation.request_required", "Request is required for role-permissions"))
 	}
 	return nil
 }

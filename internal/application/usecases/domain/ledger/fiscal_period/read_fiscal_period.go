@@ -17,9 +17,9 @@ type ReadFiscalPeriodRepositories struct {
 
 // ReadFiscalPeriodServices groups all business service dependencies
 type ReadFiscalPeriodServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadFiscalPeriodUseCase handles the business logic for reading fiscal periods
@@ -42,7 +42,7 @@ func NewReadFiscalPeriodUseCase(
 // Execute performs the read fiscal period operation
 func (uc *ReadFiscalPeriodUseCase) Execute(ctx context.Context, req *fiscalperiodpb.ReadFiscalPeriodRequest) (*fiscalperiodpb.ReadFiscalPeriodResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityFiscalPeriod, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -68,13 +68,13 @@ func (uc *ReadFiscalPeriodUseCase) Execute(ctx context.Context, req *fiscalperio
 // validateInput validates the input request
 func (uc *ReadFiscalPeriodUseCase) validateInput(ctx context.Context, req *fiscalperiodpb.ReadFiscalPeriodRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.data_required", "[ERR-DEFAULT] Data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.data_required", "[ERR-DEFAULT] Data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "fiscal_period.validation.id_required", "[ERR-DEFAULT] ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "fiscal_period.validation.id_required", "[ERR-DEFAULT] ID is required"))
 	}
 	return nil
 }

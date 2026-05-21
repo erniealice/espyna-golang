@@ -17,8 +17,8 @@ type ReadProcurementRequestLineRepositories struct {
 
 // ReadProcurementRequestLineServices groups service dependencies.
 type ReadProcurementRequestLineServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // ReadProcurementRequestLineUseCase handles reading a procurement request line.
@@ -37,12 +37,12 @@ func NewReadProcurementRequestLineUseCase(
 
 // Execute performs the read procurement request line operation.
 func (uc *ReadProcurementRequestLineUseCase) Execute(ctx context.Context, req *procurementrequestlinepb.ReadProcurementRequestLineRequest) (*procurementrequestlinepb.ReadProcurementRequestLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityProcurementRequestLine, ports.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"procurement_request_line.validation.id_required", "Procurement request line ID is required [DEFAULT]"))
 	}
 	return uc.repositories.ProcurementRequestLine.ReadProcurementRequestLine(ctx, req)

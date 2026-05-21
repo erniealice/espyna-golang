@@ -12,10 +12,10 @@ type PriceScheduleRepositories struct {
 
 // PriceScheduleServices groups all business service dependencies for price schedule use cases
 type PriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService // Only for CreatePriceSchedule
+	Authorizer  ports.Authorizer // Current: RBAC and permissions
+	Transactor  ports.Transactor // Current: Database transactions
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator // Only for CreatePriceSchedule
 }
 
 // UseCases contains all price_schedule-related use cases
@@ -40,73 +40,73 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	createServices := CreatePriceScheduleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
-		IDService:            services.IDService,
+		Authorizer:  services.Authorizer,
+		Transactor:  services.Transactor,
+		Translator:  services.Translator,
+		IDGenerator: services.IDGenerator,
 	}
 
 	readRepos := ReadPriceScheduleRepositories{
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	readServices := ReadPriceScheduleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	updateRepos := UpdatePriceScheduleRepositories{
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	updateServices := UpdatePriceScheduleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	deleteRepos := DeletePriceScheduleRepositories{
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	deleteServices := DeletePriceScheduleServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listRepos := ListPriceSchedulesRepositories{
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	listServices := ListPriceSchedulesServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	listPageDataRepos := GetPriceScheduleListPageDataRepositories{
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	listPageDataServices := GetPriceScheduleListPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	itemPageDataRepos := GetPriceScheduleItemPageDataRepositories{
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	itemPageDataServices := GetPriceScheduleItemPageDataServices{
-		AuthorizationService: services.AuthorizationService,
-		TransactionService:   services.TransactionService,
-		TranslationService:   services.TranslationService,
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
 	}
 
 	findApplicableRepos := FindApplicablePriceScheduleRepositories{
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	findApplicableServices := FindApplicablePriceScheduleServices{
-		TransactionService:   services.TransactionService,
-		AuthorizationService: services.AuthorizationService,
-		TranslationService:   services.TranslationService,
+		Transactor: services.Transactor,
+		Authorizer: services.Authorizer,
+		Translator: services.Translator,
 	}
 
 	return &UseCases{

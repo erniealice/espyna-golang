@@ -24,10 +24,10 @@ type CreateRevenueRepositories struct {
 
 // CreateRevenueServices groups all business service dependencies
 type CreateRevenueServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
-	IDService            ports.IDService
+	Authorizer  ports.Authorizer
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 
 	// ComputeTaxes wires the post-create tax-compute hook
 	// (tax-integration plan §4 Phase D). Optional — when nil the tax-compute
@@ -68,15 +68,15 @@ func (uc *CreateRevenueUseCase) SetComputeTaxes(invoker ComputeTaxesForRevenueIn
 
 // Execute performs the create revenue operation
 func (uc *CreateRevenueUseCase) Execute(ctx context.Context, req *revenuepb.CreateRevenueRequest) (*revenuepb.CreateRevenueResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityRevenue, ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	var result *revenuepb.CreateRevenueResponse
 
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
-		err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
 				return fmt.Errorf("revenue creation failed: %w", err)
@@ -112,13 +112,13 @@ func (uc *CreateRevenueUseCase) Execute(ctx context.Context, req *revenuepb.Crea
 
 func (uc *CreateRevenueUseCase) executeCore(ctx context.Context, req *revenuepb.CreateRevenueRequest) (*revenuepb.CreateRevenueResponse, error) {
 	if req == nil || req.Data == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "revenue.validation.data_required", "Revenue data is required [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue.validation.data_required", "Revenue data is required [DEFAULT]"))
 	}
 
 	// Enrich with ID and audit fields
 	now := time.Now()
 	if req.Data.Id == "" {
-		req.Data.Id = uc.services.IDService.GenerateID()
+		req.Data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	req.Data.DateCreated = &[]int64{now.UnixMilli()}[0]
 	req.Data.DateCreatedString = &[]string{now.Format(time.RFC3339)}[0]

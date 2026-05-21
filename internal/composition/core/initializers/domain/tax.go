@@ -9,10 +9,10 @@ import (
 // InitializeTax creates all tax use cases from provider repositories.
 func InitializeTax(
 	repos *domain.TaxRepositories,
-	authSvc ports.AuthorizationService,
-	txSvc ports.TransactionService,
-	i18nSvc ports.TranslationService,
-	idSvc ports.IDService,
+	authSvc ports.Authorizer,
+	txSvc ports.Transactor,
+	i18nSvc ports.Translator,
+	idSvc ports.IDGenerator,
 ) (*tax.TaxUseCases, error) {
 	return tax.NewUseCases(
 		tax.TaxRepositories{

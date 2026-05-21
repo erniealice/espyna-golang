@@ -17,9 +17,9 @@ type GetPermissionItemPageDataRepositories struct {
 
 // GetPermissionItemPageDataServices groups all business service dependencies
 type GetPermissionItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetPermissionItemPageDataUseCase handles the business logic for getting permission item page data
@@ -48,9 +48,9 @@ func NewGetPermissionItemPageDataUseCaseUngrouped(permissionRepo permissionpb.Pe
 	}
 
 	services := GetPermissionItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetPermissionItemPageDataUseCase(repositories, services)
@@ -59,7 +59,7 @@ func NewGetPermissionItemPageDataUseCaseUngrouped(permissionRepo permissionpb.Pe
 // Execute performs the get permission item page data operation
 func (uc *GetPermissionItemPageDataUseCase) Execute(ctx context.Context, req *permissionpb.GetPermissionItemPageDataRequest) (*permissionpb.GetPermissionItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPermissions, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -70,14 +70,14 @@ func (uc *GetPermissionItemPageDataUseCase) Execute(ctx context.Context, req *pe
 	}
 
 	if req.PermissionId == "" {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.errors.id_required", "Permission ID is required [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.errors.id_required", "Permission ID is required [DEFAULT]")
 		return nil, fmt.Errorf("%s", translatedError)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.Permission.GetPermissionItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "permission.errors.item_page_data_failed", "Failed to retrieve permission item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.errors.item_page_data_failed", "Failed to retrieve permission item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

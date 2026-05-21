@@ -18,9 +18,9 @@ type UpdatePriceScheduleRepositories struct {
 
 // UpdatePriceScheduleServices groups all business service dependencies
 type UpdatePriceScheduleServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // UpdatePriceScheduleUseCase handles the business logic for updating price_schedules
@@ -43,7 +43,7 @@ func NewUpdatePriceScheduleUseCase(
 // Execute performs the update price_schedule operation
 func (uc *UpdatePriceScheduleUseCase) Execute(ctx context.Context, req *priceschedulepb.UpdatePriceScheduleRequest) (*priceschedulepb.UpdatePriceScheduleResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPriceSchedule, ports.ActionUpdate); err != nil {
 		return nil, err
 	}
@@ -74,19 +74,19 @@ func (uc *UpdatePriceScheduleUseCase) Execute(ctx context.Context, req *pricesch
 // validateInput validates the input request
 func (uc *UpdatePriceScheduleUseCase) validateInput(ctx context.Context, req *priceschedulepb.UpdatePriceScheduleRequest) error {
 	if req == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.request_required", "request is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.request_required", "request is required")
 		return errors.New(msg)
 	}
 	if req.Data == nil {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.data_required", "price schedule data is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.data_required", "price schedule data is required")
 		return errors.New(msg)
 	}
 	if req.Data.Id == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.id_required", "price schedule ID is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.id_required", "price schedule ID is required")
 		return errors.New(msg)
 	}
 	if req.Data.Name == "" {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.name_required", "price schedule name is required")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.name_required", "price schedule name is required")
 		return errors.New(msg)
 	}
 	return nil
@@ -107,24 +107,24 @@ func (uc *UpdatePriceScheduleUseCase) enrichPriceScheduleData(priceSchedule *pri
 func (uc *UpdatePriceScheduleUseCase) validateBusinessRules(ctx context.Context, priceSchedule *priceschedulepb.PriceSchedule) error {
 	// Validate price schedule ID length
 	if len(priceSchedule.Id) < 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.id_min_length", "price schedule ID must be at least 3 characters long")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.id_min_length", "price schedule ID must be at least 3 characters long")
 		return errors.New(msg)
 	}
 
 	// Validate price schedule name length
 	if len(priceSchedule.Name) < 3 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.name_min_length", "price schedule name must be at least 3 characters long")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.name_min_length", "price schedule name must be at least 3 characters long")
 		return errors.New(msg)
 	}
 
 	if len(priceSchedule.Name) > 100 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.name_max_length", "price schedule name cannot exceed 100 characters")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.name_max_length", "price schedule name cannot exceed 100 characters")
 		return errors.New(msg)
 	}
 
 	// Validate Description length validation
 	if priceSchedule.Description != nil && len(*priceSchedule.Description) > 500 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "price_schedule.validation.description_max_length", "price schedule description cannot exceed 500 characters")
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_schedule.validation.description_max_length", "price schedule description cannot exceed 500 characters")
 		return errors.New(msg)
 	}
 

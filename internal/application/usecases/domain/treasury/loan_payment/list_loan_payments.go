@@ -18,9 +18,9 @@ type ListLoanPaymentsRepositories struct {
 
 // ListLoanPaymentsServices groups all business service dependencies.
 type ListLoanPaymentsServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListLoanPaymentsUseCase handles the business logic for listing loan payments.
@@ -42,13 +42,13 @@ func NewListLoanPaymentsUseCase(
 
 // Execute performs the list loan payments operation.
 func (uc *ListLoanPaymentsUseCase) Execute(ctx context.Context, req *loanpaymentpb.ListLoanPaymentsRequest) (*loanpaymentpb.ListLoanPaymentsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityLoanPayment, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 
 	if uc.repositories.LoanPayment == nil {
@@ -57,7 +57,7 @@ func (uc *ListLoanPaymentsUseCase) Execute(ctx context.Context, req *loanpayment
 
 	resp, err := uc.repositories.LoanPayment.ListLoanPayments(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "loan_payment.errors.list_failed", "[ERR-DEFAULT] Failed to list loan payments")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "loan_payment.errors.list_failed", "[ERR-DEFAULT] Failed to list loan payments")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 

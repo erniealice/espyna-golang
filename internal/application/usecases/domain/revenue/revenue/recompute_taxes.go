@@ -22,8 +22,8 @@ type RecomputeTaxesRepositories struct {
 
 // RecomputeTaxesServices groups services for tax recomputation.
 type RecomputeTaxesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // RecomputeTaxesRequest is the input to RecomputeTaxes.
@@ -82,13 +82,13 @@ func (uc *RecomputeTaxesUseCase) Execute(
 	ctx context.Context,
 	req *RecomputeTaxesRequest,
 ) (*RecomputeTaxesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		"revenue_tax_line", ports.ActionCreate); err != nil {
 		return nil, err
 	}
 
 	if req == nil || req.RevenueID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.revenue_id_required",
 			"Revenue ID is required [DEFAULT]"))
 	}
@@ -99,13 +99,13 @@ func (uc *RecomputeTaxesUseCase) Execute(
 		workspaceID = userctx.ExtractWorkspaceIDFromContext(ctx)
 	}
 	if workspaceID == "" {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.validation.workspace_id_required",
 			"Workspace ID is required for tax recomputation [DEFAULT]"))
 	}
 
 	if uc.compute == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService,
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
 			"revenue_tax_line.errors.compute_unavailable",
 			"Tax compute use case is not configured [DEFAULT]"))
 	}

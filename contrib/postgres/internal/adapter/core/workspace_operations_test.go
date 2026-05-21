@@ -16,8 +16,8 @@ import (
 	"database/sql"
 	"testing"
 
-	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 

@@ -19,9 +19,9 @@ type ListDelegateAttributesRepositories struct {
 
 // ListDelegateAttributesServices groups all business service dependencies
 type ListDelegateAttributesServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ListDelegateAttributesUseCase handles the business logic for listing delegate attributes
@@ -50,9 +50,9 @@ func NewListDelegateAttributesUseCaseUngrouped(delegateAttributeRepo delegateatt
 	}
 
 	services := ListDelegateAttributesServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewListDelegateAttributesUseCase(repositories, services)
@@ -61,27 +61,27 @@ func NewListDelegateAttributesUseCaseUngrouped(delegateAttributeRepo delegateatt
 // Execute performs the list delegate attributes operation
 func (uc *ListDelegateAttributesUseCase) Execute(ctx context.Context, req *delegateattributepb.ListDelegateAttributesRequest) (*delegateattributepb.ListDelegateAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Apply default values for pagination
 	if err := uc.applyDefaults(req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.apply_defaults_failed", "Failed to apply default values [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.DelegateAttribute.ListDelegateAttributes(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.list_failed", "Failed to retrieve delegate attributes [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.list_failed", "Failed to retrieve delegate attributes [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -91,7 +91,7 @@ func (uc *ListDelegateAttributesUseCase) Execute(ctx context.Context, req *deleg
 // validateInput validates the input request
 func (uc *ListDelegateAttributesUseCase) validateInput(ctx context.Context, req *delegateattributepb.ListDelegateAttributesRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.request_required", "Request is required for delegate attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.request_required", "Request is required for delegate attributes [DEFAULT]"))
 	}
 
 	// No additional business rules for listing delegate attributes

@@ -15,9 +15,9 @@ type ReadJobTemplateTaskRepositories struct {
 }
 
 type ReadJobTemplateTaskServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // ReadJobTemplateTaskUseCase handles the business logic for reading job template tasks
@@ -40,7 +40,7 @@ func NewReadJobTemplateTaskUseCase(
 // Execute performs the read job template task operation
 func (uc *ReadJobTemplateTaskUseCase) Execute(ctx context.Context, req *pb.ReadJobTemplateTaskRequest) (*pb.ReadJobTemplateTaskResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityJobTemplateTask, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (uc *ReadJobTemplateTaskUseCase) Execute(ctx context.Context, req *pb.ReadJ
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -63,7 +63,7 @@ func (uc *ReadJobTemplateTaskUseCase) Execute(ctx context.Context, req *pb.ReadJ
 func (uc *ReadJobTemplateTaskUseCase) executeWithTransaction(ctx context.Context, req *pb.ReadJobTemplateTaskRequest) (*pb.ReadJobTemplateTaskResponse, error) {
 	var result *pb.ReadJobTemplateTaskResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err
@@ -82,10 +82,10 @@ func (uc *ReadJobTemplateTaskUseCase) executeWithTransaction(ctx context.Context
 func (uc *ReadJobTemplateTaskUseCase) executeCore(ctx context.Context, req *pb.ReadJobTemplateTaskRequest) (*pb.ReadJobTemplateTaskResponse, error) {
 	resp, err := uc.repositories.JobTemplateTask.ReadJobTemplateTask(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.errors.not_found", "[ERR-DEFAULT] Job template task not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.errors.not_found", "[ERR-DEFAULT] Job template task not found"))
 	}
 	if resp == nil || len(resp.Data) == 0 {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.errors.not_found", "[ERR-DEFAULT] Job template task not found"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.errors.not_found", "[ERR-DEFAULT] Job template task not found"))
 	}
 	return resp, nil
 }
@@ -93,13 +93,13 @@ func (uc *ReadJobTemplateTaskUseCase) executeCore(ctx context.Context, req *pb.R
 // validateInput validates the input request
 func (uc *ReadJobTemplateTaskUseCase) validateInput(ctx context.Context, req *pb.ReadJobTemplateTaskRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.request_required", "[ERR-DEFAULT] Request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.data_required", "[ERR-DEFAULT] Job template task data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.data_required", "[ERR-DEFAULT] Job template task data is required"))
 	}
 	if req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "job_template_task.validation.id_required", "[ERR-DEFAULT] Job template task ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_task.validation.id_required", "[ERR-DEFAULT] Job template task ID is required"))
 	}
 	return nil
 }

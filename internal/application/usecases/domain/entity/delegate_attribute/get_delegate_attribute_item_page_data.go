@@ -20,9 +20,9 @@ type GetDelegateAttributeItemPageDataRepositories struct {
 
 // GetDelegateAttributeItemPageDataServices groups all business service dependencies
 type GetDelegateAttributeItemPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetDelegateAttributeItemPageDataUseCase handles the business logic for getting delegate attribute item page data
@@ -51,9 +51,9 @@ func NewGetDelegateAttributeItemPageDataUseCaseUngrouped(delegateAttributeRepo d
 	}
 
 	services := GetDelegateAttributeItemPageDataServices{
-		AuthorizationService: nil,
-		TransactionService:   ports.NewNoOpTransactionService(),
-		TranslationService:   ports.NewNoOpTranslationService(),
+		Authorizer: nil,
+		Transactor: ports.NewNoOpTransactor(),
+		Translator: ports.NewNoOpTranslator(),
 	}
 
 	return NewGetDelegateAttributeItemPageDataUseCase(repositories, services)
@@ -62,21 +62,21 @@ func NewGetDelegateAttributeItemPageDataUseCaseUngrouped(delegateAttributeRepo d
 // Execute performs the get delegate attribute item page data operation
 func (uc *GetDelegateAttributeItemPageDataUseCase) Execute(ctx context.Context, req *delegateattributepb.GetDelegateAttributeItemPageDataRequest) (*delegateattributepb.GetDelegateAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityDelegateAttribute, ports.ActionList); err != nil {
 		return nil, err
 	}
 
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.input_validation_failed", "Input validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
 	// Call repository
 	resp, err := uc.repositories.DelegateAttribute.GetDelegateAttributeItemPageData(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.errors.item_page_data_failed", "Failed to retrieve delegate attribute item page data [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.errors.item_page_data_failed", "Failed to retrieve delegate attribute item page data [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
@@ -86,17 +86,17 @@ func (uc *GetDelegateAttributeItemPageDataUseCase) Execute(ctx context.Context, 
 // validateInput validates the input request
 func (uc *GetDelegateAttributeItemPageDataUseCase) validateInput(ctx context.Context, req *delegateattributepb.GetDelegateAttributeItemPageDataRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.request_required", "Request is required for delegate attributes [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.request_required", "Request is required for delegate attributes [DEFAULT]"))
 	}
 
 	// Validate delegate attribute ID
 	if strings.TrimSpace(req.DelegateAttributeId) == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.id_required", "Delegate attribute ID is required [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.id_required", "Delegate attribute ID is required [DEFAULT]"))
 	}
 
 	// Basic ID format validation
 	if len(req.DelegateAttributeId) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "delegate_attribute.validation.id_too_short", "Delegate attribute ID must be at least 3 characters [DEFAULT]"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "delegate_attribute.validation.id_too_short", "Delegate attribute ID must be at least 3 characters [DEFAULT]"))
 	}
 
 	return nil

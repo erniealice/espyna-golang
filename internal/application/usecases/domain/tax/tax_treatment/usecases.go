@@ -14,8 +14,8 @@ type TaxTreatmentRepositories struct {
 
 // TaxTreatmentServices groups all business service dependencies.
 type TaxTreatmentServices struct {
-	AuthorizationService ports.AuthorizationService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Translator ports.Translator
 }
 
 // UseCases contains all tax_treatment use cases.
@@ -30,15 +30,15 @@ func NewUseCases(repositories TaxTreatmentRepositories, services TaxTreatmentSer
 		ReadTaxTreatment: NewReadTaxTreatmentUseCase(
 			ReadTaxTreatmentRepositories{TaxTreatment: repositories.TaxTreatment},
 			ReadTaxTreatmentServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		ListTaxTreatments: NewListTaxTreatmentsUseCase(
 			ListTaxTreatmentsRepositories{TaxTreatment: repositories.TaxTreatment},
 			ListTaxTreatmentsServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 	}

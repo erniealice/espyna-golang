@@ -32,8 +32,8 @@ func createTestReadWorkspaceUserRoleUseCase(businessType string, supportsTransac
 
 	standardServices := testutil.CreateStandardServices(supportsTransaction, true)
 	services := ReadWorkspaceUserRoleServices{
-		AuthorizationService: mockAuth.NewAllowAllAuth(),
-		TranslationService:   standardServices.TranslationService,
+		Authorizer: mockAuth.NewAllowAllAuth(),
+		Translator: standardServices.Translator,
 	}
 
 	return NewReadWorkspaceUserRoleUseCase(repositories, services)
@@ -89,5 +89,5 @@ func TestReadWorkspaceUserRoleUseCase_Execute_EmptyId(t *testing.T) {
 	_, err := useCase.Execute(ctx, req)
 	testutil.AssertError(t, err)
 
-	testutil.AssertTranslatedError(t, err, "workspace_user_role.validation.id_required", useCase.services.TranslationService, ctx)
+	testutil.AssertTranslatedError(t, err, "workspace_user_role.validation.id_required", useCase.services.Translator, ctx)
 }

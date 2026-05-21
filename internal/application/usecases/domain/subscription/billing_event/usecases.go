@@ -19,9 +19,9 @@ type BillingEventRepositories struct {
 // BillingEventServices groups all business service dependencies for billing
 // event use cases.
 type BillingEventServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // UseCases contains all billing-event use cases.
@@ -42,16 +42,16 @@ func NewUseCases(
 		ListBySubscription: NewListBillingEventsBySubscriptionUseCase(
 			ListBillingEventsBySubscriptionRepositories{BillingEvent: repositories.BillingEvent},
 			ListBillingEventsBySubscriptionServices{
-				AuthorizationService: services.AuthorizationService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Translator: services.Translator,
 			},
 		),
 		SetStatus: NewSetBillingEventStatusUseCase(
 			SetBillingEventStatusRepositories{BillingEvent: repositories.BillingEvent},
 			SetBillingEventStatusServices{
-				AuthorizationService: services.AuthorizationService,
-				TransactionService:   services.TransactionService,
-				TranslationService:   services.TranslationService,
+				Authorizer: services.Authorizer,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 	}

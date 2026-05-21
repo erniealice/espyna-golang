@@ -100,10 +100,10 @@ func newCreateSubUC(t *testing.T, ppRepo *mockPricePlanRepoSub, clientRepo *mock
 			PricePlan:    ppRepo,
 		},
 		CreateSubscriptionServices{
-			AuthorizationService:    ports.NewNoOpAuthorizationService(),
-			TransactionService:      noTxnSub{},
-			TranslationService:      ports.NewNoOpTranslationService(),
-			IDService:               stubIDForSub{},
+			Authorizer:              ports.NewNoOpAuthorizer(),
+			Transactor:              noTxnSub{},
+			Translator:              ports.NewNoOpTranslator(),
+			IDGenerator:             stubIDForSub{},
 			JobTemplateInstantiator: nil,
 		},
 	)
@@ -118,9 +118,9 @@ func newUpdateSubUC(t *testing.T, ppRepo *mockPricePlanRepoSub, clientRepo *mock
 			PricePlan:    ppRepo,
 		},
 		UpdateSubscriptionServices{
-			AuthorizationService: ports.NewNoOpAuthorizationService(),
-			TransactionService:   noTxnSub{},
-			TranslationService:   ports.NewNoOpTranslationService(),
+			Authorizer: ports.NewNoOpAuthorizer(),
+			Transactor: noTxnSub{},
+			Translator: ports.NewNoOpTranslator(),
 		},
 	)
 }

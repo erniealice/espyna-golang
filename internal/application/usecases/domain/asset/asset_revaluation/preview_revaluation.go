@@ -72,7 +72,7 @@ func (uc *PreviewRevaluationUseCase) Execute(
 	ctx context.Context,
 	pbReq *revaluation_pb.PreviewRevaluationUseCaseRequest,
 ) (*revaluation_pb.PreviewRevaluationUseCaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		entityAssetRevaluation, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (uc *PreviewRevaluationUseCase) Execute(
 	// Workspace tenancy check (mirrors RevalueAsset.Execute, codex C2).
 	workspaceID := strings.TrimSpace(contextutil.ExtractWorkspaceIDFromContext(ctx))
 	if workspaceID == "" {
-		// TODO: translate via TranslationService (Fix #4 deferred — codex L1).
+		// TODO: translate via Translator (Fix #4 deferred — codex L1).
 		// Suggested key: asset.assetDetail.depreciationRun.errors.workspaceRequired
 		return nil, errors.New("preview_revaluation: workspace_id is required (codex C2 — workspace tenancy)")
 	}
@@ -110,7 +110,7 @@ func (uc *PreviewRevaluationUseCase) Execute(
 
 	// Measurement-model gate (codex H4): COST-model assets cannot be revalued.
 	if asset.GetMeasurementModel() != assetpb.MeasurementModel_MEASUREMENT_MODEL_REVALUATION {
-		// TODO: translate via TranslationService.
+		// TODO: translate via Translator.
 		// Suggested key: asset.assetRevaluation.errors.wrongMeasurementModel
 		return nil, errors.New("preview_revaluation: asset measurement_model must be REVALUATION to be revalued")
 	}

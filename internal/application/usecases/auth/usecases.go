@@ -32,12 +32,12 @@ type Repositories struct {
 	User    userpb.UserDomainServiceServer
 }
 
-// Services groups infrastructure services. Note: no AuthorizationService —
+// Services groups infrastructure services. Note: no Authorizer —
 // identity-lifecycle use cases run before authz is established.
 type Services struct {
-	TransactionService ports.TransactionService
-	TranslationService ports.TranslationService
-	IDService          ports.IDService
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
 	// SessionExpiry is the default time-to-live for a newly issued session.
 	// Callers typically source this from PASSWORD_AUTH_SESSION_EXPIRY.
 	// A zero value means IssueSession falls back to defaultSessionExpiry.
@@ -49,22 +49,22 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 	return &UseCases{
 		AuthenticateSession: NewAuthenticateSessionUseCase(
 			AuthenticateSessionRepositories{Session: repositories.Session, User: repositories.User},
-			AuthenticateSessionServices{TranslationService: services.TranslationService},
+			AuthenticateSessionServices{Translator: services.Translator},
 		),
 		IssueSession: NewIssueSessionUseCase(
 			IssueSessionRepositories{Session: repositories.Session},
 			IssueSessionServices{
-				TransactionService: services.TransactionService,
-				TranslationService: services.TranslationService,
-				IDService:          services.IDService,
-				Expiry:             services.SessionExpiry,
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
+				Expiry:      services.SessionExpiry,
 			},
 		),
 		InvalidateSession: NewInvalidateSessionUseCase(
 			InvalidateSessionRepositories{Session: repositories.Session},
 			InvalidateSessionServices{
-				TransactionService: services.TransactionService,
-				TranslationService: services.TranslationService,
+				Transactor: services.Transactor,
+				Translator: services.Translator,
 			},
 		),
 	}

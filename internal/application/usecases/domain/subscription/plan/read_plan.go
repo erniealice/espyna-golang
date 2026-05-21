@@ -17,9 +17,9 @@ type ReadPlanRepositories struct {
 
 // ReadPlanServices groups all business service dependencies
 type ReadPlanServices struct {
-	AuthorizationService ports.AuthorizationService // Current: RBAC and permissions
-	TransactionService   ports.TransactionService   // Current: Database transactions
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer // Current: RBAC and permissions
+	Transactor ports.Transactor // Current: Database transactions
+	Translator ports.Translator
 }
 
 // ReadPlanUseCase handles the business logic for reading plans
@@ -42,7 +42,7 @@ func NewReadPlanUseCase(
 // Execute performs the read plan operation
 func (uc *ReadPlanUseCase) Execute(ctx context.Context, req *planpb.ReadPlanRequest) (*planpb.ReadPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityPlan, ports.ActionRead); err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (uc *ReadPlanUseCase) Execute(ctx context.Context, req *planpb.ReadPlanRequ
 	// Call repository
 	result, err := uc.repositories.Plan.ReadPlan(ctx, req)
 	if err != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.errors.not_found", "plan not found [DEFAULT]"))
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.errors.not_found", "plan not found [DEFAULT]"))
 	}
 
 	return result, nil
@@ -69,13 +69,13 @@ func (uc *ReadPlanUseCase) Execute(ctx context.Context, req *planpb.ReadPlanRequ
 // validateInput validates the input request
 func (uc *ReadPlanUseCase) validateInput(ctx context.Context, req *planpb.ReadPlanRequest) error {
 	if req == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.request_required", "request is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.request_required", "request is required"))
 	}
 	if req.Data == nil {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.data_required", "plan data is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.data_required", "plan data is required"))
 	}
 	if req.Data.Id == nil || *req.Data.Id == "" {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.id_required", "plan ID is required"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.id_required", "plan ID is required"))
 	}
 	return nil
 }
@@ -84,7 +84,7 @@ func (uc *ReadPlanUseCase) validateInput(ctx context.Context, req *planpb.ReadPl
 func (uc *ReadPlanUseCase) validateBusinessRules(ctx context.Context, req *planpb.ReadPlanRequest) error {
 	// Validate plan ID format
 	if req.Data.Id == nil || len(*req.Data.Id) < 3 {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.TranslationService, "plan.validation.id_too_short", "plan ID must be at least 3 characters long"))
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan.validation.id_too_short", "plan ID must be at least 3 characters long"))
 	}
 
 	return nil

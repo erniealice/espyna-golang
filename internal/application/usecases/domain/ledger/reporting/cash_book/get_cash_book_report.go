@@ -11,8 +11,8 @@ import (
 // GetCashBookReportUseCase handles the business logic for generating a cash book report.
 type GetCashBookReportUseCase struct {
 	reportingService     ports.LedgerReportingService
-	authorizationService ports.AuthorizationService
-	translationService   ports.TranslationService
+	authorizationService ports.Authorizer
+	translationService   ports.Translator
 }
 
 // NewGetCashBookReportUseCase creates a new use case with its reporting service dependency.
@@ -20,7 +20,7 @@ func NewGetCashBookReportUseCase(svc ports.LedgerReportingService) *GetCashBookR
 	return &GetCashBookReportUseCase{
 		reportingService:     svc,
 		authorizationService: nil,
-		translationService:   ports.NewNoOpTranslationService(),
+		translationService:   ports.NewNoOpTranslator(),
 	}
 }
 

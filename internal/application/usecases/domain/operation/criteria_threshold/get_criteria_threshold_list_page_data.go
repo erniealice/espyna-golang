@@ -17,9 +17,9 @@ type GetCriteriaThresholdListPageDataRepositories struct {
 }
 
 type GetCriteriaThresholdListPageDataServices struct {
-	AuthorizationService ports.AuthorizationService
-	TransactionService   ports.TransactionService
-	TranslationService   ports.TranslationService
+	Authorizer ports.Authorizer
+	Transactor ports.Transactor
+	Translator ports.Translator
 }
 
 // GetCriteriaThresholdListPageDataUseCase handles the business logic for getting criteria threshold list page data
@@ -45,7 +45,7 @@ func (uc *GetCriteriaThresholdListPageDataUseCase) Execute(
 	req *pb.GetCriteriaThresholdListPageDataRequest,
 ) (*pb.GetCriteriaThresholdListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.AuthorizationService, uc.services.TranslationService,
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
 		ports.EntityCriteriaThreshold, ports.ActionList); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (uc *GetCriteriaThresholdListPageDataUseCase) Execute(
 	}
 
 	// Use transaction service if available
-	if uc.services.TransactionService != nil && uc.services.TransactionService.SupportsTransactions() {
+	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		return uc.executeWithTransaction(ctx, req)
 	}
 
@@ -71,12 +71,12 @@ func (uc *GetCriteriaThresholdListPageDataUseCase) executeWithTransaction(
 ) (*pb.GetCriteriaThresholdListPageDataResponse, error) {
 	var result *pb.GetCriteriaThresholdListPageDataResponse
 
-	err := uc.services.TransactionService.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 				txCtx,
-				uc.services.TranslationService,
+				uc.services.Translator,
 				"criteria_threshold.errors.list_page_data_failed",
 				"criteria threshold list page data retrieval failed: %w",
 			), err)
@@ -100,7 +100,7 @@ func (uc *GetCriteriaThresholdListPageDataUseCase) executeCore(
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"criteria_threshold.errors.list_page_data_failed",
 			"failed to retrieve criteria threshold list page data: %w",
 		), err)
@@ -116,7 +116,7 @@ func (uc *GetCriteriaThresholdListPageDataUseCase) validateInput(
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"criteria_threshold.validation.request_required",
 			"request is required",
 		))
@@ -139,7 +139,7 @@ func (uc *GetCriteriaThresholdListPageDataUseCase) validatePagination(
 	if pagination.Limit < 0 || pagination.Limit > 100 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx,
-			uc.services.TranslationService,
+			uc.services.Translator,
 			"criteria_threshold.validation.invalid_limit",
 			"pagination limit must be between 1 and 100",
 		))

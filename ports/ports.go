@@ -196,7 +196,7 @@ type LedgerReportingService = internal.LedgerReportingService
 
 // Authorization types
 type (
-	Authorizer   = internal.Authorizer
+	Authorizer             = internal.Authorizer
 	AuthorizationProvider  = internal.AuthorizationProvider
 	AuthorizationError     = internal.AuthorizationError
 	AuthorizationErrorCode = internal.AuthorizationErrorCode

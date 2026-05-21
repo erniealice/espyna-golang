@@ -1,14 +1,10 @@
-package initializers
+package service
 
 import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	entityauth "github.com/erniealice/espyna-golang/internal/application/usecases/auth"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/event/dashboard"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
-	auditusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/audit"
-	serviceauthusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	dashboardusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
 	admindash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
 	equitydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
@@ -20,32 +16,19 @@ import (
 	payrolldash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/payroll"
 	productdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/product"
 	treasurydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/treasury"
-	reportingusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting"
-	securityusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/security"
-	audithelpers "github.com/erniealice/espyna-golang/internal/composition/audit"
-	authhelpers "github.com/erniealice/espyna-golang/internal/composition/auth"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
-	securityhelpers "github.com/erniealice/espyna-golang/internal/composition/security"
 )
 
-// InitializeService wires every service-driven use case sub-aggregate.
+// initServiceDashboard wires the service-layer Dashboard umbrella sub-aggregate.
 //
-// Wave B Round 1 LANDED: Audit, Security, Auth, Admin (P1.C.1),
-// Schedule (P1.C.7), Integration (registry path P1.C.10), AR Aging
-// (P1.E.1). Round 2a LANDED 2026-05-20: Location P1.C.2, Equity P1.C.4,
-// Payroll P1.C.6. Round 2b LANDED 2026-05-21: Ledger P1.C.3, Treasury
-// P1.C.5 (unified Loan+Cash).
-//
-// Wave C Round 2b LANDED 2026-05-21: Expenditure P1.C.8, Job P1.C.9
-// (source aggregate `operation`), Product P1.C.11, Fulfillment P1.C.12.
-//
-// db may be nil when no SQL provider is in play; in that case the use
-// cases degrade gracefully (return empty responses).
-func InitializeService(
+// Wave B P1.C.1 Admin, P1.C.2 Location, P1.C.3 Ledger, P1.C.4 Equity,
+// P1.C.5 Treasury, P1.C.6 Payroll, P1.C.7 Schedule all LANDED.
+// Wave C P1.C.8 Expenditure, P1.C.9 Job, P1.C.11 Product, P1.C.12
+// Fulfillment LANDED 2026-05-21.
+func initServiceDashboard(
 	db *sql.DB,
 	authSvc ports.AuthorizationService,
 	i18nSvc ports.TranslationService,
-	entityAuth *entityauth.UseCases,
 	entityRepos *domain.EntityRepositories,
 	ledgerRepos *domain.LedgerRepositories,
 	payrollRepos *domain.PayrollRepositories,
@@ -55,32 +38,7 @@ func InitializeService(
 	productRepos *domain.ProductRepositories,
 	fulfillmentRepos *domain.FulfillmentRepositories,
 	scheduleEntityDash *eventdashboard.GetScheduleDashboardPageDataUseCase,
-	ledgerReportingSvc any,
-) (*service.ServiceUseCases, error) {
-	auditSvc := audithelpers.NewAuditServiceFromDB(db)
-	permQuery := securityhelpers.NewPermissionQueryFromDB(db)
-
-	auditUC := auditusecases.NewUseCases(
-		auditusecases.Repositories{AuditService: auditSvc},
-		auditusecases.Services{
-			AuthorizationService: authSvc,
-			TranslationService:   i18nSvc,
-		},
-	)
-
-	securityUC := securityusecases.NewUseCases(
-		securityusecases.Repositories{PermissionQuery: permQuery},
-		securityusecases.Services{TranslationService: i18nSvc},
-	)
-
-	deps := &service.Deps{
-		DB:                   db,
-		AuthorizationService: authSvc,
-		TranslationService:   i18nSvc,
-	}
-
-	var serviceAuthUC *serviceauthusecases.UseCases = authhelpers.BuildServiceAuthUseCases(entityAuth, deps)
-
+) *dashboardusecases.DashboardUseCases {
 	dashboardDeps := &dashboardusecases.Deps{
 		DB:                      db,
 		AuthorizationService:    authSvc,
@@ -268,33 +226,5 @@ func InitializeService(
 		}
 	}
 
-	// Wave B P1.E.1-P1.E.5 — pass the same raw ledger reporting service
-	// through as `any` to EVERY reporting sub-candidate. Each sub-candidate's
-	// narrow `reporter` interface is unexported; the assertion happens
-	// inside the leaf package via NewUseCases() / SetReporterFromAny. Apps
-	// additionally call SetReporterFromAny after the espyna container
-	// builds, since the table config lives app-side (see
-	// apps/service-admin/internal/composition/ledger_reporting.go) and the
-	// concrete adapter satisfying the narrow port may not be ready at
-	// InitializeService time. Nil = graceful degradation on mock builds.
-	//
-	// One shared `ledgerReportingSvc any` value satisfies every group's
-	// reporter port because the postgres `LedgerReportingAdapter` exposes
-	// the union of all 13 (non-AR-aging) + 2 (AR aging) methods
-	// structurally — splitting the assertion across 5 leaves (rather than
-	// asserting a fat union here) keeps each leaf's port narrow.
-	reportingDeps := &reportingusecases.Deps{
-		DB:                     db,
-		AuthorizationService:   authSvc,
-		TranslationService:     i18nSvc,
-		ARAgingReporter:        ledgerReportingSvc,
-		APAgingReporter:        ledgerReportingSvc,
-		GrossCashFlowReporter:  ledgerReportingSvc,
-		StatementsReporter:     ledgerReportingSvc,
-		DomainSpecificReporter: ledgerReportingSvc,
-	}
-	dashboardUC := dashboardusecases.NewDashboardUseCases(dashboardDeps)
-	reportingUC := reportingusecases.NewReportingUseCases(reportingDeps)
-
-	return service.NewServiceUseCases(auditUC, securityUC, serviceAuthUC, dashboardUC, reportingUC, deps), nil
+	return dashboardusecases.NewDashboardUseCases(dashboardDeps)
 }

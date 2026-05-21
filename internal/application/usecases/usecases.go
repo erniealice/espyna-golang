@@ -3,7 +3,6 @@ package usecases
 import (
 	// Domain use case packages
 	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
@@ -44,12 +43,7 @@ import (
 //   - Workflow:     3 entities (Workflow, StageTemplate, ActivityTemplate)
 //   - Payroll:      2 entities (PayrollRun, PayrollRemittance)
 //   - Fulfillment:  1 entity (Fulfillment — placeholder, use cases pending)
-//   - Auth:         identity-lifecycle use cases (authenticate_session,
-//     issue_session, invalidate_session). Exempt from the
-//     authcheck coverage test — see usecases/auth/usecases.go
-//     package doc for the invariant.
 type Aggregate struct {
-	Auth         *auth.UseCases
 	Common       *common.CommonUseCases
 	Entity       *entity.EntityUseCases
 	Event        *event.EventUseCases
@@ -86,7 +80,6 @@ type Aggregate struct {
 // Note: Each domain's use cases should be initialized with their required
 // repositories and services before being passed to this constructor.
 func NewAggregate(
-	authUC *auth.UseCases,
 	commonUC *common.CommonUseCases,
 	entityUC *entity.EntityUseCases,
 	eventUC *event.EventUseCases,
@@ -111,7 +104,6 @@ func NewAggregate(
 	serviceUC *service.ServiceUseCases,
 ) *Aggregate {
 	return &Aggregate{
-		Auth:         authUC,
 		Common:       commonUC,
 		Entity:       entityUC,
 		Event:        eventUC,
@@ -141,7 +133,6 @@ func NewAggregate(
 // This is useful for testing or gradual initialization scenarios.
 func NewEmptyAggregate() *Aggregate {
 	return &Aggregate{
-		Auth:         &auth.UseCases{},
 		Common:       &common.CommonUseCases{},
 		Entity:       &entity.EntityUseCases{},
 		Event:        &event.EventUseCases{},

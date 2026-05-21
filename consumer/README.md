@@ -67,23 +67,23 @@ Eight `consumer/adapter_*.go` files were removed:
 |------|--------|-------------|
 | `adapter_treasury_advances.go` | USE_CASE_WRAPPER (wraps usecases, not a port) | Callers go through `uc.Treasury.Collection.X` / `uc.Treasury.Disbursement.X` directly. |
 | `adapter_session.go` | USE_CASE_WRAPPER (wraps `usecases/auth`) | Service-admin middleware calls `uc.Auth.X.Execute` directly via `consumer/auth_aliases.go` type aliases. |
-| `adapter_audit.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/audit/list_audit_entries.go` use case (Q7 service-driven domain category); decorator moved to `internal/composition/audit/decorator.go`. |
-| `adapter_ledger.go` | Tier 2 (δ) visibility-bridge | Service-admin assembles a local `*ledgerReporting` struct via the existing public `registry.GetLedgerReportingFactory` alias; satisfies the duck-typed `LedgerReportingService` interfaces in fycha/centymo/entydad. |
-| `adapter_permission_query.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/security/get_user_permission_codes.go` use case (Q7 service-driven domain — `proto/v1/service/security/permission_query.proto`); registry-resolution helper moved to `internal/composition/security/permission_query.go`. Removed in 20260520-service-domain-migration. |
+| `adapter_audit.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/audit/list_audit_entries.go` use case (Q7 service-driven domain category); audit decorator logic absorbed into `internal/composition/core/container.go` (`applyRegisteredOperationsDecorators`). The `composition/audit/` directory is DELETED (20260521-composition-reshape). |
+| `adapter_ledger.go` | Tier 2 (δ) visibility-bridge | Ledger reporting fully decomposed into `Service.Reporting.<group>` (P1.E.1-5 landed 20260521); the `*ledgerReporting` wrapper struct is DELETED and its logic inlined into `apps/service-admin/internal/composition/container.go` (Q-SDM-LEDGER-RETIRE-PYEZA). |
+| `adapter_permission_query.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/security/get_user_permission_codes.go` use case (Q7 service-driven domain — `proto/v1/service/security/permission_query.proto`); permission query wiring lives in `internal/composition/core/initializers/service/security.go`. The `composition/security/` sibling directory is DELETED (20260521-composition-reshape). Removed in 20260520-service-domain-migration. |
 | `adapter_fulfillment.go` | Tier 3 — 0 callers | Underlying port + impls under `internal/application/ports/integration/` stay. Re-promote when a real caller arrives. |
 | `adapter_id.go` | Tier 3 — 0 callers | Same. The ID service is still wired via DI from composition; this facade was unused. |
 | `adapter_payment.go` | Tier 3 — 0 callers | Same. Payment registration still works via `register_payment_*.go` build-tag shims. |
 | `adapter_scheduler.go` | Tier 3 — 0 callers | Same. |
 
-### `consumer/auth_aliases.go` (non-adapter visibility-bridge)
+### `consumer/auth_aliases.go` (non-adapter visibility-bridge — DELETED)
 
-Minimal type aliases for the `internal/application/usecases/auth` Request /
-Response shapes. Apps that need to construct `AuthenticateSessionRequest`,
-`IssueSessionRequest`, etc., import them from `consumer/` because Go's
-`internal/` rule blocks direct imports across the module boundary. This file
-carries NO behavior (no methods, no constructors) and is NOT an `adapter_*.go`
-file, so it does not invoke the Q6 admission policy. The Q7 follow-up plan
-that migrates auth to `proto/v1/service/auth/` will delete this file.
+This file was deleted in `20260521-composition-reshape` (Q-CR8 Option B). The
+three Go type aliases it carried (`AuthenticateSessionRequest`,
+`IssueSessionRequest`, `InvalidateSessionRequest`) are retired in favor of the
+proto-shaped messages at `proto/v1/service/auth/session.proto`. Auth wiring
+now lives entirely in `internal/composition/core/initializers/service/auth.go`
+(fused entity-layer + service-layer construction in a single `initServiceAuth`
+function). Apps access auth use cases via `consumer.UseCases.Service.Auth.*`.
 
 ### Registration Files
 

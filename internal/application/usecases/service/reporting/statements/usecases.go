@@ -3,9 +3,10 @@
 //
 // Per docs/plan/20260520-service-domain-migration/decisions.md (Q-SDM-LEDGER-
 // DECOMP + Q-SDM-LEDGER-INTERFACE + Q-SDM-MAP-SHAPES) the 15-method
-// `ledgerReportingInner` duck interface at
-// `apps/service-admin/internal/composition/ledger_reporting.go:65-81`
-// decomposes into 5 report-group sub-candidates. This package is the
+// `ledgerReportingInner` duck interface (formerly in
+// `apps/service-admin/internal/composition/ledger_reporting.go`, FILE DELETED
+// 20260521 per composition-reshape Q-SDM-LEDGER-RETIRE-PYEZA; logic inlined
+// into `container.go`) decomposes into 5 report-group sub-candidates. This package is the
 // fourth such sub-candidate (P1.E.4 — counterparty statements + balances)
 // hosting:
 //

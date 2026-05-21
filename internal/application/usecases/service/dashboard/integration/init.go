@@ -32,8 +32,8 @@ import (
 // follow-up commit, the wiring MUST go through an espyna-internal
 // adapter (e.g., a public `composition/dashboard/integration/wrapper.go`
 // that exposes a hybra-facing function signature using non-internal
-// types) — same shape as `composition/auth/wrapper.go` and
-// `composition/security/permission_query.go`.
+// types) — same shape as `composition/core/initializers/service/auth.go`
+// (the fused initServiceAuth pattern, 20260521-composition-reshape).
 //
 // **Why no SetEntityCompute global setter.** Unlike tax_compute (the
 // other registry-path exemplar at usecases/service/tax/init.go), the

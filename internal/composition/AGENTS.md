@@ -96,7 +96,9 @@ composition/
 ├── config/                 # Application-level config (DatabaseTableConfig)
 ├── contracts/              # DDD interfaces & shared types
 ├── core/                   # Main container & orchestration
-│   └── initializers/       # Domain-specific use case initialization
+│   └── initializers/       # Use case initialization (v3 / 20260521-composition-reshape)
+│       ├── domain/         # Entity-layer initializers (mirrors proto/v1/domain/<X>/)
+│       └── service/        # Service-layer initializers (mirrors proto/v1/service/<X>/)
 ├── options/                # Functional options pattern (configuration)
 │   ├── infrastructure/     # Core system options (db, auth, storage)
 │   └── integrations/       # External service options (email, payment)
@@ -127,13 +129,17 @@ composition/
    - Creates integration providers via providers/integration/
                               │
                               ▼
-4. core/initializers/*.go initialize domain-specific use cases
-   - entity.go → User, Client, Manager, Delegate use cases
-   - event.go → Event scheduling use cases
-   - payment.go → Payment processing use cases
-   - product.go → Product catalog use cases
-   - subscription.go → Plan, Invoice, Balance use cases
-   - workflow.go → Workflow engine use cases
+4. core/initializers/{domain,service}/*.go initialize use cases (v3 / 20260521)
+   - domain/entity.go → User, Client, Manager, Delegate use cases
+   - domain/event.go  → Event scheduling use cases
+   - domain/product.go → Product catalog use cases
+   - domain/subscription.go → Plan, Invoice, Balance use cases
+   - domain/workflow.go → Workflow engine use cases
+   - service/auth.go  → Auth/Session use cases (Option B fused)
+   - service/audit.go → Audit query use cases
+   - service/security.go → Permission query use cases
+   - service/reporting.go → Ledger reporting groups
+   (see initializers/domain/ + initializers/service/ for complete list)
                               │
                               ▼
 5. routing/manager.go sets up HTTP routes
@@ -155,7 +161,7 @@ DDD-style interfaces defining behavioral boundaries:
 
 ### options/
 Functional options pattern for composable configuration:
-- **infrastructure/** - `WithDatabaseFromEnv()`, `WithAuthFromEnv()`, etc.
+- **infrastructure/** - `WithDatabaseFromEnv()`, etc. (auth provider is selected via `CONFIG_AUTH_PROVIDER` env var — no With*Auth option-setters)
 - **integrations/** - `WithEmailFromEnv()`, `WithPaymentFromEnv()`, etc.
 - **config.go** - `ManagerConfig` aggregating all provider configs
 

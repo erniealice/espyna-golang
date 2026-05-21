@@ -19,9 +19,12 @@
 // Wiring: this package defines ONLY the type surface so that the parent
 // `service` package can import it for the typed `*ServiceUseCases.Auth`
 // field (matching the existing Audit/Security pattern). Construction
-// lives in `internal/composition/auth/wrapper.go`
-// (`BuildServiceAuthUseCases`) — a composition-layer file that wires
-// the entity-layer `*auth.UseCases` into the proto-shaped wrappers.
+// lives in `internal/composition/core/initializers/service/auth.go`
+// (`initServiceAuth`) — a fused initializer (Option B, 20260521-composition-
+// reshape Q-CR8) that builds the entity-layer `*auth.UseCases` AND wires
+// the proto-shaped wrappers in a single function. The former separate
+// `internal/composition/auth/wrapper.go` and `composition/auth/` directory
+// are DELETED.
 //
 // The typed-field path is used (rather than the Q-ORCH-2 dynamic
 // registry at `service.Register`) because Go's `internal/` rule

@@ -3,8 +3,10 @@
 //
 // Per docs/plan/20260520-service-domain-migration/decisions.md (Q-SDM-LEDGER-
 // DECOMP + Q-SDM-LEDGER-INTERFACE) the 15-method `ledgerReportingInner`
-// duck interface at `apps/service-admin/internal/composition/
-// ledger_reporting.go:65-81` decomposes into 5 report-group sub-candidates.
+// duck interface (formerly in `apps/service-admin/internal/composition/
+// ledger_reporting.go`, FILE DELETED 20260521 per composition-reshape
+// Q-SDM-LEDGER-RETIRE-PYEZA; logic inlined into `container.go`) decomposes
+// into 5 report-group sub-candidates.
 // This package is the second such sub-candidate (P1.E.2 — AP aging) hosting:
 //
 //   - GetPayablesAgingReport       (formerly ledger_reporting.go:71)
@@ -86,8 +88,9 @@ type UseCases struct {
 // setReporter rewires both AP aging use cases to a non-nil reporter after
 // construction. The espyna container builds the service use case aggregate
 // BEFORE the app's composition root assembles the concrete ledger reporting
-// adapter (the table config lives in the app; see
-// apps/service-admin/internal/composition/ledger_reporting.go). The
+// adapter (the table config struct is inlined in
+// apps/service-admin/internal/composition/container.go — the former
+// ledger_reporting.go is DELETED per 20260521-composition-reshape). The
 // composition root therefore calls [SetReporterFromAny] post-construction.
 //
 // Calling setReporter with nil leaves the use cases in their constructed

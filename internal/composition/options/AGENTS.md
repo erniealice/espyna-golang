@@ -42,7 +42,7 @@ import "leapfor.xyz/espyna/internal/composition/options/integrations/payment"
 container, err := core.NewContainer(
     // Infrastructure
     infra.WithDatabaseFromEnv(),
-    infra.WithAuthFromEnv(),
+    // Auth provider is now selected via CONFIG_AUTH_PROVIDER env var (no With*Auth option-setters)
     infra.WithStorageFromEnv(),
     infra.WithServerFromEnv(),
 )

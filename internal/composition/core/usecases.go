@@ -35,7 +35,6 @@ import (
 
 	// Domain use cases (for proper initialization)
 	"github.com/erniealice/espyna-golang/internal/application/usecases/asset"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/common"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/event"
@@ -58,7 +57,7 @@ import (
 	// serviceregistrar blank-import: triggers init() of every
 	// dynamically-registered service-driven candidate (currently
 	// tax_compute; future dashboards/reporting). MUST be loaded before
-	// initializers.InitializeService so service.Register has populated
+	// initservice.InitializeAll so service.Register has populated
 	// the factory map by the time service.NewServiceUseCases iterates it.
 	// See docs/wiki/articles/hexagonal-rules.md §8 (tax_compute worked
 	// example) for the canonical shape.
@@ -73,10 +72,11 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/workflow"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 
-	domain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
+	repodomain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
-	// Composition initializers (for domain-specific wiring)
-	"github.com/erniealice/espyna-golang/internal/composition/core/initializers"
+	// Composition initializers (sub-packages mirroring proto/v1/{domain,service}/)
+	"github.com/erniealice/espyna-golang/internal/composition/core/initializers/domain"
+	initservice "github.com/erniealice/espyna-golang/internal/composition/core/initializers/service"
 )
 
 // UseCaseInitializer handles the initialization of all use cases across different domains
@@ -263,21 +263,13 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	// These are provider-based use cases, not domain-based
 	integrationUC := uci.initializeIntegrationUseCases(container)
 
-	// Identity-lifecycle use cases — must run after Entity so Session + User
-	// repos are already registered with the database provider.
-	authUC, err := uci.initializeAuthUseCases(container)
-	if err != nil {
-		authUC = &auth.UseCases{}
-	}
-
 	// 20260518-hexagonal-strict-adherence Phase 1.D — service-driven
 	// use cases (audit query; reporting; auth; security per Q7).
 	// Resolves the raw *sql.DB from the database provider so the audit
 	// service factory can plug in; degrades to a no-op service when the
-	// connection isn't SQL-backed (mock/firestore). Threads authUC so
-	// the Wave 3 / Plan 2 service-driven Auth sub-aggregate can wrap the
-	// existing entity-layer Auth use cases.
-	serviceUC, err := uci.initializeServiceUseCases(container, authUC)
+	// connection isn't SQL-backed (mock/firestore). Option B: entity-auth
+	// is built internally by the service initializer via txSvc + idSvc.
+	serviceUC, err := uci.initializeServiceUseCases(container)
 	if err != nil {
 		serviceUC = &service.ServiceUseCases{}
 	}
@@ -302,7 +294,6 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 
 	// Create aggregate with successfully initialized domains
 	aggregate := usecases.NewAggregate(
-		authUC,
 		commonUC,
 		entityUC,
 		eventUC,
@@ -338,7 +329,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 func (uci *UseCaseInitializer) initializeCommonUseCases(container *Container) (*common.CommonUseCases, error) {
 	fmt.Printf("🔧 Initializing Common use cases...\n")
 
-	repos, err := domain.NewCommonRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewCommonRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Common repositories not yet implemented: %v\n", err)
 		fmt.Printf("📋 Common domain includes: Attribute (cross-domain dependency)\n")
@@ -355,7 +346,7 @@ func (uci *UseCaseInitializer) initializeCommonUseCases(container *Container) (*
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	commonUseCases, err := initializers.InitializeCommon(repos, authSvc, txSvc, i18nSvc, idSvc)
+	commonUseCases, err := domain.InitializeCommon(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize common use cases: %v\n", err)
 		return nil, err
@@ -369,7 +360,7 @@ func (uci *UseCaseInitializer) initializeCommonUseCases(container *Container) (*
 func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*entity.EntityUseCases, error) {
 	fmt.Printf("👥 Initializing Entity use cases...\n")
 
-	repos, err := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Entity database provider not available: %v\n", err)
 		// Don't return error - return empty struct for graceful degradation
@@ -385,7 +376,7 @@ func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	entityUseCases, err := initializers.InitializeEntity(repos, authSvc, txSvc, i18nSvc, idSvc)
+	entityUseCases, err := domain.InitializeEntity(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize entity use cases: %v\n", err)
 		return nil, err
@@ -395,42 +386,11 @@ func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*
 	return entityUseCases, nil
 }
 
-// initializeAuthUseCases initializes identity-lifecycle use cases
-// (authenticate_session, issue_session, invalidate_session).
-//
-// These share the Session + User proto repositories used by the Entity
-// domain, but produce distinct orchestration-level use cases that
-// middleware/handlers depend on instead of poking at session rows.
-func (uci *UseCaseInitializer) initializeAuthUseCases(container *Container) (*auth.UseCases, error) {
-	fmt.Printf("🔐 Initializing Auth use cases...\n")
-
-	repos, err := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
-	if err != nil {
-		fmt.Printf("⚠️  Auth repositories not available (Entity unavailable): %v\n", err)
-		return &auth.UseCases{}, nil
-	}
-
-	_, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
-	if err != nil {
-		fmt.Printf("❌ Failed to get services: %v\n", err)
-		return nil, err
-	}
-
-	authUseCases, err := initializers.InitializeAuth(repos, txSvc, i18nSvc, idSvc)
-	if err != nil {
-		fmt.Printf("❌ Failed to initialize auth use cases: %v\n", err)
-		return nil, err
-	}
-	fmt.Printf("✅ Auth domain initialized successfully: %v\n", authUseCases != nil)
-
-	return authUseCases, nil
-}
-
 // initializeEventUseCases initializes Event domain use cases (2 entities)
 func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*event.EventUseCases, error) {
 	fmt.Printf("🗓️  Initializing Event use cases...\n")
 
-	repos, err := domain.NewEventRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewEventRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("❌ Failed to get event repositories: %v\n", err)
 		return nil, err
@@ -445,7 +405,7 @@ func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*e
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	eventUseCases, err := initializers.InitializeEvent(repos, authSvc, txSvc, i18nSvc, idSvc)
+	eventUseCases, err := domain.InitializeEvent(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize event use cases: %v\n", err)
 		return nil, err
@@ -459,7 +419,7 @@ func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*e
 func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*ledger.LedgerUseCases, error) {
 	fmt.Printf("📄 Initializing Ledger use cases...\n")
 
-	repos, err := domain.NewLedgerRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewLedgerRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Ledger database provider not available: %v\n", err)
 		return &ledger.LedgerUseCases{}, nil
@@ -473,7 +433,7 @@ func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	ledgerUseCases, err := initializers.InitializeLedger(repos, authSvc, txSvc, i18nSvc, idSvc)
+	ledgerUseCases, err := domain.InitializeLedger(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize ledger use cases: %v\n", err)
 		return nil, err
@@ -494,14 +454,14 @@ func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*
 func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container) (*operation.OperationUseCases, error) {
 	fmt.Printf("⚙️ Initializing Operation use cases...\n")
 
-	repos, err := domain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Operation database provider not available: %v\n", err)
 		return &operation.OperationUseCases{}, nil
 	}
 	fmt.Printf("✅ Got operation repositories\n")
 
-	subRepos, subErr := domain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	subRepos, subErr := repodomain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if subErr != nil {
 		fmt.Printf("⚠️  Subscription provider unavailable for operation cross-domain wiring: %v\n", subErr)
 		subRepos = nil
@@ -514,7 +474,7 @@ func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container)
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	operationUseCases, err := initializers.InitializeOperation(repos, subRepos, authSvc, txSvc, i18nSvc, idSvc)
+	operationUseCases, err := domain.InitializeOperation(repos, subRepos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize operation use cases: %v\n", err)
 		return nil, err
@@ -528,7 +488,7 @@ func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container)
 func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) (*treasury.TreasuryUseCases, error) {
 	fmt.Printf("💳 Initializing Treasury use cases...\n")
 
-	repos, err := domain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("❌ Failed to get treasury repositories: %v\n", err)
 		return nil, err
@@ -541,12 +501,12 @@ func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) 
 	// two repositories — the full aggregates are built independently
 	// downstream. Non-fatal: when unavailable, AmortizeAdvance* still wire but
 	// return errors at call time.
-	if revRepos, revErr := domain.NewRevenueRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); revErr == nil && revRepos != nil {
+	if revRepos, revErr := repodomain.NewRevenueRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); revErr == nil && revRepos != nil {
 		repos.Revenue = revRepos.Revenue
 	} else if revErr != nil {
 		fmt.Printf("⚠️  Treasury: revenue repo unavailable for AmortizeAdvanceCollection: %v\n", revErr)
 	}
-	if expRepos, expErr := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); expErr == nil && expRepos != nil {
+	if expRepos, expErr := repodomain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); expErr == nil && expRepos != nil {
 		repos.ExpenseRecognition = expRepos.ExpenseRecognition
 	} else if expErr != nil {
 		fmt.Printf("⚠️  Treasury: expense_recognition repo unavailable for AmortizeAdvanceDisbursement: %v\n", expErr)
@@ -557,7 +517,7 @@ func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) 
 	// case (RecognizeMilestoneAdvanceCollection) is actually constructed.
 	// Without this the four-AND nil-guard in treasury.NewUseCases sees
 	// repos.BillingEvent == nil and silently leaves the use case as nil.
-	if subRepos, subErr := domain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); subErr == nil && subRepos != nil {
+	if subRepos, subErr := repodomain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig()); subErr == nil && subRepos != nil {
 		repos.BillingEvent = subRepos.BillingEvent
 	} else if subErr != nil {
 		fmt.Printf("⚠️  Treasury: billing_event repo unavailable for RecognizeMilestoneAdvanceCollection: %v\n", subErr)
@@ -571,7 +531,7 @@ func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) 
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	treasuryUseCases, err := initializers.InitializeTreasury(repos, authSvc, txSvc, i18nSvc, idSvc)
+	treasuryUseCases, err := domain.InitializeTreasury(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize treasury use cases: %v\n", err)
 		return nil, err
@@ -585,7 +545,7 @@ func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) 
 func (uci *UseCaseInitializer) initializeProductUseCases(container *Container) (*product.ProductUseCases, error) {
 	fmt.Printf("🛍️  Initializing Product use cases...\n")
 
-	repos, err := domain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("❌ Failed to get product repositories: %v\n", err)
 		fmt.Printf("  Database provider: %v, Table config: %v\n", uci.providerManager.GetDatabaseProvider() != nil, uci.providerManager.GetDBTableConfig() != nil)
@@ -601,7 +561,7 @@ func (uci *UseCaseInitializer) initializeProductUseCases(container *Container) (
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	productUseCases, err := initializers.InitializeProduct(repos, authSvc, txSvc, i18nSvc, idSvc)
+	productUseCases, err := domain.InitializeProduct(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize product use cases: %v\n", err)
 		return nil, err
@@ -615,7 +575,7 @@ func (uci *UseCaseInitializer) initializeProductUseCases(container *Container) (
 func (uci *UseCaseInitializer) initializeRevenueUseCases(container *Container) (*revenue.RevenueUseCases, error) {
 	fmt.Printf("💰 Initializing Revenue use cases...\n")
 
-	repos, err := domain.NewRevenueRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewRevenueRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Revenue database provider not available: %v\n", err)
 		return &revenue.RevenueUseCases{}, nil
@@ -629,7 +589,7 @@ func (uci *UseCaseInitializer) initializeRevenueUseCases(container *Container) (
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	revenueUseCases, err := initializers.InitializeRevenue(repos, authSvc, txSvc, i18nSvc, idSvc)
+	revenueUseCases, err := domain.InitializeRevenue(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize revenue use cases: %v\n", err)
 		return nil, err
@@ -647,7 +607,7 @@ func (uci *UseCaseInitializer) initializeRevenueUseCases(container *Container) (
 func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Container, treasuryUseCases *treasury.TreasuryUseCases) (*expenditure.ExpenditureUseCases, error) {
 	fmt.Printf("💸 Initializing Expenditure use cases...\n")
 
-	repos, err := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Expenditure database provider not available: %v\n", err)
 		return &expenditure.ExpenditureUseCases{}, nil
@@ -656,7 +616,7 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 
 	// Cross-domain: procurement repos for SupplierSubscription workspace validation
 	// on RecognizeFromExpenditure (buying/selling parity 2026-05-09). Non-fatal.
-	procurementRepos, procErr := domain.NewProcurementRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	procurementRepos, procErr := repodomain.NewProcurementRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if procErr != nil {
 		fmt.Printf("⚠️  Expenditure: procurement repos unavailable for supplier subscription validation: %v\n", procErr)
 		procurementRepos = nil
@@ -671,7 +631,7 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 	// 20260517-expense-run Plan A Phase 2 — TreasuryDisbursement for advance
 	// enumeration in ListExpenseRunCandidates. Non-fatal; the candidate list
 	// degrades to subscription-only when unavailable.
-	treasuryRepos, trErr := domain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	treasuryRepos, trErr := repodomain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if trErr != nil {
 		fmt.Printf("⚠️  Expenditure: treasury repos unavailable for advance enumeration: %v\n", trErr)
 	} else if treasuryRepos != nil {
@@ -685,7 +645,7 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	expenditureUseCases, err := initializers.InitializeExpenditure(repos, authSvc, txSvc, i18nSvc, idSvc, treasuryUseCases)
+	expenditureUseCases, err := domain.InitializeExpenditure(repos, authSvc, txSvc, i18nSvc, idSvc, treasuryUseCases)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize expenditure use cases: %v\n", err)
 		return nil, err
@@ -699,7 +659,7 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 func (uci *UseCaseInitializer) initializeInventoryUseCases(container *Container) (*inventory.InventoryUseCases, error) {
 	fmt.Printf("📦 Initializing Inventory use cases...\n")
 
-	repos, err := domain.NewInventoryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewInventoryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Inventory database provider not available: %v\n", err)
 		// Don't return error - return empty struct for graceful degradation
@@ -715,7 +675,7 @@ func (uci *UseCaseInitializer) initializeInventoryUseCases(container *Container)
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	inventoryUseCases, err := initializers.InitializeInventory(repos, authSvc, txSvc, i18nSvc, idSvc)
+	inventoryUseCases, err := domain.InitializeInventory(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize inventory use cases: %v\n", err)
 		return nil, err
@@ -729,7 +689,7 @@ func (uci *UseCaseInitializer) initializeInventoryUseCases(container *Container)
 func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Container) (*subscription.SubscriptionUseCases, error) {
 	fmt.Printf("💰 Initializing Subscription use cases...\n")
 
-	subscriptionRepos, err := domain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	subscriptionRepos, err := repodomain.NewSubscriptionRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("❌ Failed to get subscription repositories: %v\n", err)
 		return nil, err
@@ -750,7 +710,7 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 	// runs, environments without the operation domain), the instantiator
 	// stays nil and subscription create proceeds without spawning Jobs.
 	var jobTemplateInstantiator subscriptionUseCase.JobTemplateInstantiator
-	operationRepos, opErr := domain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	operationRepos, opErr := repodomain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if opErr != nil {
 		fmt.Printf("⚠️  MaterializeJobsForSubscription unavailable (operation repos: %v)\n", opErr)
 	} else {
@@ -834,7 +794,7 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 	// checker is plumbed through ports.NewNoOpReferenceChecker by default —
 	// the application owner (service-admin) wires the postgres-backed
 	// reference.Checker via the container path when running on postgres.
-	subscriptionUseCases, err := initializers.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc, jobTemplateInstantiator, ports.NewNoOpReferenceChecker())
+	subscriptionUseCases, err := domain.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc, jobTemplateInstantiator, ports.NewNoOpReferenceChecker())
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize subscription use cases: %v\n", err)
 		return nil, err
@@ -872,7 +832,7 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 func (uci *UseCaseInitializer) initializeWorkflowUseCases(container *Container) (*workflow.WorkflowUseCases, error) {
 	fmt.Printf("🔄 Initializing Workflow use cases...\n")
 
-	repos, err := domain.NewWorkflowRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewWorkflowRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("❌ Failed to get workflow repositories: %v\n", err)
 		return nil, err
@@ -887,7 +847,7 @@ func (uci *UseCaseInitializer) initializeWorkflowUseCases(container *Container) 
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	workflowUseCases, err := initializers.InitializeWorkflow(repos, authSvc, txSvc, i18nSvc, idSvc)
+	workflowUseCases, err := domain.InitializeWorkflow(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize workflow use cases: %v\n", err)
 		return nil, err
@@ -903,7 +863,7 @@ func (uci *UseCaseInitializer) initializeWorkflowUseCases(container *Container) 
 func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (*payroll.PayrollUseCases, error) {
 	fmt.Printf("💼 Initializing Payroll use cases...\n")
 
-	repos, err := domain.NewPayrollRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewPayrollRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Payroll database provider not available: %v\n", err)
 		return &payroll.PayrollUseCases{}, nil
@@ -912,12 +872,12 @@ func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (
 
 	// Cross-domain repos for the orchestrator. Failure to load these is non-fatal:
 	// payroll CRUD still works; only Calculate/GeneratePayCycles will be unavailable.
-	entityRepos, eErr := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	entityRepos, eErr := repodomain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if eErr != nil {
 		fmt.Printf("⚠️  Payroll: entity repos unavailable for orchestrator: %v\n", eErr)
 		entityRepos = nil
 	}
-	expenditureRepos, xErr := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	expenditureRepos, xErr := repodomain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if xErr != nil {
 		fmt.Printf("⚠️  Payroll: expenditure repos unavailable for orchestrator: %v\n", xErr)
 		expenditureRepos = nil
@@ -930,7 +890,7 @@ func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	payrollUseCases, err := initializers.InitializePayroll(repos, entityRepos, expenditureRepos, authSvc, txSvc, i18nSvc, idSvc)
+	payrollUseCases, err := domain.InitializePayroll(repos, entityRepos, expenditureRepos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize payroll use cases: %v\n", err)
 		return nil, err
@@ -944,7 +904,7 @@ func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (
 func (uci *UseCaseInitializer) initializeFulfillmentUseCases(container *Container) (*fulfillment.UseCases, error) {
 	fmt.Printf("📦 Initializing Fulfillment use cases...\n")
 
-	repos, err := domain.NewFulfillmentRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewFulfillmentRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Fulfillment database provider not available: %v\n", err)
 		return &fulfillment.UseCases{}, nil
@@ -958,7 +918,7 @@ func (uci *UseCaseInitializer) initializeFulfillmentUseCases(container *Containe
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	fulfillmentUseCases, err := initializers.InitializeFulfillment(repos, authSvc, txSvc, i18nSvc, idSvc)
+	fulfillmentUseCases, err := domain.InitializeFulfillment(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize fulfillment use cases: %v\n", err)
 		return nil, err
@@ -972,7 +932,7 @@ func (uci *UseCaseInitializer) initializeFulfillmentUseCases(container *Containe
 func (uci *UseCaseInitializer) initializeAssetUseCases(container *Container) (*asset.AssetUseCases, error) {
 	fmt.Printf("📦 Initializing Asset use cases...\n")
 
-	repos, err := domain.NewAssetRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewAssetRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("⚠️  Asset database provider not available: %v\n", err)
 		return &asset.AssetUseCases{}, nil
@@ -986,7 +946,7 @@ func (uci *UseCaseInitializer) initializeAssetUseCases(container *Container) (*a
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	assetUseCases, err := initializers.InitializeAsset(repos, authSvc, txSvc, i18nSvc, idSvc)
+	assetUseCases, err := domain.InitializeAsset(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize asset use cases: %v\n", err)
 		return nil, err
@@ -1001,7 +961,7 @@ func (uci *UseCaseInitializer) initializeAssetUseCases(container *Container) (*a
 func (uci *UseCaseInitializer) initializeTaxUseCases(container *Container) (*tax.TaxUseCases, error) {
 	fmt.Printf("Initializing Tax use cases...\n")
 
-	repos, err := domain.NewTaxRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewTaxRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("WARNING: Tax database provider not available: %v\n", err)
 		return &tax.TaxUseCases{}, nil
@@ -1014,7 +974,7 @@ func (uci *UseCaseInitializer) initializeTaxUseCases(container *Container) (*tax
 		return nil, err
 	}
 
-	taxUseCases, err := initializers.InitializeTax(repos, authSvc, txSvc, i18nSvc, idSvc)
+	taxUseCases, err := domain.InitializeTax(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize tax use cases: %v\n", err)
 		return nil, err
@@ -1029,7 +989,7 @@ func (uci *UseCaseInitializer) initializeTaxUseCases(container *Container) (*tax
 func (uci *UseCaseInitializer) initializeFinanceUseCases(container *Container) (*finance.FinanceUseCases, error) {
 	fmt.Printf("Initializing Finance use cases...\n")
 
-	repos, err := domain.NewFinanceRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewFinanceRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("WARNING: Finance database provider not available: %v\n", err)
 		return &finance.FinanceUseCases{}, nil
@@ -1042,7 +1002,7 @@ func (uci *UseCaseInitializer) initializeFinanceUseCases(container *Container) (
 		return nil, err
 	}
 
-	financeUseCases, err := initializers.InitializeFinance(repos, authSvc, txSvc, i18nSvc, idSvc)
+	financeUseCases, err := domain.InitializeFinance(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize finance use cases: %v\n", err)
 		return nil, err
@@ -1057,7 +1017,7 @@ func (uci *UseCaseInitializer) initializeFinanceUseCases(container *Container) (
 func (uci *UseCaseInitializer) initializeProcurementUseCases(container *Container) (*procurement.ProcurementUseCases, error) {
 	fmt.Printf("Initializing Procurement use cases...\n")
 
-	repos, err := domain.NewProcurementRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewProcurementRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("WARNING: Procurement database provider not available: %v\n", err)
 		return &procurement.ProcurementUseCases{}, nil
@@ -1070,7 +1030,7 @@ func (uci *UseCaseInitializer) initializeProcurementUseCases(container *Containe
 		return nil, err
 	}
 
-	procurementUseCases, err := initializers.InitializeProcurement(repos, authSvc, txSvc, i18nSvc, idSvc)
+	procurementUseCases, err := domain.InitializeProcurement(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize procurement use cases: %v\n", err)
 		return nil, err
@@ -1171,11 +1131,11 @@ func (uci *UseCaseInitializer) initializeIntegrationUseCases(container *Containe
 	}
 
 	// Get integration payment repository from database provider
-	var integrationPaymentRepo domain.IntegrationPaymentRepository
+	var integrationPaymentRepo repodomain.IntegrationPaymentRepository
 	dbProvider := uci.providerManager.GetDatabaseProvider()
 	tableConfig := uci.providerManager.GetDBTableConfig()
 	if dbProvider != nil && tableConfig != nil {
-		repo, err := domain.NewIntegrationPaymentRepository(dbProvider, tableConfig)
+		repo, err := repodomain.NewIntegrationPaymentRepository(dbProvider, tableConfig)
 		if err != nil {
 			fmt.Printf("⚠️  Failed to create integration payment repository: %v\n", err)
 		} else {
@@ -1264,7 +1224,7 @@ func (a *materializeInstanceJobsAdapter) Execute(ctx context.Context, subscripti
 func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (*tenancy.TenancyUseCases, error) {
 	fmt.Printf("Initializing Tenancy use cases...\n")
 
-	repos, err := domain.NewTenancyRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewTenancyRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("WARNING: Tenancy database provider not available: %v\n", err)
 		return &tenancy.TenancyUseCases{}, nil
@@ -1277,7 +1237,7 @@ func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (
 		return nil, err
 	}
 
-	tenancyUseCases, err := initializers.InitializeTenancy(repos, authSvc, txSvc, i18nSvc, idSvc)
+	tenancyUseCases, err := domain.InitializeTenancy(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize tenancy use cases: %v\n", err)
 		return nil, err
@@ -1288,17 +1248,16 @@ func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (
 }
 
 // initializeServiceUseCases initializes the service-driven domain
-// sub-aggregate (audit query; reporting; auth; security per Q7). The
+// sub-aggregate (audit query; reporting; security per Q7). The
 // audit sub-aggregate needs a raw *sql.DB so the audit service factory
 // can plug in; on non-SQL providers (mock/firestore) the AuditService
-// resolves to nil and the use cases degrade gracefully. authUC is the
-// entity-layer Auth use cases; the service-driven Auth sub-aggregate
-// (Wave 3 / Plan 2, 2026-05-20) WRAPS them to expose a proto-shaped
-// Request/Response surface.
-func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, authUC *auth.UseCases) (*service.ServiceUseCases, error) {
+// resolves to nil and the use cases degrade gracefully.
+// txSvc and idSvc are threaded through to InitializeAll (Option B:
+// entity-auth is built internally by the service initializer).
+func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container) (*service.ServiceUseCases, error) {
 	fmt.Printf("🧩 Initializing Service-driven use cases (audit, security, auth)...\n")
 
-	authSvc, _, i18nSvc, _, err := uci.getServices(container)
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
 	if err != nil {
 		fmt.Printf("❌ Failed to get services: %v\n", err)
 		return &service.ServiceUseCases{}, err
@@ -1328,28 +1287,28 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, a
 	// payroll dashboards is omitted here until the proto regen + use
 	// cases re-land. See docs/plan/20260520-service-domain-migration/
 	// progress.md.
-	entityRepos, _ := domain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	entityRepos, _ := repodomain.NewEntityRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 
 	// Wave B P1.C.4 Equity — dashboards under service.Dashboard.Equity read
 	// across the ledger equity_account + equity_transaction aggregates.
 	// Resolved here so InitializeService can thread typed Deps fields into
 	// the umbrella factory. Nil under non-postgres builds — equity use case
 	// tolerates nil repositories.
-	ledgerReposForSvc, _ := domain.NewLedgerRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	ledgerReposForSvc, _ := repodomain.NewLedgerRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 
 	// Wave B P1.C.6 Payroll — dashboards under service.Dashboard.Payroll read
 	// across the payroll_run + payroll_remittance aggregates. Resolved here
 	// so InitializeService can thread typed Deps fields into the umbrella
 	// factory. Nil under non-postgres builds — payroll dashboard use case
 	// tolerates nil repositories.
-	payrollReposForSvc, _ := domain.NewPayrollRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	payrollReposForSvc, _ := repodomain.NewPayrollRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 
 	// Wave B P1.C.5 Treasury (unified Loan+Cash) — dashboards under
 	// service.Dashboard.Treasury read across loan + loan_payment (Loan slice)
 	// and collection (Cash slice). Resolved here so InitializeService can
 	// thread typed Deps fields into the umbrella factory. Nil under non-
 	// postgres builds — treasury dashboard use cases tolerate nil repos.
-	treasuryReposForSvc, _ := domain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	treasuryReposForSvc, _ := repodomain.NewTreasuryRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 
 	// Wave C P1.C.8 Expenditure, P1.C.9 Job (source aggregate `operation`),
 	// P1.C.11 Product, P1.C.12 Fulfillment — dashboards under
@@ -1358,10 +1317,10 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, a
 	// aggregates. Resolved here so InitializeService can thread typed Deps
 	// fields into the umbrella factory. Nil under non-postgres builds — each
 	// dashboard use case tolerates nil repositories.
-	expenditureReposForSvc, _ := domain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
-	operationReposForSvc, _ := domain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
-	productReposForSvc, _ := domain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
-	fulfillmentReposForSvc, _ := domain.NewFulfillmentRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	expenditureReposForSvc, _ := repodomain.NewExpenditureRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	operationReposForSvc, _ := repodomain.NewOperationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	productReposForSvc, _ := repodomain.NewProductRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	fulfillmentReposForSvc, _ := repodomain.NewFulfillmentRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 
 	// Wave B P1.C.7 Schedule (event dashboard): build the entity-layer
 	// schedule-dashboard use case here so the service-layer wrapper can
@@ -1369,7 +1328,7 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, a
 	// proto. The event repo only satisfies EventDashboardRepository under
 	// the postgres adapter; type assertion fails harmlessly on mock builds
 	// and the wrapper degrades to empty Response.
-	eventRepos, _ := domain.NewEventRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	eventRepos, _ := repodomain.NewEventRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	var scheduleEntityDash *eventdashboard.GetScheduleDashboardPageDataUseCase
 	if eventRepos != nil && eventRepos.Event != nil {
 		if eq, ok := eventRepos.Event.(eventdashboard.EventDashboardRepository); ok {
@@ -1379,15 +1338,15 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, a
 
 	// Wave B P1.E.1 AR aging — the espyna composition root cannot build the
 	// concrete ledger reporting svc here (the table config lives in the
-	// app's composition root, e.g. apps/service-admin/internal/composition/
-	// ledger_reporting.go:721-746). Pass nil; the AR aging Reporter on the
+	// app's composition root, inlined at apps/service-admin/internal/composition/
+	// container.go ~line 187 (struct) and ~line 759 (factory call)). Pass nil; the AR aging Reporter on the
 	// umbrella stays nil and the use cases degrade to empty responses
 	// until the app's composition root rewires through a different code
 	// path. The actual wiring happens in apps/service-admin via a setter
 	// pattern (see ar_aging.SetReporter in service/reporting/ar_aging/).
 	var ledgerReportingSvcForARAging any = nil
 
-	svcUC, err := initializers.InitializeService(sqlDB, authSvc, i18nSvc, authUC, entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging)
+	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize service-driven use cases: %v\n", err)
 		return &service.ServiceUseCases{}, err
@@ -1404,7 +1363,7 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, a
 func (uci *UseCaseInitializer) initializeFundingUseCases(container *Container) (*funding.FundingUseCases, error) {
 	fmt.Printf("Initializing Funding use cases...\n")
 
-	repos, err := domain.NewFundingRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	repos, err := repodomain.NewFundingRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
 	if err != nil {
 		fmt.Printf("WARNING: Funding database provider not available: %v\n", err)
 		return &funding.FundingUseCases{}, nil
@@ -1417,7 +1376,7 @@ func (uci *UseCaseInitializer) initializeFundingUseCases(container *Container) (
 		return nil, err
 	}
 
-	fundingUseCases, err := initializers.InitializeFunding(repos, authSvc, txSvc, i18nSvc, idSvc)
+	fundingUseCases, err := domain.InitializeFunding(repos, authSvc, txSvc, i18nSvc, idSvc)
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize funding use cases: %v\n", err)
 		return nil, err

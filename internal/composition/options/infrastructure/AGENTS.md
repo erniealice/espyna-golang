@@ -17,7 +17,7 @@ Configures fundamental infrastructure components that the application depends on
 |------|-----------|---------|
 | `options.go` | - | `ContainerOption`, setter interfaces, utilities |
 | `database.go` | PostgreSQL, Firestore, Mock | `WithDatabaseFromEnv()`, `WithPostgresDatabase()` |
-| `auth.go` | Firebase, JWT, Mock | `WithAuthFromEnv()`, `WithFirebaseAuth()` |
+| `auth.go` | Firebase, JWT, Mock | Auth provider is now selected via `CONFIG_AUTH_PROVIDER` env var (no With*Auth option-setters); `WithFirebaseAuth()`, `WithJWTAuth()`, `WithMockAuth()`, `WithAuthFromEnv()` were all DELETED in `20260521-composition-reshape` |
 | `storage.go` | GCS, S3, Local, Mock | `WithStorageFromEnv()`, `WithGoogleCloudStorage()` |
 | `id.go` | UUID v7, NoOp | `WithIDFromEnv()`, `WithGoogleUUIDv7()` |
 | `server.go` | Gin, Fiber, Vanilla | `WithServerFromEnv()`, `WithGinServer()` |
@@ -29,7 +29,7 @@ import infra "leapfor.xyz/espyna/internal/composition/options/infrastructure"
 
 container, err := core.NewContainer(
     infra.WithDatabaseFromEnv(),
-    infra.WithAuthFromEnv(),
+    // Auth provider is now selected via CONFIG_AUTH_PROVIDER env var (no With*Auth option-setters)
     infra.WithStorageFromEnv(),
     infra.WithServerFromEnv(),
 )

@@ -3,9 +3,10 @@
 //
 // Per docs/plan/20260520-service-domain-migration/decisions.md (Q-SDM-LEDGER-
 // DECOMP + Q-SDM-LEDGER-INTERFACE + Q-SDM-MAP-SHAPES + Q-SDM-LEDGER-RETIRE-
-// PYEZA) the 15-method `ledgerReportingInner` duck interface at
-// `apps/service-admin/internal/composition/ledger_reporting.go:65-81`
-// decomposes into 5 report-group sub-candidates. This package is the
+// PYEZA) the 15-method `ledgerReportingInner` duck interface (formerly in
+// `apps/service-admin/internal/composition/ledger_reporting.go`, FILE DELETED
+// 20260521 per composition-reshape Q-SDM-LEDGER-RETIRE-PYEZA; logic inlined
+// into `container.go`) decomposes into 5 report-group sub-candidates. This package is the
 // fifth — and final — such sub-candidate (P1.E.5 — domain-specific pivots)
 // hosting:
 //
@@ -29,9 +30,9 @@
 // sub-candidate's commit retired:
 //   - The `*ledgerReporting` wrapper + `ledgerReportingInner` duck
 //     interface in `apps/service-admin/internal/composition/
-//     ledger_reporting.go`. The file is reduced to the
-//     `ledgerReportingTableConfig` struct, which is still required by
-//     the postgres adapter factory (reflection-based table name reader).
+//     ledger_reporting.go`. The FILE itself is DELETED (20260521-
+//     composition-reshape); its logic is inlined into
+//     `apps/service-admin/internal/composition/container.go`.
 //   - The populated `pyeza.AppContext.LedgerReportingSvc any` field at
 //     `packages/pyeza-golang/app_context.go`. The field is removed from
 //     the AppContext struct; service-admin no longer populates it.
@@ -41,9 +42,10 @@
 // domain_specific/domain_specific.proto` is the canonical contract for
 // the typed pivots.
 //
-// Wiring: `internal/composition/core/initializers/service.go` constructs
-// the per-group `UseCases` via `NewUseCases(deps)` and assigns the result
-// into the `DomainSpecific` field of `service/reporting.ReportingUseCases`.
+// Wiring: `internal/composition/core/initializers/service/reporting.go`
+// constructs the per-group `UseCases` via `NewUseCases(deps)` and assigns
+// the result into the `DomainSpecific` field of
+// `service/reporting.ReportingUseCases`.
 // Apps consume `uc.Service.Reporting.DomainSpecific.<Method>.Execute(...)`.
 //
 // Codex pattern compliance (codex review of AR aging REVISE-MINOR P1+P2,

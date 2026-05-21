@@ -10,7 +10,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/integration"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // Registry orchestrates all provider sub-registries
@@ -64,34 +63,6 @@ func NewRegistry() *Registry {
 		instances:      make(map[string]contracts.Provider),
 		metadata:       make(map[string]*ProviderMetadata),
 	}
-}
-
-// InitializeAll initializes all sub-registries from environment.
-// Each provider reads its own configuration from environment variables.
-func (r *Registry) InitializeAll(dbTableConfig *registry.TableConfig) error {
-	// Initialize infrastructure providers first (database, auth, storage, id)
-	if err := r.infrastructure.InitializeAll(); err != nil {
-		return fmt.Errorf("failed to initialize infrastructure providers: %w", err)
-	}
-
-	// Initialize domain registry with database provider
-	dbProvider := r.infrastructure.GetDatabase()
-	if dbProvider != nil {
-		r.domain = domain.NewRegistry(dbProvider, dbTableConfig)
-		if err := r.domain.InitializeAll(); err != nil {
-			return fmt.Errorf("failed to initialize domain repositories: %w", err)
-		}
-	}
-
-	// Initialize integration providers (email, payment)
-	if err := r.integration.InitializeAll(); err != nil {
-		return fmt.Errorf("failed to initialize integration providers: %w", err)
-	}
-
-	// Register all providers in the legacy maps for compatibility
-	r.registerInfrastructureProviders()
-
-	return nil
 }
 
 // registerInfrastructureProviders registers infrastructure providers in legacy maps

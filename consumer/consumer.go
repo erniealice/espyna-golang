@@ -99,8 +99,6 @@ var (
 	WithMockDatabase      = infraopts.WithMockDatabase
 	WithPostgresDatabase  = infraopts.WithPostgresDatabase
 	WithFirestoreDatabase = infraopts.WithFirestoreDatabase
-	// Auth Options
-	WithMockAuth = infraopts.WithMockAuth
 	// Storage Options
 	WithMockStorage = infraopts.WithMockStorage
 )

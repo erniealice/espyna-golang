@@ -1,4 +1,4 @@
-package initializers
+package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"

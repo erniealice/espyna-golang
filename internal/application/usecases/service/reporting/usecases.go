@@ -4,9 +4,10 @@
 // Per docs/plan/20260520-service-domain-migration/wave-b-surface-map.md
 // and the Q-SDM-LEDGER-INTERFACE lock (no Go interface; proto-RPC
 // contracts directly), the previous 15-method `ledgerReportingInner`
-// duck interface at `apps/service-admin/internal/composition/
-// ledger_reporting.go:65-81` decomposes into 5 report-group sub-
-// candidates per Q-SDM-LEDGER-DECOMP. Each sub-candidate is
+// duck interface (formerly in `apps/service-admin/internal/composition/
+// ledger_reporting.go`, now DELETED per 20260521-composition-reshape;
+// logic inlined into `container.go`) decomposes into 5 report-group
+// sub-candidates per Q-SDM-LEDGER-DECOMP. Each sub-candidate is
 // **app-visible** (consumed by service-admin through fycha-golang,
 // entydad-golang, and centymo-golang report views), so per
 // Q-ORCH-2-REFINEMENT they MUST use typed fields on `ServiceUseCases`
@@ -129,9 +130,10 @@ type Deps struct {
 	//
 	// May be nil — `domain_specific.NewUseCases` degrades to an empty
 	// response. P1.E.5 is the LAST sub-candidate; its commit retired
-	// `apps/service-admin/internal/composition/ledger_reporting.go`'s
-	// wrapper struct and the `pyeza.AppContext.LedgerReportingSvc` field
-	// per Q-SDM-LEDGER-RETIRE-PYEZA. Both retirements landed 2026-05-21
+	// `apps/service-admin/internal/composition/ledger_reporting.go`
+	// entirely (FILE DELETED, 20260521-composition-reshape; logic inlined
+	// into `container.go`) and removed the `pyeza.AppContext.LedgerReportingSvc`
+	// field per Q-SDM-LEDGER-RETIRE-PYEZA. Both retirements landed 2026-05-21
 	// alongside the downstream rewires (fycha/centymo/entydad view
 	// consumers now thread typed closures off
 	// `useCases.Service.Reporting.<Group>` instead of the wrapper).
@@ -174,13 +176,13 @@ type ReportingUseCases struct {
 	// DomainSpecific — LANDED 2026-05-21 (P1.E.5, FINAL sub-candidate).
 	// Hosts GetRevenueReport + GetExpenditureReport + GetDisbursementReport
 	// (proto-shaped) + ListRevenue + ListExpenses (Go-only per
-	// Q-SDM-MAP-SHAPES), migrated from ledger_reporting.go:67, :68, :69,
-	// :77, :78. This sub-phase's commit also retires the
-	// `*ledgerReporting` wrapper struct in
-	// `apps/service-admin/internal/composition/ledger_reporting.go` and
-	// removes the populated `pyeza.AppContext.LedgerReportingSvc` field
-	// per Q-SDM-LEDGER-RETIRE-PYEZA. Both retirements landed 2026-05-21
-	// alongside the downstream rewires.
+	// Q-SDM-MAP-SHAPES), migrated from the former `ledger_reporting.go`
+	// (methods :67, :68, :69, :77, :78). This sub-phase's commit also
+	// DELETED `apps/service-admin/internal/composition/ledger_reporting.go`
+	// entirely (logic inlined into `container.go`) and removed the
+	// `pyeza.AppContext.LedgerReportingSvc` field per Q-SDM-LEDGER-RETIRE-
+	// PYEZA. Both retirements landed 2026-05-21 alongside the downstream
+	// rewires.
 	DomainSpecific *domain_specific.UseCases
 }
 

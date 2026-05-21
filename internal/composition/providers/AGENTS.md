@@ -91,20 +91,25 @@ func CreateDatabaseProvider(config options.DatabaseConfig) (types.Provider, erro
 
 ## 5. Usage Flow
 
+Note: `Registry.InitializeAll` (the umbrella method on `providers.Registry`) was **DELETED**
+in `20260521-composition-reshape`. The `providers.Registry` type is retained for provider
+lifecycle management and accessor methods. Infrastructure sub-registries still use their own
+internal `InitializeAll` — only the top-level umbrella delegation was removed.
+
 ```
 ManagerConfig
     ↓
-Registry.InitializeAll(config)
-    ├─→ infrastructure.Registry.InitializeAll()
+providers.Registry (type retained; .InitializeAll umbrella method DELETED 20260521)
+    ├─→ infrastructure.Registry.InitializeAll()  ← still exists (sub-registry)
     │   ├─→ CreateDatabaseProvider()
     │   ├─→ CreateAuthProvider()
     │   ├─→ CreateStorageProvider()
     │   └─→ CreateIDProvider()
     │
     ├─→ domain.Registry = NewRegistry(dbProvider, tableConfig)
-    │   └─→ InitializeAll() creates all repository collections
+    │   └─→ creates all repository collections
     │
-    └─→ integration.Registry.InitializeAll()
+    └─→ integration.Registry.InitializeAll()  ← still exists (sub-registry)
         ├─→ CreateEmailProvider()
         └─→ CreatePaymentProvider()
 ```

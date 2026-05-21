@@ -9,13 +9,13 @@ import (
 	"sync"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases"
-	audithelpers "github.com/erniealice/espyna-golang/internal/composition/audit"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
-	"github.com/erniealice/espyna-golang/internal/composition/core/initializers"
+	"github.com/erniealice/espyna-golang/internal/composition/core/initializers/domain"
 	infraopts "github.com/erniealice/espyna-golang/internal/composition/options/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/composition/providers"
-	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
+	repodomain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 	infraProviders "github.com/erniealice/espyna-golang/internal/composition/providers/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/integration"
 	"github.com/erniealice/espyna-golang/internal/composition/routing"
@@ -401,12 +401,12 @@ func (c *Container) Initialize() error {
 
 func (c *Container) initializeWorkflowEngine() error {
 	// The UsecaseInitializer is no longer the right place.
-	// We need access to the initializers.InitializeWorkflowEngine function
+	// We need access to the domain.InitializeWorkflowEngine function
 	// and the required repositories.
 	// This requires moving some logic from usecases.go to here.
 
 	// First, get the workflow repositories
-	workflowRepos, err := domain.NewWorkflowRepositories(c.providers.GetDatabaseProvider(), c.providers.GetDBTableConfig())
+	workflowRepos, err := repodomain.NewWorkflowRepositories(c.providers.GetDatabaseProvider(), c.providers.GetDBTableConfig())
 	if err != nil {
 		return fmt.Errorf("cannot initialize engine, failed to get workflow repositories: %w", err)
 	}
@@ -424,7 +424,7 @@ func (c *Container) initializeWorkflowEngine() error {
 	switch orchcontracts.WorkflowEngineMode(c.config.WorkflowEngineMode) {
 	case orchcontracts.ModeLate, orchcontracts.ModeEager, "": // Eager and Late are now the same
 		fmt.Printf("🚀 Initializing Workflow Engine (%s binding mode)...\n", c.config.WorkflowEngineMode)
-		engineUC, err := initializers.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc, executorRegistry)
+		engineUC, err := domain.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc, executorRegistry)
 		if err != nil {
 			return err
 		}
@@ -441,7 +441,7 @@ func (c *Container) initializeWorkflowEngine() error {
 			if c.services.WorkflowEngine != nil {
 				return nil // Already initialized
 			}
-			engineUC, err := initializers.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc, executorRegistry)
+			engineUC, err := domain.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc, executorRegistry)
 			if err != nil {
 				return err
 			}
@@ -657,22 +657,76 @@ func (c *Container) GetDatabaseOperations() interface{} {
 		return nil
 	}
 
-	// 20260518-hexagonal-strict-adherence Phase 1.D — transparently
-	// wrap the raw ops with audit-decorated ops when an audit provider
-	// is registered (e.g. contrib/postgres). Apps consume the
-	// audit-decorated ops via consumer.NewDatabaseAdapterFromContainer
-	// without needing to know the decoration happened.
-	sqlDB, _ := conn.(*sql.DB)
-	if sqlDB != nil {
-		auditSvc := audithelpers.NewAuditServiceFromDB(sqlDB)
-		if auditSvc != nil {
-			if decorated := audithelpers.DecorateOperationsWithAudit(ops, sqlDB, auditSvc); decorated != nil {
-				ops = decorated
-			}
-		}
+	// 20260518-hexagonal-strict-adherence Phase 1.D + 20260521-composition-reshape
+	// Q-CR1 — transparently wrap the raw ops with any registered
+	// composition-root decorator (audit today; future encryption / CDC /
+	// webhook fan-out land in the same chain). Apps consume the decorated
+	// ops via consumer.NewDatabaseAdapterFromContainer without needing to
+	// know decoration happened.
+	if sqlDB, ok := conn.(*sql.DB); ok && sqlDB != nil {
+		ops = applyRegisteredOperationsDecorators(ops, sqlDB)
 	}
 
 	return ops
+}
+
+// applyRegisteredOperationsDecorators returns a DatabaseOperations impl
+// wrapped with every registered composition-root decorator. Audit is the
+// only entry today; future cross-cutting write-time concerns (encryption,
+// CDC, webhook fan-out) land in this chain.
+//
+// Returns ops unchanged when no decorator is registered for the given db.
+func applyRegisteredOperationsDecorators(ops any, db *sql.DB) any {
+	if ops == nil || db == nil {
+		return ops
+	}
+	if auditSvc := auditServiceFromDB(db); auditSvc != nil {
+		if decorated := decorateWithAudit(ops, db, auditSvc); decorated != nil {
+			ops = decorated
+		}
+	}
+	return ops
+}
+
+// decorateWithAudit returns ops wrapped with audit-decorated ops when the
+// audit-enabled operations factory has been registered (e.g. via
+// contrib/postgres init()). Returns the original ops unchanged when the
+// factory is unregistered or returns nil.
+func decorateWithAudit(ops any, db *sql.DB, auditSvc infraports.AuditService) any {
+	if ops == nil || db == nil || auditSvc == nil {
+		return ops
+	}
+	factory, ok := registry.GetAuditEnabledOperationsFactory()
+	if !ok || factory == nil {
+		return ops
+	}
+	decorated := factory(db, auditSvc)
+	if decorated == nil {
+		return ops
+	}
+	return decorated
+}
+
+// auditServiceFromDB resolves the registered audit service from the DB.
+// Keep behaviorally identical with the twin in
+// composition/core/initializers/service/audit.go; cannot dedupe until
+// core no longer imports core/initializers (Codex round-1 §6).
+func auditServiceFromDB(db *sql.DB) infraports.AuditService {
+	if db == nil {
+		return nil
+	}
+	factory, ok := registry.GetAuditServiceFactory()
+	if !ok || factory == nil {
+		return nil
+	}
+	result := factory(db)
+	if result == nil {
+		return nil
+	}
+	if svc, ok := result.(infraports.AuditService); ok {
+		return svc
+	}
+	return nil
 }
 
 // GetUseCases returns the use case aggregate

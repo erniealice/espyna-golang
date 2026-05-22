@@ -12,10 +12,11 @@ type WorkspaceRepositories struct {
 
 // WorkspaceServices groups all business service dependencies for workspace use cases
 type WorkspaceServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
-	IDGenerator ports.IDGenerator
+	Authorizer    ports.Authorizer
+	Transactor    ports.Transactor
+	Translator    ports.Translator
+	IDGenerator   ports.IDGenerator
+	ReservedSlugs ReservedSlugProvider // optional; nil disables the reserved-word slug check
 }
 
 // UseCases contains all workspace-related use cases
@@ -29,6 +30,7 @@ type UseCases struct {
 	GetWorkspaceItemPageData *GetWorkspaceItemPageDataUseCase
 	SwitchWorkspace          *SwitchWorkspaceUseCase
 	ListUserWorkspaces       *ListUserWorkspacesUseCase
+	ValidateSlug             *ValidateSlugUseCase
 }
 
 // NewUseCases creates a new collection of workspace use cases
@@ -101,6 +103,11 @@ func NewUseCases(
 		Translator: services.Translator,
 	}
 
+	validateSlugServices := ValidateSlugServices{
+		Translator:    services.Translator,
+		ReservedSlugs: services.ReservedSlugs,
+	}
+
 	return &UseCases{
 		CreateWorkspace:          NewCreateWorkspaceUseCase(createRepos, createServices),
 		ReadWorkspace:            NewReadWorkspaceUseCase(readRepos, readServices),
@@ -111,6 +118,7 @@ func NewUseCases(
 		GetWorkspaceItemPageData: NewGetWorkspaceItemPageDataUseCase(getItemPageDataRepos, getItemPageDataServices),
 		SwitchWorkspace:          NewSwitchWorkspaceUseCase(switchRepos, switchServices),
 		ListUserWorkspaces:       NewListUserWorkspacesUseCase(listUserRepos, listUserServices),
+		ValidateSlug:             NewValidateSlugUseCase(validateSlugServices),
 	}
 }
 

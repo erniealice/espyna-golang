@@ -294,9 +294,22 @@ func InitializeEntity(
 	}
 
 	if repos.Workspace != nil {
+		// WorkspaceServices carries an additional ReservedSlugs port (Phase P-1
+		// of 20260521-workspace-keyed-routing) that is not part of the shared
+		// entityServices shape. Wire the shared fields explicitly and leave
+		// ReservedSlugs nil — service-admin composition will pass a non-nil
+		// provider via its own construction path when wiring the ValidateSlug
+		// use case for HTTP routes. Nil here disables only the reserved-word
+		// check; format/length checks still run.
+		s := svc()
 		result.Workspace = workspaceUseCases.NewUseCases(
 			workspaceUseCases.WorkspaceRepositories{Workspace: repos.Workspace},
-			workspaceUseCases.WorkspaceServices(svc()),
+			workspaceUseCases.WorkspaceServices{
+				Authorizer:  s.Authorizer,
+				Transactor:  s.Transactor,
+				Translator:  s.Translator,
+				IDGenerator: s.IDGenerator,
+			},
 		)
 	}
 

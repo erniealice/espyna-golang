@@ -84,8 +84,17 @@ func (uc *GetUserPermissionCodesUseCase) Execute(
 		return &securitypb.GetUserPermissionCodesResponse{PermissionCodes: []string{}}, nil
 	}
 
+	// Plumb the proto-shaped binding hint (added 2026-05-24 per A2 /
+	// WKR-P0-2) into the port. The port already documents the
+	// "zero values = legacy union" fall-back, so passing through the
+	// generated zero values when the caller didn't set them preserves
+	// backwards compatibility transparently.
 	codes, err := uc.repositories.PermissionQuery.GetUserPermissionCodes(
-		ctx, req.GetUserId(), req.GetWorkspaceId(),
+		ctx,
+		req.GetUserId(),
+		req.GetWorkspaceId(),
+		int32(req.GetBindingKind()),
+		req.GetBindingId(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf(

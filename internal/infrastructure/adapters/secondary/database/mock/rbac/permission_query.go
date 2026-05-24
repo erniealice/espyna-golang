@@ -27,7 +27,20 @@ func NewMockPermissionQuery() *MockPermissionQuery {
 
 var _ security.PermissionQuery = (*MockPermissionQuery)(nil)
 
-func (m *MockPermissionQuery) GetUserPermissionCodes(ctx context.Context, userID, workspaceID string) ([]string, error) {
+// GetUserPermissionCodes returns seeded codes for the (userID, workspaceID)
+// pair. The bindingKind / bindingID hint (added 2026-05-24 for A2 /
+// WKR-P0-2) is currently ignored by the mock — tests that need to assert
+// binding-scoped behaviour should use the postgres adapter against a
+// fixture DB instead. The mock keeps the legacy (user, workspace) cache
+// key so existing test seed code keeps working unchanged.
+func (m *MockPermissionQuery) GetUserPermissionCodes(
+	ctx context.Context,
+	userID, workspaceID string,
+	bindingKind int32,
+	bindingID string,
+) ([]string, error) {
+	_ = bindingKind
+	_ = bindingID
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	codes, ok := m.codes[cacheKey(userID, workspaceID)]

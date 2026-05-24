@@ -25,21 +25,40 @@ import "context"
 // sweep — until then the values flow through the existing
 // domain.entity.v1.PrincipalType enum.
 //
-// Backwards compatibility: bindingKind == 0 (UNSPECIFIED) and
-// bindingID == "" together mean "no binding hint — fall back to the
-// legacy union-across-all-bindings behaviour." Production callers MUST
-// supply both values; the silent-elevation fix only applies when both
-// are non-zero.
+// Delegate target scoping (added 2026-05-24 per A2-followup / codex
+// A2-P0-1 fix): actingAsClientID / actingAsSupplierID identify the
+// per-target grant row a delegate is currently acting through. For
+// CLIENT_DELEGATE the adapter scopes resolution to the delegate_client
+// row (delegate_id = bindingID, client_id = actingAsClientID); for
+// SUPPLIER_DELEGATE it scopes to delegate_supplier (delegate_id =
+// bindingID, supplier_id = actingAsSupplierID). These are IGNORED for
+// non-delegate bindingKinds. When the relevant acting-as value is
+// empty for a delegate binding kind, the adapter FAILS CLOSED (empty
+// result) rather than unioning across all per-target rows — closing
+// the multi-target leakage hole (codex A2-P0-1).
+//
+// Fail-closed posture (codex A2-P1-1 fix): the legacy union-fallback
+// path is reserved for the EXACT zero pair `(bindingKind=0,
+// bindingID="")`. Any other combination — partial hints
+// (CLIENT, ""), out-of-range bindingKinds, kind set with empty id,
+// id set with UNSPECIFIED kind, or a delegate kind with no acting-as
+// id — returns an empty permission set. Production callers MUST
+// always supply a complete binding hint; only legacy bootstrap and
+// test paths exercise the union path.
 type PermissionQuery interface {
 	// GetUserPermissionCodes returns all effective ALLOW permission codes
 	// for the given user within the given workspace, restricted to the
 	// grant chain identified by (bindingKind, bindingID) when both are
-	// supplied. Returns an empty slice (not nil) when the user has no
-	// permissions. See package-level doc for the binding-hint semantics.
+	// supplied. For delegate kinds, actingAsClientID (CLIENT_DELEGATE)
+	// or actingAsSupplierID (SUPPLIER_DELEGATE) additionally scope the
+	// lookup to the per-target row. Returns an empty slice (not nil)
+	// when the user has no permissions. See package-level doc for the
+	// binding-hint + fail-closed semantics.
 	GetUserPermissionCodes(
 		ctx context.Context,
 		userID, workspaceID string,
 		bindingKind int32,
 		bindingID string,
+		actingAsClientID, actingAsSupplierID string,
 	) ([]string, error)
 }

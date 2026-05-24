@@ -21,6 +21,16 @@ import (
 // bindings in the same workspace (e.g. CLIENT + OPERATOR_STAFF) would
 // silently receive the UNION of permissions across all bindings.
 //
+// Delegate target scoping (A2-followup / codex A2-P0-1 — 2026-05-24):
+// For CLIENT_DELEGATE and SUPPLIER_DELEGATE the parent delegate row is
+// only the user-anchoring join — the actual role grant lives on the
+// per-target delegate_client / delegate_supplier rows. The CTE now
+// additionally filters by acting_as_client_id / acting_as_supplier_id so
+// a delegate with N>1 targets only sees the permissions of the row they
+// are currently acting through (matching the lock boundary at
+// apps/service-admin/internal/composition/principal_switch.go's
+// lockTargetBinding for delegate kinds).
+//
 // Grant-chain selection (one row, never a union):
 //
 //  1. PRINCIPAL_TYPE_OPERATOR_OWNER (1) / OPERATOR_STAFF (2) →
@@ -30,20 +40,23 @@ import (
 //  3. PRINCIPAL_TYPE_SUPPLIER (5) →
 //     supplier_portal_grant (id = bindingID).role_id
 //  4. PRINCIPAL_TYPE_CLIENT_DELEGATE (4) →
-//     delegate (id = bindingID) → delegate_client.role_id
+//     delegate (id = bindingID) JOIN delegate_client
+//       (delegate_id = bindingID AND client_id = actingAsClientID).role_id
 //  5. PRINCIPAL_TYPE_SUPPLIER_DELEGATE (6) →
-//     delegate (id = bindingID) → delegate_supplier.role_id
+//     delegate (id = bindingID) JOIN delegate_supplier
+//       (delegate_id = bindingID AND supplier_id = actingAsSupplierID).role_id
 //
 // All chains still join role_permission → permission and apply the same
 // DENY-wins predicate that the union variant did.
 //
-// Backwards-compatibility fall-back: when (bindingKind, bindingID) is
-// (0, "") — the proto zero values — the adapter preserves the historical
-// union-across-all-bindings behaviour. Production callers MUST supply
-// both; only the workspace_user-only and degraded test paths should
-// land here, and they'll receive the same (looser) permissions they
-// always did. The use case's request_required guard ensures we never
-// reach this path on a real RBAC lookup with a nil request.
+// Fail-closed posture (codex A2-P1-1 fix — 2026-05-24): the legacy
+// union-fallback path is reserved for the EXACT zero pair
+// `(bindingKind=0, bindingID="")`. Any other combination — partial hints
+// (CLIENT, ""), out-of-range bindingKinds, kind set with empty id, id
+// set with UNSPECIFIED kind, or a delegate kind with no acting-as id —
+// returns an empty permission set. Production callers MUST always supply
+// a complete binding hint; only legacy bootstrap and test paths exercise
+// the union path.
 //
 // DENY-wins: a permission appears in the result only if there is at
 // least one ALLOW grant AND zero DENY grants across the user's active
@@ -75,8 +88,10 @@ const (
 
 // userRolesUnionCTE is the legacy UNION-across-all-bindings CTE retained
 // for the backwards-compatibility fall-back when (bindingKind, bindingID)
-// is the zero pair. Production callers post-A2 always set the hint and
-// take the binding-scoped CTEs below instead.
+// is the EXACT zero pair (codex A2-P1-1 fix: only the exact zero pair
+// hits this path; partial / malformed hints fail closed). Production
+// callers post-A2 always set the hint and take the binding-scoped CTEs
+// below instead.
 const userRolesUnionCTE = `
 	WITH user_roles AS (
 		-- 1. WorkspaceUser → workspace_user_role (operator owner / staff)
@@ -162,7 +177,8 @@ const permissionSelect = `
 // Per-binding user_roles CTEs — each is a SINGLE grant-chain SELECT with
 // no UNIONs, so the user only sees the permissions of the binding the
 // session row currently identifies. Parameter convention: $1 = userID,
-// $2 = workspaceID, $3 = bindingID.
+// $2 = workspaceID, $3 = bindingID, $4 = actingAsClientID /
+// actingAsSupplierID (delegate kinds only).
 
 const userRolesOperatorCTE = `
 	WITH user_roles AS (
@@ -202,6 +218,10 @@ const userRolesSupplierCTE = `
 	)
 `
 
+// userRolesClientDelegateCTE — the role grant is on delegate_client, NOT
+// on delegate. The parent delegate row only anchors user_id/active; the
+// per-target dc.client_id = $4 filter is what restricts the lookup to
+// the row the delegate is currently acting through (codex A2-P0-1).
 const userRolesClientDelegateCTE = `
 	WITH user_roles AS (
 		SELECT dc.role_id
@@ -209,6 +229,7 @@ const userRolesClientDelegateCTE = `
 		JOIN delegate_client dc ON dc.delegate_id = d.id
 		LEFT JOIN client c ON c.id = dc.client_id AND c.active = true
 		WHERE d.id = $3
+		  AND dc.client_id = $4
 		  AND d.user_id = $1
 		  AND d.active = true
 		  AND dc.active = true
@@ -217,6 +238,9 @@ const userRolesClientDelegateCTE = `
 	)
 `
 
+// userRolesSupplierDelegateCTE — symmetric to the client_delegate CTE.
+// ds.supplier_id = $4 filter restricts to the per-target row the
+// delegate is currently acting through.
 const userRolesSupplierDelegateCTE = `
 	WITH user_roles AS (
 		SELECT ds.role_id
@@ -224,6 +248,7 @@ const userRolesSupplierDelegateCTE = `
 		JOIN delegate_supplier ds ON ds.delegate_id = d.id
 		LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = true
 		WHERE d.id = $3
+		  AND ds.supplier_id = $4
 		  AND d.user_id = $1
 		  AND d.active = true
 		  AND ds.active = true
@@ -235,36 +260,33 @@ const userRolesSupplierDelegateCTE = `
 // GetUserPermissionCodes returns all effective ALLOW codes for a user in a
 // workspace, with DENY-wins applied. Empty slice when no permissions.
 //
-// When (bindingKind, bindingID) is non-zero/non-empty, only the matching
-// grant chain contributes role IDs — closing the silent-elevation hole
-// that the legacy UNION variant allowed. When both are zero values the
-// adapter degrades to the legacy UNION behaviour for backwards
-// compatibility (see PostgresPermissionQuery doc).
+// When (bindingKind, bindingID) is non-zero/non-empty AND any required
+// acting-as id for delegate kinds is supplied, only the matching grant
+// chain contributes role IDs — closing the silent-elevation holes that
+// the legacy UNION variant and the pre-followup delegate CTE allowed.
+//
+// Fail-closed paths (codex A2-P1-1 + A2-P0-1):
+//   - exact `(0, "")` → legacy union (backwards-compat).
+//   - partial hint (e.g. `(CLIENT, "")`, `(UNSPECIFIED, "cpg-1")`) →
+//     empty result.
+//   - out-of-range bindingKind → empty result.
+//   - delegate kind with empty acting_as id → empty result.
 func (q *PostgresPermissionQuery) GetUserPermissionCodes(
 	ctx context.Context,
 	userID, workspaceID string,
 	bindingKind int32,
 	bindingID string,
+	actingAsClientID, actingAsSupplierID string,
 ) ([]string, error) {
-	var (
-		stmt string
-		args []any
+	stmt, args, ok := buildPermissionQuerySQL(
+		userID, workspaceID, bindingKind, bindingID,
+		actingAsClientID, actingAsSupplierID,
 	)
-	if bindingKind != principalTypeUnspecified && bindingID != "" {
-		cte, ok := bindingCTEForKind(bindingKind)
-		if !ok {
-			// Unknown kind ⇒ no roles can match. Return empty (rather
-			// than degrading to the union) so an out-of-range hint
-			// fails closed.
-			return []string{}, nil
-		}
-		stmt = cte + permissionSelect
-		args = []any{userID, workspaceID, bindingID}
-	} else {
-		// Backwards-compatibility fall-back — legacy union across all
-		// bindings (matches pre-A2 behaviour).
-		stmt = userRolesUnionCTE + permissionSelect
-		args = []any{userID, workspaceID}
+	if !ok {
+		// Fail-closed: malformed/partial/invalid hint or delegate kind
+		// missing the per-target acting-as id. Return empty (never
+		// degrade to union for non-legacy callers).
+		return []string{}, nil
 	}
 
 	rows, err := q.db.QueryContext(ctx, stmt, args...)
@@ -287,9 +309,112 @@ func (q *PostgresPermissionQuery) GetUserPermissionCodes(
 	return codes, nil
 }
 
+// buildPermissionQuerySQL is the pure SQL-builder helper extracted so
+// no-live-DB tests can assert the exact predicates each binding-hint
+// shape produces (codex A2-P1-3). Returns (stmt, args, ok). ok=false
+// means the caller MUST fail closed (return an empty permission set
+// rather than executing any SQL).
+//
+// Dispatch rules:
+//   - Exact legacy zero pair `(0, "")` → union CTE + 2 args.
+//   - bindingKind ∈ {OPERATOR_OWNER, OPERATOR_STAFF, CLIENT, SUPPLIER}
+//     AND bindingID != "" → per-kind scoped CTE + 3 args.
+//   - bindingKind == CLIENT_DELEGATE AND bindingID != "" AND
+//     actingAsClientID != "" → client-delegate scoped CTE + 4 args.
+//   - bindingKind == SUPPLIER_DELEGATE AND bindingID != "" AND
+//     actingAsSupplierID != "" → supplier-delegate scoped CTE + 4 args.
+//   - All other shapes (partial hint, kind set with empty id, id set
+//     with UNSPECIFIED kind, out-of-range kind, delegate kind with
+//     empty acting-as id) → (nil, nil, false).
+func buildPermissionQuerySQL(
+	userID, workspaceID string,
+	bindingKind int32,
+	bindingID string,
+	actingAsClientID, actingAsSupplierID string,
+) (string, []any, bool) {
+	// Reserve legacy union for EXACTLY the zero pair. Any other shape
+	// must fail closed (codex A2-P1-1).
+	if bindingKind == principalTypeUnspecified && bindingID == "" {
+		return userRolesUnionCTE + permissionSelect,
+			[]any{userID, workspaceID},
+			true
+	}
+
+	// Out-of-range bindingKind → fail closed BEFORE switching on it.
+	if !isKnownBindingKind(bindingKind) {
+		return "", nil, false
+	}
+
+	// Partial hint (kind set but no id, or id set with UNSPECIFIED) →
+	// fail closed. The UNSPECIFIED case is already screened above by
+	// the zero-pair branch; this catches "kind != 0 && id == ''".
+	if bindingID == "" {
+		return "", nil, false
+	}
+
+	switch bindingKind {
+	case principalTypeOperatorOwner, principalTypeOperatorStaff:
+		return userRolesOperatorCTE + permissionSelect,
+			[]any{userID, workspaceID, bindingID},
+			true
+	case principalTypeClient:
+		return userRolesClientCTE + permissionSelect,
+			[]any{userID, workspaceID, bindingID},
+			true
+	case principalTypeSupplier:
+		return userRolesSupplierCTE + permissionSelect,
+			[]any{userID, workspaceID, bindingID},
+			true
+	case principalTypeClientDelegate:
+		if actingAsClientID == "" {
+			// Delegate kind set but no per-target row → fail closed
+			// (codex A2-P0-1: never union per-target grants).
+			return "", nil, false
+		}
+		return userRolesClientDelegateCTE + permissionSelect,
+			[]any{userID, workspaceID, bindingID, actingAsClientID},
+			true
+	case principalTypeSupplierDelegate:
+		if actingAsSupplierID == "" {
+			return "", nil, false
+		}
+		return userRolesSupplierDelegateCTE + permissionSelect,
+			[]any{userID, workspaceID, bindingID, actingAsSupplierID},
+			true
+	default:
+		// Defense-in-depth — isKnownBindingKind above already filtered
+		// these; the switch covers every known case explicitly.
+		return "", nil, false
+	}
+}
+
+// isKnownBindingKind reports whether the integer value matches one of
+// the six PrincipalType enumerants the adapter knows how to scope.
+// UNSPECIFIED is NOT considered "known" here — the legacy union path is
+// reached via the exact-zero-pair check in buildPermissionQuerySQL,
+// not by falling through this guard.
+func isKnownBindingKind(kind int32) bool {
+	switch kind {
+	case principalTypeOperatorOwner,
+		principalTypeOperatorStaff,
+		principalTypeClient,
+		principalTypeClientDelegate,
+		principalTypeSupplier,
+		principalTypeSupplierDelegate:
+		return true
+	default:
+		return false
+	}
+}
+
 // bindingCTEForKind selects the per-binding user_roles CTE for the given
 // PrincipalType integer. Returns ("", false) for UNSPECIFIED or
 // out-of-range values so the caller can fail closed.
+//
+// Note: this exposes the per-kind CTE for inspection; the full SQL is
+// assembled by buildPermissionQuerySQL which is the canonical entry
+// point used by GetUserPermissionCodes. Kept exported (package-scope)
+// for tests that pin the CTE-shape invariants.
 func bindingCTEForKind(kind int32) (string, bool) {
 	switch kind {
 	case principalTypeOperatorOwner, principalTypeOperatorStaff:

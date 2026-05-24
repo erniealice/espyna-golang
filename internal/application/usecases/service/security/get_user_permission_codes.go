@@ -89,12 +89,20 @@ func (uc *GetUserPermissionCodesUseCase) Execute(
 	// "zero values = legacy union" fall-back, so passing through the
 	// generated zero values when the caller didn't set them preserves
 	// backwards compatibility transparently.
+	//
+	// Delegate target scoping (A2-followup, codex A2-P0-1 fix):
+	// acting_as_client_id / acting_as_supplier_id are required for
+	// CLIENT_DELEGATE / SUPPLIER_DELEGATE bindings respectively; missing
+	// values for those kinds cause the port to fail closed (empty
+	// result). For non-delegate kinds the acting-as values are ignored.
 	codes, err := uc.repositories.PermissionQuery.GetUserPermissionCodes(
 		ctx,
 		req.GetUserId(),
 		req.GetWorkspaceId(),
 		int32(req.GetBindingKind()),
 		req.GetBindingId(),
+		req.GetActingAsClientId(),
+		req.GetActingAsSupplierId(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf(

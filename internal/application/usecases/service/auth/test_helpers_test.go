@@ -24,7 +24,9 @@ func (keyEchoTranslator) GetWithDefault(_ context.Context, _, key, _ string, _ .
 
 // fakeSessionRepo is a minimal stub for SessionDomainServiceServer that returns
 // canned proto responses + records the last CreateSession/UpdateSession calls so
-// tests can assert what the use case wrote.
+// tests can assert what the use case wrote. readN counts ReadSession calls so
+// tests can assert when a fail-closed path correctly short-circuits before any
+// repo call (codex round 1 P1-1 regression pin).
 type fakeSessionRepo struct {
 	sessionpb.UnimplementedSessionDomainServiceServer
 
@@ -39,11 +41,13 @@ type fakeSessionRepo struct {
 
 	lastCreate *sessionpb.CreateSessionRequest
 	lastUpdate *sessionpb.UpdateSessionRequest
+	readN      int
 	createN    int
 	updateN    int
 }
 
 func (f *fakeSessionRepo) ReadSession(_ context.Context, _ *sessionpb.ReadSessionRequest) (*sessionpb.ReadSessionResponse, error) {
+	f.readN++
 	return f.readResp, f.readErr
 }
 

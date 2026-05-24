@@ -48,12 +48,24 @@ func (uc *AuthenticateSessionUseCase) Execute(
 	ctx context.Context,
 	req *authpb.AuthenticateSessionRequest,
 ) (*authpb.AuthenticateSessionResponse, error) {
-	if uc.repositories.Session == nil {
+	// Fail-closed at body entry when either repo is missing (Q2 lock).
+	// Placement matters: this MUST run before any repository call so a
+	// partially-wired auth subsystem cannot return session-specific errors
+	// while the user-side is unwired. Codex round 1 P1-1.
+	if uc.repositories.Session == nil || uc.repositories.User == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.Translator,
 			"auth.errors.service_unavailable", "Auth service is not available [DEFAULT]"))
 	}
-	if req == nil || req.GetToken() == "" {
+	// Split nil-request from empty-token to preserve the pre-collapse public
+	// translator-key surface (codex round 1 P1-2): nil request returns
+	// request_required; well-formed request with empty token returns missing_token.
+	if req == nil {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.Translator,
+			"auth.validation.request_required", "Session authentication request is required [DEFAULT]"))
+	}
+	if req.GetToken() == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.Translator,
 			"auth.errors.missing_token", "Session token is required [DEFAULT]"))
@@ -80,11 +92,6 @@ func (uc *AuthenticateSessionUseCase) Execute(
 			"auth.errors.session_expired", "Session has expired [DEFAULT]"))
 	}
 
-	if uc.repositories.User == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.Translator,
-			"auth.errors.service_unavailable", "Auth service is not available [DEFAULT]"))
-	}
 	userResp, err := uc.repositories.User.ReadUser(ctx, &userpb.ReadUserRequest{
 		Data: &userpb.User{Id: sess.UserId},
 	})

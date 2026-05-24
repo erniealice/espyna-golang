@@ -31,6 +31,7 @@ func TestAuthenticateSession_Execute(t *testing.T) {
 		req              *authpb.AuthenticateSessionRequest
 		wantErrKey       string // expected translator key substring of the error
 		wantIdentityUser string // empty means do not assert identity
+		assertReadNZero  bool   // when true, assert sessionRepo.readN == 0 post-Execute (codex round 1 P1-1 regression pin)
 	}{
 		{
 			name:        "nil_session_repo_fails_closed_service_unavailable",
@@ -40,11 +41,11 @@ func TestAuthenticateSession_Execute(t *testing.T) {
 			wantErrKey:  "auth.errors.service_unavailable",
 		},
 		{
-			name:        "nil_request_returns_missing_token",
+			name:        "nil_request_returns_request_required",
 			sessionRepo: &fakeSessionRepo{},
 			userRepo:    &fakeUserRepo{},
 			req:         nil,
-			wantErrKey:  "auth.errors.missing_token",
+			wantErrKey:  "auth.validation.request_required",
 		},
 		{
 			name:        "empty_token_returns_missing_token",
@@ -92,15 +93,15 @@ func TestAuthenticateSession_Execute(t *testing.T) {
 			wantErrKey: "auth.errors.session_expired",
 		},
 		{
-			name: "nil_user_repo_after_valid_session_fails_closed_service_unavailable",
-			sessionRepo: &fakeSessionRepo{
-				readResp: &sessionpb.ReadSessionResponse{Data: []*sessionpb.Session{{
-					Id: "s-1", UserId: userID, Token: tokenOK, ExpiresAt: future, Active: true,
-				}}},
-			},
-			userRepo:   nil,
-			req:        &authpb.AuthenticateSessionRequest{Token: tokenOK},
-			wantErrKey: "auth.errors.service_unavailable",
+			// Codex round 1 P1-1 regression: with User nil, the use case must
+			// fail closed at body entry BEFORE calling Session.ReadSession.
+			// readN==0 post-Execute proves the short-circuit.
+			name:            "nil_user_repo_fails_closed_at_entry_no_session_read",
+			sessionRepo:     &fakeSessionRepo{},
+			userRepo:        nil,
+			req:             &authpb.AuthenticateSessionRequest{Token: tokenOK},
+			wantErrKey:      "auth.errors.service_unavailable",
+			assertReadNZero: true,
 		},
 		{
 			name: "missing_user_row_returns_session_user_missing",
@@ -144,6 +145,15 @@ func TestAuthenticateSession_Execute(t *testing.T) {
 				}
 				if !strings.Contains(err.Error(), tc.wantErrKey) {
 					t.Errorf("error %q does not contain expected key %q", err.Error(), tc.wantErrKey)
+				}
+				if tc.assertReadNZero {
+					fake, ok := tc.sessionRepo.(*fakeSessionRepo)
+					if !ok {
+						t.Fatalf("assertReadNZero requires sessionRepo to be *fakeSessionRepo; got %T", tc.sessionRepo)
+					}
+					if fake.readN != 0 {
+						t.Errorf("expected Session.ReadSession to NOT be called (fail-closed at body entry); got readN=%d", fake.readN)
+					}
 				}
 				return
 			}

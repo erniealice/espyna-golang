@@ -24,7 +24,7 @@ import (
 //     issue_session, invalidate_session, register, password-reset).
 //     These either establish identity (so authorization cannot run before
 //     them) or terminate a session. The package's doc comment in
-//     usecases/auth/usecases.go defines the invariant — authenticated
+//     usecases/service/auth/usecases.go defines the invariant — authenticated
 //     business actions that are merely auth-adjacent (e.g. "admin revokes
 //     another user's sessions") belong in entity/session/ with authcheck
 //     wired in, NOT here.

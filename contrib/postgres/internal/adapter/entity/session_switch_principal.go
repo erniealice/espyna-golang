@@ -610,7 +610,7 @@ func lockTargetBinding(
 	err := tx.QueryRowContext(ctx, query, args...).Scan(&lockedID)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("session adapter: SwitchPrincipal: binding revoked or not in workspace (type=%s principal_id=%s workspace_id=%s)",
-			tgt.GetType().String(), tgt.GetPrincipalId(), tgt.GetWorkspaceId())
+			principalTypeAuditLabel(tgt.GetType()), tgt.GetPrincipalId(), tgt.GetWorkspaceId())
 	}
 	if err != nil {
 		return fmt.Errorf("session adapter: SwitchPrincipal: binding lock query: %w", err)

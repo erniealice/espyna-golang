@@ -1,42 +1,42 @@
 // Package auth hosts the service-driven Auth/Session use cases.
 //
 // Per docs/plan/20260518-hexagonal-strict-adherence/proto-service.md (Q7
-// service-driven domain category) and the follow-up migration plan
-// docs/plan/20260520-service-domain-migration/ (Wave 3 / Plan 2 candidate,
-// 2026-05-20), session validation/issuance/invalidation are service-shape
-// operations: they operate over the existing `domain.entity.v1.Session`
-// aggregate but own no aggregate of their own. That makes them a
-// service-driven domain, not entity-driven.
+// service-driven domain category) and docs/wiki/articles/proto-categories.md
+// §2 ("Why auth lives in service/ and not in domain/"), session
+// authentication / issuance / invalidation are application-service
+// operations: they coordinate the existing `domain.entity.v1.Session`
+// and `domain.entity.v1.User` aggregates but own no aggregate of their
+// own. The proto contract lives at `proto/v1/service/auth/session.proto`.
 //
-// Their proto contract lives at `proto/v1/service/auth/session.proto`.
-// These use cases WRAP the existing entity-layer
-// `internal/application/usecases/auth.UseCases` (which take Go struct
-// requests built around `sessionpb` types) and adapt the proto-shaped
-// Request/Response surface required by service-driven consumers — the
-// previous visibility bridge was `consumer/auth_aliases.go`, which this
-// migration retires.
+// Wiring lives in `internal/composition/core/initializers/service/auth.go`
+// (`initServiceAuth`). This package owns the use-case bodies directly —
+// it consumes the proto repositories (`sessionpb.SessionDomainServiceServer`,
+// `userpb.UserDomainServiceServer`) without a Go-struct intermediate layer.
 //
-// Wiring: this package defines ONLY the type surface so that the parent
-// `service` package can import it for the typed `*ServiceUseCases.Auth`
-// field (matching the existing Audit/Security pattern). Construction
-// lives in `internal/composition/core/initializers/service/auth.go`
-// (`initServiceAuth`) — a fused initializer (Option B, 20260521-composition-
-// reshape Q-CR8) that builds the entity-layer `*auth.UseCases` AND wires
-// the proto-shaped wrappers in a single function. The former separate
-// `internal/composition/auth/wrapper.go` and `composition/auth/` directory
-// are DELETED.
-//
-// The typed-field path is used (rather than the Q-ORCH-2 dynamic
-// registry at `service.Register`) because Go's `internal/` rule
-// prevents apps from naming `*service/auth.UseCases` as a generic type
-// parameter to call `service.Get[*UseCases]`. The typed field is
-// reachable from apps via chained field access through
-// `consumer.UseCases.Service.Auth` without naming the internal type.
+// Invariant: every file in this package must either establish identity
+// (authenticate_session, issue_session — future: login, register,
+// request_password_reset, execute_password_reset) or terminate an
+// established session (invalidate_session — future: rotate_session). This
+// is why the authcheck coverage test skips this directory — these use
+// cases run BEFORE authorization can be applied or AFTER it has been
+// revoked. Authenticated business operations that are merely auth-adjacent
+// (e.g. "admin revokes another user's sessions") belong in
+// usecases/domain/entity/session/ with authcheck wired in.
 package auth
 
 import (
+	"time"
+
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
+
+// SessionExpiryConfig lets the caller override the default session TTL. A
+// zero Duration means IssueSession falls back to defaultSessionExpiry.
+type SessionExpiryConfig struct {
+	Duration time.Duration
+}
 
 // UseCases aggregates every service-driven Auth/Session use case.
 type UseCases struct {
@@ -45,10 +45,48 @@ type UseCases struct {
 	InvalidateSession   *InvalidateSessionUseCase
 }
 
-// Services groups application services consumed by every wrapper.
-// Translator backs error-message localization; no
-// Authorizer — these use cases establish/terminate identity, so
-// per the invariant on usecases/auth/usecases.go authcheck cannot apply.
+// Repositories groups proto-level domain services needed by auth flows.
+// Either field may be nil; each Execute fails closed with
+// service_unavailable when the repository it requires is nil.
+type Repositories struct {
+	Session sessionpb.SessionDomainServiceServer
+	User    userpb.UserDomainServiceServer
+}
+
+// Services groups infrastructure services. No Authorizer —
+// identity-lifecycle use cases run before authz is established.
 type Services struct {
-	Translator ports.Translator
+	Transactor  ports.Transactor
+	Translator  ports.Translator
+	IDGenerator ports.IDGenerator
+	// SessionExpiry is the default time-to-live for a newly issued session.
+	// Callers typically source this from PASSWORD_AUTH_SESSION_EXPIRY.
+	// A zero value means IssueSession falls back to defaultSessionExpiry.
+	SessionExpiry SessionExpiryConfig
+}
+
+// NewUseCases wires every auth use case from shared dependencies.
+func NewUseCases(repositories Repositories, services Services) *UseCases {
+	return &UseCases{
+		AuthenticateSession: NewAuthenticateSessionUseCase(
+			AuthenticateSessionRepositories{Session: repositories.Session, User: repositories.User},
+			AuthenticateSessionServices{Translator: services.Translator},
+		),
+		IssueSession: NewIssueSessionUseCase(
+			IssueSessionRepositories{Session: repositories.Session},
+			IssueSessionServices{
+				Transactor:  services.Transactor,
+				Translator:  services.Translator,
+				IDGenerator: services.IDGenerator,
+				Expiry:      services.SessionExpiry,
+			},
+		),
+		InvalidateSession: NewInvalidateSessionUseCase(
+			InvalidateSessionRepositories{Session: repositories.Session},
+			InvalidateSessionServices{
+				Transactor: services.Transactor,
+				Translator: services.Translator,
+			},
+		),
+	}
 }

@@ -5,20 +5,21 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	entityauth "github.com/erniealice/espyna-golang/internal/application/usecases/auth"
 	svcusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
-// initServiceAuth wires the service-layer Auth sub-aggregate. Per
-// Q-CR8 (Option B), it builds the entity-layer auth.UseCases internally
-// from Session + User repos and wraps them in the proto-shaped service-
-// layer use cases — collapsing what used to be two separate steps
-// (composition/core/initializers/auth.go + composition/auth/wrapper.go).
+// initServiceAuth wires the service-driven Auth sub-aggregate. The package
+// is single-layer: it consumes the Session + User proto repositories
+// directly and exposes proto-shaped use cases (no entity-layer indirection).
+// See docs/plan/20260524-usecases-auth-collapse/ for the rationale and
+// docs/wiki/articles/proto-categories.md §2 for the architectural placement.
 //
-// Returns a non-nil *serviceauth.UseCases even when entityRepos is nil —
-// each wrapped use case carries a per-call nil-inner guard.
+// Always returns a non-nil *serviceauth.UseCases. When entityRepos is nil
+// (or its Session/User fields are nil) each use case's Execute fails closed
+// with the `auth.errors.service_unavailable` translator key — the same UX
+// the prior wrapper layer guaranteed.
 func initServiceAuth(
 	entityRepos *domain.EntityRepositories,
 	deps *svcusecases.Deps,
@@ -26,54 +27,34 @@ func initServiceAuth(
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
 ) *serviceauth.UseCases {
-	// Step 1: build entity-layer auth use cases (orchestrates Session + User).
-	var entityAuth *entityauth.UseCases
-	if entityRepos != nil && entityRepos.Session != nil && entityRepos.User != nil {
-		entityAuth = entityauth.NewUseCases(
-			entityauth.Repositories{
-				Session: entityRepos.Session,
-				User:    entityRepos.User,
-			},
-			entityauth.Services{
-				Transactor:    txSvc,
-				Translator:    i18nSvc,
-				IDGenerator:   idSvc,
-				SessionExpiry: sessionExpiryFromEnv(),
-			},
-		)
+	var repos serviceauth.Repositories
+	if entityRepos != nil {
+		repos.Session = entityRepos.Session
+		repos.User = entityRepos.User
 	}
-
-	// Step 2: wrap entity-layer auth use cases in the service-layer proto
-	// contract (nil-inner guards + per-call i18n).
-	svc := serviceauth.Services{}
-	if deps != nil {
-		svc.Translator = deps.Translator
+	services := serviceauth.Services{
+		Transactor:    txSvc,
+		Translator:    i18nSvc,
+		IDGenerator:   idSvc,
+		SessionExpiry: sessionExpiryFromEnv(),
 	}
-	if entityAuth == nil {
-		return &serviceauth.UseCases{
-			AuthenticateSession: serviceauth.NewAuthenticateSessionUseCase(nil, svc),
-			IssueSession:        serviceauth.NewIssueSessionUseCase(nil, svc),
-			InvalidateSession:   serviceauth.NewInvalidateSessionUseCase(nil, svc),
-		}
+	if deps != nil && deps.Translator != nil {
+		services.Translator = deps.Translator
 	}
-	return &serviceauth.UseCases{
-		AuthenticateSession: serviceauth.NewAuthenticateSessionUseCase(entityAuth.AuthenticateSession, svc),
-		IssueSession:        serviceauth.NewIssueSessionUseCase(entityAuth.IssueSession, svc),
-		InvalidateSession:   serviceauth.NewInvalidateSessionUseCase(entityAuth.InvalidateSession, svc),
-	}
+	return serviceauth.NewUseCases(repos, services)
 }
 
 // sessionExpiryFromEnv reads PASSWORD_AUTH_SESSION_EXPIRY (Go duration
 // format, e.g. "168h"). A missing or malformed value leaves Duration at
 // zero, which asks IssueSession to fall back to its package default.
-func sessionExpiryFromEnv() entityauth.SessionExpiryConfig {
+func sessionExpiryFromEnv() serviceauth.SessionExpiryConfig {
 	raw := os.Getenv("PASSWORD_AUTH_SESSION_EXPIRY")
 	if raw == "" {
-		return entityauth.SessionExpiryConfig{}
+		return serviceauth.SessionExpiryConfig{}
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil || d <= 0 {
-		return entityauth.SessionExpiryConfig{}
+		return serviceauth.SessionExpiryConfig{}
 	}
-	return entityauth.SessionExpiryConfig{Duration: d}
+	return serviceauth.SessionExpiryConfig{Duration: d}
 }

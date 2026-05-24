@@ -3,76 +3,110 @@ package auth
 import (
 	"context"
 	"errors"
+	"time"
 
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	entityauth "github.com/erniealice/espyna-golang/internal/application/usecases/auth"
+	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
 
-// AuthenticateSessionUseCase adapts the entity-layer
-// usecases/auth.AuthenticateSessionUseCase to the proto-shaped
-// service/auth.AuthenticateSessionRequest/Response surface. It is the
-// service-driven (Q7) wrapper consumed by apps that previously reached for
-// `consumer.AuthenticateSessionRequest` via the auth_aliases.go visibility
-// bridge.
-//
-// Translation flow: the proto-shaped request is rewritten into the
-// entity-layer struct request, the inner use case is invoked, and the
-// resulting Identity is rewritten back into the proto-shaped response.
-//
-// No authcheck.Check call here: this is identity ESTABLISHMENT. Per the
-// invariant on usecases/auth/usecases.go the entity-layer use case also
-// runs before any per-action authorization is possible.
+// AuthenticateSessionRepositories groups proto repositories consulted during
+// authentication. Both are nil-tolerant — Execute fails closed with
+// service_unavailable when Session is nil.
+type AuthenticateSessionRepositories struct {
+	Session sessionpb.SessionDomainServiceServer
+	User    userpb.UserDomainServiceServer
+}
+
+// AuthenticateSessionServices groups application services. No Authorizer —
+// this use case establishes identity; per-action authorization cannot run
+// before it.
+type AuthenticateSessionServices struct {
+	Translator ports.Translator
+}
+
+// AuthenticateSessionUseCase resolves an opaque session token into the
+// authenticated principal, returned as a proto AuthIdentity.
 type AuthenticateSessionUseCase struct {
-	inner    *entityauth.AuthenticateSessionUseCase
-	services Services
+	repositories AuthenticateSessionRepositories
+	services     AuthenticateSessionServices
 }
 
-// NewAuthenticateSessionUseCase wires the wrapper. inner may be nil; in that
-// case Execute returns a translated "service unavailable" error so the
-// caller degrades gracefully.
+// NewAuthenticateSessionUseCase wires the use case from grouped dependencies.
 func NewAuthenticateSessionUseCase(
-	inner *entityauth.AuthenticateSessionUseCase,
-	services Services,
+	repositories AuthenticateSessionRepositories,
+	services AuthenticateSessionServices,
 ) *AuthenticateSessionUseCase {
-	return &AuthenticateSessionUseCase{inner: inner, services: services}
+	return &AuthenticateSessionUseCase{repositories: repositories, services: services}
 }
 
-// Execute validates the proto-shaped session token and returns the
-// authenticated Identity as a proto Response.
+// Execute validates the session token, enforces expiry, and hydrates the
+// identity from the user record. Read-only; never wrapped in a transaction.
 func (uc *AuthenticateSessionUseCase) Execute(
 	ctx context.Context,
 	req *authpb.AuthenticateSessionRequest,
 ) (*authpb.AuthenticateSessionResponse, error) {
-	if req == nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx, uc.services.Translator,
-			"auth.validation.request_required", "Session authentication request is required [DEFAULT]"))
-	}
-	if uc.inner == nil {
+	if uc.repositories.Session == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.Translator,
 			"auth.errors.service_unavailable", "Auth service is not available [DEFAULT]"))
 	}
-
-	resp, err := uc.inner.Execute(ctx, &entityauth.AuthenticateSessionRequest{Token: req.GetToken()})
-	if err != nil {
-		return nil, err
+	if req == nil || req.GetToken() == "" {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.Translator,
+			"auth.errors.missing_token", "Session token is required [DEFAULT]"))
 	}
-	if resp == nil {
+
+	sessResp, err := uc.repositories.Session.ReadSession(ctx, &sessionpb.ReadSessionRequest{
+		Data: &sessionpb.Session{Token: req.GetToken()},
+	})
+	if err != nil || sessResp == nil || len(sessResp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.Translator,
 			"auth.errors.session_invalid", "Invalid or expired session [DEFAULT]"))
 	}
+	sess := sessResp.Data[0]
 
-	return &authpb.AuthenticateSessionResponse{
-		Identity: &authpb.AuthIdentity{
-			UserId:          resp.Identity.UserID,
-			Email:           resp.Identity.Email,
-			WorkspaceUserId: resp.Identity.WorkspaceUserID,
-			WorkspaceId:     resp.Identity.WorkspaceID,
-			Token:           resp.Identity.Token,
-			ExpiresAtUnixMs: resp.Identity.ExpiresAtUnixMs,
-		},
-	}, nil
+	if !sess.Active {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.Translator,
+			"auth.errors.session_inactive", "Session has been invalidated [DEFAULT]"))
+	}
+	if sess.ExpiresAt > 0 && sess.ExpiresAt <= time.Now().UnixMilli() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.Translator,
+			"auth.errors.session_expired", "Session has expired [DEFAULT]"))
+	}
+
+	if uc.repositories.User == nil {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.Translator,
+			"auth.errors.service_unavailable", "Auth service is not available [DEFAULT]"))
+	}
+	userResp, err := uc.repositories.User.ReadUser(ctx, &userpb.ReadUserRequest{
+		Data: &userpb.User{Id: sess.UserId},
+	})
+	if err != nil || userResp == nil || len(userResp.Data) == 0 {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.Translator,
+			"auth.errors.session_user_missing", "Authenticated user not found [DEFAULT]"))
+	}
+	user := userResp.Data[0]
+
+	identity := &authpb.AuthIdentity{
+		UserId:          sess.UserId,
+		Email:           user.EmailAddress,
+		Token:           sess.Token,
+		ExpiresAtUnixMs: sess.ExpiresAt,
+	}
+	if sess.WorkspaceUserId != nil {
+		identity.WorkspaceUserId = *sess.WorkspaceUserId
+	}
+	if sess.WorkspaceId != nil {
+		identity.WorkspaceId = *sess.WorkspaceId
+	}
+
+	return &authpb.AuthenticateSessionResponse{Identity: identity}, nil
 }

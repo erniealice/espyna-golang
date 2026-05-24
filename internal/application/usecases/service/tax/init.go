@@ -24,7 +24,7 @@ import (
 // intentionally left wired to the entity-layer use case for now:
 //
 //  1. Rewired (this migration):
-//     packages/espyna-golang/internal/application/usecases/revenue/revenue/
+//     packages/espyna-golang/internal/application/usecases/domain/revenue/revenue/
 //     recognize_revenue_from_subscription.go — the
 //     RecognizeRevenueFromSubscription post-persist hook now invokes
 //     servicetax.From(serviceUC).ComputeTaxesForRevenue.ExecuteForRevenue
@@ -34,7 +34,7 @@ import (
 //     Q-SDM-TAX explicitly requires migrating.
 //
 //  2. Deferred — RecomputeTaxes (admin direct entity-layer caller).
-//     packages/espyna-golang/internal/application/usecases/revenue/revenue/
+//     packages/espyna-golang/internal/application/usecases/domain/revenue/revenue/
 //     recompute_taxes.go — invoked from admin recompute flows. Stays
 //     wired to the entity-layer ComputeTaxesForRevenue use case via
 //     SetComputeTaxes in internal/composition/core/usecases.go (the
@@ -44,7 +44,7 @@ import (
 //     new contract value while increasing surface area.
 //
 //  3. Deferred — CreateRevenue post-persist hook (dormant).
-//     packages/espyna-golang/internal/application/usecases/revenue/revenue/
+//     packages/espyna-golang/internal/application/usecases/domain/revenue/revenue/
 //     create_revenue.go — the SetComputeTaxes hook on CreateRevenue
 //     is currently dormant (no production flow invokes it; only present
 //     for Phase D wiring symmetry with the recognize path). Stays

@@ -67,7 +67,7 @@ func (r *PostgresDisbursementRepository) CreateDisbursement(ctx context.Context,
 
 	// BURN_DOWN guard moved to the use case layer (Phase 1.C-iv of
 	// 20260518-hexagonal-strict-adherence). See
-	// internal/application/usecases/treasury/disbursement/validate_advance_kind.go.
+	// internal/application/usecases/domain/treasury/disbursement/validate_advance_kind.go.
 
 	jsonData, err := protojson.Marshal(req.Data)
 	if err != nil {
@@ -142,7 +142,7 @@ func (r *PostgresDisbursementRepository) UpdateDisbursement(ctx context.Context,
 
 	// BURN_DOWN guard moved to the use case layer (Phase 1.C-iv of
 	// 20260518-hexagonal-strict-adherence). See
-	// internal/application/usecases/treasury/disbursement/validate_advance_kind.go.
+	// internal/application/usecases/domain/treasury/disbursement/validate_advance_kind.go.
 
 	jsonData, err := protojson.Marshal(req.Data)
 	if err != nil {

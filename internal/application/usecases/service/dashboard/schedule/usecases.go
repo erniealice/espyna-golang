@@ -18,11 +18,11 @@
 // `*<X>.UseCases` as the generic type parameter from app code.
 //
 // **Flat-field absorption:** the existing `event.Dashboard` field at
-// `internal/application/usecases/event/usecases.go:49` (a flat
+// `internal/application/usecases/domain/event/usecases.go` (a flat
 // `*GetScheduleDashboardPageDataUseCase` field on the entity-layer
 // `EventUseCases` aggregator) is REMOVED in the same change that introduces
 // this service-layer wrapper. The entity-layer use case at
-// `usecases/event/dashboard/` is retained as the algorithmic implementation;
+// `usecases/domain/event/dashboard/` is retained as the algorithmic implementation;
 // this service-layer wrapper translates the proto messages to/from that
 // use case (matching the Admin pilot pattern at `service/dashboard/admin/`).
 //

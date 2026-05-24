@@ -9,7 +9,7 @@
 // Wiring: the orchestrator must construct *GetLedgerDashboardPageDataUseCase
 // from the postgres ledger account + journal_entry repositories (which expose
 // the dashboard methods as concrete-type methods). See `packages/espyna-golang/
-// internal/application/usecases/ledger/usecases.go` for the existing
+// internal/application/usecases/domain/ledger/usecases.go` for the existing
 // container pattern.
 //
 // Phase 0i: Execute takes/returns proto types (GetLedgerDashboardRequest /

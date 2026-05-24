@@ -7,7 +7,7 @@
 // layer, not the entity-driven layer.
 //
 // This sub-aggregate formalizes the previously Go-only Request/Response
-// types at packages/espyna-golang/internal/application/usecases/tax/
+// types at packages/espyna-golang/internal/application/usecases/domain/tax/
 // compute_taxes_for_revenue/compute.go:92, :108 as proto messages
 // (proto/v1/service/tax/compute.proto). The entity-layer use case is
 // retained as the algorithmic implementation; the service-layer wrapper

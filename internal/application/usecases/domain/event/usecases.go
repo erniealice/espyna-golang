@@ -193,7 +193,7 @@ func NewEventUseCases(
 	// `internal/application/usecases/service/dashboard/schedule/` and is now
 	// wired through the composition root as a Schedule entity-dashboard dep
 	// on the `service/dashboard.Deps` umbrella. The entity-layer use case at
-	// `internal/application/usecases/event/dashboard/` is retained as the
+	// `internal/application/usecases/domain/event/dashboard/` is retained as the
 	// algorithmic implementation; only the flat-field exposure on this
 	// aggregator is removed.
 

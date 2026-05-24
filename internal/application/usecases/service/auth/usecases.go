@@ -43,14 +43,23 @@ type UseCases struct {
 	AuthenticateSession *AuthenticateSessionUseCase
 	IssueSession        *IssueSessionUseCase
 	InvalidateSession   *InvalidateSessionUseCase
+	SwitchPrincipal     *SwitchPrincipalUseCase
 }
 
 // Repositories groups proto-level domain services needed by auth flows.
-// Either field may be nil; each Execute fails closed with
-// service_unavailable when the repository it requires is nil.
+// Any field may be nil; each Execute fails closed with service_unavailable
+// when the repository it requires is nil.
+//
+// SessionSwitch is the narrow extension interface SwitchPrincipal consumes
+// (the concrete *PostgresSessionRepository at
+// packages/espyna-golang/contrib/postgres/internal/adapter/entity/
+// session_switch_principal.go satisfies it implicitly). Phase 4 (pending) of
+// docs/plan/20260524-principal-switch-typed-stack/ wires this by
+// type-asserting the session repo inside initServiceAuth.
 type Repositories struct {
-	Session sessionpb.SessionDomainServiceServer
-	User    userpb.UserDomainServiceServer
+	Session       sessionpb.SessionDomainServiceServer
+	User          userpb.UserDomainServiceServer
+	SessionSwitch SessionSwitchAdapter
 }
 
 // Services groups infrastructure services. No Authorizer —
@@ -87,6 +96,10 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 				Transactor: services.Transactor,
 				Translator: services.Translator,
 			},
+		),
+		SwitchPrincipal: NewSwitchPrincipalUseCase(
+			SwitchPrincipalRepositories{SessionSwitch: repositories.SessionSwitch},
+			SwitchPrincipalServices{Translator: services.Translator},
 		),
 	}
 }

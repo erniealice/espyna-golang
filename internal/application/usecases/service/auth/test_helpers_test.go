@@ -6,6 +6,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
 
 // keyEchoTranslator returns the translator KEY as the message so tests can
@@ -92,3 +93,24 @@ func (f *fakeUserRepo) ReadUser(_ context.Context, _ *userpb.ReadUserRequest) (*
 }
 
 func stringPtr(s string) *string { return &s }
+
+// fakeSessionSwitchAdapter is a minimal stub for SessionSwitchAdapter that
+// returns a canned response or error and records the last request for
+// assertion. Mirrors the fakeSessionRepo style used by the sibling auth
+// service use case tests.
+type fakeSessionSwitchAdapter struct {
+	resp *authpb.SwitchPrincipalResponse
+	err  error
+
+	lastReq *authpb.SwitchPrincipalRequest
+	calls   int
+}
+
+func (f *fakeSessionSwitchAdapter) SwitchPrincipal(
+	_ context.Context,
+	req *authpb.SwitchPrincipalRequest,
+) (*authpb.SwitchPrincipalResponse, error) {
+	f.calls++
+	f.lastReq = req
+	return f.resp, f.err
+}

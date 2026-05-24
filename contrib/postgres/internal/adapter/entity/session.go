@@ -31,19 +31,42 @@ func init() {
 }
 
 // PostgresSessionRepository implements session CRUD operations using PostgreSQL.
+//
+// In addition to the SessionDomainServiceServer interface (Read/Create/Update/
+// Delete/List), this adapter exposes SwitchPrincipal — the transactional
+// session-rotation primitive that owns the in-tx coordination across the
+// session table, the binding tables (workspace_user / *_portal_grant /
+// delegate / delegate_*), and the audit_trail.audit_entry row insert.
+// SwitchPrincipal was migrated FROM
+// apps/service-admin/internal/composition/principal_switch.go (which violated
+// the no-direct-sql-rule per docs/wiki/articles/no-direct-sql-rule.md §"Never
+// in") INTO this adapter (where direct SQL is the legitimate hexagonal layer).
+// See docs/plan/20260524-principal-switch-typed-stack/ Phase 2.
 type PostgresSessionRepository struct {
 	sessionpb.UnimplementedSessionDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
+	db        *sql.DB
 	tableName string
 }
 
 // NewPostgresSessionRepository creates a new PostgreSQL session repository.
+//
+// The repository captures a direct *sql.DB handle (via the dbOps' GetDB shim)
+// because SwitchPrincipal owns its own transaction lifecycle (BeginTx →
+// lockTargetBinding → session UPDATE/INSERT → audit insert → Commit). The
+// CRUD methods continue to flow through dbOps so they pick up the workspace-
+// id injection and transaction-aware executor behavior.
 func NewPostgresSessionRepository(dbOps interfaces.DatabaseOperation, tableName string) sessionpb.SessionDomainServiceServer {
 	if tableName == "" {
 		tableName = "session"
 	}
+	var db *sql.DB
+	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
+		db = pgOps.GetDB()
+	}
 	return &PostgresSessionRepository{
 		dbOps:     dbOps,
+		db:        db,
 		tableName: tableName,
 	}
 }

@@ -332,9 +332,15 @@ func buildPermissionQuerySQL(
 	bindingID string,
 	actingAsClientID, actingAsSupplierID string,
 ) (string, []any, bool) {
-	// Reserve legacy union for EXACTLY the zero pair. Any other shape
-	// must fail closed (codex A2-P1-1).
-	if bindingKind == principalTypeUnspecified && bindingID == "" {
+	// Reserve legacy union for EXACTLY the zero quadruple. Any other
+	// shape must fail closed (codex A2-P1-1 round 1 + round 2 — round 2
+	// caught that the original tightening still allowed union when
+	// (UNSPECIFIED, "", non-empty acting_as_*, "") because only
+	// bindingKind+bindingID were checked).
+	if bindingKind == principalTypeUnspecified &&
+		bindingID == "" &&
+		actingAsClientID == "" &&
+		actingAsSupplierID == "" {
 		return userRolesUnionCTE + permissionSelect,
 			[]any{userID, workspaceID},
 			true

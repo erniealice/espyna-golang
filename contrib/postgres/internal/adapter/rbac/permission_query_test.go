@@ -388,6 +388,24 @@ func TestBuildPermissionQuerySQL_FailClosedPaths(t *testing.T) {
 			wantOK:      false,
 		},
 		{
+			// Codex A2-P1-1 round 2: a request with kind/id zero but a
+			// non-empty acting_as_client_id is NOT the legacy zero quadruple
+			// — it is a malformed hint. Must fail closed, not union.
+			name:           "zero_kind_id_with_acting_as_client_fails_closed",
+			kind:           principalTypeUnspecified,
+			bindingID:      "",
+			actingAsClient: "client-1",
+			wantOK:         false,
+		},
+		{
+			// Symmetric supplier-side regression for the same round 2 finding.
+			name:        "zero_kind_id_with_acting_as_supplier_fails_closed",
+			kind:        principalTypeUnspecified,
+			bindingID:   "",
+			actingAsSup: "supplier-1",
+			wantOK:      false,
+		},
+		{
 			name:           "client_delegate_with_acting_as_ok",
 			kind:           principalTypeClientDelegate,
 			bindingID:      "delegate-1",

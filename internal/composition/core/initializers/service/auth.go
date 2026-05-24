@@ -31,6 +31,15 @@ func initServiceAuth(
 	if entityRepos != nil {
 		repos.Session = entityRepos.Session
 		repos.User = entityRepos.User
+		// SessionSwitch is a narrow extension interface satisfied only by
+		// concrete backends that implement SwitchPrincipal (Phase 2 postgres
+		// adapter). Under mock-db / non-postgres builds the assertion fails
+		// and SessionSwitch stays nil — the use case's body-entry nil-guard
+		// returns auth.errors.service_unavailable. See
+		// docs/plan/20260524-principal-switch-typed-stack/ §Phase 4.
+		if adapter, ok := entityRepos.Session.(serviceauth.SessionSwitchAdapter); ok {
+			repos.SessionSwitch = adapter
+		}
 	}
 	services := serviceauth.Services{
 		Transactor:    txSvc,

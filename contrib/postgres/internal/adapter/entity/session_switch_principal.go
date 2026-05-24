@@ -332,7 +332,7 @@ func (r *PostgresSessionRepository) SwitchPrincipal(
 	// can backfill columns by re-parsing existing rows.
 	reason := fmt.Sprintf(
 		"principal_type:%s→%s acting_as_client:%s→%s acting_as_supplier:%s→%s rotated:%t",
-		coalesceInt32PrincipalTypeString(curPrincipalType), tgt.GetType().String(),
+		coalesceInt32PrincipalTypeString(curPrincipalType), principalTypeAuditLabel(tgt.GetType()),
 		coalesceSwitchNullString(curActingAsClientID), newActingAsClientID,
 		coalesceSwitchNullString(curActingAsSupplierID), newActingAsSupplierID,
 		shouldRotate,
@@ -720,13 +720,39 @@ func hexDigit(n byte) byte {
 }
 
 // coalesceInt32PrincipalTypeString renders the prior principal_type column
-// value into the human-readable enum string for the audit reason text.
+// value into the human-readable label for the audit reason text.
 // Returns "unset" when the column was NULL (login-bootstrap path).
 func coalesceInt32PrincipalTypeString(v sql.NullInt32) string {
 	if !v.Valid {
 		return "unset"
 	}
-	return principaltypepb.PrincipalType(v.Int32).String()
+	return principalTypeAuditLabel(principaltypepb.PrincipalType(v.Int32))
+}
+
+// principalTypeAuditLabel maps a proto PrincipalType to the lowercase audit
+// label the pre-refactor primitive emitted via adapthttp.PrincipalType.String()
+// (apps/service-admin/internal/infrastructure/input/http/principal_loader.go).
+// The audit reason text is machine-parsed by forensic tooling that expects
+// these stable lowercase labels (e.g. "client_delegate"), NOT the proto enum's
+// String() form ("PRINCIPAL_TYPE_CLIENT_DELEGATE"). Codex round 1 P1: keeping
+// this in sync preserves audit-row content across the composition→adapter move.
+func principalTypeAuditLabel(pt principaltypepb.PrincipalType) string {
+	switch pt {
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_OPERATOR_OWNER:
+		return "operator_owner"
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_OPERATOR_STAFF:
+		return "operator_staff"
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT:
+		return "client"
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE:
+		return "client_delegate"
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER:
+		return "supplier"
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER_DELEGATE:
+		return "supplier_delegate"
+	default:
+		return "unspecified"
+	}
 }
 
 // coalesceSwitchNullString renders a NullString column into "-" when NULL

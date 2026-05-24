@@ -3,6 +3,7 @@
 package entity
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -210,6 +211,52 @@ func TestSwitchUseCaseAuditLabel(t *testing.T) {
 				t.Errorf("switchUseCaseAuditLabel(%v) = %q, want %q", tc.uc, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestPrincipalTypeAuditLabel pins the audit-reason principal_type labels to
+// the lowercase form the pre-refactor primitive emitted (codex round 1 P1
+// regression: the migrated adapter briefly used the proto enum's String()
+// form "PRINCIPAL_TYPE_CLIENT" instead of "client"). Forensic tooling parses
+// these labels, so the mapping must stay byte-identical to
+// adapthttp.PrincipalType.String() at
+// apps/service-admin/internal/infrastructure/input/http/principal_loader.go.
+func TestPrincipalTypeAuditLabel(t *testing.T) {
+	cases := []struct {
+		pt   principaltypepb.PrincipalType
+		want string
+	}{
+		{principaltypepb.PrincipalType_PRINCIPAL_TYPE_OPERATOR_OWNER, "operator_owner"},
+		{principaltypepb.PrincipalType_PRINCIPAL_TYPE_OPERATOR_STAFF, "operator_staff"},
+		{principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT, "client"},
+		{principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE, "client_delegate"},
+		{principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER, "supplier"},
+		{principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER_DELEGATE, "supplier_delegate"},
+		{principaltypepb.PrincipalType_PRINCIPAL_TYPE_UNSPECIFIED, "unspecified"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.pt.String(), func(t *testing.T) {
+			if got := principalTypeAuditLabel(tc.pt); got != tc.want {
+				t.Errorf("principalTypeAuditLabel(%v) = %q, want %q", tc.pt, got, tc.want)
+			}
+			// Guard against re-regression: the label must NOT be the proto
+			// enum String() form.
+			if got := principalTypeAuditLabel(tc.pt); strings.HasPrefix(got, "PRINCIPAL_TYPE_") {
+				t.Errorf("principalTypeAuditLabel(%v) leaked proto enum name %q", tc.pt, got)
+			}
+		})
+	}
+}
+
+// TestCoalesceInt32PrincipalTypeString pins the prior-principal_type renderer
+// used in the audit reason: NULL → "unset", else the lowercase audit label.
+func TestCoalesceInt32PrincipalTypeString(t *testing.T) {
+	if got := coalesceInt32PrincipalTypeString(sql.NullInt32{}); got != "unset" {
+		t.Errorf("coalesceInt32PrincipalTypeString(NULL) = %q, want %q", got, "unset")
+	}
+	valid := sql.NullInt32{Int32: int32(principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE), Valid: true}
+	if got := coalesceInt32PrincipalTypeString(valid); got != "client_delegate" {
+		t.Errorf("coalesceInt32PrincipalTypeString(CLIENT_DELEGATE) = %q, want %q", got, "client_delegate")
 	}
 }
 

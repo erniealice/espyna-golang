@@ -13,14 +13,17 @@
 // it consumes the proto repositories (`sessionpb.SessionDomainServiceServer`,
 // `userpb.UserDomainServiceServer`) without a Go-struct intermediate layer.
 //
-// Invariant: every file in this package must either establish identity
+// Invariant: every file in this package either establishes identity
 // (authenticate_session, issue_session — future: login, register,
-// request_password_reset, execute_password_reset) or terminate an
-// established session (invalidate_session — future: rotate_session). This
-// is why the authcheck coverage test skips this directory — these use
-// cases run BEFORE authorization can be applied or AFTER it has been
-// revoked. Authenticated business operations that are merely auth-adjacent
-// (e.g. "admin revokes another user's sessions") belong in
+// request_password_reset, execute_password_reset), terminates an
+// established session (invalidate_session), or mutates the principal binding
+// on an already-authenticated session (switch_principal — runs post-auth,
+// pre-action-authz; rotates the session token on a workspace boundary per
+// Q-WS-13). This is why the authcheck coverage test skips this directory —
+// these use cases run BEFORE authorization can be applied, AFTER it has been
+// revoked, or AT the boundary where the RBAC scope itself changes.
+// Authenticated business operations that are merely auth-adjacent (e.g.
+// "admin revokes another user's sessions") belong in
 // usecases/domain/entity/session/ with authcheck wired in.
 package auth
 

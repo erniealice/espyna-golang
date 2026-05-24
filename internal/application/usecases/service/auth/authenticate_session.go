@@ -14,7 +14,8 @@ import (
 
 // AuthenticateSessionRepositories groups proto repositories consulted during
 // authentication. Both are nil-tolerant — Execute fails closed with
-// service_unavailable when Session is nil.
+// service_unavailable when either Session or User is nil (combined body-entry
+// guard, codex auth-collapse R1 P1-1).
 type AuthenticateSessionRepositories struct {
 	Session sessionpb.SessionDomainServiceServer
 	User    userpb.UserDomainServiceServer

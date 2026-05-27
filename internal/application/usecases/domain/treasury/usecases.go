@@ -2,7 +2,9 @@ package treasury
 
 import (
 	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection"
+	collectionMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method"
 	disbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement"
+	disbursementMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_method"
 	disbursementscheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_schedule"
 	pettyCashUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/petty_cash"
 	securityDepositUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/security_deposit"
@@ -12,7 +14,9 @@ import (
 
 	// Protobuf domain services for treasury repositories
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
+	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
+	disbursementmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_method"
 	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
@@ -40,6 +44,10 @@ type TreasuryRepositories struct {
 	Collection           collectionpb.CollectionDomainServiceServer
 	Disbursement         disbursementpb.DisbursementDomainServiceServer
 	DisbursementSchedule disbursementschedulepb.DisbursementScheduleDomainServiceServer
+
+	// Treasury-domain-rebuild Stage 1 — method management templates.
+	CollectionMethod   collectionmethodpb.CollectionMethodDomainServiceServer
+	DisbursementMethod disbursementmethodpb.DisbursementMethodDomainServiceServer
 
 	// Loans & Petty Cash repositories
 	Loan                   loanpb.LoanDomainServiceServer
@@ -75,7 +83,9 @@ type TreasuryRepositories struct {
 // side ListAdvancesForDashboard use cases (F5).
 type TreasuryUseCases struct {
 	Collection             *collectionUseCases.UseCases
+	CollectionMethod       *collectionMethodUseCases.UseCases
 	Disbursement           *disbursementUseCases.UseCases
+	DisbursementMethod     *disbursementMethodUseCases.UseCases
 	DisbursementSchedule   *disbursementscheduleUseCases.UseCases
 	SecurityDeposit        *securityDepositUseCases.UseCases
 	PettyCash              *pettyCashUseCases.UseCases
@@ -114,6 +124,33 @@ func NewUseCases(
 			Disbursement: repos.Disbursement,
 		},
 		disbursementUseCases.DisbursementServices{
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
+		},
+	)
+
+	// Treasury-domain-rebuild Stage 1 — method management templates. Nil-safe:
+	// the use cases are constructed unconditionally (their internal repository
+	// guards handle a nil repo), so the view-closure wiring always resolves.
+	collectionMethodUC := collectionMethodUseCases.NewUseCases(
+		collectionMethodUseCases.CollectionMethodRepositories{
+			CollectionMethod: repos.CollectionMethod,
+		},
+		collectionMethodUseCases.CollectionMethodServices{
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
+		},
+	)
+
+	disbursementMethodUC := disbursementMethodUseCases.NewUseCases(
+		disbursementMethodUseCases.DisbursementMethodRepositories{
+			DisbursementMethod: repos.DisbursementMethod,
+		},
+		disbursementMethodUseCases.DisbursementMethodServices{
 			Authorizer:  authSvc,
 			Transactor:  txSvc,
 			Translator:  i18nSvc,
@@ -351,7 +388,9 @@ func NewUseCases(
 
 	return &TreasuryUseCases{
 		Collection:             collectionUC,
+		CollectionMethod:       collectionMethodUC,
 		Disbursement:           disbursementUC,
+		DisbursementMethod:     disbursementMethodUC,
 		DisbursementSchedule:   disbursementScheduleUC,
 		SecurityDeposit:        securityDepositUC,
 		PettyCash:              pettyCashUC,

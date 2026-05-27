@@ -9,7 +9,9 @@ import (
 
 	// Protobuf domain services - Treasury domain
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
+	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
+	disbursementmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_method"
 	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
@@ -40,6 +42,10 @@ type TreasuryRepositories struct {
 	Collection           collectionpb.CollectionDomainServiceServer
 	Disbursement         disbursementpb.DisbursementDomainServiceServer
 	DisbursementSchedule disbursementschedulepb.DisbursementScheduleDomainServiceServer
+
+	// Treasury-domain-rebuild Stage 1 — method management templates.
+	CollectionMethod   collectionmethodpb.CollectionMethodDomainServiceServer
+	DisbursementMethod disbursementmethodpb.DisbursementMethodDomainServiceServer
 
 	// Loans & Petty Cash repositories
 	Loan                   loanpb.LoanDomainServiceServer
@@ -101,6 +107,14 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 	}
 	if r := tryCreate(entityid.DisbursementSchedule); r != nil {
 		repos.DisbursementSchedule = r.(disbursementschedulepb.DisbursementScheduleDomainServiceServer)
+	}
+
+	// Treasury-domain-rebuild Stage 1 — method management templates.
+	if r := tryCreate(entityid.CollectionMethod); r != nil {
+		repos.CollectionMethod = r.(collectionmethodpb.CollectionMethodDomainServiceServer)
+	}
+	if r := tryCreate(entityid.DisbursementMethod); r != nil {
+		repos.DisbursementMethod = r.(disbursementmethodpb.DisbursementMethodDomainServiceServer)
 	}
 
 	// Loans & Petty Cash repositories

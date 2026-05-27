@@ -188,6 +188,12 @@ const (
 	// SUM(tranche_amount) <= advance.amount is application-layer-enforced.
 	CollectionBillingEvent           = "collection_billing_event"
 	DisbursementSupplierBillingEvent = "disbursement_supplier_billing_event"
+	// Treasury-domain-rebuild Stage 1 (20260524) — template-level method
+	// management entities. CollectionMethod / DisbursementMethod proto +
+	// generated code shipped in W1/W2; these constants register the entity
+	// IDs so the postgres factory + provider can create the repositories.
+	CollectionMethod   = "collection_method"
+	DisbursementMethod = "disbursement_method"
 )
 
 // Ledger / Document domain
@@ -399,6 +405,8 @@ var TreasuryEntities = []string{
 	// Advance-cash-events (20260517) — MILESTONE junction tables
 	CollectionBillingEvent,
 	DisbursementSupplierBillingEvent,
+	// Treasury-domain-rebuild Stage 1 (20260524) — method management templates
+	CollectionMethod, DisbursementMethod,
 }
 
 // LedgerDocumentEntities lists all entity IDs in the Ledger / Document domain.

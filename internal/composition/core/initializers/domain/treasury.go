@@ -21,6 +21,10 @@ func InitializeTreasury(
 			Disbursement:         repos.Disbursement,
 			DisbursementSchedule: repos.DisbursementSchedule,
 
+			// Treasury-domain-rebuild Stage 1 — method management templates.
+			CollectionMethod:   repos.CollectionMethod,
+			DisbursementMethod: repos.DisbursementMethod,
+
 			// Loans & Petty Cash repositories
 			Loan:                   repos.Loan,
 			LoanPayment:            repos.LoanPayment,

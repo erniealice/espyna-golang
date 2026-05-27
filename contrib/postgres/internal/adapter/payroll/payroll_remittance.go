@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -223,6 +224,14 @@ func (r *PostgresPayrollRemittanceRepository) ListPayrollRemittances(ctx context
 	}, nil
 }
 
+// payrollRemittanceSortableSQLCols is the A2 sort whitelist for payroll_remittance list pages.
+var payrollRemittanceSortableSQLCols = []string{
+	"rem.id", "rem.date_created",
+	"rem.payroll_run_id", "rem.remittance_type",
+	"rem.amount", "rem.due_date", "rem.status",
+	"rem.filed_at", "rem.paid_at", "rem.reference_number",
+}
+
 // GetPayrollRemittanceListPageData retrieves payroll remittances with pagination, filtering, sorting, and search using CTE
 // Joins with payroll_run for period context
 func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
@@ -232,6 +241,9 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get payroll remittance list page data request is required")
 	}
+
+	// A1: workspace predicate — scoped via payroll_run join.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -253,47 +265,40 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 		}
 	}
 
-	sortField := "rem.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist.
+	orderByClause, err := postgresCore.BuildOrderBy(payrollRemittanceSortableSQLCols, req.GetSort(), "rem.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `
-		WITH enriched AS (
-			SELECT
-				rem.id,
-				rem.date_created,
-				rem.payroll_run_id,
-				rem.remittance_type,
-				rem.amount,
-				rem.due_date,
-				rem.due_date_string,
-				rem.status,
-				rem.filed_at,
-				rem.filed_at_string,
-				rem.paid_at,
-				rem.paid_at_string,
-				rem.reference_number
-			FROM payroll_remittance rem
-			WHERE ($1::text IS NULL OR $1::text = '' OR
-			       rem.reference_number ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
-		)
+	// A1: workspace predicate is strict via the payroll_run join — empty workspaceID
+	// returns zero rows rather than bypassing the tenant guard.
+	// A3: COUNT(*) OVER() replaces the separate counted CTE — one pass, same result.
+	query := fmt.Sprintf(`
 		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
-	`
+			rem.id,
+			rem.date_created,
+			rem.payroll_run_id,
+			rem.remittance_type,
+			rem.amount,
+			rem.due_date,
+			rem.due_date_string,
+			rem.status,
+			rem.filed_at,
+			rem.filed_at_string,
+			rem.paid_at,
+			rem.paid_at_string,
+			rem.reference_number,
+			COUNT(*) OVER() AS total
+		FROM payroll_remittance rem
+		LEFT JOIN payroll_run pr ON pr.id = rem.payroll_run_id
+		WHERE pr.workspace_id = $1
+		  AND ($2::text IS NULL OR $2::text = '' OR rem.reference_number ILIKE $2)
+		%s
+		LIMIT $3 OFFSET $4;
+	`, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query payroll remittance list page data: %w", err)
 	}

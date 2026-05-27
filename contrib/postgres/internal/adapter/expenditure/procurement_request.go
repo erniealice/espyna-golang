@@ -206,13 +206,12 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 		}
 	}
 
-	sortField := "pr.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy([]string{
+		"date_created", "date_modified", "request_number", "status",
+		"estimated_total_amount", "needed_by_date", "supplier_name",
+	}, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -247,7 +246,7 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 		counted AS (SELECT COUNT(*) AS total FROM enriched)
 		SELECT e.*, c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		ORDER BY ` + orderBy + `
 		LIMIT $3 OFFSET $4;
 	`
 
@@ -580,57 +579,30 @@ func (r *PostgresProcurementRequestRepository) SpawnPurchaseOrder(ctx context.Co
 		return nil, fmt.Errorf("failed to insert purchase_order in SpawnPurchaseOrder: %w", err)
 	}
 
-	// Copy procurement request lines as PO line items.
-	lineRows, err := tx.QueryContext(ctx,
-		`SELECT id, description, quantity, estimated_unit_price, estimated_total_price, line_number,
-		        expenditure_category_id, location_id
-		 FROM procurement_request_line
-		 WHERE procurement_request_id = $1 AND active = true
-		 ORDER BY line_number`,
-		prID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query procurement_request_lines for spawn: %w", err)
-	}
-	defer lineRows.Close()
+	// Copy procurement request lines as PO line items in a single set-based
+	// INSERT ... SELECT (A7 — replaces the prior per-line INSERT loop + per-line
+	// uuid_generate_v4() round-trip). The DB generates each PO line ID via
+	// uuid_generate_v4() (same convention as the PO header above); the source
+	// WHERE/ORDER BY predicates are preserved verbatim so row selection is
+	// identical to the previous loop. Workspace scoping flows through the
+	// already-tenant-validated procurement_request_id ($2) — neither
+	// procurement_request_line nor purchase_order_line_item carries a
+	// workspace_id column of its own.
+	insertLinesSQL := `
+		INSERT INTO purchase_order_line_item
+			(id, purchase_order_id, description, quantity, unit_price, total_amount, line_number,
+			 expenditure_category_id, location_id, procurement_request_line_id,
+			 date_created, date_modified, active)
+		SELECT uuid_generate_v4()::text, $1, prl.description, prl.quantity,
+		       prl.estimated_unit_price, prl.estimated_total_price, prl.line_number,
+		       prl.expenditure_category_id, prl.location_id, prl.id,
+		       NOW(), NOW(), true
+		FROM procurement_request_line prl
+		WHERE prl.procurement_request_id = $2 AND prl.active = true
+		ORDER BY prl.line_number`
 
-	for lineRows.Next() {
-		var (
-			prlID           string
-			description     string
-			quantity        float64
-			estimatedUnitP  int64
-			estimatedTotalP int64
-			lineNum         int32
-			expCategoryID   *string
-			lineLocationID  *string
-		)
-		if err = lineRows.Scan(&prlID, &description, &quantity, &estimatedUnitP, &estimatedTotalP,
-			&lineNum, &expCategoryID, &lineLocationID); err != nil {
-			return nil, fmt.Errorf("failed to scan procurement_request_line for spawn: %w", err)
-		}
-
-		var poLineID string
-		if err = tx.QueryRowContext(ctx, `SELECT uuid_generate_v4()::text`).Scan(&poLineID); err != nil {
-			poLineID = fmt.Sprintf("pol-%d-%d", time.Now().UnixNano(), lineNum)
-		}
-
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO purchase_order_line_item
-			 (id, purchase_order_id, description, quantity, unit_price, total_amount, line_number,
-			  expenditure_category_id, location_id, procurement_request_line_id,
-			  date_created, date_modified, active)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW(), true)`,
-			poLineID, poID, description, quantity,
-			estimatedUnitP, estimatedTotalP, lineNum,
-			expCategoryID, lineLocationID, prlID,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to insert purchase_order_line_item in SpawnPurchaseOrder: %w", err)
-		}
-	}
-	if err = lineRows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating procurement_request_lines: %w", err)
+	if _, err = postgresCore.BulkInsertFromSelect(ctx, tx, insertLinesSQL, []any{poID, prID}); err != nil {
+		return nil, fmt.Errorf("failed to bulk-insert purchase_order_line_items in SpawnPurchaseOrder: %w", err)
 	}
 
 	// Update the procurement request: record the spawned PO ID.

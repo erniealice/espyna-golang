@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -221,6 +222,14 @@ func (r *PostgresPayrollRunRepository) ListPayrollRuns(ctx context.Context, req 
 	}, nil
 }
 
+// payrollRunSortableSQLCols is the A2 sort whitelist for payroll_run list pages.
+var payrollRunSortableSQLCols = []string{
+	"pr.id", "pr.date_created", "pr.date_modified",
+	"pr.run_number", "pr.pay_period_start", "pr.pay_period_end",
+	"pr.total_gross", "pr.total_deductions", "pr.total_net",
+	"pr.employee_count", "pr.status", "pr.posted_at",
+}
+
 // GetPayrollRunListPageData retrieves payroll runs with pagination, filtering, sorting, and search using CTE
 // TODO: Implement enriched joins (e.g., approved_by user display name)
 func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
@@ -230,6 +239,9 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get payroll run list page data request is required")
 	}
+
+	// A1: workspace predicate — required for multi-tenancy.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -251,48 +263,40 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 		}
 	}
 
-	sortField := "pr.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist.
+	orderByClause, err := postgresCore.BuildOrderBy(payrollRunSortableSQLCols, req.GetSort(), "pr.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
+	// A1: workspace predicate is strict — empty workspaceID returns zero rows rather
+	// than bypassing the tenant guard.
+	// A3: COUNT(*) OVER() replaces the separate counted CTE — one pass, same result.
 	query := fmt.Sprintf(`
-		WITH enriched AS (
-			SELECT
-				pr.id,
-				pr.date_created,
-				pr.date_modified,
-				pr.run_number,
-				pr.pay_period_start,
-				pr.pay_period_end,
-				pr.total_gross,
-				pr.total_deductions,
-				pr.total_net,
-				pr.employee_count,
-				pr.status,
-				pr.approved_by,
-				pr.posted_at,
-				pr.posted_at_string
-			FROM %s pr
-			WHERE ($1::text IS NULL OR $1::text = '' OR
-			       pr.run_number ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
-		)
 		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY %s %s
-		LIMIT $2 OFFSET $3;
-	`, r.tableName, sortField, sortOrder)
+			pr.id,
+			pr.date_created,
+			pr.date_modified,
+			pr.run_number,
+			pr.pay_period_start,
+			pr.pay_period_end,
+			pr.total_gross,
+			pr.total_deductions,
+			pr.total_net,
+			pr.employee_count,
+			pr.status,
+			pr.approved_by,
+			pr.posted_at,
+			pr.posted_at_string,
+			COUNT(*) OVER() AS total
+		FROM %s pr
+		WHERE pr.workspace_id = $1
+		  AND ($2::text IS NULL OR $2::text = '' OR pr.run_number ILIKE $2)
+		%s
+		LIMIT $3 OFFSET $4;
+	`, r.tableName, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query payroll run list page data: %w", err)
 	}

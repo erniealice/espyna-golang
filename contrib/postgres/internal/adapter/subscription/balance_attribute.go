@@ -13,10 +13,21 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// balanceAttributeSortableSQLCols is the sort-column whitelist that
+// core.BuildOrderBy validates GetBalanceAttributeListPageData requests against
+// (A2 fail-closed guard, replacing the prior `ORDER BY ` + sortField
+// interpolation). These match the columns projected by the enriched CTE.
+var balanceAttributeSortableSQLCols = []string{
+	"value",
+	"date_created",
+	"date_modified",
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.BalanceAttribute, func(conn any, tableName string) (any, error) {
@@ -218,16 +229,24 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeListPageData(ctx
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of interpolating it raw.
+	// A10: COUNT(*) OVER () replaces the prior counted-CTE + cross join.
+	orderBy, err := postgresCore.BuildOrderBy(balanceAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for balance attribute list: %w", err)
 	}
 
-	query := `WITH enriched AS (SELECT id, balance_id, attribute_id, value, active, date_created, date_modified FROM balance_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// A1: balance_attribute has no workspace_id column of its own (verified
+	// against the baseline schema), and its only FK (balance) also lacks one —
+	// tenancy chains two hops: balance_attribute.balance_id → balance.id →
+	// balance.subscription_id → subscription.workspace_id. The predicate scopes on
+	// the joined subscription's workspace_id. The explicit ba.* column list keeps
+	// the enriched projection (and therefore the scan order) unchanged. Empty wsID
+	// = service-to-service call → no scoping.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `WITH enriched AS (SELECT ba.id, ba.balance_id, ba.attribute_id, ba.value, ba.active, ba.date_created, ba.date_modified FROM balance_attribute ba LEFT JOIN balance b ON ba.balance_id = b.id LEFT JOIN subscription s ON b.subscription_id = s.id WHERE ba.active = true AND ($4::text = '' OR s.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR ba.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

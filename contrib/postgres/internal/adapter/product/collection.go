@@ -331,7 +331,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 				sf.description,
 				sf.active,
 				sf.date_created,
-				sf.date_modified
+				sf.date_modified,
 				COALESCE(cpa.collection_plans, ARRAY[]::jsonb[]) as collection_plans,
 				cppa.collection_parent
 			FROM search_filtered sf
@@ -562,7 +562,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 			c.description,
 			c.active,
 			c.date_created,
-			c.date_modified
+			c.date_modified,
 			COALESCE(cpa.collection_plans, ARRAY[]::jsonb[]) as collection_plans,
 			cppa.collection_parent
 		FROM collection c

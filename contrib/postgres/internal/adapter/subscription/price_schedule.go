@@ -14,7 +14,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -297,16 +297,18 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of interpolating it raw.
+	orderBy, err := postgresCore.BuildOrderBy(priceScheduleSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for price schedule list: %w", err)
 	}
 
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// A1: price_schedule has its own workspace_id column (verified against the
+	// baseline schema), so scope directly. Empty wsID = service-to-service call.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE active = true AND ($4::text = '' OR workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -413,17 +415,25 @@ func (r *PostgresPriceScheduleRepository) FindApplicablePriceSchedule(ctx contex
 		return nil, fmt.Errorf("invalid date: %w", err)
 	}
 
+	// A1: scope to the caller's workspace. price_schedule carries its own
+	// workspace_id (verified against the baseline schema), so scope directly. This
+	// matters here because the lookup keys on location_id, which is not unique
+	// across tenants — without the predicate a caller could resolve another
+	// tenant's price schedule for the same location. Empty wsID = service-to-
+	// service call → no scoping.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	query := `
 		SELECT id, name, description, active, date_time_start, date_time_end, location_id, date_created, date_modified
 		FROM price_schedule
 		WHERE active = true
+		  AND ($3::text = '' OR workspace_id = $3::text)
 		  AND location_id = $1
 		  AND date_time_start <= $2
 		  AND (date_time_end >= $2 OR date_time_end IS NULL)
 		ORDER BY date_time_start DESC
 		LIMIT 1`
 
-	row := r.db.QueryRowContext(ctx, query, req.LocationId, reqTime)
+	row := r.db.QueryRowContext(ctx, query, req.LocationId, reqTime, wsID)
 
 	var id, name string
 	var description, locationId sql.NullString

@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"slices"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
@@ -24,23 +24,13 @@ import (
 )
 
 // jobSortableSQLCols lists the SQL column names that are safe to sort by in
-// GetJobListPageData. The query uses direct ORDER BY interpolation so this guard
-// is critical — an unrecognised column is a potential SQL-injection vector and
-// must be rejected loudly before query execution.
+// GetJobListPageData. Routed through core.BuildOrderBy (A2 guard) — an
+// unrecognised column is rejected loudly before query execution.
 var jobSortableSQLCols = []string{
 	"j.date_created",
 	"j.date_modified",
 	"j.name",
 	"j.status",
-}
-
-// jobViewToSQLColMap translates view-facing sort column keys to the SQL column
-// names used in the query. Columns absent from the map pass through unchanged.
-var jobViewToSQLColMap = map[string]string{
-	"date_created":  "j.date_created",
-	"date_modified": "j.date_modified",
-	"name":          "j.name",
-	"status":        "j.status",
 }
 
 func init() {
@@ -253,6 +243,9 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		return nil, fmt.Errorf("get job list page data request is required")
 	}
 
+	// A1: Extract workspace_id from context — required for multi-tenancy.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
 		searchPattern = "%" + req.Search.Query + "%"
@@ -273,28 +266,13 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		}
 	}
 
-	sortField := "j.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist.
+	orderByClause, err := postgresCore.BuildOrderBy(jobSortableSQLCols, req.GetSort(), "j.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	// Translate view-facing column key to SQL column name via ColMap.
-	if mapped, ok := jobViewToSQLColMap[sortField]; ok {
-		sortField = mapped
-	}
-
-	// Loud-failure guard: reject any sort column not in the allowlist. This query
-	// uses direct ORDER BY interpolation, so an unrecognised value is a potential
-	// SQL-injection vector and must be rejected loudly before query execution.
-	if sortField != "" && !slices.Contains(jobSortableSQLCols, sortField) {
-		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "job", jobSortableSQLCols)
-	}
-
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				j.id,
@@ -321,8 +299,9 @@ func (r *PostgresJobRepository) GetJobListPageData(
 				j.cycle_period_end
 			FROM job j
 			WHERE j.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       j.name ILIKE $1)
+			  AND ($1 = '' OR j.workspace_id = $1)
+			  AND ($2::text IS NULL OR $2::text = '' OR
+			       j.name ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -331,11 +310,11 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
-	`
+		%s
+		LIMIT $3 OFFSET $4;
+	`, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job list page data: %w", err)
 	}

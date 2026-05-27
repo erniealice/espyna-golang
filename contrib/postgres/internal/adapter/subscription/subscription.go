@@ -422,45 +422,39 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
 			LEFT JOIN price_plan pp ON sf.price_plan_id = pp.id AND pp.active = true
 			LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = true
-		),
-
-		-- CTE 3: Apply sorting
-		sorted AS (
-			SELECT * FROM enriched
-			ORDER BY
-				CASE WHEN $4 = 'name' AND $5 = 'ASC' THEN name END ASC,
-				CASE WHEN $4 = 'name' AND $5 = 'DESC' THEN name END DESC,
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $4 = 'date_time_start' AND $5 = 'ASC' THEN date_time_start END ASC,
-				CASE WHEN $4 = 'date_time_start' AND $5 = 'DESC' THEN date_time_start END DESC,
-				CASE WHEN $4 = 'date_time_end' AND $5 = 'ASC' THEN date_time_end END ASC,
-				CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN date_time_end END DESC,
-				CASE WHEN $4 = 'client_name' AND $5 = 'ASC' THEN client_name END ASC,
-				CASE WHEN $4 = 'client_name' AND $5 = 'DESC' THEN client_name END DESC
-		),
-
-		-- CTE 4: Calculate total count for pagination
-		total_count AS (
-			SELECT count(*) as total FROM sorted
 		)
 
-		-- Final SELECT with pagination
+		-- Final SELECT with sorting, window count, and pagination.
+		-- A10: COUNT(*) OVER () replaces the prior total-count CTE + CROSS JOIN,
+		-- computed over the full enriched set before LIMIT/OFFSET. The parameterized
+		-- CASE WHEN sort (guarded above by subscriptionSortableSQLCols) moves into
+		-- this SELECT (over enriched, which still projects client_name) so the
+		-- window count spans every filtered row.
 		SELECT
-			s.id,
-			s.name,
-			s.client_id,
-			s.price_plan_id,
-			s.date_time_start,
-			s.date_time_end,
-			s.active,
-			s.date_created,
-			s.date_modified,
-			s.client,
-			s.price_plan,
-			tc.total as _total_count
-		FROM sorted s
-		CROSS JOIN total_count tc
+			e.id,
+			e.name,
+			e.client_id,
+			e.price_plan_id,
+			e.date_time_start,
+			e.date_time_end,
+			e.active,
+			e.date_created,
+			e.date_modified,
+			e.client,
+			e.price_plan,
+			COUNT(*) OVER () as _total_count
+		FROM enriched e
+		ORDER BY
+			CASE WHEN $4 = 'name' AND $5 = 'ASC' THEN e.name END ASC,
+			CASE WHEN $4 = 'name' AND $5 = 'DESC' THEN e.name END DESC,
+			CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN e.date_created END DESC,
+			CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN e.date_created END ASC,
+			CASE WHEN $4 = 'date_time_start' AND $5 = 'ASC' THEN e.date_time_start END ASC,
+			CASE WHEN $4 = 'date_time_start' AND $5 = 'DESC' THEN e.date_time_start END DESC,
+			CASE WHEN $4 = 'date_time_end' AND $5 = 'ASC' THEN e.date_time_end END ASC,
+			CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN e.date_time_end END DESC,
+			CASE WHEN $4 = 'client_name' AND $5 = 'ASC' THEN e.client_name END ASC,
+			CASE WHEN $4 = 'client_name' AND $5 = 'DESC' THEN e.client_name END DESC
 		LIMIT $2 OFFSET $3
 	`
 

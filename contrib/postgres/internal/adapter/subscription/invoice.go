@@ -12,6 +12,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -20,6 +21,16 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// invoiceSortableSQLCols is the sort-column whitelist that core.BuildOrderBy
+// validates GetInvoiceListPageData requests against (A2 fail-closed guard,
+// replacing the prior switch + `ORDER BY %s` interpolation). These are columns
+// projected by the filtered_data CTE.
+var invoiceSortableSQLCols = []string{
+	"invoice_number",
+	"amount",
+	"date_created",
+}
 
 // PostgresInvoiceRepository implements invoice CRUD operations using PostgreSQL
 type PostgresInvoiceRepository struct {
@@ -268,9 +279,18 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 			WHERE i.active = true
 	`
 
-	// Build WHERE conditions for filters
+	// A1 (CRITICAL): scope to the caller's workspace. This method bypasses the
+	// WorkspaceAwareOperations decorator (raw SQL via db.GetDB()). The invoice
+	// table has no workspace_id column of its own (verified against the baseline
+	// schema) — tenancy is inherited through its subscription FK, so the predicate
+	// scopes on the joined subscription's workspace_id (s is LEFT JOINed above).
+	// Empty wsID = service-to-service call → no scoping. $1 is reserved for it.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	var args []interface{}
 	argCounter := 1
+	query += fmt.Sprintf(" AND ($%d::text = '' OR s.workspace_id = $%d::text)", argCounter, argCounter)
+	args = append(args, wsID)
+	argCounter++
 
 	// Filter by invoice_number (exact match)
 	if req.Filters != nil && len(req.Filters.Filters) > 0 {
@@ -321,27 +341,14 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 		SELECT * FROM filtered_data
 	`
 
-	// Add sorting
-	orderBy := "date_created DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField := req.Sort.Fields[0].Field
-		direction := "ASC"
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			direction = "DESC"
-		}
-		// Map protobuf field names to database column names
-		switch sortField {
-		case "invoice_number":
-			orderBy = fmt.Sprintf("invoice_number %s", direction)
-		case "amount":
-			orderBy = fmt.Sprintf("amount %s", direction)
-		case "date_created":
-			orderBy = fmt.Sprintf("date_created %s", direction)
-		default:
-			orderBy = fmt.Sprintf("date_created %s", direction)
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of the prior switch + `ORDER BY %s`. Columns are
+	// validated against invoiceSortableSQLCols and safely quoted.
+	orderBy, err := postgresCore.BuildOrderBy(invoiceSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for invoice list: %w", err)
 	}
-	query += fmt.Sprintf(" ORDER BY %s", orderBy)
+	query += " " + orderBy
 
 	// Add pagination
 	limit := int32(20) // default
@@ -545,13 +552,21 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("error iterating invoice rows: %w", err)
 	}
 
-	// Get total count for pagination
+	// Get total count for pagination.
+	// Joins subscription so the count can scope on the same s.workspace_id tenant
+	// predicate as the page query (invoice has no workspace_id column of its own).
 	countQuery := `
 		SELECT COUNT(*) FROM invoice i
+		LEFT JOIN subscription s ON i.subscription_id = s.id
 		WHERE i.active = true
 	`
 	var countArgs []interface{}
 	countArgCounter := 1
+
+	// A1: same workspace scoping as the page query above. $1 reserved for wsID.
+	countQuery += fmt.Sprintf(" AND ($%d::text = '' OR s.workspace_id = $%d::text)", countArgCounter, countArgCounter)
+	countArgs = append(countArgs, wsID)
+	countArgCounter++
 
 	// Apply same filters for count
 	if req.Filters != nil && len(req.Filters.Filters) > 0 {
@@ -680,6 +695,7 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 			LEFT JOIN client c ON s.client_id = c.id
 			LEFT JOIN "user" u ON c.user_id = u.id
 			WHERE i.id = $1 AND i.active = true
+			  AND ($2::text = '' OR s.workspace_id = $2::text)
 		)
 		SELECT * FROM invoice_data
 	`
@@ -720,7 +736,8 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 		userActive       sql.NullBool
 	)
 
-	err := db.GetDB().QueryRowContext(ctx, query, req.InvoiceId).Scan(
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	err := db.GetDB().QueryRowContext(ctx, query, req.InvoiceId, wsID).Scan(
 		&id, &invoiceNumber, &amount, &dateCreated, &dateModified, &active, &subscriptionID,
 		&subID, &subName, &subPlanID, &subClientID, &subDateStart, &subDateEnd, &subDateCreated, &subDateModified, &subActive,
 		&clientID, &clientUserID, &clientInternalID, &clientDateCreated, &clientDateModified, &clientActive,

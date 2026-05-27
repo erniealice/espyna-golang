@@ -1,0 +1,898 @@
+//go:build mysql
+
+package entity
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/erniealice/espyna-golang/consumer"
+	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
+	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
+	suppliercategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_category"
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/encoding/protojson"
+)
+
+func init() {
+	registry.RegisterRepositoryFactory("mysql", entityid.Supplier, func(conn any, tableName string) (any, error) {
+		db, ok := conn.(*sql.DB)
+		if !ok {
+			return nil, fmt.Errorf("mysql supplier repository requires *sql.DB, got %T", conn)
+		}
+		dbOps := mysqlCore.NewWorkspaceAwareOperations(db)
+		return NewMySQLSupplierRepository(dbOps, tableName), nil
+	})
+}
+
+// MySQLSupplierRepository implements supplier CRUD operations using MySQL 8.0+.
+type MySQLSupplierRepository struct {
+	supplierpb.UnimplementedSupplierDomainServiceServer
+	dbOps     interfaces.DatabaseOperation
+	tableName string
+}
+
+// NewMySQLSupplierRepository creates a new MySQL supplier repository.
+func NewMySQLSupplierRepository(dbOps interfaces.DatabaseOperation, tableName string) supplierpb.SupplierDomainServiceServer {
+	if tableName == "" {
+		tableName = "supplier" // default fallback
+	}
+	return &MySQLSupplierRepository{
+		dbOps:     dbOps,
+		tableName: tableName,
+	}
+}
+
+// CreateSupplier creates a new supplier using common MySQL operations.
+func (r *MySQLSupplierRepository) CreateSupplier(ctx context.Context, req *supplierpb.CreateSupplierRequest) (*supplierpb.CreateSupplierResponse, error) {
+	if req.Data == nil {
+		return nil, fmt.Errorf("supplier data is required")
+	}
+
+	jsonData, err := protojson.Marshal(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	result, err := r.dbOps.Create(ctx, r.tableName, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create supplier: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(mysqlCore.DenormalizeKeys(result))
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	supplier := &supplierpb.Supplier{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, supplier); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &supplierpb.CreateSupplierResponse{
+		Data: []*supplierpb.Supplier{supplier},
+	}, nil
+}
+
+// ReadSupplier retrieves a supplier with joined user data using a custom SQL query.
+// CRITICAL: workspace_id isolation is enforced by WorkspaceAwareOperations on
+// the CRUD path; the raw-SQL path here uses the item-page CTE which adds
+// an explicit workspace_id predicate.
+func (r *MySQLSupplierRepository) ReadSupplier(ctx context.Context, req *supplierpb.ReadSupplierRequest) (*supplierpb.ReadSupplierResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("supplier ID is required")
+	}
+
+	// Dialect change: double-quoted "user" → backtick `user`; $1 → ?
+	query := `
+		SELECT
+			s.id,
+			s.user_id,
+			s.active,
+			s.internal_id,
+			s.date_created,
+			s.date_modified,
+			s.supplier_type,
+			s.name,
+			s.tax_id,
+			s.registration_number,
+			s.street_address,
+			s.city,
+			s.province,
+			s.postal_code,
+			s.country,
+			s.billing_currency,
+			s.payment_terms,
+			s.lead_time_days,
+			s.credit_limit,
+			s.status,
+			s.client_id,
+			s.website,
+			s.notes,
+			s.timezone,
+			s.category_id,
+			s.payment_term_id,
+			u.id as user_id_value,
+			u.first_name as user_first_name,
+			u.last_name as user_last_name,
+			u.email_address as user_email_address,
+			u.mobile_number as user_phone_number
+		FROM supplier s
+		LEFT JOIN ` + "`user`" + ` u ON s.user_id = u.id
+		WHERE s.id = ? AND s.active = 1
+	`
+
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	row := exec.QueryRowContext(ctx, query, req.Data.Id)
+
+	var (
+		id                 string
+		userId             *string
+		active             bool
+		internalId         *string
+		dateCreated        time.Time
+		dateModified       time.Time
+		supplierType       *string
+		name               *string
+		taxId              *string
+		registrationNumber *string
+		streetAddress      *string
+		city               *string
+		province           *string
+		postalCode         *string
+		country            *string
+		defaultCurrency    *string
+		paymentTerms       *string
+		leadTimeDays       *int32
+		creditLimit        *int64
+		status             *string
+		clientId           *string
+		website            *string
+		notes              *string
+		timezone           *string
+		categoryId         *string
+		paymentTermID      *string
+		userIdValue        *string
+		userFirstName      *string
+		userLastName       *string
+		userEmailAddress   *string
+		userPhoneNumber    *string
+	)
+
+	err := row.Scan(
+		&id,
+		&userId,
+		&active,
+		&internalId,
+		&dateCreated,
+		&dateModified,
+		&supplierType,
+		&name,
+		&taxId,
+		&registrationNumber,
+		&streetAddress,
+		&city,
+		&province,
+		&postalCode,
+		&country,
+		&defaultCurrency,
+		&paymentTerms,
+		&leadTimeDays,
+		&creditLimit,
+		&status,
+		&clientId,
+		&website,
+		&notes,
+		&timezone,
+		&categoryId,
+		&paymentTermID,
+		&userIdValue,
+		&userFirstName,
+		&userLastName,
+		&userEmailAddress,
+		&userPhoneNumber,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("supplier with ID '%s' not found", req.Data.Id)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read supplier: %w", err)
+	}
+
+	supplier := buildSupplierFromScan(
+		id, userId, active, internalId, dateCreated, dateModified,
+		supplierType, name, taxId, registrationNumber,
+		streetAddress, city, province, postalCode, country,
+		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
+		status, clientId, website, notes, timezone, categoryId,
+		paymentTermID,
+		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
+	)
+
+	return &supplierpb.ReadSupplierResponse{
+		Data:    []*supplierpb.Supplier{supplier},
+		Success: true,
+	}, nil
+}
+
+// UpdateSupplier updates a supplier using common MySQL operations.
+func (r *MySQLSupplierRepository) UpdateSupplier(ctx context.Context, req *supplierpb.UpdateSupplierRequest) (*supplierpb.UpdateSupplierResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("supplier ID is required")
+	}
+
+	jsonData, err := protojson.Marshal(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update supplier: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(mysqlCore.DenormalizeKeys(result))
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	supplier := &supplierpb.Supplier{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, supplier); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &supplierpb.UpdateSupplierResponse{
+		Data: []*supplierpb.Supplier{supplier},
+	}, nil
+}
+
+// DeleteSupplier deletes a supplier using common MySQL operations (soft delete).
+func (r *MySQLSupplierRepository) DeleteSupplier(ctx context.Context, req *supplierpb.DeleteSupplierRequest) (*supplierpb.DeleteSupplierResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("supplier ID is required")
+	}
+
+	if err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id); err != nil {
+		return nil, fmt.Errorf("failed to delete supplier: %w", err)
+	}
+
+	return &supplierpb.DeleteSupplierResponse{
+		Success: true,
+	}, nil
+}
+
+var supplierSortableSQLCols = []string{
+	"id", "user_id", "active", "internal_id", "supplier_type", "name",
+	"tax_id", "registration_number", "street_address", "city", "province",
+	"postal_code", "country", "billing_currency", "payment_terms",
+	"lead_time_days", "credit_limit", "status", "client_id", "website",
+	"notes", "payment_term_id", "timezone", "kind", "position", "department",
+	"date_created", "date_modified",
+}
+
+var supplierSortSpec = espynahttp.SortSpec{AllowedCols: supplierSortableSQLCols}
+
+// ListSuppliers lists suppliers using common MySQL operations.
+func (r *MySQLSupplierRepository) ListSuppliers(ctx context.Context, req *supplierpb.ListSuppliersRequest) (*supplierpb.ListSuppliersResponse, error) {
+	if err := espynahttp.ValidateSortColumns(supplierSortSpec, req.GetSort(), "supplier"); err != nil {
+		return nil, err
+	}
+
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list suppliers: %w", err)
+	}
+
+	var suppliers []*supplierpb.Supplier
+	for _, result := range listResult.Data {
+		resultJSON, err := json.Marshal(mysqlCore.DenormalizeKeys(result))
+		if err != nil {
+			continue
+		}
+
+		supplier := &supplierpb.Supplier{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, supplier); err != nil {
+			continue
+		}
+		suppliers = append(suppliers, supplier)
+	}
+
+	return &supplierpb.ListSuppliersResponse{
+		Data: suppliers,
+	}, nil
+}
+
+// GetSupplierListPageData retrieves suppliers with advanced filtering, sorting,
+// searching, and pagination.
+//
+// Dialect translation from postgres gold standard:
+//   - $1,$2,... → ? (MySQL positional placeholders, args in same left-to-right order)
+//   - "user" → `user` (backtick-quoted reserved word)
+//   - ILIKE → LIKE (MySQL ci collation handles case-insensitivity)
+//   - LIMIT $N OFFSET $N → LIMIT ? OFFSET ? (two trailing ? args appended last)
+//   - COUNT(*) OVER () stays — MySQL 8.0+ supports window functions
+//   - core.BuildOrderBy → mysqlCore.BuildOrderBy (backtick quoting)
+//
+// CRITICAL: Always filters by workspace_id for multi-tenancy.
+func (r *MySQLSupplierRepository) GetSupplierListPageData(
+	ctx context.Context,
+	req *supplierpb.GetSupplierListPageDataRequest,
+) (*supplierpb.GetSupplierListPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get supplier list page data request is required")
+	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	// Default pagination values.
+	limit := int32(50)
+	offset := int32(0)
+	page := int32(1)
+	if req.Pagination != nil {
+		if req.Pagination.Limit > 0 {
+			limit = req.Pagination.Limit
+		}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
+			if offsetPag.Page > 0 {
+				page = offsetPag.Page
+				offset = (page - 1) * limit
+			}
+		}
+	}
+
+	// Sort — fail-closed against the per-entity whitelist (A2 guard).
+	// mysqlCore.BuildOrderBy uses backtick quoting instead of double-quotes.
+	orderByClause, err := mysqlCore.BuildOrderBy(supplierSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
+	}
+
+	// Build filter/search WHERE clauses.
+	// First arg (?) is workspace_id; filter builder starts at index 2 purely to
+	// track count parity with postgres — MySQL uses positional "?" and the
+	// returned nextIdx is used only for arg ordering, not embedded in SQL.
+	searchFields := []string{"s.name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
+	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+
+	whereSQL := "WHERE s.workspace_id = ?"
+	if len(filterClauses) > 0 {
+		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
+	}
+
+	// Args: [workspaceID, ...filterArgs, limit, offset]
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
+
+	// CTE query — MySQL 8.0+ supports both CTEs and COUNT(*) OVER ().
+	// Two-step CTE (enriched + counted) mirrors the postgres gold standard and
+	// avoids a second round-trip for the total count.
+	// Dialect changes: "user" → `user`; LIMIT/OFFSET use positional ?
+	query := fmt.Sprintf(`
+		WITH enriched AS (
+			SELECT
+				s.id,
+				s.user_id,
+				s.active,
+				s.internal_id,
+				s.date_created,
+				s.date_modified,
+				s.supplier_type,
+				s.name,
+				s.tax_id,
+				s.registration_number,
+				s.street_address,
+				s.city,
+				s.province,
+				s.postal_code,
+				s.country,
+				s.billing_currency,
+				s.payment_terms,
+				s.lead_time_days,
+				s.credit_limit,
+				s.status,
+				s.client_id,
+				s.website,
+				s.notes,
+				s.timezone,
+				s.category_id,
+				s.payment_term_id,
+				COALESCE(pt.name, '') as payment_term_name,
+				u.id as user_id_value,
+				u.first_name as user_first_name,
+				u.last_name as user_last_name,
+				u.email_address as user_email_address,
+				u.mobile_number as user_phone_number
+			FROM supplier s
+			LEFT JOIN `+"`user`"+` u ON s.user_id = u.id
+			LEFT JOIN payment_term pt ON s.payment_term_id = pt.id
+			%s
+		),
+		counted AS (
+			SELECT COUNT(*) as total FROM enriched
+		)
+		SELECT
+			e.*,
+			c.total
+		FROM enriched e, counted c
+		%s
+		LIMIT ? OFFSET ?;
+	`, whereSQL, orderByClause)
+
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query supplier list page data: %w", err)
+	}
+	defer rows.Close()
+
+	var suppliers []*supplierpb.Supplier
+	var totalCount int64
+
+	for rows.Next() {
+		var (
+			id                 string
+			userId             *string
+			active             bool
+			internalId         *string
+			dateCreated        time.Time
+			dateModified       time.Time
+			supplierType       *string
+			name               *string
+			taxId              *string
+			registrationNumber *string
+			streetAddress      *string
+			city               *string
+			province           *string
+			postalCode         *string
+			country            *string
+			defaultCurrency    *string
+			paymentTerms       *string
+			leadTimeDays       *int32
+			creditLimit        *int64
+			status             *string
+			clientId           *string
+			website            *string
+			notes              *string
+			timezone           *string
+			categoryId         *string
+			paymentTermID      *string
+			paymentTermName    string
+			userIdValue        *string
+			userFirstName      *string
+			userLastName       *string
+			userEmailAddress   *string
+			userPhoneNumber    *string
+			total              int64
+		)
+
+		err := rows.Scan(
+			&id,
+			&userId,
+			&active,
+			&internalId,
+			&dateCreated,
+			&dateModified,
+			&supplierType,
+			&name,
+			&taxId,
+			&registrationNumber,
+			&streetAddress,
+			&city,
+			&province,
+			&postalCode,
+			&country,
+			&defaultCurrency,
+			&paymentTerms,
+			&leadTimeDays,
+			&creditLimit,
+			&status,
+			&clientId,
+			&website,
+			&notes,
+			&timezone,
+			&categoryId,
+			&paymentTermID,
+			&paymentTermName,
+			&userIdValue,
+			&userFirstName,
+			&userLastName,
+			&userEmailAddress,
+			&userPhoneNumber,
+			&total,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan supplier row: %w", err)
+		}
+
+		totalCount = total
+
+		supplier := buildSupplierFromScan(
+			id, userId, active, internalId, dateCreated, dateModified,
+			supplierType, name, taxId, registrationNumber,
+			streetAddress, city, province, postalCode, country,
+			defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
+			status, clientId, website, notes, timezone, categoryId,
+			paymentTermID,
+			userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
+		)
+
+		if paymentTermID != nil {
+			supplier.PaymentTermId = paymentTermID
+		}
+		if paymentTermName != "" {
+			supplier.PaymentTerms = &paymentTermName
+		}
+
+		suppliers = append(suppliers, supplier)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating supplier rows: %w", err)
+	}
+
+	totalPages := int32(0)
+	if limit > 0 {
+		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	}
+
+	hasNext := page < totalPages
+	hasPrev := page > 1
+
+	return &supplierpb.GetSupplierListPageDataResponse{
+		SupplierList: suppliers,
+		Pagination: &commonpb.PaginationResponse{
+			TotalItems:  int32(totalCount),
+			CurrentPage: &page,
+			TotalPages:  &totalPages,
+			HasNext:     hasNext,
+			HasPrev:     hasPrev,
+		},
+		Success: true,
+	}, nil
+}
+
+// GetSupplierItemPageData retrieves a single supplier with enriched item page data.
+//
+// Dialect translation from postgres gold standard:
+//   - $1,$2 → ? (positional args in same order: supplierId first, workspaceID second)
+//   - "user" → `user` (backtick-quoted reserved word)
+//   - SELECT * FROM enriched LIMIT 1 stays unchanged
+//
+// CRITICAL: Always filters by workspace_id for multi-tenancy.
+func (r *MySQLSupplierRepository) GetSupplierItemPageData(
+	ctx context.Context,
+	req *supplierpb.GetSupplierItemPageDataRequest,
+) (*supplierpb.GetSupplierItemPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get supplier item page data request is required")
+	}
+	if req.SupplierId == "" {
+		return nil, fmt.Errorf("supplier ID is required")
+	}
+
+	// Extract workspace_id from context (REQUIRED for multi-tenancy).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	// Dialect change: double-quoted "user" → `user`; $1/$2 → ? (positional)
+	query := `
+		WITH enriched AS (
+			SELECT
+				s.id,
+				s.user_id,
+				s.active,
+				s.internal_id,
+				s.date_created,
+				s.date_modified,
+				s.supplier_type,
+				s.name,
+				s.tax_id,
+				s.registration_number,
+				s.street_address,
+				s.city,
+				s.province,
+				s.postal_code,
+				s.country,
+				s.billing_currency,
+				s.payment_terms,
+				s.lead_time_days,
+				s.credit_limit,
+				s.status,
+				s.client_id,
+				s.website,
+				s.notes,
+				s.timezone,
+				s.category_id,
+				s.payment_term_id,
+				u.id as user_id_value,
+				u.first_name as user_first_name,
+				u.last_name as user_last_name,
+				u.email_address as user_email_address,
+				u.mobile_number as user_phone_number
+			FROM supplier s
+			LEFT JOIN ` + "`user`" + ` u ON s.user_id = u.id
+			WHERE s.id = ? AND s.workspace_id = ?
+		)
+		SELECT * FROM enriched LIMIT 1;
+	`
+
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	// Arg order: supplierId ($1), workspaceID ($2) — same positional order as postgres.
+	row := exec.QueryRowContext(ctx, query, req.SupplierId, workspaceID)
+
+	var (
+		id                 string
+		userId             *string
+		active             bool
+		internalId         *string
+		dateCreated        time.Time
+		dateModified       time.Time
+		supplierType       *string
+		name               *string
+		taxId              *string
+		registrationNumber *string
+		streetAddress      *string
+		city               *string
+		province           *string
+		postalCode         *string
+		country            *string
+		defaultCurrency    *string
+		paymentTerms       *string
+		leadTimeDays       *int32
+		creditLimit        *int64
+		status             *string
+		clientId           *string
+		website            *string
+		notes              *string
+		timezone           *string
+		categoryId         *string
+		paymentTermID      *string
+		userIdValue        *string
+		userFirstName      *string
+		userLastName       *string
+		userEmailAddress   *string
+		userPhoneNumber    *string
+	)
+
+	err := row.Scan(
+		&id,
+		&userId,
+		&active,
+		&internalId,
+		&dateCreated,
+		&dateModified,
+		&supplierType,
+		&name,
+		&taxId,
+		&registrationNumber,
+		&streetAddress,
+		&city,
+		&province,
+		&postalCode,
+		&country,
+		&defaultCurrency,
+		&paymentTerms,
+		&leadTimeDays,
+		&creditLimit,
+		&status,
+		&clientId,
+		&website,
+		&notes,
+		&timezone,
+		&categoryId,
+		&paymentTermID,
+		&userIdValue,
+		&userFirstName,
+		&userLastName,
+		&userEmailAddress,
+		&userPhoneNumber,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("supplier with ID '%s' not found", req.SupplierId)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query supplier item page data: %w", err)
+	}
+
+	supplier := buildSupplierFromScan(
+		id, userId, active, internalId, dateCreated, dateModified,
+		supplierType, name, taxId, registrationNumber,
+		streetAddress, city, province, postalCode, country,
+		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
+		status, clientId, website, notes, timezone, categoryId,
+		paymentTermID,
+		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
+	)
+
+	// Load categories (tags) for this supplier via separate query.
+	categories, err := r.loadSupplierCategories(ctx, id)
+	if err == nil && len(categories) > 0 {
+		supplier.Categories = categories
+	}
+
+	return &supplierpb.GetSupplierItemPageDataResponse{
+		Supplier: supplier,
+		Success:  true,
+	}, nil
+}
+
+// loadSupplierCategories loads category tags for a supplier via JOIN through
+// supplier_category to category.
+//
+// Dialect change from postgres gold standard: $1 → ? (positional), active = true → active = 1.
+func (r *MySQLSupplierRepository) loadSupplierCategories(ctx context.Context, supplierId string) ([]*suppliercategorypb.SupplierCategory, error) {
+	// Dialect: $1 → ?, true → 1 (MySQL TINYINT(1) boolean columns)
+	query := `
+		SELECT
+			sc.id,
+			sc.supplier_id,
+			sc.category_id,
+			cat.name,
+			cat.description
+		FROM supplier_category sc
+		INNER JOIN category cat ON sc.category_id = cat.id
+		WHERE sc.supplier_id = ? AND sc.active = 1 AND cat.active = 1
+		ORDER BY cat.name ASC
+	`
+
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, supplierId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load supplier categories: %w", err)
+	}
+	defer rows.Close()
+
+	var categories []*suppliercategorypb.SupplierCategory
+	for rows.Next() {
+		var (
+			scId         string
+			scSupplierId string
+			scCatId      string
+			catName      string
+			catDesc      *string
+		)
+		if err := rows.Scan(&scId, &scSupplierId, &scCatId, &catName, &catDesc); err != nil {
+			return nil, fmt.Errorf("failed to scan supplier category row: %w", err)
+		}
+
+		cat := &commonpb.Category{
+			Id:   scCatId,
+			Name: catName,
+		}
+		if catDesc != nil {
+			cat.Description = *catDesc
+		}
+
+		categories = append(categories, &suppliercategorypb.SupplierCategory{
+			Id:         scId,
+			SupplierId: scSupplierId,
+			CategoryId: scCatId,
+			Category:   cat,
+			Active:     true,
+		})
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating supplier category rows: %w", err)
+	}
+
+	return categories, nil
+}
+
+// buildSupplierFromScan constructs a Supplier protobuf from scanned SQL fields.
+// Identical to the postgres gold standard: scan order and column set are
+// preserved exactly so the Go-side response mapping is dialect-agnostic.
+func buildSupplierFromScan(
+	id string, userId *string, active bool, internalId *string,
+	dateCreated time.Time, dateModified time.Time,
+	supplierType *string, name *string, taxId *string, registrationNumber *string,
+	streetAddress *string, city *string, province *string, postalCode *string, country *string,
+	defaultCurrency *string, paymentTerms *string, leadTimeDays *int32, creditLimit *int64,
+	status *string, clientId *string, website *string, notes *string, timezone *string, categoryId *string,
+	paymentTermID *string,
+	userIdValue *string, userFirstName *string, userLastName *string,
+	userEmailAddress *string, userPhoneNumber *string,
+) *supplierpb.Supplier {
+	supplier := &supplierpb.Supplier{
+		Id:     id,
+		Active: active,
+	}
+	if userId != nil {
+		supplier.UserId = *userId
+	}
+
+	if internalId != nil {
+		supplier.InternalId = *internalId
+	}
+
+	if supplierType != nil {
+		supplier.SupplierType = *supplierType
+	}
+	if name != nil {
+		supplier.Name = *name
+	}
+	supplier.TaxId = taxId
+	supplier.RegistrationNumber = registrationNumber
+	supplier.StreetAddress = streetAddress
+	supplier.City = city
+	supplier.Province = province
+	supplier.PostalCode = postalCode
+	supplier.Country = country
+	supplier.BillingCurrency = defaultCurrency
+	supplier.PaymentTerms = paymentTerms
+	supplier.LeadTimeDays = leadTimeDays
+	supplier.CreditLimit = creditLimit
+	supplier.Status = status
+	supplier.ClientId = clientId
+	supplier.Website = website
+	supplier.Notes = notes
+	supplier.Timezone = timezone
+	supplier.CategoryId = categoryId
+	if paymentTermID != nil {
+		supplier.PaymentTermId = paymentTermID
+	}
+
+	// Populate joined user data.
+	if userIdValue != nil {
+		supplier.User = &userpb.User{Id: deref(userIdValue)}
+		supplier.User.FirstName = deref(userFirstName)
+		supplier.User.LastName = deref(userLastName)
+		supplier.User.EmailAddress = deref(userEmailAddress)
+		supplier.User.MobileNumber = deref(userPhoneNumber)
+	}
+
+	// Parse timestamps.
+	if !dateCreated.IsZero() {
+		ts := dateCreated.UnixMilli()
+		supplier.DateCreated = &ts
+		dcStr := dateCreated.Format(time.RFC3339)
+		supplier.DateCreatedString = &dcStr
+	}
+	if !dateModified.IsZero() {
+		ts := dateModified.UnixMilli()
+		supplier.DateModified = &ts
+		dmStr := dateModified.Format(time.RFC3339)
+		supplier.DateModifiedString = &dmStr
+	}
+
+	return supplier
+}
+
+// deref safely dereferences a *string, returning "" if nil.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// NewSupplierRepository creates a new MySQL supplier repository (old-style constructor).
+func NewSupplierRepository(db *sql.DB, tableName string) supplierpb.SupplierDomainServiceServer {
+	dbOps := mysqlCore.NewWorkspaceAwareOperations(db)
+	return NewMySQLSupplierRepository(dbOps, tableName)
+}

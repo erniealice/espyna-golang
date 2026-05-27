@@ -12,6 +12,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/lib/pq"
 )
 
 // auditAdapter implements infraports.AuditService using direct SQL against
@@ -218,25 +219,41 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 		entries = entries[:limit]
 	}
 
-	// Load field changes for each returned entry.
-	const changesSQL = `
-		SELECT field_name, field_type, old_value, new_value
-		FROM audit_trail.audit_field_change
-		WHERE audit_entry_id = $1
-		ORDER BY id`
+	// Load field changes for ALL returned entries in a SINGLE batched query
+	// (A7 N+1 fix). The previous implementation issued one
+	// "WHERE audit_entry_id = $1" query PER entry — 21 round-trips for a 20-row
+	// page. We now fetch every entry's field changes with one
+	// "WHERE audit_entry_id = ANY($1)" round-trip and group the rows back onto
+	// their parent entry in Go. ORDER BY (audit_entry_id, id) preserves the
+	// original per-entry id ordering within each group.
+	if len(entries) > 0 {
+		entryIDs := make([]string, len(entries))
+		entryByID := make(map[string]*infraports.AuditEntryResult, len(entries))
+		for i := range entries {
+			entryIDs[i] = entries[i].ID
+			entryByID[entries[i].ID] = &entries[i]
+		}
 
-	for i := range entries {
-		crows, err := exec.QueryContext(ctx, changesSQL, entries[i].ID)
+		const changesSQL = `
+			SELECT audit_entry_id, field_name, field_type, old_value, new_value
+			FROM audit_trail.audit_field_change
+			WHERE audit_entry_id = ANY($1)
+			ORDER BY audit_entry_id, id`
+
+		crows, err := exec.QueryContext(ctx, changesSQL, pq.Array(entryIDs))
 		if err != nil {
-			return nil, fmt.Errorf("audit: query field_changes for entry %s: %w", entries[i].ID, err)
+			return nil, fmt.Errorf("audit: query field_changes: %w", err)
 		}
 		for crows.Next() {
+			var entryID string
 			var fc infraports.AuditFieldChange
-			if err := crows.Scan(&fc.FieldName, &fc.FieldType, &fc.OldValue, &fc.NewValue); err != nil {
+			if err := crows.Scan(&entryID, &fc.FieldName, &fc.FieldType, &fc.OldValue, &fc.NewValue); err != nil {
 				crows.Close()
 				return nil, fmt.Errorf("audit: scan field_change: %w", err)
 			}
-			entries[i].FieldChanges = append(entries[i].FieldChanges, fc)
+			if e, ok := entryByID[entryID]; ok {
+				e.FieldChanges = append(e.FieldChanges, fc)
+			}
 		}
 		crows.Close()
 		if err := crows.Err(); err != nil {

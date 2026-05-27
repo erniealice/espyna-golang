@@ -14,6 +14,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -270,37 +271,35 @@ func (r *PostgresLicenseRepository) GetLicenseListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "license", licenseSortableSQLCols)
 	}
 
-	// Build the CTE query
+	// Workspace isolation: this method bypasses the WorkspaceAwareOperations
+	// decorator (raw SQL via db.GetDB()), so we extract workspace_id from
+	// context and filter explicitly. Empty wsID = service-to-service call (A1).
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+
+	// Build the CTE query.
+	// A10: COUNT(*) OVER () replaces the prior `total_count` CTE + CROSS JOIN,
+	// computed over the full filtered set before LIMIT/OFFSET. The parameterized
+	// CASE WHEN sort (guarded above by licenseSortableSQLCols) moves into the
+	// final SELECT so the window count still spans every filtered row.
 	query := `
 		WITH
-		-- CTE 1: Apply search filter on license
+		-- CTE 1: Apply search filter on license.
+		-- The license table has no workspace_id column (verified against the
+		-- baseline schema); tenancy is inherited through its subscription FK, so
+		-- the A1 predicate scopes on the joined subscription's workspace_id.
+		-- Empty wsID = service-to-service call → no scoping.
 		search_filtered AS (
 			SELECT l.*
 			FROM license l
+			LEFT JOIN subscription s ON l.subscription_id = s.id
 			WHERE l.active = true
+				AND ($6::text = '' OR s.workspace_id = $6::text)
 				AND ($1::text = '' OR
 					l.license_key ILIKE $1 OR
 					l.assignee_name ILIKE $1)
-		),
-
-		-- CTE 2: Apply sorting
-		sorted AS (
-			SELECT * FROM search_filtered
-			ORDER BY
-				CASE WHEN $4 = 'license_key' AND $5 = 'ASC' THEN license_key END ASC,
-				CASE WHEN $4 = 'license_key' AND $5 = 'DESC' THEN license_key END DESC,
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $4 = 'status' AND $5 = 'ASC' THEN status END ASC,
-				CASE WHEN $4 = 'status' AND $5 = 'DESC' THEN status END DESC
-		),
-
-		-- CTE 3: Calculate total count for pagination
-		total_count AS (
-			SELECT count(*) as total FROM sorted
 		)
 
-		-- Final SELECT with pagination
+		-- Final SELECT with sorting, window count, and pagination
 		SELECT
 			s.id,
 			s.subscription_id,
@@ -323,9 +322,15 @@ func (r *PostgresLicenseRepository) GetLicenseListPageData(ctx context.Context, 
 			s.date_created,
 			s.date_modified,
 			s.active,
-			tc.total as _total_count
-		FROM sorted s
-		CROSS JOIN total_count tc
+			COUNT(*) OVER () as _total_count
+		FROM search_filtered s
+		ORDER BY
+			CASE WHEN $4 = 'license_key' AND $5 = 'ASC' THEN license_key END ASC,
+			CASE WHEN $4 = 'license_key' AND $5 = 'DESC' THEN license_key END DESC,
+			CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
+			CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
+			CASE WHEN $4 = 'status' AND $5 = 'ASC' THEN status END ASC,
+			CASE WHEN $4 = 'status' AND $5 = 'DESC' THEN status END DESC
 		LIMIT $2 OFFSET $3
 	`
 
@@ -342,6 +347,7 @@ func (r *PostgresLicenseRepository) GetLicenseListPageData(ctx context.Context, 
 		offset,        // $3
 		sortField,     // $4
 		sortDirection, // $5
+		wsID,          // $6
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetLicenseListPageData query: %w", err)

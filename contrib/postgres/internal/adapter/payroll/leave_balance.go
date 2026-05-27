@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -174,7 +175,17 @@ func (r *PostgresLeaveBalanceRepository) ListLeaveBalances(ctx context.Context, 
 	return &leavebalancepb.ListLeaveBalancesResponse{Success: true, Data: items}, nil
 }
 
+// leaveBalanceSortableSQLCols is the A2 sort whitelist for leave_balance list pages.
+var leaveBalanceSortableSQLCols = []string{
+	"lb.id", "lb.workspace_id", "lb.supplier_id", "lb.leave_type_id",
+	"lb.year", "lb.accrued_days", "lb.used_days", "lb.carryover_days",
+	"lb.last_accrued_on", "lb.active", "lb.date_created", "lb.date_modified",
+}
+
 // GetLeaveBalanceListPageData retrieves leave balances with pagination, filtering, sorting, and search.
+// A1: workspace_id = $1 (strict, from context).
+// A2: sort column whitelisted via core.BuildOrderBy.
+// A3: COUNT(*) OVER() for accurate total without a second query.
 func (r *PostgresLeaveBalanceRepository) GetLeaveBalanceListPageData(
 	ctx context.Context,
 	req *leavebalancepb.GetLeaveBalanceListPageDataRequest,
@@ -182,46 +193,110 @@ func (r *PostgresLeaveBalanceRepository) GetLeaveBalanceListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get leave balance list page data request is required")
 	}
-
-	var params *interfaces.ListParams
-	if req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if r.db == nil {
+		return nil, fmt.Errorf("GetLeaveBalanceListPageData requires raw *sql.DB")
 	}
 
+	// A1: strict workspace predicate.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	limit := int32(50)
+	offset := int32(0)
 	page := int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-			}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
+			page = offsetPag.Page
+			offset = (page - 1) * limit
 		}
 	}
 
-	listResult, err := r.dbOps.List(ctx, r.tableName, params)
+	// A2: sort guard — fail-closed via core.BuildOrderBy whitelist.
+	orderByClause, err := postgresCore.BuildOrderBy(leaveBalanceSortableSQLCols, req.GetSort(), "lb.date_created DESC")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list leave_balance list page data: %w", err)
+		return nil, err
 	}
+
+	// A3: COUNT(*) OVER() — accurate total in one pass.
+	query := fmt.Sprintf(`
+		SELECT
+			lb.id,
+			lb.workspace_id,
+			lb.supplier_id,
+			lb.leave_type_id,
+			lb.year,
+			lb.accrued_days,
+			lb.used_days,
+			lb.carryover_days,
+			lb.last_accrued_on,
+			lb.active,
+			lb.date_created,
+			lb.date_modified,
+			COUNT(*) OVER() AS total
+		FROM %s lb
+		WHERE lb.workspace_id = $1
+		%s
+		LIMIT $2 OFFSET $3;
+	`, r.tableName, orderByClause)
+
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query leave_balance list page data: %w", err)
+	}
+	defer rows.Close()
 
 	var items []*leavebalancepb.LeaveBalance
-	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			log.Printf("WARN: json.Marshal leave_balance row: %v", err)
-			continue
+	var totalCount int64
+
+	for rows.Next() {
+		var (
+			id            string
+			wsID          string
+			supplierID    string
+			leaveTypeID   string
+			year          int32
+			accruedDays   int32
+			usedDays      int32
+			carryoverDays int32
+			lastAccruedOn *string
+			active        bool
+			dateCreated   *int64
+			dateModified  *int64
+			total         int64
+		)
+		if scanErr := rows.Scan(
+			&id, &wsID, &supplierID, &leaveTypeID,
+			&year, &accruedDays, &usedDays, &carryoverDays,
+			&lastAccruedOn, &active,
+			&dateCreated, &dateModified,
+			&total,
+		); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan leave_balance row: %w", scanErr)
 		}
-		lb := &leavebalancepb.LeaveBalance{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, lb); err != nil {
-			log.Printf("WARN: protojson unmarshal leave_balance: %v", err)
-			continue
+		totalCount = total
+
+		lb := &leavebalancepb.LeaveBalance{
+			Id:            id,
+			WorkspaceId:   wsID,
+			SupplierId:    supplierID,
+			LeaveTypeId:   leaveTypeID,
+			Year:          year,
+			AccruedDays:   accruedDays,
+			UsedDays:      usedDays,
+			CarryoverDays: carryoverDays,
+			LastAccruedOn: lastAccruedOn,
+			Active:        active,
+			DateCreated:   dateCreated,
+			DateModified:  dateModified,
 		}
 		items = append(items, lb)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating leave_balance rows: %w", err)
+	}
 
-	totalCount := int64(len(items))
 	totalPages := int32(0)
 	if limit > 0 {
 		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))

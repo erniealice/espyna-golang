@@ -16,9 +16,24 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
+
+// billingEventSortableSQLCols is the sort-column whitelist that core.BuildOrderBy
+// validates GetBillingEventListPageData requests against (A2 fail-closed guard,
+// replacing the previous unguarded `ORDER BY ` + sortField interpolation).
+var billingEventSortableSQLCols = []string{
+	"date_created",
+	"date_modified",
+	"status",
+	"billable_amount",
+	"sequence_label",
+	"triggered_at",
+	"billed_at",
+	"subscription_id",
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.BillingEvent, func(conn any, tableName string) (any, error) {
@@ -221,18 +236,35 @@ func (r *PostgresBillingEventRepository) GetBillingEventListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of interpolating it raw. The fragment is
+	// applied to the `base` alias, whose columns are billing_event's own.
+	orderBy, err := postgresCore.BuildOrderBy(billingEventSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for billing event list: %w", err)
 	}
 
-	query := `WITH base AS (SELECT * FROM billing_event WHERE active = true), counted AS (SELECT COUNT(*) AS total FROM base) SELECT b.*, c.total FROM base b, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $1 OFFSET $2;`
+	// A1: scope to the caller's workspace. The billing_event table has no
+	// workspace_id column of its own (verified against the baseline schema);
+	// tenancy is inherited through its subscription FK, so the predicate scopes
+	// on the joined subscription's workspace_id. SELECT be.* keeps only
+	// billing_event columns so the dynamic column scan below is unaffected.
+	// Empty wsID = service-to-service call → no scoping.
+	// A10: COUNT(*) OVER () replaces the counted-CTE + cross join, computed
+	// over the full filtered set before LIMIT/OFFSET.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `WITH base AS (
+			SELECT be.* FROM billing_event be
+			LEFT JOIN subscription s ON be.subscription_id = s.id
+			WHERE be.active = true
+			  AND ($3::text = '' OR s.workspace_id = $3::text)
+		)
+		SELECT b.*, COUNT(*) OVER () AS total
+		FROM base b
+		` + orderBy + `
+		LIMIT $1 OFFSET $2;`
 
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query billing event list page data: %w", err)
 	}
@@ -371,8 +403,14 @@ func (r *PostgresBillingEventRepository) listByColumn(
 		return nil, fmt.Errorf("unsupported list column: %s", column)
 	}
 
-	query := `SELECT * FROM ` + r.tableName + ` WHERE ` + column + ` = $1 AND active = true ORDER BY date_created ASC`
-	rows, err := r.db.QueryContext(ctx, query, value)
+	// A1: scope to the caller's workspace. billing_event has no workspace_id
+	// column of its own; tenancy is inherited via its subscription FK, so the
+	// predicate scopes on the joined subscription's workspace_id. SELECT be.*
+	// keeps only billing_event columns for the dynamic scan. Empty wsID =
+	// service-to-service call → no scoping. column is allowlisted above.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `SELECT be.* FROM ` + r.tableName + ` be LEFT JOIN subscription s ON be.subscription_id = s.id WHERE be.` + column + ` = $1 AND be.active = true AND ($2::text = '' OR s.workspace_id = $2::text) ORDER BY be.date_created ASC`
+	rows, err := r.db.QueryContext(ctx, query, value, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("billing_event query (%s=%s): %w", column, value, err)
 	}

@@ -20,6 +20,18 @@ import (
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 )
 
+// revenueCategorySortableSQLCols is the fail-closed sort whitelist for
+// GetRevenueCategoryListPageData (A2). It mirrors the columns projected by the
+// enriched CTE; core.BuildOrderBy rejects anything outside this set.
+var revenueCategorySortableSQLCols = []string{
+	"name",
+	"code",
+	"description",
+	"parent_category_id",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.RevenueCategory, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -232,13 +244,9 @@ func (r *PostgresRevenueCategoryRepository) GetRevenueCategoryListPageData(
 		}
 	}
 
-	sortField := "rc.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(revenueCategorySortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -251,22 +259,17 @@ func (r *PostgresRevenueCategoryRepository) GetRevenueCategoryListPageData(
 				rc.name,
 				rc.code,
 				rc.description,
-				rc.parent_category_id
+				rc.parent_category_id,
+				COUNT(*) OVER() AS total
 			FROM revenue_category rc
 			WHERE rc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       rc.name ILIKE $1 OR
 			       rc.code ILIKE $1 OR
 			       rc.description ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		SELECT * FROM enriched
+		` + orderBy + `
 		LIMIT $2 OFFSET $3;
 	`
 

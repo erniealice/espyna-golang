@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -29,6 +30,13 @@ func init() {
 		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresJournalEntryRepository(dbOps, tableName), nil
 	})
+}
+
+// journalEntrySortableSQLCols is the fail-closed sort whitelist for journal entry
+// list page data. It is the single source of truth shared by core.BuildOrderBy (A2 guard).
+var journalEntrySortableSQLCols = []string{
+	"entry_number", "entry_date", "status", "source_type",
+	"date_created", "date_modified",
 }
 
 // PostgresJournalEntryRepository implements journal_entry CRUD and lifecycle operations using PostgreSQL.
@@ -255,40 +263,31 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 		}
 	}
 
-	// Sort allowlist
-	sortAllowlist := map[string]string{
-		"entry_number":  "entry_number",
-		"entry_date":    "entry_date",
-		"status":        "status",
-		"source_type":   "source_type",
-		"date_created":  "date_created",
-		"date_modified": "date_modified",
-	}
-	sortCol := "entry_date"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
-			sortCol = col
-		}
-		if req.Sort.Fields[0].Direction == 1 { // SortDirection_DESC = 1
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// Extract workspace_id from context (REQUIRED for multi-tenancy).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	// Sort — fail-closed against the per-entity whitelist (A2 guard).
+	// Bare column names (no table alias) because ORDER BY applies to the
+	// outer "SELECT * FROM enriched" which has no "je" alias.
+	orderByClause, err := postgresCore.BuildOrderBy(journalEntrySortableSQLCols, req.GetSort(), "entry_date DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	// Build WHERE clauses
+	// Build WHERE clauses. $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"je.description", "je.entry_number"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
 
-	var whereStr string
+	whereStr := " AND je.workspace_id = $1"
 	if len(filterClauses) > 0 {
-		whereStr = " AND " + strings.Join(filterClauses, " AND ")
+		whereStr += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
 	limitIdx := nextIdx
 	offsetIdx := nextIdx + 1
-	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
 
 	query := `
 		WITH enriched AS (
@@ -317,7 +316,7 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 			WHERE je.active = true` + whereStr + `
 		)
 		SELECT * FROM enriched
-		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
+		` + orderByClause + fmt.Sprintf(`
 		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
 
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)

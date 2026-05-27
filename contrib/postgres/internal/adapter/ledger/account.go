@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -28,6 +29,12 @@ func init() {
 		dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 		return NewPostgresAccountRepository(dbOps, tableName), nil
 	})
+}
+
+// accountSortableSQLCols is the fail-closed sort whitelist for account list page
+// data. It is the single source of truth shared by core.BuildOrderBy (A2 guard).
+var accountSortableSQLCols = []string{
+	"code", "name", "element", "status", "date_created", "date_modified",
 }
 
 // PostgresAccountRepository implements account CRUD operations using PostgreSQL.
@@ -110,6 +117,9 @@ func (r *PostgresAccountRepository) ReadAccount(ctx context.Context, req *accoun
 		return nil, fmt.Errorf("database connection is not available")
 	}
 
+	// Extract workspace_id from context (REQUIRED for multi-tenancy).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		SELECT
 			id, code, name, description, element, classification,
@@ -118,9 +128,10 @@ func (r *PostgresAccountRepository) ReadAccount(ctx context.Context, req *accoun
 			active, date_created, date_modified
 		FROM account
 		WHERE id = $1
+		AND ($2::text IS NULL OR workspace_id = $2)
 		LIMIT 1`
 
-	row := r.db.QueryRowContext(ctx, query, req.Data.Id)
+	row := r.db.QueryRowContext(ctx, query, req.Data.Id, nilIfEmpty(workspaceID))
 
 	var (
 		id               string
@@ -311,41 +322,33 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 		}
 	}
 
-	// Sort with allowlist validation.
-	// Use bare column names (no table alias) because ORDER BY applies to the
+	// Extract workspace_id from context (REQUIRED for multi-tenancy).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	// Sort — fail-closed against the per-entity whitelist (A2 guard).
+	// Bare column names (no table alias) because ORDER BY applies to the
 	// outer "SELECT * FROM enriched" which has no "a" alias.
-	sortAllowlist := map[string]string{
-		"code":          "code",
-		"name":          "name",
-		"element":       "element",
-		"status":        "status",
-		"date_created":  "date_created",
-		"date_modified": "date_modified",
-	}
-	sortCol := "code"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
-			sortCol = col
-		}
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	orderByClause, err := postgresCore.BuildOrderBy(accountSortableSQLCols, req.GetSort(), "code ASC")
+	if err != nil {
+		return nil, err
 	}
 
-	// Build parameterized WHERE clauses via shared helper (starts at $1)
+	// Build parameterized WHERE clauses via shared helper.
+	// $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"a.name", "a.code"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
 
-	var whereStr string
+	whereStr := " AND a.workspace_id = $1"
 	if len(filterClauses) > 0 {
-		whereStr = " AND " + strings.Join(filterClauses, " AND ")
+		whereStr += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	// Parameterized LIMIT/OFFSET come after filter args
+	// Parameterized LIMIT/OFFSET come after workspace_id + filter args.
 	limitIdx := nextIdx
 	offsetIdx := nextIdx + 1
-	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
+	queryArgs := []any{workspaceID}
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
 
 	query := `
 		WITH enriched AS (
@@ -372,7 +375,7 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 			WHERE a.active = true` + whereStr + `
 		)
 		SELECT * FROM enriched
-		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
+		` + orderByClause + fmt.Sprintf(`
 		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
 
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
@@ -510,6 +513,9 @@ func (r *PostgresAccountRepository) GetAccountItemPageData(ctx context.Context, 
 		return nil, fmt.Errorf("account ID is required")
 	}
 
+	// Extract workspace_id from context (REQUIRED for multi-tenancy).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		SELECT
 			id, code, name, description, element, classification,
@@ -518,9 +524,10 @@ func (r *PostgresAccountRepository) GetAccountItemPageData(ctx context.Context, 
 			active, date_created, date_modified
 		FROM account
 		WHERE id = $1 AND active = true
+		AND ($2::text IS NULL OR workspace_id = $2)
 		LIMIT 1`
 
-	row := r.db.QueryRowContext(ctx, query, req.AccountId)
+	row := r.db.QueryRowContext(ctx, query, req.AccountId, nilIfEmpty(workspaceID))
 
 	var (
 		id               string

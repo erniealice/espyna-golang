@@ -522,14 +522,20 @@ func (r *PostgresWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *
 		req.WorkspaceId,
 	).Scan(&wsName)
 
-	// 4. Update session
-	_, err = exec.ExecContext(ctx,
+	// 4. Update session (A6 — check RowsAffected; 0 means the session token did
+	// not match an active row, so the switch silently no-opped before this fix).
+	res, err := exec.ExecContext(ctx,
 		`UPDATE "session" SET workspace_id = $1, workspace_user_id = $2
 		 WHERE token = $3 AND active = true`,
 		req.WorkspaceId, wsUserID, req.SessionToken,
 	)
 	if err != nil {
 		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "failed to update session"}}, nil
+	}
+	if affected, raErr := res.RowsAffected(); raErr != nil {
+		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "failed to update session"}}, nil
+	} else if affected == 0 {
+		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "session not found"}}, nil
 	}
 
 	return &workspacepb.SwitchWorkspaceResponse{

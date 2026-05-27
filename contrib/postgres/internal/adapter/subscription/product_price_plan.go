@@ -13,11 +13,24 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// productPricePlanSortableSQLCols is the sort-column whitelist that
+// core.BuildOrderBy validates GetProductPricePlanListPageData requests against
+// (A2 fail-closed guard, replacing the prior `ORDER BY ppp.` + sortField
+// interpolation). These match the columns projected by the list SELECT.
+var productPricePlanSortableSQLCols = []string{
+	"price_plan_id",
+	"product_plan_id",
+	"billing_amount",
+	"billing_currency",
+	"date_created",
+	"date_modified",
+}
 
 // PostgresProductPricePlanRepository implements product_price_plan CRUD operations using PostgreSQL
 //
@@ -243,22 +256,41 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of interpolating it raw. The fragment emits an
+	// unqualified, quoted column; because the SELECT projects exactly one column
+	// of each name (the ppp.* set, plus pp.product_id / pp.product_variant_id),
+	// ORDER BY resolves unambiguously to the output column.
+	orderBy, err := postgresCore.BuildOrderBy(productPricePlanSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for product price plan list: %w", err)
 	}
 
+	// A1: product_price_plan has no workspace_id column of its own (verified
+	// against the baseline schema); neither does its price_plan FK. Tenancy chains
+	// through price_plan to plan (which carries workspace_id):
+	// product_price_plan.price_plan_id → price_plan.id → price_plan.plan_id →
+	// plan.id → plan.workspace_id. The predicate scopes on the joined plan's
+	// workspace_id. Empty wsID = service-to-service call → no scoping.
+	//
 	// Model D: join product_plan so that list rows carry product_id + variant_id
 	// through the embedded ProductPlan (no direct product_id column on PPP).
-	query := `SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
-		FROM product_price_plan ppp
-		LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
-		WHERE ppp.active = true AND ($1::text IS NULL OR $1::text = '' OR ppp.price_plan_id ILIKE $1 OR ppp.product_plan_id ILIKE $1 OR ppp.billing_currency ILIKE $1)
-		ORDER BY ppp.` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// Wrapped in an enriched CTE projecting exactly the columns the scan reads, so
+	// the BuildOrderBy fragment (an unqualified, quoted column) resolves against
+	// the CTE output unambiguously and the scan order stays identical.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `WITH enriched AS (
+			SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
+			FROM product_price_plan ppp
+			LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
+			LEFT JOIN price_plan plpp ON plpp.id = ppp.price_plan_id
+			LEFT JOIN plan pl ON pl.id = plpp.plan_id
+			WHERE ppp.active = true
+				AND ($4::text = '' OR pl.workspace_id = $4::text)
+				AND ($1::text IS NULL OR $1::text = '' OR ppp.price_plan_id ILIKE $1 OR ppp.product_plan_id ILIKE $1 OR ppp.billing_currency ILIKE $1)
+		)
+		SELECT * FROM enriched ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

@@ -13,10 +13,21 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// subscriptionAttributeSortableSQLCols is the sort-column whitelist that
+// core.BuildOrderBy validates GetSubscriptionAttributeListPageData requests
+// against (A2 fail-closed guard, replacing the prior `ORDER BY ` + sortField
+// interpolation). These match the columns projected by the enriched CTE.
+var subscriptionAttributeSortableSQLCols = []string{
+	"value",
+	"date_created",
+	"date_modified",
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.SubscriptionAttribute, func(conn any, tableName string) (any, error) {
@@ -218,16 +229,22 @@ func (r *PostgresSubscriptionAttributeRepository) GetSubscriptionAttributeListPa
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of interpolating it raw.
+	// A10: COUNT(*) OVER () replaces the prior counted-CTE + cross join.
+	orderBy, err := postgresCore.BuildOrderBy(subscriptionAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for subscription attribute list: %w", err)
 	}
 
-	query := `WITH enriched AS (SELECT id, subscription_id, attribute_id, value, active, date_created, date_modified FROM subscription_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// A1: subscription_attribute has no workspace_id column of its own (verified
+	// against the baseline schema); tenancy is inherited through its subscription
+	// FK, so the predicate scopes on the joined subscription's workspace_id. The
+	// explicit sa.* column list keeps the scan unaffected by the join. Empty
+	// wsID = service-to-service call → no scoping.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `WITH enriched AS (SELECT sa.id, sa.subscription_id, sa.attribute_id, sa.value, sa.active, sa.date_created, sa.date_modified FROM subscription_attribute sa LEFT JOIN subscription s ON sa.subscription_id = s.id WHERE sa.active = true AND ($4::text = '' OR s.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR sa.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -189,19 +190,29 @@ func (r *PostgresForexRateRepository) Insert(ctx context.Context, rate *forexrat
 }
 
 // SupersedePrior marks the prior ACTIVE forex_rate row as SUPERSEDED with effective_to set.
+// A1: workspace_id guard added — prevents cross-tenant mutation if priorID is guessed.
 func (r *PostgresForexRateRepository) SupersedePrior(ctx context.Context, priorID string, effectiveTo time.Time) error {
 	if r.db == nil {
 		return fmt.Errorf("SupersedePrior requires raw *sql.DB")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE forex_rate SET status = 3, effective_to = $1 WHERE id = $2 AND status = 2`,
+		`UPDATE forex_rate SET status = 3, effective_to = $1
+		 WHERE id = $2
+		   AND workspace_id = $3
+		   AND status = 2`,
 		// status 3 = SUPERSEDED
-		effectiveTo, priorID,
+		effectiveTo, priorID, r.workspaceIDFromCtx(ctx),
 	)
 	if err != nil {
 		return fmt.Errorf("SupersedePrior update: %w", err)
 	}
 	return nil
+}
+
+// workspaceIDFromCtx extracts the workspace ID from the context for inline SQL
+// workspace predicates. Mirrors the same pattern used in operation/job.go.
+func (r *PostgresForexRateRepository) workspaceIDFromCtx(ctx context.Context) string {
+	return consumer.GetWorkspaceIDFromContext(ctx)
 }
 
 var _ ForexRateQueries = (*PostgresForexRateRepository)(nil)

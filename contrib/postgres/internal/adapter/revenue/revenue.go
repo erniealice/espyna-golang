@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"slices"
 	"strings"
 	"time"
 
@@ -43,6 +42,24 @@ var revenueSortableSQLCols = []string{
 // revenueViewToSQLColMap translates view-facing sort column keys to SQL column
 // names. Columns absent from the map pass through unchanged.
 var revenueViewToSQLColMap = map[string]string{}
+
+// translateSortRequest applies a view-facing→SQL column-name translation to the
+// first sort field (if any) before it reaches core.BuildOrderBy, preserving the
+// prior revenueViewToSQLColMap hook. A nil request passes through unchanged.
+func translateSortRequest(sort *commonpb.SortRequest, colMap map[string]string) *commonpb.SortRequest {
+	if sort == nil || len(colMap) == 0 {
+		return sort
+	}
+	out := &commonpb.SortRequest{Fields: make([]*commonpb.SortField, 0, len(sort.GetFields()))}
+	for _, f := range sort.GetFields() {
+		field := f.GetField()
+		if mapped, ok := colMap[field]; ok {
+			field = mapped
+		}
+		out.Fields = append(out.Fields, &commonpb.SortField{Field: field, Direction: f.GetDirection()})
+	}
+	return out
+}
 
 // periodMarkerUniqueIndex is the partial unique index added by migration
 // 20260428100000_revenue_period_marker_unique. When the concurrent-Generate
@@ -330,26 +347,13 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		}
 	}
 
-	// Sort with allowlist validation.
-	sortCol := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortCol = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-
-	// Translate view-facing column key to SQL column name via ColMap.
-	if mapped, ok := revenueViewToSQLColMap[sortCol]; ok {
-		sortCol = mapped
-	}
-
-	// Loud-failure guard: reject any sort column not in the allowlist. This query
-	// uses direct ORDER BY interpolation, so an unrecognised value is a potential
-	// SQL-injection vector and must be rejected loudly before query execution.
-	if sortCol != "" && !slices.Contains(revenueSortableSQLCols, sortCol) {
-		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortCol, "revenue", revenueSortableSQLCols)
+	// Sort with allowlist validation (A2 — core.BuildOrderBy is the fail-closed
+	// guard; it whitelist-checks the requested column and quotes it). The
+	// view-facing→SQL column translation runs first via revenueViewToSQLColMap.
+	sortReq := translateSortRequest(req.GetSort(), revenueViewToSQLColMap)
+	orderBy, err := postgresCore.BuildOrderBy(revenueSortableSQLCols, sortReq, "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build parameterized WHERE clauses via shared helper ($1 is reserved for workspace_id, start at $2)
@@ -404,7 +408,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			WHERE rv.active = true AND rv.workspace_id = $1` + whereStr + `
 		)
 		SELECT * FROM enriched
-		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
+		` + orderBy + fmt.Sprintf(`
 		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
 
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)

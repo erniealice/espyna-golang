@@ -14,7 +14,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -277,16 +277,23 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of interpolating it raw.
+	orderBy, err := postgresCore.BuildOrderBy(pricePlanSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for price plan list: %w", err)
 	}
 
-	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM price_plan WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1 OR billing_currency ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// A1: price_plan has no workspace_id column of its own (verified against the
+	// baseline schema); tenancy is inherited through its plan FK (plan carries
+	// workspace_id), so the predicate scopes on the joined plan's workspace_id.
+	// The query is wrapped in an enriched CTE projecting exactly the price_plan
+	// columns (qualified pp.*) so the BuildOrderBy fragment — which emits an
+	// unqualified, quoted column — resolves unambiguously against the CTE output
+	// and the scan order stays identical. Empty wsID = service-to-service call.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `WITH enriched AS (SELECT pp.id, pp.plan_id, pp.billing_amount, pp.billing_currency, pp.name, pp.description, pp.active, pp.date_created, pp.date_modified, pp.price_schedule_id, pp.billing_kind, pp.amount_basis, pp.billing_cycle_value, pp.billing_cycle_unit, pp.default_term_value, pp.default_term_unit FROM price_plan pp LEFT JOIN plan pl ON pp.plan_id = pl.id WHERE pp.active = true AND ($4::text = '' OR pl.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR pp.plan_id ILIKE $1 OR pp.billing_currency ILIKE $1)) SELECT * FROM enriched ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

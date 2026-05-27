@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -263,10 +264,20 @@ func (r *PostgresPlanSettingsRepository) GetPlanSettingsListPageData(ctx context
 	}
 	searchPattern := ""
 	limit, offset := int32(50), int32(0)
-	sortField, sortOrder := "date_created", "DESC"
 
-	query := `SELECT id, plan_id, name, description, active, date_created, date_modified FROM plan_settings WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR plan_id ILIKE $1) ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// A2: this method does not accept a caller-supplied sort (sort was hardcoded
+	// to date_created DESC), so the ORDER BY is an inlined author-controlled
+	// constant rather than string-concatenated — no interpolation surface. It is
+	// qualified ps.date_created to stay unambiguous after the workspace join.
+	//
+	// A1: plan_settings has no workspace_id column of its own (verified against the
+	// baseline schema); tenancy is inherited through its plan FK (plan carries
+	// workspace_id), so the predicate scopes on the joined plan's workspace_id. The
+	// explicit ps.* column list keeps the scan unaffected by the join. Empty wsID =
+	// service-to-service call → no scoping.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `SELECT ps.id, ps.plan_id, ps.name, ps.description, ps.active, ps.date_created, ps.date_modified FROM plan_settings ps LEFT JOIN plan p ON ps.plan_id = p.id WHERE ps.active = true AND ($4::text = '' OR p.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR ps.plan_id ILIKE $1) ORDER BY ps.date_created DESC LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

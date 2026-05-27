@@ -169,11 +169,11 @@ WITH outstanding AS (
 SELECT
     row_key,
     row_id,
-    SUM(CASE WHEN days_overdue <= 0 THEN balance ELSE 0 END)::bigint AS current_amount,
-    SUM(CASE WHEN days_overdue BETWEEN 1 AND 30 THEN balance ELSE 0 END)::bigint AS days_1_30,
-    SUM(CASE WHEN days_overdue BETWEEN 31 AND 60 THEN balance ELSE 0 END)::bigint AS days_31_60,
-    SUM(CASE WHEN days_overdue BETWEEN 61 AND 90 THEN balance ELSE 0 END)::bigint AS days_61_90,
-    SUM(CASE WHEN days_overdue > 90 THEN balance ELSE 0 END)::bigint AS days_over_90,
+    COALESCE(SUM(balance) FILTER (WHERE days_overdue <= 0), 0)::bigint AS current_amount,
+    COALESCE(SUM(balance) FILTER (WHERE days_overdue BETWEEN 1 AND 30), 0)::bigint AS days_1_30,
+    COALESCE(SUM(balance) FILTER (WHERE days_overdue BETWEEN 31 AND 60), 0)::bigint AS days_31_60,
+    COALESCE(SUM(balance) FILTER (WHERE days_overdue BETWEEN 61 AND 90), 0)::bigint AS days_61_90,
+    COALESCE(SUM(balance) FILTER (WHERE days_overdue > 90), 0)::bigint AS days_over_90,
     SUM(balance)::bigint AS total_outstanding,
     COUNT(*)::int AS invoice_count
 FROM outstanding

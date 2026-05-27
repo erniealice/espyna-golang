@@ -41,10 +41,10 @@ import (
 //     supplier_portal_grant (id = bindingID).role_id
 //  4. PRINCIPAL_TYPE_CLIENT_DELEGATE (4) →
 //     delegate (id = bindingID) JOIN delegate_client
-//       (delegate_id = bindingID AND client_id = actingAsClientID).role_id
+//     (delegate_id = bindingID AND client_id = actingAsClientID).role_id
 //  5. PRINCIPAL_TYPE_SUPPLIER_DELEGATE (6) →
 //     delegate (id = bindingID) JOIN delegate_supplier
-//       (delegate_id = bindingID AND supplier_id = actingAsSupplierID).role_id
+//     (delegate_id = bindingID AND supplier_id = actingAsSupplierID).role_id
 //
 // All chains still join role_permission → permission and apply the same
 // DENY-wins predicate that the union variant did.

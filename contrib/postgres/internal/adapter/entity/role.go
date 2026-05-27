@@ -271,14 +271,13 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Routes the
+	// caller-supplied column through core.BuildOrderBy instead of interpolating
+	// req.Sort.Fields[0].Field verbatim, so an unknown column errors rather than
+	// reaching the query string.
+	orderByClause, err := postgresCore.BuildOrderBy(roleSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with enriched role_permission data
@@ -333,15 +332,12 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			  AND ($2::text IS NULL OR $2::text = '' OR
 				   r.name ILIKE $2 OR
 				   r.description ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+			COUNT(*) OVER() AS total
+		FROM enriched e
+		` + orderByClause + `
 		LIMIT $3 OFFSET $4;
 	`
 

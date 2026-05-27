@@ -1,0 +1,234 @@
+//go:build mysql
+
+// Dialect translation from postgres gold standard:
+//   - $1,$2,... → ? (MySQL positional placeholders)
+//   - active = true → active = 1
+//   - convertMillisToTime uses single-arg form (jsonKey only)
+//   - proto totalPrice → DB column line_amount mapping preserved
+package expenditure
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+
+	"google.golang.org/protobuf/encoding/protojson"
+
+	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
+	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	"github.com/erniealice/espyna-golang/registry"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
+)
+
+func init() {
+	registry.RegisterRepositoryFactory("mysql", entityid.ExpenditureLineItem, func(conn any, tableName string) (any, error) {
+		db, ok := conn.(*sql.DB)
+		if !ok {
+			return nil, fmt.Errorf("mysql expenditure_line_item repository requires *sql.DB, got %T", conn)
+		}
+		dbOps := mysqlCore.NewWorkspaceAwareOperations(db)
+		return NewMySQLExpenditureLineItemRepository(dbOps, tableName), nil
+	})
+}
+
+// MySQLExpenditureLineItemRepository implements expenditure line item CRUD using MySQL 8.0+.
+type MySQLExpenditureLineItemRepository struct {
+	expenditurelineitempb.UnimplementedExpenditureLineItemDomainServiceServer
+	dbOps     interfaces.DatabaseOperation
+	db        *sql.DB
+	tableName string
+}
+
+// NewMySQLExpenditureLineItemRepository creates a new MySQL expenditure line item repository.
+func NewMySQLExpenditureLineItemRepository(dbOps interfaces.DatabaseOperation, tableName string) expenditurelineitempb.ExpenditureLineItemDomainServiceServer {
+	if tableName == "" {
+		tableName = "expenditure_line_item"
+	}
+	return &MySQLExpenditureLineItemRepository{
+		dbOps:     dbOps,
+		db:        getDB(dbOps),
+		tableName: tableName,
+	}
+}
+
+// CreateExpenditureLineItem creates a new expenditure line item record.
+func (r *MySQLExpenditureLineItemRepository) CreateExpenditureLineItem(ctx context.Context, req *expenditurelineitempb.CreateExpenditureLineItemRequest) (*expenditurelineitempb.CreateExpenditureLineItemResponse, error) {
+	if req.Data == nil {
+		return nil, fmt.Errorf("expenditure line item data is required")
+	}
+
+	jsonData, err := protojson.Marshal(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	convertMillisToTime(data, "dateCreated")
+	convertMillisToTime(data, "dateModified")
+
+	// Map proto totalPrice → DB column line_amount
+	if v, ok := data["totalPrice"]; ok {
+		data["line_amount"] = v
+		delete(data, "totalPrice")
+	}
+
+	result, err := r.dbOps.Create(ctx, r.tableName, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create expenditure line item: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(mysqlCore.DenormalizeKeys(result))
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	item := &expenditurelineitempb.ExpenditureLineItem{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, item); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &expenditurelineitempb.CreateExpenditureLineItemResponse{
+		Success: true,
+		Data:    []*expenditurelineitempb.ExpenditureLineItem{item},
+	}, nil
+}
+
+// ReadExpenditureLineItem retrieves an expenditure line item record by ID.
+func (r *MySQLExpenditureLineItemRepository) ReadExpenditureLineItem(ctx context.Context, req *expenditurelineitempb.ReadExpenditureLineItemRequest) (*expenditurelineitempb.ReadExpenditureLineItemResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("expenditure line item ID is required")
+	}
+
+	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read expenditure line item: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(mysqlCore.DenormalizeKeys(result))
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	item := &expenditurelineitempb.ExpenditureLineItem{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, item); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &expenditurelineitempb.ReadExpenditureLineItemResponse{
+		Success: true,
+		Data:    []*expenditurelineitempb.ExpenditureLineItem{item},
+	}, nil
+}
+
+// UpdateExpenditureLineItem updates an expenditure line item record.
+func (r *MySQLExpenditureLineItemRepository) UpdateExpenditureLineItem(ctx context.Context, req *expenditurelineitempb.UpdateExpenditureLineItemRequest) (*expenditurelineitempb.UpdateExpenditureLineItemResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("expenditure line item ID is required")
+	}
+
+	jsonData, err := protojson.Marshal(req.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal protobuf to JSON: %w", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
+	}
+
+	convertMillisToTime(data, "dateCreated")
+	convertMillisToTime(data, "dateModified")
+
+	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update expenditure line item: %w", err)
+	}
+
+	resultJSON, err := json.Marshal(mysqlCore.DenormalizeKeys(result))
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+	}
+
+	item := &expenditurelineitempb.ExpenditureLineItem{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, item); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	return &expenditurelineitempb.UpdateExpenditureLineItemResponse{
+		Success: true,
+		Data:    []*expenditurelineitempb.ExpenditureLineItem{item},
+	}, nil
+}
+
+// DeleteExpenditureLineItem soft-deletes an expenditure line item record.
+func (r *MySQLExpenditureLineItemRepository) DeleteExpenditureLineItem(ctx context.Context, req *expenditurelineitempb.DeleteExpenditureLineItemRequest) (*expenditurelineitempb.DeleteExpenditureLineItemResponse, error) {
+	if req.Data == nil || req.Data.Id == "" {
+		return nil, fmt.Errorf("expenditure line item ID is required")
+	}
+
+	if err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id); err != nil {
+		return nil, fmt.Errorf("failed to delete expenditure line item: %w", err)
+	}
+
+	return &expenditurelineitempb.DeleteExpenditureLineItemResponse{Success: true}, nil
+}
+
+// ListExpenditureLineItems lists expenditure line item records with optional filters.
+// Supports filtering by expenditure_id when req.ExpenditureId is set.
+func (r *MySQLExpenditureLineItemRepository) ListExpenditureLineItems(ctx context.Context, req *expenditurelineitempb.ListExpenditureLineItemsRequest) (*expenditurelineitempb.ListExpenditureLineItemsResponse, error) {
+	var params *interfaces.ListParams
+	if req != nil && req.Filters != nil {
+		params = &interfaces.ListParams{Filters: req.Filters}
+	}
+	listResult, err := r.dbOps.List(ctx, r.tableName, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expenditure line items: %w", err)
+	}
+
+	// Optional filter by expenditure_id (applied client-side after generic List)
+	var expenditureIDFilter string
+	if req != nil && req.ExpenditureId != nil {
+		expenditureIDFilter = *req.ExpenditureId
+	}
+
+	var items []*expenditurelineitempb.ExpenditureLineItem
+	for _, result := range listResult.Data {
+		// Apply expenditure_id filter
+		if expenditureIDFilter != "" {
+			eid, _ := result["expenditure_id"].(string)
+			if eid != expenditureIDFilter {
+				continue
+			}
+		}
+
+		// Map DB column line_amount → proto field totalPrice so protojson can decode it
+		if v, ok := result["line_amount"]; ok {
+			result["totalPrice"] = v
+		}
+
+		resultJSON, err := json.Marshal(mysqlCore.DenormalizeKeys(result))
+		if err != nil {
+			log.Printf("WARN: json.Marshal expenditure line item row: %v", err)
+			continue
+		}
+
+		item := &expenditurelineitempb.ExpenditureLineItem{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, item); err != nil {
+			log.Printf("WARN: protojson unmarshal expenditure line item: %v", err)
+			continue
+		}
+		items = append(items, item)
+	}
+
+	return &expenditurelineitempb.ListExpenditureLineItemsResponse{
+		Success: true,
+		Data:    items,
+	}, nil
+}

@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -19,6 +20,22 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 )
+
+// revenueLineItemSortableSQLCols is the fail-closed sort whitelist for
+// GetRevenueLineItemListPageData (A2). Mirrors the enriched CTE projection.
+var revenueLineItemSortableSQLCols = []string{
+	"revenue_id",
+	"product_id",
+	"description",
+	"quantity",
+	"unit_price",
+	"total_price",
+	"line_item_type",
+	"revenue_name",
+	"product_name",
+	"date_created",
+	"date_modified",
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.RevenueLineItem, func(conn any, tableName string) (any, error) {
@@ -233,13 +250,9 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		}
 	}
 
-	sortField := "rli.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(revenueLineItemSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -262,28 +275,25 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				rli.product_price_plan_id,
 				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
-				COALESCE(p.name, '') as product_name
+				COALESCE(p.name, '') as product_name,
+				COUNT(*) OVER() AS total
 			FROM revenue_line_item rli
 			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = true
 			LEFT JOIN product p ON rli.product_id = p.id AND p.active = true
 			WHERE rli.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       rli.description ILIKE $1 OR
-			       p.name ILIKE $1 OR
-			       rv.name ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
+			  AND ($1::text IS NULL OR $1::text = '' OR rli.workspace_id = $1)
+			  AND ($2::text IS NULL OR $2::text = '' OR
+			       rli.description ILIKE $2 OR
+			       p.name ILIKE $2 OR
+			       rv.name ILIKE $2)
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		SELECT * FROM enriched
+		` + orderBy + `
+		LIMIT $3 OFFSET $4;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query revenue line item list page data: %w", err)
 	}

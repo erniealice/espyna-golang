@@ -798,19 +798,29 @@ func (r *PostgresFulfillmentRepository) TransitionStatus(
 		return nil, fmt.Errorf("failed to read fulfillment for update: %w", err)
 	}
 
-	// Update fulfillment status
-	updateQuery := `UPDATE fulfillment SET status = $1, date_modified = NOW()`
-	args := []any{toStatus}
+	// Update fulfillment status (A6 — scoped by workspace_id and RowsAffected
+	// checked; 0 rows means the fulfillment does not belong to this tenant).
+	// The active=true guarantee is still enforced: the FOR UPDATE SELECT above
+	// already filtered active=true within this transaction and returned
+	// not-found otherwise, so the locked row is known-active here. The
+	// workspace_id guard replaces the prior (tenant-less) active=true WHERE
+	// predicate with a true multi-tenant guard.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 
+	setClause := `status = $1, date_modified = NOW()`
+	setArgs := []any{toStatus}
 	if toStatus == "DELIVERED" {
-		updateQuery += `, delivered_at = NOW()`
+		setClause += `, delivered_at = NOW()`
 	}
-	updateQuery += ` WHERE id = $2 AND active = true`
-	args = append(args, req.FulfillmentId)
 
-	_, err = tx.ExecContext(ctx, updateQuery, args...)
+	affected, err := postgresCore.UpdateWithWorkspaceGuard(
+		ctx, tx, "fulfillment", setClause, setArgs, req.FulfillmentId, workspaceID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update fulfillment status: %w", err)
+	}
+	if affected == 0 {
+		return nil, fmt.Errorf("fulfillment with ID '%s' not found", req.FulfillmentId)
 	}
 
 	// Insert status event

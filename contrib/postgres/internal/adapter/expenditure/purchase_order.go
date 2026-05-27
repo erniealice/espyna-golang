@@ -20,6 +20,23 @@ import (
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 )
 
+// purchaseOrderSortableSQLCols is the fail-closed sort whitelist for
+// GetPurchaseOrderListPageData (A2). Mirrors the enriched CTE projection.
+var purchaseOrderSortableSQLCols = []string{
+	"po_number",
+	"po_type",
+	"status",
+	"order_date",
+	"expected_delivery_date",
+	"currency",
+	"subtotal",
+	"tax_amount",
+	"total_amount",
+	"reference_number",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.PurchaseOrder, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -246,13 +263,9 @@ func (r *PostgresPurchaseOrderRepository) GetPurchaseOrderListPageData(
 		}
 	}
 
-	sortField := "po.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(purchaseOrderSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := fmt.Sprintf(`
@@ -279,24 +292,19 @@ func (r *PostgresPurchaseOrderRepository) GetPurchaseOrderListPageData(
 				po.date_created,
 				po.date_modified,
 				po.parent_po_id,
-				po.payment_term_id
+				po.payment_term_id,
+				COUNT(*) OVER() AS total
 			FROM %s po
 			WHERE po.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       po.po_number ILIKE $1 OR
 			       po.reference_number ILIKE $1 OR
 			       po.status ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY %s %s
+		SELECT * FROM enriched
+		`+orderBy+`
 		LIMIT $2 OFFSET $3;
-	`, r.tableName, sortField, sortOrder)
+	`, r.tableName)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

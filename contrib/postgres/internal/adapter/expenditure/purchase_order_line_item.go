@@ -20,6 +20,23 @@ import (
 	purchaseorderlineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order_line_item"
 )
 
+// purchaseOrderLineItemSortableSQLCols is the fail-closed sort whitelist for
+// GetPurchaseOrderLineItemListPageData (A2). Mirrors the enriched CTE projection.
+var purchaseOrderLineItemSortableSQLCols = []string{
+	"purchase_order_id",
+	"product_id",
+	"description",
+	"line_type",
+	"quantity_ordered",
+	"quantity_received",
+	"quantity_billed",
+	"unit_price",
+	"total_price",
+	"line_number",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.PurchaseOrderLineItem, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -244,13 +261,9 @@ func (r *PostgresPurchaseOrderLineItemRepository) GetPurchaseOrderLineItemListPa
 		}
 	}
 
-	sortField := "poli.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(purchaseOrderLineItemSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := fmt.Sprintf(`
@@ -273,22 +286,17 @@ func (r *PostgresPurchaseOrderLineItemRepository) GetPurchaseOrderLineItemListPa
 				poli.line_number,
 				poli.active,
 				poli.date_created,
-				poli.date_modified
+				poli.date_modified,
+				COUNT(*) OVER() AS total
 			FROM %s poli
 			WHERE poli.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       poli.description ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY %s %s
+		SELECT * FROM enriched
+		`+orderBy+`
 		LIMIT $2 OFFSET $3;
-	`, r.tableName, sortField, sortOrder)
+	`, r.tableName)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

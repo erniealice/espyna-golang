@@ -15,6 +15,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -522,10 +523,17 @@ func (r *PostgresPlanRepository) SearchPlansByName(ctx context.Context, req *pla
 		limit = *req.Limit
 	}
 
+	// A1: scope to the caller's workspace. This typeahead bypasses the
+	// WorkspaceAwareOperations decorator (raw SQL via db.GetDB()) and enumerates
+	// rows, so without this predicate it would leak other tenants' plan names. The
+	// plan table carries its own workspace_id (verified against the baseline
+	// schema), so scope directly. Empty wsID = service-to-service call → no scoping.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	query := `
 		SELECT id, name
 		FROM plan
 		WHERE active = true
+			AND ($3::text = '' OR workspace_id = $3::text)
 			AND ($1::text = '' OR name ILIKE $1)
 		ORDER BY name ASC
 		LIMIT $2
@@ -542,7 +550,7 @@ func (r *PostgresPlanRepository) SearchPlansByName(ctx context.Context, req *pla
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
-	rows, err := db.GetDB().QueryContext(ctx, query, pattern, limit)
+	rows, err := db.GetDB().QueryContext(ctx, query, pattern, limit, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search plans by name: %w", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/operations"
@@ -18,6 +19,28 @@ import (
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// eventSortableSQLCols lists the SQL column names that are safe to sort by in
+// GetEventListPageData. The query uses direct ORDER BY interpolation so this
+// guard is critical — an unrecognised column is a potential SQL-injection vector
+// and must be rejected loudly before query execution.
+var eventSortableSQLCols = []string{
+	"e.date_created",
+	"e.date_modified",
+	"e.name",
+	"e.start_date_time_utc",
+	"e.end_date_time_utc",
+}
+
+// eventViewToSQLColMap translates view-facing sort column keys to the SQL column
+// names used in the query. Columns absent from the map pass through unchanged.
+var eventViewToSQLColMap = map[string]string{
+	"date_created":        "e.date_created",
+	"date_modified":       "e.date_modified",
+	"name":                "e.name",
+	"start_date_time_utc": "e.start_date_time_utc",
+	"end_date_time_utc":   "e.end_date_time_utc",
+}
 
 // PostgresEventRepository implements event CRUD operations using PostgreSQL
 type PostgresEventRepository struct {
@@ -226,6 +249,9 @@ func (r *PostgresEventRepository) GetEventListPageData(
 		return nil, fmt.Errorf("get event list page data request is required")
 	}
 
+	// A1: Extract workspace_id from context (REQUIRED for multi-tenancy)
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
 		searchPattern = "%" + req.Search.Query + "%"
@@ -246,13 +272,28 @@ func (r *PostgresEventRepository) GetEventListPageData(
 		}
 	}
 
-	sortField := "start_date_time_utc"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Translate view-facing column key to SQL column name via ColMap.
+	sortColKey := "e.start_date_time_utc"
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
+		sortColKey = req.Sort.Fields[0].Field
+	}
+	if mapped, ok := eventViewToSQLColMap[sortColKey]; ok {
+		sortColKey = mapped
+	}
+
+	// A2 sort guard: reject any column not in the whitelist via core.BuildOrderBy.
+	sortFragment, err := postgresCore.BuildOrderBy(
+		eventSortableSQLCols,
+		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: func() commonpb.SortDirection {
+			if req.Sort != nil && len(req.Sort.Fields) > 0 {
+				return req.Sort.Fields[0].Direction
+			}
+			return commonpb.SortDirection_ASC
+		}()}}},
+		"e.start_date_time_utc ASC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort column for event: %w", err)
 	}
 
 	query := `
@@ -268,9 +309,10 @@ func (r *PostgresEventRepository) GetEventListPageData(
 				e.date_modified
 			FROM event e
 			WHERE e.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-				   e.name ILIKE $1 OR
-				   e.description ILIKE $1)
+			  AND e.workspace_id = $1
+			  AND ($2::text IS NULL OR $2::text = '' OR
+				   e.name ILIKE $2 OR
+				   e.description ILIKE $2)
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -279,11 +321,11 @@ func (r *PostgresEventRepository) GetEventListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;
+		` + sortFragment + `
+		LIMIT $3 OFFSET $4;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query event list page data: %w", err)
 	}

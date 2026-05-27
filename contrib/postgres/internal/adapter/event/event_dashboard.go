@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/database/operations"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
@@ -18,8 +19,51 @@ type TimeBucket struct {
 	Value  int64
 }
 
+// eventWindowCountQuery is the ONE consolidated scalar-count CTE shared by both
+// CountToday and CountThisWeek (Q-DASHBOARD-FAILOPEN, Option A — the
+// loan_dashboard.go pattern). A single `base` CTE selects the active,
+// workspace-scoped event rows once; the outer SELECT derives the count for the
+// requested half-open [start, end) millis window via COUNT(*) FILTER (WHERE ...)
+// over that pass. Both public methods route through it (with their own anchor)
+// so the two stat-card metrics share ONE honest error seam via
+// core.RunDashboardAggregate instead of two QueryRowContext helpers that each
+// swallowed errors as (0, nil). workspace_id is $1 in every branch.
+const eventWindowCountQuery = `
+	WITH base AS (
+		SELECT e.start_date_time_utc
+		FROM event e
+		WHERE e.active = true
+		  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)
+	)
+	SELECT COUNT(*) FILTER (
+		WHERE start_date_time_utc >= $2 AND start_date_time_utc < $3
+	)::bigint
+	FROM base`
+
+// countEventsInWindow runs the consolidated window-count CTE once for the given
+// half-open [startMillis, endMillis) window and returns the honest error.
+// Workspace-scoped.
+func (r *PostgresEventRepository) countEventsInWindow(
+	ctx context.Context,
+	workspaceID string,
+	startMillis, endMillis int64,
+) (int64, error) {
+	var n int64
+	if err := postgresCore.RunDashboardAggregate(
+		ctx,
+		r.db,
+		eventWindowCountQuery,
+		[]any{workspaceID, startMillis, endMillis},
+		&n,
+	); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // CountToday returns the number of events whose start_date_time_utc falls on
-// the given UTC date. Workspace-scoped.
+// the given UTC date. Workspace-scoped. Routes through the consolidated
+// window-count CTE so it shares ONE honest error seam with CountThisWeek.
 //
 // Performance index recommendation:
 //
@@ -38,23 +82,12 @@ func (r *PostgresEventRepository) CountToday(
 	dayStart := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
 	dayEnd := dayStart.Add(24 * time.Hour)
 
-	const query = `
-		SELECT COUNT(*)::bigint
-		FROM event e
-		WHERE e.active = true
-		  AND e.start_date_time_utc >= $2
-		  AND e.start_date_time_utc < $3
-		  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)`
-
-	var n int64
-	if err := r.db.QueryRowContext(ctx, query, workspaceID, dayStart.UnixMilli(), dayEnd.UnixMilli()).Scan(&n); err != nil {
-		return 0, nil //nolint:nilerr
-	}
-	return n, nil
+	return r.countEventsInWindow(ctx, workspaceID, dayStart.UnixMilli(), dayEnd.UnixMilli())
 }
 
 // CountThisWeek returns the number of events whose start_date_time_utc falls
-// within the 7-day window starting at weekStart. Workspace-scoped.
+// within the 7-day window starting at weekStart. Workspace-scoped. Routes
+// through the consolidated window-count CTE — no fail-open.
 func (r *PostgresEventRepository) CountThisWeek(
 	ctx context.Context,
 	workspaceID string,
@@ -67,19 +100,7 @@ func (r *PostgresEventRepository) CountThisWeek(
 	from := time.Date(weekStart.Year(), weekStart.Month(), weekStart.Day(), 0, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 0, 7)
 
-	const query = `
-		SELECT COUNT(*)::bigint
-		FROM event e
-		WHERE e.active = true
-		  AND e.start_date_time_utc >= $2
-		  AND e.start_date_time_utc < $3
-		  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)`
-
-	var n int64
-	if err := r.db.QueryRowContext(ctx, query, workspaceID, from.UnixMilli(), to.UnixMilli()).Scan(&n); err != nil {
-		return 0, nil //nolint:nilerr
-	}
-	return n, nil
+	return r.countEventsInWindow(ctx, workspaceID, from.UnixMilli(), to.UnixMilli())
 }
 
 // UpcomingByStartDate returns active events with start_date_time_utc >= now,
@@ -117,7 +138,7 @@ func (r *PostgresEventRepository) UpcomingByStartDate(
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, nowMillis, limit)
 	if err != nil {
-		return nil, nil //nolint:nilerr
+		return nil, fmt.Errorf("failed to query upcoming events: %w", err)
 	}
 	defer rows.Close()
 
@@ -217,7 +238,7 @@ func (r *PostgresEventRepository) CountByDay(
 		fromDay.UnixMilli(), toEnd.UnixMilli(),
 	)
 	if err != nil {
-		return nil, nil //nolint:nilerr
+		return nil, fmt.Errorf("failed to query event count-by-day: %w", err)
 	}
 	defer rows.Close()
 
@@ -262,7 +283,7 @@ func (r *PostgresEventRepository) CountByTag(
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID)
 	if err != nil {
-		return map[string]int64{}, nil //nolint:nilerr
+		return nil, fmt.Errorf("failed to query event count-by-tag: %w", err)
 	}
 	defer rows.Close()
 

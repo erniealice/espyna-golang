@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -174,7 +175,18 @@ func (r *PostgresPayCycleRepository) ListPayCycles(ctx context.Context, req *pay
 	return &paycyclepb.ListPayCyclesResponse{Success: true, Data: items}, nil
 }
 
+// payCycleSortableSQLCols is the A2 sort whitelist for pay_cycle list pages.
+var payCycleSortableSQLCols = []string{
+	"pc.id", "pc.workspace_id", "pc.payroll_run_id",
+	"pc.cutoff_start", "pc.cutoff_end", "pc.pay_date", "pc.half_index",
+	"pc.sequence_no", "pc.total_gross", "pc.total_deductions", "pc.total_net",
+	"pc.employee_count", "pc.active", "pc.date_created", "pc.date_modified",
+}
+
 // GetPayCycleListPageData retrieves pay cycles with pagination, filtering, sorting, and search.
+// A1: workspace_id = $1 (strict, from context).
+// A2: sort column whitelisted via core.BuildOrderBy.
+// A3: COUNT(*) OVER() for accurate total without a second query.
 func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 	ctx context.Context,
 	req *paycyclepb.GetPayCycleListPageDataRequest,
@@ -182,49 +194,119 @@ func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get pay cycle list page data request is required")
 	}
-
-	var params *interfaces.ListParams
-	if req.Filters != nil {
-		if params == nil {
-			params = &interfaces.ListParams{}
-		}
-		params.Filters = req.Filters
+	if r.db == nil {
+		return nil, fmt.Errorf("GetPayCycleListPageData requires raw *sql.DB")
 	}
 
+	// A1: strict workspace predicate.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	limit := int32(50)
+	offset := int32(0)
 	page := int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-			}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
+			page = offsetPag.Page
+			offset = (page - 1) * limit
 		}
 	}
 
-	listResult, err := r.dbOps.List(ctx, r.tableName, params)
+	// A2: sort guard — fail-closed via core.BuildOrderBy whitelist.
+	orderByClause, err := postgresCore.BuildOrderBy(payCycleSortableSQLCols, req.GetSort(), "pc.date_created DESC")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list pay_cycle list page data: %w", err)
+		return nil, err
 	}
+
+	// A3: COUNT(*) OVER() — accurate total in one pass.
+	query := fmt.Sprintf(`
+		SELECT
+			pc.id,
+			pc.workspace_id,
+			pc.payroll_run_id,
+			pc.cutoff_start,
+			pc.cutoff_end,
+			pc.pay_date,
+			pc.half_index,
+			pc.sequence_no,
+			pc.total_gross,
+			pc.total_deductions,
+			pc.total_net,
+			pc.employee_count,
+			pc.active,
+			pc.date_created,
+			pc.date_modified,
+			COUNT(*) OVER() AS total
+		FROM %s pc
+		WHERE pc.workspace_id = $1
+		%s
+		LIMIT $2 OFFSET $3;
+	`, r.tableName, orderByClause)
+
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pay_cycle list page data: %w", err)
+	}
+	defer rows.Close()
 
 	var items []*paycyclepb.PayCycle
-	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			log.Printf("WARN: json.Marshal pay_cycle row: %v", err)
-			continue
+	var totalCount int64
+
+	for rows.Next() {
+		var (
+			id              string
+			wsID            string
+			payrollRunID    *string
+			cutoffStart     string
+			cutoffEnd       string
+			payDate         string
+			halfIndex       string
+			sequenceNo      int32
+			totalGross      int64
+			totalDeductions int64
+			totalNet        int64
+			employeeCount   int32
+			active          bool
+			dateCreated     *int64
+			dateModified    *int64
+			total           int64
+		)
+		if scanErr := rows.Scan(
+			&id, &wsID, &payrollRunID,
+			&cutoffStart, &cutoffEnd, &payDate, &halfIndex,
+			&sequenceNo, &totalGross, &totalDeductions, &totalNet,
+			&employeeCount, &active, &dateCreated, &dateModified,
+			&total,
+		); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan pay_cycle row: %w", scanErr)
 		}
-		pc := &paycyclepb.PayCycle{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, pc); err != nil {
-			log.Printf("WARN: protojson unmarshal pay_cycle: %v", err)
-			continue
+		totalCount = total
+
+		pc := &paycyclepb.PayCycle{
+			Id:              id,
+			WorkspaceId:     wsID,
+			PayrollRunId:    payrollRunID,
+			CutoffStart:     cutoffStart,
+			CutoffEnd:       cutoffEnd,
+			PayDate:         payDate,
+			HalfIndex:       halfIndex,
+			SequenceNo:      sequenceNo,
+			TotalGross:      totalGross,
+			TotalDeductions: totalDeductions,
+			TotalNet:        totalNet,
+			EmployeeCount:   employeeCount,
+			Active:          active,
+			DateCreated:     dateCreated,
+			DateModified:    dateModified,
 		}
 		items = append(items, pc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating pay_cycle rows: %w", err)
+	}
 
-	totalCount := int64(len(items))
 	totalPages := int32(0)
 	if limit > 0 {
 		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))

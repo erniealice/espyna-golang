@@ -260,74 +260,86 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 	// Build the CTE query following the translation plan pattern
 	query := `
 		WITH
-		-- CTE 1a: Aggregate delegate_client relationships with client and user details
-		delegate_clients_agg AS (
+		-- CTE 1a-inner: one row per delegate_client (PK guarantees uniqueness — no DISTINCT needed)
+		delegate_clients_rows AS (
 			SELECT
 				dc.delegate_id,
-				array_agg(
-					DISTINCT jsonb_build_object(
-						'id', dc.id,
-						'delegate_id', dc.delegate_id,
-						'client_id', dc.client_id,
-						'date_created', dc.date_created,
-						'date_modified', dc.date_modified,
-						'active', dc.active,
-						'client', jsonb_build_object(
-							'id', c.id,
-							'user_id', c.user_id,
-							'date_created', c.date_created,
-							'date_modified', c.date_modified,
-							'active', c.active,
-							'user', CASE
-								WHEN cu.id IS NOT NULL THEN jsonb_build_object(
-									'id', cu.id,
-									'first_name', cu.first_name,
-									'last_name', cu.last_name,
-									'email_address', cu.email_address,
-									'date_created', cu.date_created,
-									'date_modified', cu.date_modified,
-									'active', cu.active
-								)
-								ELSE NULL
-							END
-						)
-					) ORDER BY c.id ASC
-				) FILTER (WHERE c.id IS NOT NULL) as delegate_clients
+				dc.id AS dc_id,
+				jsonb_build_object(
+					'id', dc.id,
+					'delegate_id', dc.delegate_id,
+					'client_id', dc.client_id,
+					'date_created', dc.date_created,
+					'date_modified', dc.date_modified,
+					'active', dc.active,
+					'client', jsonb_build_object(
+						'id', c.id,
+						'user_id', c.user_id,
+						'date_created', c.date_created,
+						'date_modified', c.date_modified,
+						'active', c.active,
+						'user', CASE
+							WHEN cu.id IS NOT NULL THEN jsonb_build_object(
+								'id', cu.id,
+								'first_name', cu.first_name,
+								'last_name', cu.last_name,
+								'email_address', cu.email_address,
+								'date_created', cu.date_created,
+								'date_modified', cu.date_modified,
+								'active', cu.active
+							)
+							ELSE NULL
+						END
+					)
+				) AS obj
 			FROM delegate_client dc
 			INNER JOIN client c ON dc.client_id = c.id
 			LEFT JOIN "user" cu ON c.user_id = cu.id
 			WHERE dc.active = true AND c.active = true
-			GROUP BY dc.delegate_id
+		),
+		-- CTE 1a-outer: aggregate into ordered jsonb array; ORDER BY dc_id (stable PK)
+		delegate_clients_agg AS (
+			SELECT
+				delegate_id,
+				jsonb_agg(obj ORDER BY dc_id ASC) AS delegate_clients
+			FROM delegate_clients_rows
+			GROUP BY delegate_id
 		),
 
-		-- CTE 1b: Aggregate delegate_supplier relationships with supplier details
-		delegate_suppliers_agg AS (
+		-- CTE 1b-inner: one row per delegate_supplier (PK guarantees uniqueness — no DISTINCT needed)
+		delegate_suppliers_rows AS (
 			SELECT
 				ds.delegate_id,
-				array_agg(
-					DISTINCT jsonb_build_object(
-						'id', ds.id,
-						'delegate_id', ds.delegate_id,
-						'supplier_id', ds.supplier_id,
-						'date_created', ds.date_created,
-						'date_modified', ds.date_modified,
-						'active', ds.active,
-						'supplier', CASE
-							WHEN s.id IS NOT NULL THEN jsonb_build_object(
-								'id', s.id,
-								'name', s.name,
-								'date_created', s.date_created,
-								'date_modified', s.date_modified,
-								'active', s.active
-							)
-							ELSE NULL
-						END
-					) ORDER BY ds.id ASC
-				) FILTER (WHERE ds.id IS NOT NULL) as delegate_suppliers
+				ds.id AS ds_id,
+				jsonb_build_object(
+					'id', ds.id,
+					'delegate_id', ds.delegate_id,
+					'supplier_id', ds.supplier_id,
+					'date_created', ds.date_created,
+					'date_modified', ds.date_modified,
+					'active', ds.active,
+					'supplier', CASE
+						WHEN s.id IS NOT NULL THEN jsonb_build_object(
+							'id', s.id,
+							'name', s.name,
+							'date_created', s.date_created,
+							'date_modified', s.date_modified,
+							'active', s.active
+						)
+						ELSE NULL
+					END
+				) AS obj
 			FROM delegate_supplier ds
 			LEFT JOIN supplier s ON ds.supplier_id = s.id
 			WHERE ds.active = true
-			GROUP BY ds.delegate_id
+		),
+		-- CTE 1b-outer: aggregate into ordered jsonb array; ORDER BY ds_id (stable PK)
+		delegate_suppliers_agg AS (
+			SELECT
+				delegate_id,
+				jsonb_agg(obj ORDER BY ds_id ASC) AS delegate_suppliers
+			FROM delegate_suppliers_rows
+			GROUP BY delegate_id
 		),
 
 		-- CTE 2: Apply search filter
@@ -362,8 +374,8 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 					)
 					ELSE NULL
 				END as user,
-				COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients,
-				COALESCE(dsa.delegate_suppliers, ARRAY[]::jsonb[]) as delegate_suppliers
+				COALESCE(dca.delegate_clients, '[]'::jsonb) as delegate_clients,
+				COALESCE(dsa.delegate_suppliers, '[]'::jsonb) as delegate_suppliers
 			FROM search_filtered sf
 			LEFT JOIN "user" u ON sf.user_id = u.id
 			LEFT JOIN delegate_clients_agg dca ON sf.id = dca.delegate_id
@@ -553,74 +565,86 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 	// Build CTE query to fetch delegate with all related data
 	query := `
 		WITH
-		-- CTE 1a: Aggregate delegate_client relationships with client and user details
-		delegate_clients_agg AS (
+		-- CTE 1a-inner: one row per delegate_client (PK guarantees uniqueness — no DISTINCT needed)
+		delegate_clients_rows AS (
 			SELECT
 				dc.delegate_id,
-				array_agg(
-					DISTINCT jsonb_build_object(
-						'id', dc.id,
-						'delegate_id', dc.delegate_id,
-						'client_id', dc.client_id,
-						'date_created', dc.date_created,
-						'date_modified', dc.date_modified,
-						'active', dc.active,
-						'client', jsonb_build_object(
-							'id', c.id,
-							'user_id', c.user_id,
-							'date_created', c.date_created,
-							'date_modified', c.date_modified,
-							'active', c.active,
-							'user', CASE
-								WHEN cu.id IS NOT NULL THEN jsonb_build_object(
-									'id', cu.id,
-									'first_name', cu.first_name,
-									'last_name', cu.last_name,
-									'email_address', cu.email_address,
-									'date_created', cu.date_created,
-									'date_modified', cu.date_modified,
-									'active', cu.active
-								)
-								ELSE NULL
-							END
-						)
-					) ORDER BY c.id ASC
-				) FILTER (WHERE c.id IS NOT NULL) as delegate_clients
+				dc.id AS dc_id,
+				jsonb_build_object(
+					'id', dc.id,
+					'delegate_id', dc.delegate_id,
+					'client_id', dc.client_id,
+					'date_created', dc.date_created,
+					'date_modified', dc.date_modified,
+					'active', dc.active,
+					'client', jsonb_build_object(
+						'id', c.id,
+						'user_id', c.user_id,
+						'date_created', c.date_created,
+						'date_modified', c.date_modified,
+						'active', c.active,
+						'user', CASE
+							WHEN cu.id IS NOT NULL THEN jsonb_build_object(
+								'id', cu.id,
+								'first_name', cu.first_name,
+								'last_name', cu.last_name,
+								'email_address', cu.email_address,
+								'date_created', cu.date_created,
+								'date_modified', cu.date_modified,
+								'active', cu.active
+							)
+							ELSE NULL
+						END
+					)
+				) AS obj
 			FROM delegate_client dc
 			INNER JOIN client c ON dc.client_id = c.id
 			LEFT JOIN "user" cu ON c.user_id = cu.id
 			WHERE dc.delegate_id = $1 AND dc.active = true AND c.active = true
-			GROUP BY dc.delegate_id
+		),
+		-- CTE 1a-outer: aggregate into ordered jsonb array; ORDER BY dc_id (stable PK)
+		delegate_clients_agg AS (
+			SELECT
+				delegate_id,
+				jsonb_agg(obj ORDER BY dc_id ASC) AS delegate_clients
+			FROM delegate_clients_rows
+			GROUP BY delegate_id
 		),
 
-		-- CTE 1b: Aggregate delegate_supplier relationships with supplier details
-		delegate_suppliers_agg AS (
+		-- CTE 1b-inner: one row per delegate_supplier (PK guarantees uniqueness — no DISTINCT needed)
+		delegate_suppliers_rows AS (
 			SELECT
 				ds.delegate_id,
-				array_agg(
-					DISTINCT jsonb_build_object(
-						'id', ds.id,
-						'delegate_id', ds.delegate_id,
-						'supplier_id', ds.supplier_id,
-						'date_created', ds.date_created,
-						'date_modified', ds.date_modified,
-						'active', ds.active,
-						'supplier', CASE
-							WHEN s.id IS NOT NULL THEN jsonb_build_object(
-								'id', s.id,
-								'name', s.name,
-								'date_created', s.date_created,
-								'date_modified', s.date_modified,
-								'active', s.active
-							)
-							ELSE NULL
-						END
-					) ORDER BY ds.id ASC
-				) FILTER (WHERE ds.id IS NOT NULL) as delegate_suppliers
+				ds.id AS ds_id,
+				jsonb_build_object(
+					'id', ds.id,
+					'delegate_id', ds.delegate_id,
+					'supplier_id', ds.supplier_id,
+					'date_created', ds.date_created,
+					'date_modified', ds.date_modified,
+					'active', ds.active,
+					'supplier', CASE
+						WHEN s.id IS NOT NULL THEN jsonb_build_object(
+							'id', s.id,
+							'name', s.name,
+							'date_created', s.date_created,
+							'date_modified', s.date_modified,
+							'active', s.active
+						)
+						ELSE NULL
+					END
+				) AS obj
 			FROM delegate_supplier ds
 			LEFT JOIN supplier s ON ds.supplier_id = s.id
 			WHERE ds.delegate_id = $1 AND ds.active = true
-			GROUP BY ds.delegate_id
+		),
+		-- CTE 1b-outer: aggregate into ordered jsonb array; ORDER BY ds_id (stable PK)
+		delegate_suppliers_agg AS (
+			SELECT
+				delegate_id,
+				jsonb_agg(obj ORDER BY ds_id ASC) AS delegate_suppliers
+			FROM delegate_suppliers_rows
+			GROUP BY delegate_id
 		)
 
 		-- Final SELECT with all related data
@@ -642,8 +666,8 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 				)
 				ELSE NULL
 			END as user,
-			COALESCE(dca.delegate_clients, ARRAY[]::jsonb[]) as delegate_clients,
-			COALESCE(dsa.delegate_suppliers, ARRAY[]::jsonb[]) as delegate_suppliers
+			COALESCE(dca.delegate_clients, '[]'::jsonb) as delegate_clients,
+			COALESCE(dsa.delegate_suppliers, '[]'::jsonb) as delegate_suppliers
 		FROM delegate d
 		LEFT JOIN "user" u ON d.user_id = u.id
 		LEFT JOIN delegate_clients_agg dca ON d.id = dca.delegate_id

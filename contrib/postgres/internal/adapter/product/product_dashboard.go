@@ -10,12 +10,20 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // CountByStatusAndKind returns a map of status (active|inactive) → count for
 // products with the given product_kind value (e.g. "service"). Workspace-
 // scoped.
+//
+// Q-DASHBOARD-FAILOPEN (Option A): the active/inactive split is the dashboard's
+// single fixed-shape scalar metric, so it is consolidated into ONE single-row
+// CTE — a `base` pass over the kind-filtered, workspace-scoped product rows,
+// then `COUNT(*) FILTER (WHERE active)` / `FILTER (WHERE NOT active)` over that
+// pass — and scanned through core.RunDashboardAggregate so a DB fault is
+// returned honestly instead of being swallowed as an empty all-zeros map.
 //
 // Performance index recommendation:
 //
@@ -31,34 +39,33 @@ func (r *PostgresProductRepository) CountByStatusAndKind(
 	}
 
 	const query = `
-		SELECT CASE WHEN p.active THEN 'active' ELSE 'inactive' END AS status,
-		       COUNT(*)::bigint
-		FROM product p
-		WHERE p.product_kind = $2
-		  AND ($1::text IS NULL OR $1::text = '' OR p.workspace_id = $1)
-		GROUP BY status`
-
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, kind)
-	if err != nil {
-		return map[string]int64{}, nil //nolint:nilerr
-	}
-	defer rows.Close()
-
-	out := make(map[string]int64, 2)
-	for rows.Next() {
-		var (
-			status string
-			n      int64
+		WITH base AS (
+			SELECT p.active
+			FROM product p
+			WHERE p.product_kind = $2
+			  AND ($1::text IS NULL OR $1::text = '' OR p.workspace_id = $1)
 		)
-		if scanErr := rows.Scan(&status, &n); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan product status row: %w", scanErr)
-		}
-		out[status] = n
+		SELECT
+			COUNT(*) FILTER (WHERE active)::bigint     AS active_count,
+			COUNT(*) FILTER (WHERE NOT active)::bigint AS inactive_count
+		FROM base`
+
+	var activeCount, inactiveCount int64
+	if err := postgresCore.RunDashboardAggregate(
+		ctx,
+		r.db,
+		query,
+		[]any{workspaceID, kind},
+		&activeCount,
+		&inactiveCount,
+	); err != nil {
+		return nil, err
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating product status rows: %w", err)
-	}
-	return out, nil
+
+	return map[string]int64{
+		"active":   activeCount,
+		"inactive": inactiveCount,
+	}, nil
 }
 
 // CountByLine returns a map of line_id → count, restricted to the given
@@ -87,7 +94,7 @@ func (r *PostgresProductRepository) CountByLine(
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, kind)
 	if err != nil {
-		return map[string]int64{}, nil //nolint:nilerr
+		return nil, fmt.Errorf("failed to query product-by-line counts: %w", err)
 	}
 	defer rows.Close()
 

@@ -13,10 +13,21 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+// planAttributeSortableSQLCols is the sort-column whitelist that
+// core.BuildOrderBy validates GetPlanAttributeListPageData requests against
+// (A2 fail-closed guard, replacing the prior `ORDER BY ` + sortField
+// interpolation). These match the columns projected by the enriched CTE.
+var planAttributeSortableSQLCols = []string{
+	"value",
+	"date_created",
+	"date_modified",
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.PlanAttribute, func(conn any, tableName string) (any, error) {
@@ -218,16 +229,22 @@ func (r *PostgresPlanAttributeRepository) GetPlanAttributeListPageData(ctx conte
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// A2: route the caller-supplied sort column through the fail-closed
+	// whitelist helper instead of interpolating it raw.
+	// A10: COUNT(*) OVER () replaces the prior counted-CTE + cross join.
+	orderBy, err := postgresCore.BuildOrderBy(planAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for plan attribute list: %w", err)
 	}
 
-	query := `WITH enriched AS (SELECT id, plan_id, attribute_id, value, active, date_created, date_modified FROM plan_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// A1: plan_attribute has no workspace_id column of its own (verified against
+	// the baseline schema); tenancy is inherited through its plan FK (plan does
+	// carry workspace_id), so the predicate scopes on the joined plan's
+	// workspace_id. The explicit pa.* column list keeps the scan unaffected by
+	// the join. Empty wsID = service-to-service call → no scoping.
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	query := `WITH enriched AS (SELECT pa.id, pa.plan_id, pa.attribute_id, pa.value, pa.active, pa.date_created, pa.date_modified FROM plan_attribute pa LEFT JOIN plan p ON pa.plan_id = p.id WHERE pa.active = true AND ($4::text = '' OR p.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR pa.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

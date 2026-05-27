@@ -10,15 +10,24 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	pgaudit "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/audit"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 )
+
+// jobActivitySortableSQLCols is the A2 whitelist for GetJobActivityListPageData.
+var jobActivitySortableSQLCols = []string{
+	"ja.date_created",
+	"ja.entry_date",
+	"ja.total_cost",
+}
 
 // PostgresJobActivityRepository implements job_activity CRUD operations using PostgreSQL
 type PostgresJobActivityRepository struct {
@@ -201,11 +210,42 @@ func (r *PostgresJobActivityRepository) ListJobActivities(ctx context.Context, r
 	}, nil
 }
 
-// GetJobActivityListPageData retrieves paginated job activity list with job join
+// GetJobActivityListPageData retrieves paginated job activity list with job join.
+// A1: filters by ja.workspace_id for multi-tenancy.
+// A2: sort routed through core.BuildOrderBy whitelist.
+// A3: COUNT(*) OVER() wired into pagination response.
 func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.Context, req *pb.GetJobActivityListPageDataRequest) (*pb.GetJobActivityListPageDataResponse, error) {
 	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
 	if !ok {
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
+	}
+
+	// A1: workspace predicate.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	limit := int32(50)
+	offset := int32(0)
+	page := int32(1)
+	if req != nil && req.Pagination != nil {
+		if req.Pagination.Limit > 0 {
+			limit = req.Pagination.Limit
+		}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
+			if offsetPag.Page > 0 {
+				page = offsetPag.Page
+				offset = (page - 1) * limit
+			}
+		}
+	}
+
+	// A2: sort guard — fail-closed via core.BuildOrderBy whitelist.
+	var sortReq *commonpb.SortRequest
+	if req != nil {
+		sortReq = req.GetSort()
+	}
+	orderByClause, err := postgresCore.BuildOrderBy(jobActivitySortableSQLCols, sortReq, "ja.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := fmt.Sprintf(`
@@ -231,9 +271,10 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 				ja.date_created,
 				ja.active,
 				j.name AS job_name
-			FROM %s ja
+			FROM %%s ja
 			LEFT JOIN job j ON j.id = ja.job_id
 			WHERE ja.active = true
+			  AND ($1 = '' OR ja.workspace_id = $1)
 		),
 		counted AS (
 			SELECT COUNT(*) AS total FROM enriched
@@ -242,16 +283,18 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY e.date_created DESC
-	`, r.tableName)
+		%s
+		LIMIT $2 OFFSET $3
+	`, orderByClause)
 
-	rows, err := db.GetDB().QueryContext(ctx, query)
+	rows, err := db.GetDB().QueryContext(ctx, fmt.Sprintf(query, r.tableName), workspaceID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job activity list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var activities []*pb.JobActivity
+	var totalCount int64
 
 	for rows.Next() {
 		var (
@@ -287,7 +330,7 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 			return nil, fmt.Errorf("failed to scan job activity row: %w", err)
 		}
 
-		_ = total // totalCount available for pagination if needed
+		totalCount = total
 
 		activity := &pb.JobActivity{
 			Id:        id,
@@ -352,9 +395,23 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 		return nil, fmt.Errorf("error iterating job activity rows: %w", err)
 	}
 
+	totalPages := int32(0)
+	if limit > 0 {
+		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	}
+	hasNext := page < totalPages
+	hasPrev := page > 1
+
 	return &pb.GetJobActivityListPageDataResponse{
 		JobActivityList: activities,
-		Success:         true,
+		Pagination: &commonpb.PaginationResponse{
+			TotalItems:  int32(totalCount),
+			CurrentPage: &page,
+			TotalPages:  &totalPages,
+			HasNext:     hasNext,
+			HasPrev:     hasPrev,
+		},
+		Success: true,
 	}, nil
 }
 

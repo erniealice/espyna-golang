@@ -20,6 +20,20 @@ import (
 	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
 )
 
+// supplierContractLineSortableSQLCols is the fail-closed sort whitelist for
+// GetSupplierContractLineListPageData (A2). Mirrors the enriched CTE projection.
+var supplierContractLineSortableSQLCols = []string{
+	"supplier_contract_id",
+	"description",
+	"line_number",
+	"treatment",
+	"quantity",
+	"unit_price",
+	"total_amount",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.SupplierContractLine, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -193,13 +207,9 @@ func (r *PostgresSupplierContractLineRepository) GetSupplierContractLineListPage
 		}
 	}
 
-	sortField := "scl.line_number"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(supplierContractLineSortableSQLCols, req.GetSort(), "line_number ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Filter by supplier_contract_id if supplied via Filters (TypedFilter with field="supplier_contract_id").
@@ -225,15 +235,14 @@ func (r *PostgresSupplierContractLineRepository) GetSupplierContractLineListPage
 				scl.total_amount,
 				scl.active,
 				scl.date_created,
-				scl.date_modified
+				scl.date_modified,
+				COUNT(*) OVER() AS total
 			FROM supplier_contract_line scl
 			WHERE scl.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR scl.supplier_contract_id = $1)
-		),
-		counted AS (SELECT COUNT(*) AS total FROM enriched)
-		SELECT e.*, c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		)
+		SELECT * FROM enriched
+		` + orderBy + `
 		LIMIT $2 OFFSET $3;
 	`
 

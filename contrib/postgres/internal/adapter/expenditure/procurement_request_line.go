@@ -20,6 +20,19 @@ import (
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 )
 
+// procurementRequestLineSortableSQLCols is the fail-closed sort whitelist for
+// GetProcurementRequestLineListPageData (A2). Mirrors the enriched CTE projection.
+var procurementRequestLineSortableSQLCols = []string{
+	"procurement_request_id",
+	"description",
+	"line_number",
+	"quantity",
+	"estimated_unit_price",
+	"estimated_total_price",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.ProcurementRequestLine, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -193,13 +206,9 @@ func (r *PostgresProcurementRequestLineRepository) GetProcurementRequestLineList
 		}
 	}
 
-	sortField := "prl.line_number"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(procurementRequestLineSortableSQLCols, req.GetSort(), "line_number ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Filter by procurement_request_id if provided (TypedFilter with field="procurement_request_id").
@@ -224,15 +233,14 @@ func (r *PostgresProcurementRequestLineRepository) GetProcurementRequestLineList
 				prl.estimated_total_price,
 				prl.active,
 				prl.date_created,
-				prl.date_modified
+				prl.date_modified,
+				COUNT(*) OVER() AS total
 			FROM procurement_request_line prl
 			WHERE prl.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR prl.procurement_request_id = $1)
-		),
-		counted AS (SELECT COUNT(*) AS total FROM enriched)
-		SELECT e.*, c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		)
+		SELECT * FROM enriched
+		` + orderBy + `
 		LIMIT $2 OFFSET $3;
 	`
 

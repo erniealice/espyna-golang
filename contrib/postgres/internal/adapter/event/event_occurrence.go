@@ -17,6 +17,27 @@ import (
 	eventoccurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_occurrence"
 )
 
+// eventOccurrenceSortableSQLCols lists the SQL column names that are safe to
+// sort by in GetEventOccurrenceListPageData. The query uses direct ORDER BY
+// interpolation so this guard is critical.
+var eventOccurrenceSortableSQLCols = []string{
+	"eo.date_created",
+	"eo.date_modified",
+	"eo.start_date_time_utc",
+	"eo.end_date_time_utc",
+	"eo.event_id",
+}
+
+// eventOccurrenceViewToSQLColMap translates view-facing sort column keys to SQL
+// column names. Columns absent from the map pass through unchanged.
+var eventOccurrenceViewToSQLColMap = map[string]string{
+	"date_created":        "eo.date_created",
+	"date_modified":       "eo.date_modified",
+	"start_date_time_utc": "eo.start_date_time_utc",
+	"end_date_time_utc":   "eo.end_date_time_utc",
+	"event_id":            "eo.event_id",
+}
+
 // PostgresEventOccurrenceRepository implements read-only event occurrence operations using PostgreSQL.
 // This entity is populated by the background recurrence expansion job (cyta), not by user CRUD.
 //
@@ -126,14 +147,29 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 		}
 	}
 
-	// Default sort — start_date_time_utc ASC is natural for calendar rendering
-	sortField := "start_date_time_utc"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Default sort — start_date_time_utc ASC is natural for calendar rendering.
+	// Translate view-facing column key to SQL column name via ColMap.
+	sortColKey := "eo.start_date_time_utc"
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
+		sortColKey = req.Sort.Fields[0].Field
+	}
+	if mapped, ok := eventOccurrenceViewToSQLColMap[sortColKey]; ok {
+		sortColKey = mapped
+	}
+
+	// A2 sort guard: reject any column not in the whitelist via core.BuildOrderBy.
+	sortFragment, err := postgresCore.BuildOrderBy(
+		eventOccurrenceSortableSQLCols,
+		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: func() commonpb.SortDirection {
+			if req.Sort != nil && len(req.Sort.Fields) > 0 {
+				return req.Sort.Fields[0].Direction
+			}
+			return commonpb.SortDirection_ASC
+		}()}}},
+		"eo.start_date_time_utc ASC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort column for event_occurrence: %w", err)
 	}
 
 	// CTE Query — calendar range pattern with event_id search
@@ -164,7 +200,7 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + sortFragment + `
 		LIMIT $3 OFFSET $4;
 	`
 

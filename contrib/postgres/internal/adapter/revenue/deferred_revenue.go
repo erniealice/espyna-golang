@@ -19,6 +19,22 @@ import (
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
 
+// deferredRevenueSortableSQLCols is the fail-closed sort whitelist for
+// GetDeferredRevenueListPageData (A2). Mirrors the enriched CTE projection.
+var deferredRevenueSortableSQLCols = []string{
+	"description",
+	"customer_name",
+	"total_amount",
+	"recognized_amount",
+	"remaining_amount",
+	"start_date",
+	"end_date",
+	"recognition_months",
+	"status",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.DeferredRevenue, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -252,13 +268,9 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 		}
 	}
 
-	sortField := "dr.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(deferredRevenueSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -278,21 +290,16 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 				dr.recognition_months,
 				dr.status,
 				dr.liability_account_id,
-				dr.revenue_account_id
+				dr.revenue_account_id,
+				COUNT(*) OVER() AS total
 			FROM ` + r.tableName + ` dr
 			WHERE dr.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       dr.description ILIKE $1 OR
 			       dr.customer_name ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		SELECT * FROM enriched
+		` + orderBy + `
 		LIMIT $2 OFFSET $3;
 	`
 

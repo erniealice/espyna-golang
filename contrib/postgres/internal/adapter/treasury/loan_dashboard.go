@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	treasurydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/treasury"
 )
 
@@ -26,56 +27,115 @@ type TimeBucket = treasurydash.TimeBucket
 // `initializers/service.go` requires exact named return type match.
 type LoanSlice = treasurydash.LoanSlice
 
-// SumOutstanding returns the sum of remaining_balance across all active loans
-// (centavos). Workspace-scoped.
+// loanScalarAggregate is the ONE consolidated scalar-count CTE for the loan
+// dashboard (Q-DASHBOARD-FAILOPEN, Option A). A single `base` CTE selects the
+// active, workspace-scoped loan rows once; the outer SELECT derives every
+// scalar metric — total outstanding + per-status counts — via conditional
+// aggregation over that single pass.
+//
+// Both SumOutstanding and CountByStatus delegate here so the dashboard's
+// scalar metrics travel through ONE multi-aggregate query with ONE honest
+// error seam (via core.RunDashboardAggregate), instead of N separate
+// QueryRowContext helpers that each swallowed errors as (0, nil). centavos
+// stay centavos — remaining_balance is summed, never scaled.
+type loanScalarAggregate struct {
+	TotalOutstanding int64
+	ActiveCount      int64
+	CompletedCount   int64
+	DefaultedCount   int64
+}
+
+// loanScalarAggregateQuery centralizes the consolidated CTE. workspace_id is
+// $1 in every branch (multi-tenancy guardrail). The base CTE is the single
+// scan surface; FILTER (WHERE ...) derives each per-status count without a
+// second round trip.
+const loanScalarAggregateQuery = `
+	WITH base AS (
+		SELECT l.status, l.remaining_balance
+		FROM loan l
+		WHERE l.active = true
+		  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
+	)
+	SELECT
+		COALESCE(SUM(remaining_balance), 0)::bigint                      AS total_outstanding,
+		COUNT(*) FILTER (WHERE status = 'ACTIVE')::bigint                AS active_count,
+		COUNT(*) FILTER (WHERE status = 'COMPLETED')::bigint             AS completed_count,
+		COUNT(*) FILTER (WHERE status = 'DEFAULTED')::bigint             AS defaulted_count
+	FROM base`
+
+// runLoanScalarAggregate executes the consolidated CTE once and returns the
+// honest error. Workspace-scoped, centavos.
 //
 // Performance index recommendation:
 //
 //	CREATE INDEX idx_loan_workspace_active
 //	  ON loan(workspace_id, active);
+func (r *PostgresLoanRepository) runLoanScalarAggregate(
+	ctx context.Context,
+	workspaceID string,
+) (loanScalarAggregate, error) {
+	var agg loanScalarAggregate
+	if err := postgresCore.RunDashboardAggregate(
+		ctx,
+		r.db,
+		loanScalarAggregateQuery,
+		[]any{workspaceID},
+		&agg.TotalOutstanding,
+		&agg.ActiveCount,
+		&agg.CompletedCount,
+		&agg.DefaultedCount,
+	); err != nil {
+		return loanScalarAggregate{}, err
+	}
+	return agg, nil
+}
+
+// SumOutstanding returns the sum of remaining_balance across all active loans
+// (centavos). Workspace-scoped. Routes through the consolidated scalar CTE so
+// the metric shares ONE honest error seam with the per-status counts.
 func (r *PostgresLoanRepository) SumOutstanding(
 	ctx context.Context,
 	workspaceID string,
 ) (int64, error) {
-	if r.db == nil {
-		return 0, fmt.Errorf("database connection is not available")
+	agg, err := r.runLoanScalarAggregate(ctx, workspaceID)
+	if err != nil {
+		return 0, err
 	}
-
-	const query = `
-		SELECT COALESCE(SUM(l.remaining_balance), 0)::bigint
-		FROM loan l
-		WHERE l.active = true
-		  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)`
-
-	var total int64
-	if err := r.db.QueryRowContext(ctx, query, workspaceID).Scan(&total); err != nil {
-		return 0, nil //nolint:nilerr
-	}
-	return total, nil
+	return agg.TotalOutstanding, nil
 }
 
-// SumInterestAccruedYTD approximates YTD accrued interest as the sum of
-// (principal * rate / 12 * months_elapsed_ytd / 100) for active loans started
-// before the requested year-end. This is a rough server-side estimate used for
-// dashboard display only — not for accounting. Workspace-scoped, centavos.
-//
-// Note: a more accurate calculation requires loan_payment.interest_amount
-// summed YTD; that's done by the dashboard use case if available. This method
-// provides a fallback estimate from the loan table.
+// CountByStatus returns a map of loan status (ACTIVE/COMPLETED/DEFAULTED) to
+// count. Workspace-scoped. Routes through the consolidated scalar CTE — no
+// separate GROUP BY round trip, no fail-open. Errors propagate honestly so a
+// DB fault fails the dashboard instead of painting a false all-zeros picture.
+func (r *PostgresLoanRepository) CountByStatus(
+	ctx context.Context,
+	workspaceID string,
+) (map[string]int64, error) {
+	agg, err := r.runLoanScalarAggregate(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]int64{
+		"ACTIVE":    agg.ActiveCount,
+		"COMPLETED": agg.CompletedCount,
+		"DEFAULTED": agg.DefaultedCount,
+	}, nil
+}
+
+// SumInterestAccruedYTD sums recorded loan_payment.interest_amount year-to-date
+// for loans in this workspace (centavos). This reads a different table
+// (loan_payment) so it stays a separate single-aggregate query, but it now
+// propagates its error honestly via core.RunDashboardAggregate instead of
+// swallowing it as (0, nil). Workspace-scoped.
 func (r *PostgresLoanRepository) SumInterestAccruedYTD(
 	ctx context.Context,
 	workspaceID string,
 	year int,
 ) (int64, error) {
-	if r.db == nil {
-		return 0, fmt.Errorf("database connection is not available")
-	}
-
 	yearStart := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
 	yearEnd := time.Date(year, time.December, 31, 23, 59, 59, 0, time.UTC).Format("2006-01-02")
 
-	// Use the actual loan_payment.interest_amount when available — sum of
-	// recorded interest paid year-to-date for loans in this workspace.
 	const query = `
 		SELECT COALESCE(SUM(lp.interest_amount), 0)::bigint
 		FROM loan_payment lp
@@ -85,54 +145,22 @@ func (r *PostgresLoanRepository) SumInterestAccruedYTD(
 		  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)`
 
 	var total int64
-	if err := r.db.QueryRowContext(ctx, query, workspaceID, yearStart, yearEnd).Scan(&total); err != nil {
-		return 0, nil //nolint:nilerr
+	if err := postgresCore.RunDashboardAggregate(
+		ctx,
+		r.db,
+		query,
+		[]any{workspaceID, yearStart, yearEnd},
+		&total,
+	); err != nil {
+		return 0, err
 	}
 	return total, nil
 }
 
-// CountByStatus returns a map of loan status (active/completed/defaulted/draft)
-// to count. Workspace-scoped.
-func (r *PostgresLoanRepository) CountByStatus(
-	ctx context.Context,
-	workspaceID string,
-) (map[string]int64, error) {
-	if r.db == nil {
-		return nil, fmt.Errorf("database connection is not available")
-	}
-
-	const query = `
-		SELECT l.status, COUNT(*)::bigint
-		FROM loan l
-		WHERE l.active = true
-		  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
-		GROUP BY l.status`
-
-	rows, err := r.db.QueryContext(ctx, query, workspaceID)
-	if err != nil {
-		return map[string]int64{}, nil //nolint:nilerr
-	}
-	defer rows.Close()
-
-	out := make(map[string]int64, 4)
-	for rows.Next() {
-		var (
-			status string
-			n      int64
-		)
-		if scanErr := rows.Scan(&status, &n); scanErr != nil {
-			return nil, fmt.Errorf("failed to scan loan count row: %w", scanErr)
-		}
-		out[status] = n
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating loan count rows: %w", err)
-	}
-	return out, nil
-}
-
 // TopByOutstanding returns active loans ranked by remaining_balance DESC.
-// Workspace-scoped.
+// Workspace-scoped. List-shaped (multi-row) so it stays a separate
+// QueryContext helper — but it now returns DB errors honestly instead of
+// `return nil, nil`.
 func (r *PostgresLoanRepository) TopByOutstanding(
 	ctx context.Context,
 	workspaceID string,
@@ -161,7 +189,7 @@ func (r *PostgresLoanRepository) TopByOutstanding(
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, limit)
 	if err != nil {
-		return nil, nil //nolint:nilerr
+		return nil, fmt.Errorf("failed to query top loans: %w", err)
 	}
 	defer rows.Close()
 
@@ -192,6 +220,8 @@ func (r *PostgresLoanRepository) TopByOutstanding(
 // remaining_balance as the current snapshot on every bucket — a refinement
 // would track historic balances via a payments-applied-by-month CTE).
 //
+// List-shaped (one row per month) so it stays a separate QueryContext helper,
+// but it now returns DB errors honestly instead of `return nil, nil`.
 // Workspace-scoped, centavos.
 func (r *PostgresLoanRepository) OutstandingPrincipalByMonth(
 	ctx context.Context,
@@ -238,7 +268,7 @@ func (r *PostgresLoanRepository) OutstandingPrincipalByMonth(
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, from, to)
 	if err != nil {
-		return nil, nil //nolint:nilerr
+		return nil, fmt.Errorf("failed to query outstanding-by-month: %w", err)
 	}
 	defer rows.Close()
 

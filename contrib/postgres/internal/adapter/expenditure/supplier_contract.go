@@ -21,6 +21,25 @@ import (
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 )
 
+// supplierContractSortableSQLCols is the fail-closed sort whitelist for
+// GetSupplierContractListPageData (A2). Mirrors the enriched CTE projection.
+var supplierContractSortableSQLCols = []string{
+	"name",
+	"kind",
+	"status",
+	"currency",
+	"date_time_start",
+	"date_time_end",
+	"committed_amount",
+	"released_amount",
+	"billed_amount",
+	"remaining_amount",
+	"reference_number",
+	"supplier_name",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.SupplierContract, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -206,13 +225,9 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 		}
 	}
 
-	sortField := "sc.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(supplierContractSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -235,7 +250,8 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 				sc.remaining_amount,
 				sc.reference_number,
 				sc.location_id,
-				COALESCE(s.name, '') AS supplier_name
+				COALESCE(s.name, '') AS supplier_name,
+				COUNT(*) OVER() AS total
 			FROM supplier_contract sc
 			LEFT JOIN supplier s ON sc.supplier_id = s.id AND s.active = true
 			WHERE sc.active = true
@@ -244,13 +260,9 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 			       sc.name ILIKE $2 OR
 			       sc.reference_number ILIKE $2 OR
 			       s.name ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) AS total FROM enriched
 		)
-		SELECT e.*, c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		SELECT * FROM enriched
+		` + orderBy + `
 		LIMIT $3 OFFSET $4;
 	`
 

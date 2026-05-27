@@ -364,12 +364,23 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		}
 	}
 
-	// Allowlist-validated sort
+	// Allowlist-validated sort (A2 guard). The sort column is resolved through
+	// workspaceUserSortAllowlist, which maps an external field name to a safe,
+	// table-qualified SQL reference (e.g. "u.first_name"). Because the values
+	// carry a table prefix, core.BuildOrderBy's bare double-quoting cannot be
+	// used here — but the resolution is still fail-closed: an unknown requested
+	// column returns an error rather than silently falling back to the default,
+	// matching BuildOrderBy's contract (a silent fallback hides a probing or
+	// misconfigured caller).
 	sortCol := "wu.date_created"
 	sortOrder := "DESC"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 {
 		f := req.Sort.Fields[0]
-		if col, ok := workspaceUserSortAllowlist[f.Field]; ok {
+		if f.Field != "" {
+			col, ok := workspaceUserSortAllowlist[f.Field]
+			if !ok {
+				return nil, fmt.Errorf("unknown sort column %q for workspace_user", f.Field)
+			}
 			sortCol = col
 		}
 		if f.Direction == commonpb.SortDirection_ASC {

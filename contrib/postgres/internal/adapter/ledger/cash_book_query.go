@@ -31,6 +31,7 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 				COALESCE(NULLIF(TRIM(name), ''), 'Collection') AS description,
 				COALESCE(NULLIF(reference_number, ''), '-') AS reference,
 				'Receipt' AS tx_type,
+				-- TODO(Q-CENTAVO-INFLATION): verify fycha display caller before changing *100
 				(total_amount * 100)::bigint AS amount
 			FROM ` + a.tableConfig.Revenue + `
 			WHERE status NOT IN ('cancelled', 'draft')
@@ -43,6 +44,7 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 				COALESCE(NULLIF(name, ''), 'Payment') AS description,
 				COALESCE(NULLIF(reference_number, ''), '-') AS reference,
 				CASE WHEN expenditure_type = 'purchase' THEN 'Purchase' ELSE 'Expense' END AS tx_type,
+				-- TODO(Q-CENTAVO-INFLATION): verify fycha display caller before changing *100
 				(total_amount * 100)::bigint AS amount
 			FROM ` + a.tableConfig.Expenditure + `
 			WHERE status NOT IN ('cancelled', 'draft')
@@ -109,11 +111,12 @@ func (a *LedgerReportingAdapter) GetSimplePayablesAgingReport(
 		)
 		SELECT
 			supplier_name,
-			(COALESCE(SUM(CASE WHEN days_overdue <= 0 THEN outstanding_amount ELSE 0 END), 0) * 100)::bigint AS current_amt,
-			(COALESCE(SUM(CASE WHEN days_overdue BETWEEN 1 AND 30 THEN outstanding_amount ELSE 0 END), 0) * 100)::bigint AS days_30,
-			(COALESCE(SUM(CASE WHEN days_overdue BETWEEN 31 AND 60 THEN outstanding_amount ELSE 0 END), 0) * 100)::bigint AS days_60,
-			(COALESCE(SUM(CASE WHEN days_overdue BETWEEN 61 AND 90 THEN outstanding_amount ELSE 0 END), 0) * 100)::bigint AS days_90,
-			(COALESCE(SUM(CASE WHEN days_overdue > 90 THEN outstanding_amount ELSE 0 END), 0) * 100)::bigint AS over_90,
+			-- TODO(Q-CENTAVO-INFLATION): verify fycha display caller before changing *100
+			(COALESCE(SUM(outstanding_amount) FILTER (WHERE days_overdue <= 0), 0) * 100)::bigint AS current_amt,
+			(COALESCE(SUM(outstanding_amount) FILTER (WHERE days_overdue BETWEEN 1 AND 30), 0) * 100)::bigint AS days_30,
+			(COALESCE(SUM(outstanding_amount) FILTER (WHERE days_overdue BETWEEN 31 AND 60), 0) * 100)::bigint AS days_60,
+			(COALESCE(SUM(outstanding_amount) FILTER (WHERE days_overdue BETWEEN 61 AND 90), 0) * 100)::bigint AS days_90,
+			(COALESCE(SUM(outstanding_amount) FILTER (WHERE days_overdue > 90), 0) * 100)::bigint AS over_90,
 			(COALESCE(SUM(outstanding_amount), 0) * 100)::bigint AS total
 		FROM outstanding
 		GROUP BY supplier_name

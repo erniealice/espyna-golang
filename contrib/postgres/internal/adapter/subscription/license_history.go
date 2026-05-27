@@ -14,6 +14,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
@@ -221,53 +222,60 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "license_history", licenseHistorySortableSQLCols)
 	}
 
-	// Build the CTE query
+	// Workspace isolation: this method bypasses the WorkspaceAwareOperations
+	// decorator (raw SQL via db.GetDB()), so we extract workspace_id from context
+	// and filter explicitly. Empty wsID = service-to-service call → no scoping (A1).
+	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+
+	// Build the CTE query.
+	// A1: scope to the caller's workspace. license_history has no workspace_id
+	// column of its own (verified against the baseline schema), and unlike its
+	// siblings it has no direct subscription FK — tenancy chains two hops:
+	// license_history.license_id → license.id → license.subscription_id →
+	// subscription.workspace_id. The predicate scopes on the joined subscription's
+	// workspace_id. Empty wsID = service-to-service call → no scoping.
+	// A10: COUNT(*) OVER () replaces the prior total_count CTE + CROSS JOIN,
+	// computed over the full filtered set before LIMIT/OFFSET. The parameterized
+	// CASE WHEN sort (guarded above by licenseHistorySortableSQLCols) moves into
+	// the final SELECT so the window count still spans every filtered row.
 	query := `
 		WITH
-		-- CTE 1: Apply license_id filter
+		-- CTE 1: Apply license_id + workspace filter
 		filtered AS (
 			SELECT lh.*
 			FROM license_history lh
+			LEFT JOIN license l ON lh.license_id = l.id
+			LEFT JOIN subscription s ON l.subscription_id = s.id
 			WHERE lh.active = true
 				AND ($1::text = '' OR lh.license_id = $1)
-		),
-
-		-- CTE 2: Apply sorting
-		sorted AS (
-			SELECT * FROM filtered
-			ORDER BY
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $4 = 'action' AND $5 = 'ASC' THEN action END ASC,
-				CASE WHEN $4 = 'action' AND $5 = 'DESC' THEN action END DESC
-		),
-
-		-- CTE 3: Calculate total count for pagination
-		total_count AS (
-			SELECT count(*) as total FROM sorted
+				AND ($6::text = '' OR s.workspace_id = $6::text)
 		)
 
-		-- Final SELECT with pagination
+		-- Final SELECT with sorting, window count, and pagination
 		SELECT
-			s.id,
-			s.license_id,
-			s.action,
-			s.assignee_id,
-			s.assignee_type,
-			s.assignee_name,
-			s.previous_assignee_id,
-			s.previous_assignee_type,
-			s.previous_assignee_name,
-			s.performed_by,
-			s.reason,
-			s.notes,
-			s.license_status_before,
-			s.license_status_after,
-			s.date_created,
-			s.active,
-			tc.total as _total_count
-		FROM sorted s
-		CROSS JOIN total_count tc
+			f.id,
+			f.license_id,
+			f.action,
+			f.assignee_id,
+			f.assignee_type,
+			f.assignee_name,
+			f.previous_assignee_id,
+			f.previous_assignee_type,
+			f.previous_assignee_name,
+			f.performed_by,
+			f.reason,
+			f.notes,
+			f.license_status_before,
+			f.license_status_after,
+			f.date_created,
+			f.active,
+			COUNT(*) OVER () as _total_count
+		FROM filtered f
+		ORDER BY
+			CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN f.date_created END DESC,
+			CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN f.date_created END ASC,
+			CASE WHEN $4 = 'action' AND $5 = 'ASC' THEN f.action END ASC,
+			CASE WHEN $4 = 'action' AND $5 = 'DESC' THEN f.action END DESC
 		LIMIT $2 OFFSET $3
 	`
 
@@ -284,6 +292,7 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 		offset,          // $3
 		sortField,       // $4
 		sortDirection,   // $5
+		wsID,            // $6
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetLicenseHistoryListPageData query: %w", err)

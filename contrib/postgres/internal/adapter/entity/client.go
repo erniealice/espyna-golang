@@ -463,7 +463,8 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	//   • User denorm via LEFT JOIN "user" u
 	//   • PaymentTerm name via LEFT JOIN payment_term pt
 	//   • Active subscription count via LEFT JOIN LATERAL subquery
-	//   • Windowed total count via counted CTE
+	//   • Windowed total count via COUNT(*) OVER () — avoids double-materialization
+	//     of the counted CTE pattern (A3 Q-PAGE-COUNT default tier).
 	//
 	// active_subscriptions is scoped to the same workspace_id so cross-workspace
 	// counts are not leaked. The column is available to ORDER BY at the enriched
@@ -505,7 +506,9 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				u.first_name AS user_first_name,
 				u.last_name AS user_last_name,
 				u.email_address AS user_email_address,
-				u.mobile_number AS user_phone_number
+				u.mobile_number AS user_phone_number,
+				-- Windowed total — same filter as the page rows; no separate CTE needed.
+				COUNT(*) OVER () AS total
 			FROM client c
 			LEFT JOIN "user" u ON c.user_id = u.id
 			LEFT JOIN payment_term pt ON c.payment_term_id = pt.id
@@ -517,14 +520,8 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				  AND s.workspace_id = $1
 			) sub ON true
 			%s
-		),
-		counted AS (
-			SELECT COUNT(*) AS total FROM enriched
 		)
-		SELECT
-			e.*,
-			c2.total
-		FROM enriched e, counted c2
+		SELECT * FROM enriched
 		ORDER BY %s %s
 		LIMIT $%d OFFSET $%d;
 	`, whereSQL, sortField, sortOrder, limitIdx, offsetIdx)

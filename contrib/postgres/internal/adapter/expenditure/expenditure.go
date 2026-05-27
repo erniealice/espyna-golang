@@ -21,6 +21,23 @@ import (
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
 
+// expenditureSortableSQLCols is the fail-closed sort whitelist for
+// GetExpenditureListPageData (A2). Mirrors the enriched CTE projection.
+var expenditureSortableSQLCols = []string{
+	"name",
+	"expenditure_type",
+	"expenditure_date",
+	"expenditure_date_string",
+	"total_amount",
+	"currency",
+	"status",
+	"reference_number",
+	"vendor_name",
+	"location_name",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.Expenditure, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -260,13 +277,9 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 		}
 	}
 
-	sortField := "ex.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderBy, err := postgresCore.BuildOrderBy(expenditureSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// 20260517 expense-run: expose `run_id` so the list row can show
@@ -297,7 +310,8 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.supplier_id,
 				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
-				COALESCE(l.name, '') as location_name
+				COALESCE(l.name, '') as location_name,
+				COUNT(*) OVER() AS total
 			FROM expenditure ex
 			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = true
 			LEFT JOIN location l ON ex.location_id = l.id AND l.active = true
@@ -308,15 +322,9 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			       ex.reference_number ILIKE $2 OR
 			       ex.status ILIKE $2 OR
 			       s.name ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
-		SELECT
-			e.*,
-			c.total
-		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		SELECT * FROM enriched
+		` + orderBy + `
 		LIMIT $3 OFFSET $4;
 	`
 

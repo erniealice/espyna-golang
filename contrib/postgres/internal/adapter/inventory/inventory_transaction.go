@@ -619,6 +619,16 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageDa
 	txType := req.GetTransactionType()
 	search := req.GetSearch()
 
+	// A12: Apply LIMIT/OFFSET for pagination safety. The proto contract for this
+	// request/response has no Pagination field, so we apply a large but finite
+	// cap (10 000 rows) to prevent unbounded full-table scans. Callers that
+	// previously received the full set continue to work correctly because
+	// real-world inventory_transaction tables are well under this threshold.
+	const (
+		inventoryMovementsLimit  = int32(10000)
+		inventoryMovementsOffset = int32(0)
+	)
+
 	query := `
 		SELECT it.id,
 		       COALESCE(TO_CHAR(it.transaction_date AT TIME ZONE 'UTC', 'YYYY-MM-DD'), '') AS transaction_date,
@@ -650,9 +660,10 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageDa
 		    OR ii.name ILIKE '%' || $6 || '%'
 		  ))
 		ORDER BY it.transaction_date DESC
+		LIMIT $7 OFFSET $8
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, dateFrom, dateTo, locationID, txType, search)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, dateFrom, dateTo, locationID, txType, search, inventoryMovementsLimit, inventoryMovementsOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inventory movements: %w", err)
 	}

@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -174,7 +175,17 @@ func (r *PostgresRateBandRepository) ListRateBands(ctx context.Context, req *rat
 	return &ratebandpb.ListRateBandsResponse{Success: true, Data: items}, nil
 }
 
+// rateBandSortableSQLCols is the A2 sort whitelist for rate_band list pages.
+var rateBandSortableSQLCols = []string{
+	"rb.id", "rb.rate_table_id", "rb.lower_bound_centavos", "rb.upper_bound_centavos",
+	"rb.rate_type", "rb.rate_basis_points", "rb.fixed_amount_centavos",
+	"rb.ordinal", "rb.active", "rb.date_created", "rb.date_modified",
+}
+
 // GetRateBandListPageData retrieves rate bands with pagination, filtering, sorting, and search.
+// A1: scoped via LEFT JOIN rate_table — shows bands belonging to workspace-specific or global rate_tables.
+// A2: sort column whitelisted via core.BuildOrderBy.
+// A3: COUNT(*) OVER() for accurate total without a second query.
 func (r *PostgresRateBandRepository) GetRateBandListPageData(
 	ctx context.Context,
 	req *ratebandpb.GetRateBandListPageDataRequest,
@@ -182,46 +193,116 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get rate band list page data request is required")
 	}
-
-	var params *interfaces.ListParams
-	if req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if r.db == nil {
+		return nil, fmt.Errorf("GetRateBandListPageData requires raw *sql.DB")
 	}
 
+	// A1: tenant guard via rate_table join.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	limit := int32(50)
+	offset := int32(0)
 	page := int32(1)
 	if req.Pagination != nil {
 		if req.Pagination.Limit > 0 {
 			limit = req.Pagination.Limit
 		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-			}
+		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
+			page = offsetPag.Page
+			offset = (page - 1) * limit
 		}
 	}
 
-	listResult, err := r.dbOps.List(ctx, r.tableName, params)
+	// A2: sort guard — fail-closed via core.BuildOrderBy whitelist.
+	orderByClause, err := postgresCore.BuildOrderBy(rateBandSortableSQLCols, req.GetSort(), "rb.ordinal ASC")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list rate_band list page data: %w", err)
+		return nil, err
 	}
+
+	// A3: COUNT(*) OVER() — accurate total in one pass.
+	// rate_band has no workspace_id; tenant scoping is via the parent rate_table.workspace_id
+	// (NULL = global, available to all tenants).
+	query := fmt.Sprintf(`
+		SELECT
+			rb.id,
+			rb.rate_table_id,
+			rb.lower_bound_centavos,
+			rb.upper_bound_centavos,
+			rb.rate_type,
+			rb.rate_basis_points,
+			rb.fixed_amount_centavos,
+			rb.formula_expression,
+			rb.ordinal,
+			rb.metadata,
+			rb.active,
+			rb.date_created,
+			rb.date_modified,
+			COUNT(*) OVER() AS total
+		FROM %s rb
+		LEFT JOIN rate_table rt ON rt.id = rb.rate_table_id
+		WHERE (rt.workspace_id = $1 OR rt.workspace_id IS NULL)
+		%s
+		LIMIT $2 OFFSET $3;
+	`, r.tableName, orderByClause)
+
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query rate_band list page data: %w", err)
+	}
+	defer rows.Close()
 
 	var items []*ratebandpb.RateBand
-	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			log.Printf("WARN: json.Marshal rate_band row: %v", err)
-			continue
+	var totalCount int64
+
+	for rows.Next() {
+		var (
+			id                  string
+			rateTableID         string
+			lowerBound          int64
+			upperBound          *int64
+			rateType            string
+			rateBasisPoints     int32
+			fixedAmountCentavos int64
+			formulaExpression   *string
+			ordinal             int32
+			metadata            *string
+			active              bool
+			dateCreated         *int64
+			dateModified        *int64
+			total               int64
+		)
+		if scanErr := rows.Scan(
+			&id, &rateTableID, &lowerBound, &upperBound,
+			&rateType, &rateBasisPoints, &fixedAmountCentavos,
+			&formulaExpression, &ordinal, &metadata,
+			&active, &dateCreated, &dateModified,
+			&total,
+		); scanErr != nil {
+			return nil, fmt.Errorf("failed to scan rate_band row: %w", scanErr)
 		}
-		rb := &ratebandpb.RateBand{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, rb); err != nil {
-			log.Printf("WARN: protojson unmarshal rate_band: %v", err)
-			continue
+		totalCount = total
+
+		rb := &ratebandpb.RateBand{
+			Id:                  id,
+			RateTableId:         rateTableID,
+			LowerBoundCentavos:  lowerBound,
+			UpperBoundCentavos:  upperBound,
+			RateType:            rateType,
+			RateBasisPoints:     rateBasisPoints,
+			FixedAmountCentavos: fixedAmountCentavos,
+			FormulaExpression:   formulaExpression,
+			Ordinal:             ordinal,
+			Metadata:            metadata,
+			Active:              active,
+			DateCreated:         dateCreated,
+			DateModified:        dateModified,
 		}
 		items = append(items, rb)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rate_band rows: %w", err)
+	}
 
-	totalCount := int64(len(items))
 	totalPages := int32(0)
 	if limit > 0 {
 		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))

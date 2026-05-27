@@ -22,6 +22,32 @@ import (
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
 
+// disbursementSortableSQLCols lists the SQL column names that are safe to sort
+// by in GetDisbursementListPageData. The query uses direct ORDER BY interpolation
+// so this guard is critical — an unrecognised column is a potential SQL-injection
+// vector and must be rejected loudly before query execution.
+var disbursementSortableSQLCols = []string{
+	"d.date_created",
+	"d.date_modified",
+	"d.name",
+	"d.amount",
+	"d.status",
+	"d.payment_date",
+	"d.reference_number",
+}
+
+// disbursementViewToSQLColMap translates view-facing sort column keys to the SQL
+// column names used in the query. Columns absent from the map pass through unchanged.
+var disbursementViewToSQLColMap = map[string]string{
+	"date_created":     "d.date_created",
+	"date_modified":    "d.date_modified",
+	"name":             "d.name",
+	"amount":           "d.amount",
+	"status":           "d.status",
+	"payment_date":     "d.payment_date",
+	"reference_number": "d.reference_number",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.TreasuryDisbursement, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -264,13 +290,30 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 		}
 	}
 
-	sortField := "d.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Translate view-facing column key to SQL column name via ColMap.
+	sortColKey := "d.date_created"
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
+		sortColKey = req.Sort.Fields[0].Field
+	}
+	if mapped, ok := disbursementViewToSQLColMap[sortColKey]; ok {
+		sortColKey = mapped
+	}
+
+	// A2 sort guard: reject any column not in the whitelist via core.BuildOrderBy.
+	// Builds "ORDER BY <col> <DIR>" with the column safely double-quoted.
+	// Pass a synthesised *commonpb.SortRequest so the helper picks up direction.
+	sortFragment, err := postgresCore.BuildOrderBy(
+		disbursementSortableSQLCols,
+		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: func() commonpb.SortDirection {
+			if req.Sort != nil && len(req.Sort.Fields) > 0 {
+				return req.Sort.Fields[0].Direction
+			}
+			return commonpb.SortDirection_DESC
+		}()}}},
+		"d.date_created DESC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort column for disbursement: %w", err)
 	}
 
 	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
@@ -323,7 +366,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + sortFragment + `
 		LIMIT $3 OFFSET $4;
 	`
 

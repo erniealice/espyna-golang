@@ -25,6 +25,9 @@ func InitializeTreasury(
 			CollectionMethod:   repos.CollectionMethod,
 			DisbursementMethod: repos.DisbursementMethod,
 
+			// Treasury-domain-rebuild Stage 2 — collection-method eligibility rule.
+			CollectionMethodEligibilityRule: repos.CollectionMethodEligibilityRule,
+
 			// Loans & Petty Cash repositories
 			Loan:                   repos.Loan,
 			LoanPayment:            repos.LoanPayment,

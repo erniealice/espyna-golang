@@ -3,6 +3,7 @@ package treasury
 import (
 	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection"
 	collectionMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method"
+	collectionMethodEligibilityRuleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method_eligibility_rule"
 	disbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement"
 	disbursementMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_method"
 	disbursementscheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_schedule"
@@ -15,6 +16,7 @@ import (
 	// Protobuf domain services for treasury repositories
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
+	collectionmethodeligibilityrulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method_eligibility_rule"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 	disbursementmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_method"
 	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
@@ -49,6 +51,9 @@ type TreasuryRepositories struct {
 	CollectionMethod   collectionmethodpb.CollectionMethodDomainServiceServer
 	DisbursementMethod disbursementmethodpb.DisbursementMethodDomainServiceServer
 
+	// Treasury-domain-rebuild Stage 2 — collection-method eligibility rule.
+	CollectionMethodEligibilityRule collectionmethodeligibilityrulepb.CollectionMethodEligibilityRuleDomainServiceServer
+
 	// Loans & Petty Cash repositories
 	Loan                   loanpb.LoanDomainServiceServer
 	LoanPayment            loanpaymentpb.LoanPaymentDomainServiceServer
@@ -82,14 +87,15 @@ type TreasuryRepositories struct {
 // The cross-entity GetAdvancesDashboard use case is replaced by two entity-
 // side ListAdvancesForDashboard use cases (F5).
 type TreasuryUseCases struct {
-	Collection             *collectionUseCases.UseCases
-	CollectionMethod       *collectionMethodUseCases.UseCases
-	Disbursement           *disbursementUseCases.UseCases
-	DisbursementMethod     *disbursementMethodUseCases.UseCases
-	DisbursementSchedule   *disbursementscheduleUseCases.UseCases
-	SecurityDeposit        *securityDepositUseCases.UseCases
-	PettyCash              *pettyCashUseCases.UseCases
-	WithholdingCertificate *withholdingCertificateUseCases.UseCases
+	Collection                      *collectionUseCases.UseCases
+	CollectionMethod                *collectionMethodUseCases.UseCases
+	CollectionMethodEligibilityRule *collectionMethodEligibilityRuleUseCases.UseCases
+	Disbursement                    *disbursementUseCases.UseCases
+	DisbursementMethod              *disbursementMethodUseCases.UseCases
+	DisbursementSchedule            *disbursementscheduleUseCases.UseCases
+	SecurityDeposit                 *securityDepositUseCases.UseCases
+	PettyCash                       *pettyCashUseCases.UseCases
+	WithholdingCertificate          *withholdingCertificateUseCases.UseCases
 
 	// LoanDashboard + CashDashboard fields retired 2026-05-21 (Wave B P1.C.5
 	// unified Treasury candidate) — both surfaces now live under
@@ -139,6 +145,20 @@ func NewUseCases(
 			CollectionMethod: repos.CollectionMethod,
 		},
 		collectionMethodUseCases.CollectionMethodServices{
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
+		},
+	)
+
+	// Treasury-domain-rebuild Stage 2 — collection-method eligibility rule. Nil-safe
+	// (the use cases guard on a nil repo), so the view-closure wiring always resolves.
+	collectionMethodEligibilityRuleUC := collectionMethodEligibilityRuleUseCases.NewUseCases(
+		collectionMethodEligibilityRuleUseCases.CollectionMethodEligibilityRuleRepositories{
+			CollectionMethodEligibilityRule: repos.CollectionMethodEligibilityRule,
+		},
+		collectionMethodEligibilityRuleUseCases.CollectionMethodEligibilityRuleServices{
 			Authorizer:  authSvc,
 			Transactor:  txSvc,
 			Translator:  i18nSvc,
@@ -387,13 +407,14 @@ func NewUseCases(
 	}
 
 	return &TreasuryUseCases{
-		Collection:             collectionUC,
-		CollectionMethod:       collectionMethodUC,
-		Disbursement:           disbursementUC,
-		DisbursementMethod:     disbursementMethodUC,
-		DisbursementSchedule:   disbursementScheduleUC,
-		SecurityDeposit:        securityDepositUC,
-		PettyCash:              pettyCashUC,
-		WithholdingCertificate: withholdingCertificateUC,
+		Collection:                      collectionUC,
+		CollectionMethod:                collectionMethodUC,
+		CollectionMethodEligibilityRule: collectionMethodEligibilityRuleUC,
+		Disbursement:                    disbursementUC,
+		DisbursementMethod:              disbursementMethodUC,
+		DisbursementSchedule:            disbursementScheduleUC,
+		SecurityDeposit:                 securityDepositUC,
+		PettyCash:                       pettyCashUC,
+		WithholdingCertificate:          withholdingCertificateUC,
 	}
 }

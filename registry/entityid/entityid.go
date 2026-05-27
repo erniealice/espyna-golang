@@ -194,6 +194,11 @@ const (
 	// IDs so the postgres factory + provider can create the repositories.
 	CollectionMethod   = "collection_method"
 	DisbursementMethod = "disbursement_method"
+	// Treasury-domain-rebuild Stage 2 (20260524) — the eligibility-rule entity
+	// that CollectionMethod.default_eligibility_rule_id (field 16) points to.
+	// Proto + generated code shipped in this wave; this constant registers the
+	// entity ID so the postgres factory + provider can create the repository.
+	CollectionMethodEligibilityRule = "collection_method_eligibility_rule"
 )
 
 // Ledger / Document domain
@@ -407,6 +412,8 @@ var TreasuryEntities = []string{
 	DisbursementSupplierBillingEvent,
 	// Treasury-domain-rebuild Stage 1 (20260524) — method management templates
 	CollectionMethod, DisbursementMethod,
+	// Treasury-domain-rebuild Stage 2 (20260524) — collection-method eligibility rule
+	CollectionMethodEligibilityRule,
 }
 
 // LedgerDocumentEntities lists all entity IDs in the Ledger / Document domain.

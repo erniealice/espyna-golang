@@ -199,6 +199,11 @@ const (
 	// Proto + generated code shipped in this wave; this constant registers the
 	// entity ID so the postgres factory + provider can create the repository.
 	CollectionMethodEligibilityRule = "collection_method_eligibility_rule"
+	// Treasury-domain-rebuild Stage 3 (20260524) — the audience-eligibility grant
+	// (CONFIG, never EVENT) binding a client to a CollectionMethod TEMPLATE.
+	// Proto + generated code shipped in this wave; this constant registers the
+	// entity ID so the postgres factory + provider can create the repository.
+	CollectionMethodGrant = "collection_method_grant"
 )
 
 // Ledger / Document domain
@@ -414,6 +419,8 @@ var TreasuryEntities = []string{
 	CollectionMethod, DisbursementMethod,
 	// Treasury-domain-rebuild Stage 2 (20260524) — collection-method eligibility rule
 	CollectionMethodEligibilityRule,
+	// Treasury-domain-rebuild Stage 3 (20260524) — collection-method audience grant
+	CollectionMethodGrant,
 }
 
 // LedgerDocumentEntities lists all entity IDs in the Ledger / Document domain.

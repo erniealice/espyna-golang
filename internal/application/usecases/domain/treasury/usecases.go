@@ -4,6 +4,7 @@ import (
 	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection"
 	collectionMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method"
 	collectionMethodEligibilityRuleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method_eligibility_rule"
+	collectionMethodGrantUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method_grant"
 	disbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement"
 	disbursementMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_method"
 	disbursementscheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_schedule"
@@ -17,6 +18,7 @@ import (
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
 	collectionmethodeligibilityrulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method_eligibility_rule"
+	collectionmethodgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method_grant"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 	disbursementmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_method"
 	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
@@ -54,6 +56,9 @@ type TreasuryRepositories struct {
 	// Treasury-domain-rebuild Stage 2 — collection-method eligibility rule.
 	CollectionMethodEligibilityRule collectionmethodeligibilityrulepb.CollectionMethodEligibilityRuleDomainServiceServer
 
+	// Treasury-domain-rebuild Stage 3 — collection-method audience grant (CONFIG).
+	CollectionMethodGrant collectionmethodgrantpb.CollectionMethodGrantDomainServiceServer
+
 	// Loans & Petty Cash repositories
 	Loan                   loanpb.LoanDomainServiceServer
 	LoanPayment            loanpaymentpb.LoanPaymentDomainServiceServer
@@ -90,6 +95,7 @@ type TreasuryUseCases struct {
 	Collection                      *collectionUseCases.UseCases
 	CollectionMethod                *collectionMethodUseCases.UseCases
 	CollectionMethodEligibilityRule *collectionMethodEligibilityRuleUseCases.UseCases
+	CollectionMethodGrant           *collectionMethodGrantUseCases.UseCases
 	Disbursement                    *disbursementUseCases.UseCases
 	DisbursementMethod              *disbursementMethodUseCases.UseCases
 	DisbursementSchedule            *disbursementscheduleUseCases.UseCases
@@ -159,6 +165,22 @@ func NewUseCases(
 			CollectionMethodEligibilityRule: repos.CollectionMethodEligibilityRule,
 		},
 		collectionMethodEligibilityRuleUseCases.CollectionMethodEligibilityRuleServices{
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
+		},
+	)
+
+	// Treasury-domain-rebuild Stage 3 — collection-method audience grant (CONFIG).
+	// Nil-safe. The CollectionMethod template repo is injected so the audience-mode
+	// guardrail (create + bulk_grant) can resolve the method's audience_mode.
+	collectionMethodGrantUC := collectionMethodGrantUseCases.NewUseCases(
+		collectionMethodGrantUseCases.CollectionMethodGrantRepositories{
+			CollectionMethodGrant: repos.CollectionMethodGrant,
+			CollectionMethod:      repos.CollectionMethod,
+		},
+		collectionMethodGrantUseCases.CollectionMethodGrantServices{
 			Authorizer:  authSvc,
 			Transactor:  txSvc,
 			Translator:  i18nSvc,
@@ -410,6 +432,7 @@ func NewUseCases(
 		Collection:                      collectionUC,
 		CollectionMethod:                collectionMethodUC,
 		CollectionMethodEligibilityRule: collectionMethodEligibilityRuleUC,
+		CollectionMethodGrant:           collectionMethodGrantUC,
 		Disbursement:                    disbursementUC,
 		DisbursementMethod:              disbursementMethodUC,
 		DisbursementSchedule:            disbursementScheduleUC,

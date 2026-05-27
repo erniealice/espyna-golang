@@ -28,6 +28,9 @@ func InitializeTreasury(
 			// Treasury-domain-rebuild Stage 2 — collection-method eligibility rule.
 			CollectionMethodEligibilityRule: repos.CollectionMethodEligibilityRule,
 
+			// Treasury-domain-rebuild Stage 3 — collection-method audience grant (CONFIG).
+			CollectionMethodGrant: repos.CollectionMethodGrant,
+
 			// Loans & Petty Cash repositories
 			Loan:                   repos.Loan,
 			LoanPayment:            repos.LoanPayment,

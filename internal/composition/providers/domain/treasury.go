@@ -11,6 +11,7 @@ import (
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
 	collectionmethodeligibilityrulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method_eligibility_rule"
+	collectionmethodgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method_grant"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 	disbursementmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_method"
 	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
@@ -50,6 +51,9 @@ type TreasuryRepositories struct {
 
 	// Treasury-domain-rebuild Stage 2 — collection-method eligibility rule.
 	CollectionMethodEligibilityRule collectionmethodeligibilityrulepb.CollectionMethodEligibilityRuleDomainServiceServer
+
+	// Treasury-domain-rebuild Stage 3 — collection-method audience grant (CONFIG).
+	CollectionMethodGrant collectionmethodgrantpb.CollectionMethodGrantDomainServiceServer
 
 	// Loans & Petty Cash repositories
 	Loan                   loanpb.LoanDomainServiceServer
@@ -124,6 +128,11 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 	// Treasury-domain-rebuild Stage 2 — collection-method eligibility rule.
 	if r := tryCreate(entityid.CollectionMethodEligibilityRule); r != nil {
 		repos.CollectionMethodEligibilityRule = r.(collectionmethodeligibilityrulepb.CollectionMethodEligibilityRuleDomainServiceServer)
+	}
+
+	// Treasury-domain-rebuild Stage 3 — collection-method audience grant (CONFIG).
+	if r := tryCreate(entityid.CollectionMethodGrant); r != nil {
+		repos.CollectionMethodGrant = r.(collectionmethodgrantpb.CollectionMethodGrantDomainServiceServer)
 	}
 
 	// Loans & Petty Cash repositories

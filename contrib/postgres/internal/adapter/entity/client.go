@@ -431,16 +431,12 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		}
 	}
 
-	// Default sort: name ASC matches the view layer default.
-	sortField := "name"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Default
+	// name ASC matches the view layer default. An unknown sort column now errors
+	// instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(clientSortableSQLCols, req.GetSort(), "name ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build filter/search WHERE clauses ($1 reserved for workspace_id, start at $2).
@@ -522,9 +518,9 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			%s
 		)
 		SELECT * FROM enriched
-		ORDER BY %s %s
+		%s
 		LIMIT $%d OFFSET $%d;
-	`, whereSQL, sortField, sortOrder, limitIdx, offsetIdx)
+	`, whereSQL, orderByClause, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)

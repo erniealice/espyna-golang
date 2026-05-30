@@ -219,6 +219,10 @@ func (r *PostgresEventClientRepository) ListEventClients(ctx context.Context, re
 	}, nil
 }
 
+var eventClientSortableSQLCols = []string{
+	"id", "event_id", "client_id", "active", "date_created", "date_modified",
+}
+
 // GetEventClientListPageData retrieves paginated event client list data with CTE
 func (r *PostgresEventClientRepository) GetEventClientListPageData(
 	ctx context.Context,
@@ -251,14 +255,12 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(eventClientSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Junction table pattern with event and client FK filtering
@@ -284,7 +286,7 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

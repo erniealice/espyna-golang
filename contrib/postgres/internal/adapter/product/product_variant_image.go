@@ -220,6 +220,11 @@ func (r *PostgresProductVariantImageRepository) ListProductVariantImages(ctx con
 	}, nil
 }
 
+var productVariantImageSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "product_variant_id",
+	"image_url", "alt_text", "sort_order", "is_primary", "variant_sku",
+}
+
 // GetProductVariantImageListPageData retrieves product variant images with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the product_variant table to include the variant SKU
 func (r *PostgresProductVariantImageRepository) GetProductVariantImageListPageData(
@@ -253,14 +258,13 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageListPageDa
 		}
 	}
 
-	// Default sort
-	sortField := "pvi.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(productVariantImageSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with product_variant join for SKU
@@ -292,7 +296,7 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageListPageDa
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

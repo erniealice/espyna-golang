@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -260,13 +261,12 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 		}
 	}
 
-	sortField := "e.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(jobTemplateSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Extract active filter (default to active-only)
@@ -282,7 +282,14 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 		}
 	}
 
-	query := `
+	// A1 (CRITICAL): scope to the caller's workspace. This raw-SQL path bypasses
+	// the WorkspaceAwareOperations decorator. job_template carries its own
+	// workspace_id column (verified against the baseline schema; the item method
+	// already scopes jt.workspace_id). Empty wsID = service-to-service call → no
+	// scoping. $5 carries the workspace_id.
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				jt.id,
@@ -296,6 +303,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 				jt.default_billing_rule_type
 			FROM job_template jt
 			WHERE jt.active = $4
+			  AND ($5::text = '' OR jt.workspace_id = $5::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jt.name ILIKE $1 OR
 			       jt.description ILIKE $1)
@@ -307,11 +315,11 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, activeFilter)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, activeFilter, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job template list page data: %w", err)
 	}
@@ -415,6 +423,12 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateItemPageData(
 		return nil, fmt.Errorf("job template ID is required")
 	}
 
+	// A1 (CRITICAL): scope to the caller's workspace. job_template carries its
+	// own workspace_id column (verified against the baseline schema), so scope
+	// directly on jt.workspace_id. Without this a caller could fetch another
+	// tenant's job template by ID. Empty wsID = service-to-service call → no
+	// scoping. wsID is appended as $2.
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
 	query := `
 		SELECT
 			jt.id,
@@ -428,9 +442,10 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateItemPageData(
 			jt.default_billing_rule_type
 		FROM job_template jt
 		WHERE jt.id = $1 AND jt.active = true
+		  AND ($2::text = '' OR jt.workspace_id = $2::text)
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.JobTemplateId)
+	row := r.db.QueryRowContext(ctx, query, req.JobTemplateId, wsID)
 
 	var (
 		id                     string

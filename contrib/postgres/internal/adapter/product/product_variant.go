@@ -220,6 +220,11 @@ func (r *PostgresProductVariantRepository) ListProductVariants(ctx context.Conte
 	}, nil
 }
 
+var productVariantSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "product_id",
+	"sku", "price_override", "product_name",
+}
+
 // GetProductVariantListPageData retrieves product variants with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the product table to include the parent product name
 func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
@@ -253,18 +258,17 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "pv.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY. price_override
+	// is stored in centavos, so sorting is numeric on the stored integer.
+	orderByClause, err := postgresCore.BuildOrderBy(productVariantSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with product join for parent product name
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				pv.id,
@@ -289,9 +293,9 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

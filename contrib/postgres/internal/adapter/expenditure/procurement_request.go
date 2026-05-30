@@ -379,9 +379,14 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestItemPageData
 		FROM procurement_request pr
 		LEFT JOIN supplier s ON pr.supplier_id = s.id AND s.active = true
 		WHERE pr.id = $1 AND pr.active = true
+		  AND ($2::text = '' OR pr.workspace_id = $2::text)
 		LIMIT 1;
 	`
-	row := r.db.QueryRowContext(ctx, query, req.GetProcurementRequestId())
+	// A1: scope to the caller's workspace. procurement_request carries its own
+	// workspace_id (verified against the baseline schema; the list method scopes
+	// pr.workspace_id identically). Empty wsID = service-to-service call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	row := r.db.QueryRowContext(ctx, query, req.GetProcurementRequestId(), workspaceID)
 
 	var (
 		id                   string
@@ -458,9 +463,14 @@ func (r *PostgresProcurementRequestRepository) SubmitProcurementRequest(ctx cont
 		return nil, fmt.Errorf("procurement request ID is required")
 	}
 	newStatus := int32(procurementrequestpb.ProcurementRequestStatus_PROCUREMENT_REQUEST_STATUS_SUBMITTED)
+	// A1: scope the mutation to the caller's workspace. procurement_request
+	// carries its own workspace_id (verified against the baseline schema) —
+	// without the predicate a caller could transition another tenant's request.
+	// Empty wsID = service-to-service call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE procurement_request SET status = $1, date_modified = NOW() WHERE id = $2 AND active = true`,
-		newStatus, req.GetProcurementRequestId(),
+		`UPDATE procurement_request SET status = $1, date_modified = NOW() WHERE id = $2 AND active = true AND ($3 = '' OR workspace_id = $3)`,
+		newStatus, req.GetProcurementRequestId(), workspaceID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit procurement_request: %w", err)
@@ -478,11 +488,17 @@ func (r *PostgresProcurementRequestRepository) ApproveProcurementRequest(ctx con
 	approvedAtStr := now.Format(time.RFC3339)
 	newStatus := int32(procurementrequestpb.ProcurementRequestStatus_PROCUREMENT_REQUEST_STATUS_APPROVED)
 
+	// A1: scope the mutation to the caller's workspace. procurement_request
+	// carries its own workspace_id (verified against the baseline schema) —
+	// without the predicate a caller could approve another tenant's request.
+	// Empty wsID = service-to-service call → no scoping. SET occupies $1..$4,
+	// id is $5, so the workspace predicate takes $6.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE procurement_request
 		 SET status = $1, approved_by = $2, approved_at = $3, approved_at_string = $4, date_modified = NOW()
-		 WHERE id = $5 AND active = true`,
-		newStatus, req.ApprovedBy, approvedAt, approvedAtStr, req.GetProcurementRequestId(),
+		 WHERE id = $5 AND active = true AND ($6 = '' OR workspace_id = $6)`,
+		newStatus, req.ApprovedBy, approvedAt, approvedAtStr, req.GetProcurementRequestId(), workspaceID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to approve procurement_request: %w", err)
@@ -496,11 +512,17 @@ func (r *PostgresProcurementRequestRepository) RejectProcurementRequest(ctx cont
 		return nil, fmt.Errorf("procurement request ID is required")
 	}
 	newStatus := int32(procurementrequestpb.ProcurementRequestStatus_PROCUREMENT_REQUEST_STATUS_REJECTED)
+	// A1: scope the mutation to the caller's workspace. procurement_request
+	// carries its own workspace_id (verified against the baseline schema) —
+	// without the predicate a caller could reject another tenant's request.
+	// Empty wsID = service-to-service call → no scoping. SET occupies $1/$2,
+	// id is $3, so the workspace predicate takes $4.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE procurement_request
 		 SET status = $1, rejection_reason = $2, date_modified = NOW()
-		 WHERE id = $3 AND active = true`,
-		newStatus, req.GetRejectionReason(), req.GetProcurementRequestId(),
+		 WHERE id = $3 AND active = true AND ($4 = '' OR workspace_id = $4)`,
+		newStatus, req.GetRejectionReason(), req.GetProcurementRequestId(), workspaceID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reject procurement_request: %w", err)

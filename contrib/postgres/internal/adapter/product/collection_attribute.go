@@ -213,6 +213,10 @@ func (r *PostgresCollectionAttributeRepository) ListCollectionAttributes(ctx con
 	}, nil
 }
 
+var collectionAttributeSortableSQLCols = []string{
+	"id", "collection_id", "attribute_id", "value", "date_created", "date_modified",
+}
+
 // GetCollectionAttributeListPageData retrieves collection attributes with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresCollectionAttributeRepository) GetCollectionAttributeListPageData(
 	ctx context.Context,
@@ -244,14 +248,13 @@ func (r *PostgresCollectionAttributeRepository) GetCollectionAttributeListPageDa
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(collectionAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Attribute table pattern with collection_id/attribute_id/value search
@@ -277,7 +280,7 @@ func (r *PostgresCollectionAttributeRepository) GetCollectionAttributeListPageDa
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

@@ -262,6 +262,12 @@ func (r *PostgresPaymentTermRepository) ListPaymentTerms(ctx context.Context, re
 	}, nil
 }
 
+var paymentTermSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "name", "code", "type",
+	"net_days", "discount_days", "discount_percent_bps", "entity_scope",
+	"is_default", "description", "display_order",
+}
+
 // GetPaymentTermListPageData retrieves payment terms with filtering, sorting, searching, and pagination using CTE
 func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 	ctx context.Context,
@@ -293,14 +299,12 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(paymentTermSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Workspace isolation: GetPaymentTermListPageData uses raw SQL and bypasses
@@ -343,7 +347,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

@@ -224,6 +224,13 @@ func (r *PostgresInventoryDepreciationRepository) ListInventoryDepreciations(ctx
 	}, nil
 }
 
+var inventoryDepreciationSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "inventory_item_id",
+	"method", "cost_basis", "salvage_value", "useful_life_months",
+	"start_date", "accumulated_depreciation", "book_value",
+	"inventory_item_name",
+}
+
 // GetInventoryDepreciationListPageData retrieves inventory depreciations with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the inventory_item table to include the parent item name
 // Supports search on depreciation method
@@ -258,14 +265,12 @@ func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationListPa
 		}
 	}
 
-	// Default sort
-	sortField := "id2.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed.
+	orderByClause, err := postgresCore.BuildOrderBy(inventoryDepreciationSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with inventory_item join
@@ -299,7 +304,7 @@ func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationListPa
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

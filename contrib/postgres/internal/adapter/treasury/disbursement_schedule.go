@@ -207,6 +207,12 @@ func (r *PostgresDisbursementScheduleRepository) ListDisbursementSchedules(ctx c
 	}, nil
 }
 
+var disbursementScheduleSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "expenditure_id",
+	"sequence", "amount", "due_date", "due_date_string", "status",
+	"paid_amount", "paid_date", "disbursement_id", "payment_term_id",
+}
+
 // GetDisbursementScheduleListPageData retrieves disbursement schedules with pagination, filtering, sorting, and search using CTE
 func (r *PostgresDisbursementScheduleRepository) GetDisbursementScheduleListPageData(
 	ctx context.Context,
@@ -236,13 +242,14 @@ func (r *PostgresDisbursementScheduleRepository) GetDisbursementScheduleListPage
 		}
 	}
 
-	sortField := "ds.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY. (amount/paid_amount are
+	// centavos — Rule #1 — but sorting is column-name only and unaffected.)
+	orderByClause, err := postgresCore.BuildOrderBy(disbursementScheduleSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -274,7 +281,7 @@ func (r *PostgresDisbursementScheduleRepository) GetDisbursementScheduleListPage
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

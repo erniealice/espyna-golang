@@ -214,6 +214,11 @@ func (r *PostgresPettyCashVoucherRepository) ListPettyCashVouchers(ctx context.C
 	}, nil
 }
 
+var pettyCashVoucherSortableSQLCols = []string{
+	"id", "date_created", "fund_id", "voucher_number", "payee", "description",
+	"total_amount", "status", "approved_by", "approved_at",
+}
+
 // GetPettyCashVoucherListPageData retrieves petty_cash_vouchers with pagination, filtering, sorting, and search using CTE
 func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 	ctx context.Context,
@@ -243,13 +248,14 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 		}
 	}
 
-	sortField := "pcv.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY. (total_amount is centavos —
+	// Rule #1 — but sorting is column-name only and unaffected.)
+	orderByClause, err := postgresCore.BuildOrderBy(pettyCashVoucherSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -278,7 +284,7 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

@@ -220,6 +220,15 @@ func (r *PostgresEventRecurrenceRepository) ListEventRecurrences(ctx context.Con
 	}, nil
 }
 
+// eventRecurrenceSortableSQLCols is the fail-closed sort whitelist for
+// GetEventRecurrenceListPageData. Only columns projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+var eventRecurrenceSortableSQLCols = []string{
+	"id", "name", "description", "rrule_string", "workspace_id", "freq",
+	"interval", "count", "until_utc", "by_day", "by_month_day",
+	"exdate_string", "active", "date_created", "date_modified",
+}
+
 // GetEventRecurrenceListPageData retrieves paginated event recurrence list data with CTE
 // CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
@@ -256,14 +265,11 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). An unknown
+	// sort column now errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(eventRecurrenceSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - standalone entity with search on name, description, rrule_string
@@ -300,7 +306,7 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $3 OFFSET $4;
 	`
 

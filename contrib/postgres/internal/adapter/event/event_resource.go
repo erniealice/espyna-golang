@@ -221,6 +221,11 @@ func (r *PostgresEventResourceRepository) ListEventResources(ctx context.Context
 	}, nil
 }
 
+var eventResourceSortableSQLCols = []string{
+	"id", "event_id", "resource_id", "resource_type", "status", "name",
+	"workspace_id", "active", "date_created", "date_modified",
+}
+
 // GetEventResourceListPageData retrieves paginated event resource list data with CTE
 // CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresEventResourceRepository) GetEventResourceListPageData(
@@ -257,14 +262,12 @@ func (r *PostgresEventResourceRepository) GetEventResourceListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(eventResourceSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Junction table pattern with event and generic resource FK filtering
@@ -296,7 +299,7 @@ func (r *PostgresEventResourceRepository) GetEventResourceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $3 OFFSET $4;
 	`
 

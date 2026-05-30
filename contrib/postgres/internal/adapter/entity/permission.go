@@ -216,6 +216,11 @@ func (r *PostgresPermissionRepository) ListPermissions(ctx context.Context, req 
 	}, nil
 }
 
+var permissionSortableSQLCols = []string{
+	"id", "name", "description", "permission_code", "permission_type",
+	"active", "date_created", "date_modified",
+}
+
 // GetPermissionListPageData retrieves permissions with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresPermissionRepository) GetPermissionListPageData(
 	ctx context.Context,
@@ -248,14 +253,14 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	// Note: applicable_principal_types is an array alias — not an orderable scalar,
+	// so it is intentionally excluded from the whitelist.
+	orderByClause, err := postgresCore.BuildOrderBy(permissionSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with filtering and pagination
@@ -263,7 +268,7 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 	// - INDEX RECOMMENDATION: Create index on permission.active for filtering active records
 	// - INDEX RECOMMENDATION: Create index on permission.name for search performance
 	// - INDEX RECOMMENDATION: Create index on permission.date_created for default sorting
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				p.id,
@@ -289,9 +294,9 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
 	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)

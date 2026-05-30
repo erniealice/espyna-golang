@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -213,6 +214,11 @@ func (r *PostgresOutcomeCriteriaRepository) ListOutcomeCriterias(ctx context.Con
 	}, nil
 }
 
+var outcomeCriteriaSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "criteria_group_id",
+	"version", "version_status", "scope", "name", "criteria_type",
+}
+
 // GetOutcomeCriteriaListPageData retrieves outcome_criterias with pagination, filtering, sorting, and search
 func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaListPageData(
 	ctx context.Context,
@@ -242,14 +248,20 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaListPageData(
 		}
 	}
 
-	sortField := "oc.name"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed. Default preserves name ASC.
+	orderByClause, err := postgresCore.BuildOrderBy(outcomeCriteriaSortableSQLCols, req.GetSort(), "name ASC")
+	if err != nil {
+		return nil, err
 	}
+
+	// A1 (CRITICAL): scope to the caller's workspace. This raw-SQL path bypasses
+	// the WorkspaceAwareOperations decorator. outcome_criteria carries its own
+	// workspace_id column (verified against the baseline schema; the item method
+	// and ListByScope in this same file already scope oc.workspace_id). Empty wsID
+	// = service-to-service call → no scoping. $4 carries the workspace_id.
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
 
 	query := `
 		WITH enriched AS (
@@ -266,6 +278,7 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaListPageData(
 				oc.criteria_type
 			FROM outcome_criteria oc
 			WHERE oc.active = true
+			  AND ($4::text = '' OR oc.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       oc.name ILIKE $1)
 		),
@@ -276,11 +289,11 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query outcome criteria list page data: %w", err)
 	}
@@ -384,6 +397,13 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaItemPageData(
 		return nil, fmt.Errorf("outcome criteria ID is required")
 	}
 
+	// A1 (CRITICAL): scope to the caller's workspace. This method bypasses the
+	// WorkspaceAwareOperations decorator (raw SQL via db.GetDB()). outcome_criteria
+	// carries its own workspace_id column (verified baseline; ListByScope in this
+	// same file scopes oc.workspace_id). Empty wsID = service-to-service call → no
+	// scoping. $2 carries the workspace_id.
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		SELECT
 			oc.id,
@@ -398,9 +418,10 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaItemPageData(
 			oc.criteria_type
 		FROM outcome_criteria oc
 		WHERE oc.id = $1 AND oc.active = true
+		  AND ($2::text = '' OR oc.workspace_id = $2::text)
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.OutcomeCriteriaId)
+	row := r.db.QueryRowContext(ctx, query, req.OutcomeCriteriaId, wsID)
 
 	var (
 		id              string

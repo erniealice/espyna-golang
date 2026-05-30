@@ -214,6 +214,14 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListPhaseOutcomeSummarys(ctx con
 	}, nil
 }
 
+var phaseOutcomeSummarySortableSQLCols = []string{
+	"id", "job_phase_id", "job_id", "summary_type", "phase_determination",
+	"scoring_method", "summary_score", "total_criteria_count", "pass_count",
+	"fail_count", "conditional_count", "deferred_count", "na_count",
+	"narrative", "issued_by", "issued_date", "supersedes_id", "active",
+	"date_created", "date_modified",
+}
+
 // GetPhaseOutcomeSummaryListPageData retrieves phase outcome summaries with pagination
 func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageData(
 	ctx context.Context,
@@ -243,13 +251,12 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 		}
 	}
 
-	sortField := "pos.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(phaseOutcomeSummarySortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	posColumns := `
@@ -261,9 +268,9 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 		pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
 	`
 
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
-			SELECT ` + posColumns + `
+			SELECT %s
 			FROM phase_outcome_summary pos
 			WHERE pos.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -275,9 +282,9 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 		SELECT
 			e.*, c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, posColumns, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

@@ -164,6 +164,14 @@ func (r *PostgresCostScheduleRepository) ListCostSchedules(ctx context.Context, 
 	return &costschedulepb.ListCostSchedulesResponse{Data: items}, nil
 }
 
+// costScheduleSortableSQLCols is the fail-closed sort whitelist for
+// GetCostScheduleListPageData. Only columns projected by the SELECT are included
+// so ORDER BY can never reference an unprojected/injected identifier.
+var costScheduleSortableSQLCols = []string{
+	"id", "name", "description", "active", "date_created", "date_modified",
+	"date_time_start", "date_time_end",
+}
+
 func (r *PostgresCostScheduleRepository) GetCostScheduleListPageData(ctx context.Context, req *costschedulepb.GetCostScheduleListPageDataRequest) (*costschedulepb.GetCostScheduleListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request required")
@@ -181,20 +189,17 @@ func (r *PostgresCostScheduleRepository) GetCostScheduleListPageData(ctx context
 			offset = (op.Page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == 1 {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). An unknown
+	// sort column now errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(costScheduleSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 	query := `SELECT id, name, description, active, date_created, date_modified, date_time_start, date_time_end
 	          FROM cost_schedule
 	          WHERE active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)
-	          ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3`
+	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

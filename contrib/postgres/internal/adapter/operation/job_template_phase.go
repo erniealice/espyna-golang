@@ -215,6 +215,11 @@ func (r *PostgresJobTemplatePhaseRepository) ListJobTemplatePhases(ctx context.C
 	}, nil
 }
 
+var jobTemplatePhaseSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "job_template_id",
+	"name", "phase_order",
+}
+
 // GetJobTemplatePhaseListPageData retrieves phases with pagination, filtering, sorting, and search
 func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 	ctx context.Context,
@@ -244,13 +249,13 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 		}
 	}
 
-	sortField := "jtp.phase_order"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(jobTemplatePhaseSortableSQLCols, req.GetSort(), "phase_order ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -275,7 +280,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

@@ -213,6 +213,14 @@ func (r *PostgresJobPhaseRepository) ListJobPhases(ctx context.Context, req *pb.
 	}, nil
 }
 
+// jobPhaseSortableSQLCols is the fail-closed sort whitelist for
+// GetJobPhaseListPageData. Only columns projected by the CTE SELECT are included
+// so ORDER BY can never reference an unprojected/injected identifier.
+var jobPhaseSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "job_id",
+	"name", "phase_order", "status",
+}
+
 // GetJobPhaseListPageData retrieves job phases with pagination, filtering, sorting, and search
 func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 	ctx context.Context,
@@ -242,13 +250,13 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 		}
 	}
 
-	sortField := "jp.phase_order"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (phase_order) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(jobPhaseSortableSQLCols, req.GetSort(), "phase_order ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -274,7 +282,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

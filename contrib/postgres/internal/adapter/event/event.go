@@ -439,6 +439,13 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 		return nil, fmt.Errorf("event ID is required")
 	}
 
+	// A1 (CRITICAL): scope to the caller's workspace. event carries its own
+	// workspace_id column (verified against the baseline schema) and is not one
+	// of the 5 global tables, so scope directly. Without this predicate a caller
+	// could fetch another tenant's event by ID. Empty wsID = service-to-service
+	// call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		SELECT
 			id,
@@ -451,9 +458,10 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 			date_modified
 		FROM event
 		WHERE id = $1 AND active = true
+		  AND ($2::text = '' OR workspace_id = $2::text)
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.EventId)
+	row := r.db.QueryRowContext(ctx, query, req.EventId, workspaceID)
 
 	var (
 		id               string

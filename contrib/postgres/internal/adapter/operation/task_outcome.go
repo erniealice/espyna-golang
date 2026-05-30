@@ -218,6 +218,15 @@ func (r *PostgresTaskOutcomeRepository) ListTaskOutcomes(ctx context.Context, re
 	}, nil
 }
 
+var taskOutcomeSortableSQLCols = []string{
+	"id", "job_task_id", "criteria_version_id", "criteria_type", "is_ad_hoc",
+	"numeric_value", "text_value", "categorical_value", "pass_fail_value",
+	"determination", "determination_source", "determination_note",
+	"auto_proposed_determination", "recorded_by", "recorded_date",
+	"reviewed_by", "reviewed_date", "attachment_ids", "revision_of_id",
+	"revision_number", "active", "date_created", "date_modified",
+}
+
 // GetTaskOutcomeListPageData retrieves task outcomes with pagination, filtering, sorting, and search
 func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 	ctx context.Context,
@@ -247,13 +256,13 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 		}
 	}
 
-	sortField := "to_.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(taskOutcomeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	toColumns := `
@@ -280,7 +289,7 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 		SELECT
 			e.*, c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

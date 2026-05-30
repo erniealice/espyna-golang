@@ -219,6 +219,11 @@ func (r *PostgresAttributeValueRepository) ListAttributeValues(ctx context.Conte
 	}, nil
 }
 
+var attributeValueSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "attribute_id",
+	"value", "sort_order", "attribute_name",
+}
+
 // GetAttributeValueListPageData retrieves attribute values with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the attribute table to include the parent attribute name
 func (r *PostgresAttributeValueRepository) GetAttributeValueListPageData(
@@ -252,18 +257,16 @@ func (r *PostgresAttributeValueRepository) GetAttributeValueListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "av.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(attributeValueSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with attribute join for parent attribute name
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				av.id,
@@ -288,9 +291,9 @@ func (r *PostgresAttributeValueRepository) GetAttributeValueListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

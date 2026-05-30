@@ -15,6 +15,7 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/funding"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/integration"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/inventory"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/ledger"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/operation"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/payroll"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/procurement"

@@ -404,9 +404,16 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractItemPageData(
 		FROM supplier_contract sc
 		LEFT JOIN supplier s ON sc.supplier_id = s.id AND s.active = true
 		WHERE sc.id = $1 AND sc.active = true
+		  AND ($2::text = '' OR sc.workspace_id = $2::text)
 		LIMIT 1;
 	`
-	row := r.db.QueryRowContext(ctx, query, req.GetSupplierContractId())
+	// A1 (CRITICAL): scope to the caller's workspace. supplier_contract carries
+	// its own workspace_id column (verified against the baseline schema; the list
+	// method already scopes sc.workspace_id). Without this predicate a caller
+	// could fetch another tenant's contract by ID. Empty wsID = service-to-service
+	// call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	row := r.db.QueryRowContext(ctx, query, req.GetSupplierContractId(), workspaceID)
 
 	var (
 		id              string
@@ -502,11 +509,17 @@ func (r *PostgresSupplierContractRepository) ApproveSupplierContract(ctx context
 	approvedAtStr := now.Format(time.RFC3339)
 	newStatus := int32(suppliercontractpb.SupplierContractStatus_SUPPLIER_CONTRACT_STATUS_APPROVED)
 
+	// A1 (CRITICAL): scope the mutation to the caller's workspace.
+	// supplier_contract owns workspace_id (verified against the baseline schema).
+	// Without this predicate a caller could approve another tenant's contract by
+	// ID. Empty wsID = service-to-service call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE supplier_contract
 		 SET status = $1, approved_by = $2, approved_at = $3, approved_at_string = $4, date_modified = NOW()
-		 WHERE id = $5 AND active = true`,
-		newStatus, req.ApprovedBy, approvedAt, approvedAtStr, req.GetSupplierContractId(),
+		 WHERE id = $5 AND active = true
+		   AND ($6::text = '' OR workspace_id = $6::text)`,
+		newStatus, req.ApprovedBy, approvedAt, approvedAtStr, req.GetSupplierContractId(), workspaceID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to approve supplier_contract: %w", err)
@@ -521,11 +534,17 @@ func (r *PostgresSupplierContractRepository) TerminateSupplierContract(ctx conte
 	}
 	newStatus := int32(suppliercontractpb.SupplierContractStatus_SUPPLIER_CONTRACT_STATUS_TERMINATED)
 
+	// A1 (CRITICAL): scope the mutation to the caller's workspace.
+	// supplier_contract owns workspace_id (verified against the baseline schema).
+	// Without this predicate a caller could terminate another tenant's contract by
+	// ID. Empty wsID = service-to-service call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE supplier_contract
 		 SET status = $1, rejection_reason = $2, date_modified = NOW()
-		 WHERE id = $3 AND active = true`,
-		newStatus, req.GetReason(), req.GetSupplierContractId(),
+		 WHERE id = $3 AND active = true
+		   AND ($4::text = '' OR workspace_id = $4::text)`,
+		newStatus, req.GetReason(), req.GetSupplierContractId(), workspaceID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to terminate supplier_contract: %w", err)

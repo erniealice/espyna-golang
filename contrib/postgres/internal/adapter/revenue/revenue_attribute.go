@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -249,6 +250,13 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 		return nil, err
 	}
 
+	// A1 (CRITICAL): scope to the caller's workspace. This method bypasses the
+	// WorkspaceAwareOperations decorator (raw SQL via db.GetDB()). revenue_attribute
+	// has no workspace_id column of its own (verified baseline) — tenancy is inherited
+	// through its revenue FK, so the predicate scopes on the LEFT-JOINed revenue's
+	// workspace_id (rv). Empty wsID = service-to-service call → no scoping. $4 carries it.
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -267,13 +275,14 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ra.value ILIKE $1 OR
 			       rv.name ILIKE $1)
+			  AND ($4::text = '' OR rv.workspace_id = $4::text)
 		)
 		SELECT * FROM enriched
 		` + orderBy + `
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query revenue attribute list page data: %w", err)
 	}
@@ -373,6 +382,11 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeItemPageData(
 		return nil, fmt.Errorf("revenue attribute ID is required")
 	}
 
+	// A1 (CRITICAL): scope to the caller's workspace. revenue_attribute inherits
+	// tenancy through its revenue FK (no own workspace_id) — scope on the LEFT-JOINed
+	// revenue's workspace_id (rv). Empty wsID = service-to-service call → no scoping.
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -387,11 +401,12 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeItemPageData(
 			FROM revenue_attribute ra
 			LEFT JOIN revenue rv ON ra.revenue_id = rv.id AND rv.active = true
 			WHERE ra.id = $1 AND ra.active = true
+			  AND ($2::text = '' OR rv.workspace_id = $2::text)
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.RevenueAttributeId)
+	row := r.db.QueryRowContext(ctx, query, req.RevenueAttributeId, wsID)
 
 	var (
 		id           string

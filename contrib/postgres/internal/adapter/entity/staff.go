@@ -214,6 +214,16 @@ func (r *PostgresStaffRepository) ListStaffs(ctx context.Context, req *staffpb.L
 	}, nil
 }
 
+// staffSortableSQLCols is the fail-closed sort whitelist for
+// GetStaffListPageData. Only columns/aliases projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+var staffSortableSQLCols = []string{
+	"id", "user_id", "active", "date_created", "date_modified",
+	"user_id_value", "user_first_name", "user_last_name",
+	"user_email_address", "user_date_created", "user_date_modified",
+	"user_active",
+}
+
 // GetStaffListPageData retrieves staffs with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresStaffRepository) GetStaffListPageData(
 	ctx context.Context,
@@ -246,14 +256,11 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). An unknown
+	// sort column now errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(staffSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with enriched user data
@@ -288,7 +295,7 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

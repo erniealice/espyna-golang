@@ -246,15 +246,17 @@ func (r *PostgresPriceListRepository) GetPriceListListPageData(
 		}
 	}
 
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Finish the
+	// in-progress migration: the priceListSortableSQLCols whitelist already exists
+	// (and gates ListPriceLists via ValidateSortColumns); wire it into the page
+	// ORDER BY via core.BuildOrderBy so an unknown column errors instead of being
+	// interpolated verbatim.
+	orderByClause, err := postgresCore.BuildOrderBy(priceListSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `WITH enriched AS (SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified FROM price_list WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified FROM price_list WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ` + orderByClause + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

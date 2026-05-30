@@ -219,6 +219,15 @@ func (r *PostgresInventoryAttributeRepository) ListInventoryAttributes(ctx conte
 	}, nil
 }
 
+// inventoryAttributeSortableSQLCols is the fail-closed sort whitelist for
+// GetInventoryAttributeListPageData. Only columns/aliases projected by the CTE
+// SELECT are included so ORDER BY can never reference an unprojected/injected
+// identifier.
+var inventoryAttributeSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "inventory_item_id",
+	"attribute_id", "value", "inventory_item_name",
+}
+
 // GetInventoryAttributeListPageData retrieves inventory attributes with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the inventory_item table to include the parent item name
 // Supports search on attribute value and inventory item name
@@ -253,14 +262,13 @@ func (r *PostgresInventoryAttributeRepository) GetInventoryAttributeListPageData
 		}
 	}
 
-	// Default sort
-	sortField := "ia.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (date_created) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(inventoryAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with inventory_item join
@@ -289,7 +297,7 @@ func (r *PostgresInventoryAttributeRepository) GetInventoryAttributeListPageData
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

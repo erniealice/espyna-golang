@@ -215,6 +215,13 @@ func (r *PostgresPettyCashFundRepository) ListPettyCashFunds(ctx context.Context
 	}, nil
 }
 
+// pettyCashFundSortableSQLCols whitelists sortable columns. authorized_amount
+// and current_balance are centavo integers — integer sort is correct.
+var pettyCashFundSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "name",
+	"authorized_amount", "current_balance", "custodian_id", "location_id",
+}
+
 // GetPettyCashFundListPageData retrieves petty_cash_funds with pagination, filtering, sorting, and search using CTE
 func (r *PostgresPettyCashFundRepository) GetPettyCashFundListPageData(
 	ctx context.Context,
@@ -244,13 +251,12 @@ func (r *PostgresPettyCashFundRepository) GetPettyCashFundListPageData(
 		}
 	}
 
-	sortField := "pcf.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed.
+	orderByClause, err := postgresCore.BuildOrderBy(pettyCashFundSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -277,7 +283,7 @@ func (r *PostgresPettyCashFundRepository) GetPettyCashFundListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

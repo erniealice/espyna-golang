@@ -170,6 +170,14 @@ var locationAreaSortableSQLCols = []string{
 
 var locationAreaSortSpec = espynahttp.SortSpec{AllowedCols: locationAreaSortableSQLCols}
 
+// locationAreaListPageSortableSQLCols is the ORDER BY whitelist for
+// GetLocationAreaListPageData. Its CTE projects only these columns, so the outer
+// ORDER BY can only reference these (workspace_id is filtered on but not
+// projected, so it is intentionally excluded — fail closed).
+var locationAreaListPageSortableSQLCols = []string{
+	"id", "name", "description", "active", "date_created", "date_modified",
+}
+
 // ListLocationAreas lists location areas using common PostgreSQL operations
 func (r *PostgresLocationAreaRepository) ListLocationAreas(ctx context.Context, req *locationareapb.ListLocationAreasRequest) (*locationareapb.ListLocationAreasResponse, error) {
 	if err := espynahttp.ValidateSortColumns(locationAreaSortSpec, req.GetSort(), "location_area"); err != nil {
@@ -237,13 +245,13 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The CTE
+	// projects only the columns below, so ORDER BY against the outer enriched e
+	// can only reference these; an unknown column errors instead of being
+	// interpolated verbatim.
+	orderByClause, err := postgresCore.BuildOrderBy(locationAreaListPageSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
@@ -271,7 +279,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $3 OFFSET $4;
 	`
 

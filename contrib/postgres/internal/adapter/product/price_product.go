@@ -220,6 +220,11 @@ func (r *PostgresPriceProductRepository) ListPriceProducts(ctx context.Context, 
 	}, nil
 }
 
+var priceProductSortableSQLCols = []string{
+	"id", "product_id", "amount", "currency", "active",
+	"date_created", "date_modified",
+}
+
 // GetPriceProductListPageData retrieves price products with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresPriceProductRepository) GetPriceProductListPageData(
 	ctx context.Context,
@@ -245,16 +250,17 @@ func (r *PostgresPriceProductRepository) GetPriceProductListPageData(
 		}
 	}
 
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY. amount is
+	// stored in centavos, so sorting is numeric on the stored integer.
+	orderByClause, err := postgresCore.BuildOrderBy(priceProductSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Pricing pattern with amount/currency
-	query := `WITH enriched AS (SELECT id, product_id, amount, currency, active, date_created, date_modified FROM price_product WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR product_id ILIKE $1 OR currency ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := fmt.Sprintf(`WITH enriched AS (SELECT id, product_id, amount, currency, active, date_created, date_modified FROM price_product WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR product_id ILIKE $1 OR currency ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c %s LIMIT $2 OFFSET $3;`, orderByClause)
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

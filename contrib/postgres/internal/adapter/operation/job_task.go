@@ -213,6 +213,11 @@ func (r *PostgresJobTaskRepository) ListJobTasks(ctx context.Context, req *pb.Li
 	}, nil
 }
 
+var jobTaskSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "job_phase_id",
+	"name", "step_order", "status", "is_ad_hoc", "assigned_to",
+}
+
 // GetJobTaskListPageData retrieves job tasks with pagination, filtering, sorting, and search
 func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 	ctx context.Context,
@@ -242,13 +247,12 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 		}
 	}
 
-	sortField := "jt.step_order"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed. Default preserves step_order ASC.
+	orderByClause, err := postgresCore.BuildOrderBy(jobTaskSortableSQLCols, req.GetSort(), "step_order ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -276,7 +280,7 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

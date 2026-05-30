@@ -219,6 +219,16 @@ func (r *PostgresLoanPaymentRepository) ListLoanPayments(ctx context.Context, re
 	}, nil
 }
 
+// loanPaymentSortableSQLCols is the fail-closed sort whitelist for
+// GetLoanPaymentListPageData. Only columns projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+// The *_amount/remaining_balance columns are centavo integers (Rule #1).
+var loanPaymentSortableSQLCols = []string{
+	"id", "date_created", "loan_id", "payment_number", "payment_date",
+	"principal_amount", "interest_amount", "fee_amount", "total_amount",
+	"remaining_balance", "notes",
+}
+
 // GetLoanPaymentListPageData retrieves loan_payments with pagination, filtering, sorting, and search using CTE
 func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 	ctx context.Context,
@@ -248,13 +258,15 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 		}
 	}
 
-	sortField := "lp.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (date_created) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY. Money columns
+	// (principal_amount/interest_amount/fee_amount/total_amount/remaining_balance)
+	// are centavo integers (Rule #1) — sorting on them is on the raw integer.
+	orderByClause, err := postgresCore.BuildOrderBy(loanPaymentSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -282,7 +294,7 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

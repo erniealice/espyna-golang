@@ -221,6 +221,13 @@ func (r *PostgresProductOptionValueRepository) ListProductOptionValues(ctx conte
 	}, nil
 }
 
+// productOptionValueSortableSQLCols whitelists sortable columns. metadata is a
+// jsonb::text projection alias and is intentionally excluded.
+var productOptionValueSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "product_option_id",
+	"label", "value", "sort_order", "option_name",
+}
+
 // GetProductOptionValueListPageData retrieves product option values with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the product_option table to include the parent option name
 func (r *PostgresProductOptionValueRepository) GetProductOptionValueListPageData(
@@ -254,14 +261,12 @@ func (r *PostgresProductOptionValueRepository) GetProductOptionValueListPageData
 		}
 	}
 
-	// Default sort
-	sortField := "pov.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed.
+	orderByClause, err := postgresCore.BuildOrderBy(productOptionValueSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with product_option join for parent option name
@@ -293,7 +298,7 @@ func (r *PostgresProductOptionValueRepository) GetProductOptionValueListPageData
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

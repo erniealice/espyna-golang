@@ -159,6 +159,11 @@ func (r *PostgresSupplierPlanRepository) ListSupplierPlans(ctx context.Context, 
 	return &supplierplanpb.ListSupplierPlansResponse{Data: items}, nil
 }
 
+var supplierPlanSortableSQLCols = []string{
+	"id", "name", "description", "active", "supplier_id",
+	"date_created", "date_modified",
+}
+
 func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context.Context, req *supplierplanpb.GetSupplierPlanListPageDataRequest) (*supplierplanpb.GetSupplierPlanListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request required")
@@ -176,20 +181,18 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context
 			offset = (op.Page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == 1 {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(supplierPlanSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 	query := `SELECT id, name, description, active, supplier_id, date_created, date_modified
 	          FROM supplier_plan
 	          WHERE active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)
-	          ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3`
+	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

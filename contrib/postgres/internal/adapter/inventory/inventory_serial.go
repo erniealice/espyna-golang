@@ -238,6 +238,12 @@ func (r *PostgresInventorySerialRepository) ListInventorySerials(ctx context.Con
 	}, nil
 }
 
+var inventorySerialSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "inventory_item_id",
+	"serial_number", "imei", "status", "warranty_start", "warranty_end",
+	"purchase_order", "notes", "inventory_item_name",
+}
+
 // GetInventorySerialListPageData retrieves inventory serials with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the inventory_item table to include the parent item name
 // Supports search on serial_number and imei, and filtering by status
@@ -272,18 +278,16 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "is2.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(inventorySerialSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with inventory_item join
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				is2.id,
@@ -314,9 +318,9 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

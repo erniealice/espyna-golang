@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -260,12 +261,19 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "job_settlement", jobSettlementSortableSQLCols)
 	}
 
+	// A1 (CRITICAL): scope to the caller's workspace. This raw-SQL path bypasses the
+	// WorkspaceAwareOperations decorator. job_settlement carries its own workspace_id
+	// column (verified against the baseline schema), so scope directly on js. Empty
+	// wsID = service-to-service call → no scoping. $6 is reserved for it.
+	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		WITH
 		search_filtered AS (
 			SELECT js.*
 			FROM job_settlement js
 			WHERE js.active = true
+				AND ($6::text = '' OR js.workspace_id = $6::text)
 				AND ($1::text = '' OR js.target_id ILIKE $1)
 		),
 		enriched AS (
@@ -329,7 +337,7 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 		return nil, fmt.Errorf("database connection not available for raw SQL queries")
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, searchQuery, limit, offset, sortField, sortDirection)
+	rows, err := r.db.QueryContext(ctx, query, searchQuery, limit, offset, sortField, sortDirection, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetJobSettlementListPageData query: %w", err)
 	}

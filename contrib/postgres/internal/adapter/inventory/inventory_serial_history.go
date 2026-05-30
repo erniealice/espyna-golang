@@ -187,6 +187,12 @@ func (r *PostgresInventorySerialHistoryRepository) ListInventorySerialHistory(ct
 	}, nil
 }
 
+var inventorySerialHistorySortableSQLCols = []string{
+	"id", "date_created", "inventory_serial_id", "inventory_item_id",
+	"from_status", "to_status", "reference_type", "reference_id", "notes",
+	"changed_by", "changed_by_role", "serial_number",
+}
+
 // GetInventorySerialHistoryListPageData retrieves inventory serial history with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the inventory_serial table to include the serial number
 // Supports search on from_status, to_status, reference_type, and notes
@@ -221,14 +227,13 @@ func (r *PostgresInventorySerialHistoryRepository) GetInventorySerialHistoryList
 		}
 	}
 
-	// Default sort
-	sortField := "ish.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(inventorySerialHistorySortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with inventory_serial join
@@ -263,7 +268,7 @@ func (r *PostgresInventorySerialHistoryRepository) GetInventorySerialHistoryList
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

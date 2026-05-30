@@ -216,6 +216,16 @@ func (r *PostgresSecurityDepositRepository) ListSecurityDeposits(ctx context.Con
 	}, nil
 }
 
+// securityDepositSortableSQLCols is the fail-closed sort whitelist for
+// GetSecurityDepositListPageData. Only columns projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+// The amount column is a centavo integer (Rule #1).
+var securityDepositSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "direction",
+	"counterparty_name", "amount", "deposit_date", "status", "account_id",
+	"notes",
+}
+
 // GetSecurityDepositListPageData retrieves security_deposits with pagination, filtering, sorting, and search using CTE
 func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 	ctx context.Context,
@@ -245,13 +255,14 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 		}
 	}
 
-	sortField := "sd.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (date_created) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY. The amount
+	// column is a centavo integer (Rule #1) — sorting on it is on the raw integer.
+	orderByClause, err := postgresCore.BuildOrderBy(securityDepositSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -281,7 +292,7 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

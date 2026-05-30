@@ -256,14 +256,13 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Mirrors the
+	// supplier.GetSupplierListPageData exemplar: route the caller-supplied sort
+	// column through core.BuildOrderBy so an unknown column errors instead of
+	// being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(workspaceSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build filter/search WHERE clauses (start at $1)
@@ -301,9 +300,9 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		%s
 		LIMIT $%d OFFSET $%d;
-	`, whereSQL, sortField, sortOrder, limitIdx, offsetIdx)
+	`, whereSQL, orderByClause, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)

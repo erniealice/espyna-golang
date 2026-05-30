@@ -219,6 +219,13 @@ func (r *PostgresCollectionPlanRepository) ListCollectionPlans(ctx context.Conte
 	}, nil
 }
 
+// collectionPlanSortableSQLCols is the fail-closed sort whitelist for
+// GetCollectionPlanListPageData. Only columns projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+var collectionPlanSortableSQLCols = []string{
+	"id", "collection_id", "plan_id", "active", "date_created", "date_modified",
+}
+
 // GetCollectionPlanListPageData retrieves collection plans with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 	ctx context.Context,
@@ -250,14 +257,11 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). An unknown
+	// sort column now errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(collectionPlanSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Junction table pattern
@@ -283,7 +287,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

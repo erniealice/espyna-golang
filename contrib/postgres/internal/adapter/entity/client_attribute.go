@@ -211,6 +211,13 @@ func (r *PostgresClientAttributeRepository) ListClientAttributes(ctx context.Con
 	}, nil
 }
 
+// clientAttributeSortableSQLCols is the fail-closed sort whitelist for
+// GetClientAttributeListPageData. Only columns projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+var clientAttributeSortableSQLCols = []string{
+	"id", "client_id", "key", "value", "active", "date_created", "date_modified",
+}
+
 // GetClientAttributeListPageData retrieves paginated client attribute list data with CTE
 func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx context.Context, req *clientattributepb.GetClientAttributeListPageDataRequest) (*clientattributepb.GetClientAttributeListPageDataResponse, error) {
 	if req == nil {
@@ -230,15 +237,14 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx c
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). An unknown
+	// sort column now errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(clientAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `WITH enriched AS (SELECT id, client_id, key, value, active, date_created, date_modified FROM client_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR key ILIKE $1 OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, client_id, key, value, active, date_created, date_modified FROM client_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR key ILIKE $1 OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ` + orderByClause + ` LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

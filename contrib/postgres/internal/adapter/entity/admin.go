@@ -234,6 +234,12 @@ func (r *PostgresAdminRepository) ListAdmins(ctx context.Context, req *adminpb.L
 	}, nil
 }
 
+var adminSortableSQLCols = []string{
+	"id", "user_id", "active", "date_created", "date_modified",
+	"user_id_value", "user_first_name", "user_last_name", "user_email_address",
+	"user_date_created", "user_date_modified", "user_active",
+}
+
 // GetAdminListPageData retrieves admins with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresAdminRepository) GetAdminListPageData(
 	ctx context.Context,
@@ -266,14 +272,12 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == 1 { // ASC = 1
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(adminSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with enriched user data
@@ -313,7 +317,7 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

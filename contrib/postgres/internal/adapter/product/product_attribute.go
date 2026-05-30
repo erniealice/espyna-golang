@@ -220,6 +220,10 @@ func (r *PostgresProductAttributeRepository) ListProductAttributes(ctx context.C
 	}, nil
 }
 
+var productAttributeSortableSQLCols = []string{
+	"id", "product_id", "attribute_id", "value", "date_created", "date_modified",
+}
+
 // GetProductAttributeListPageData retrieves product attributes with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 	ctx context.Context,
@@ -251,14 +255,13 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(productAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Attribute table pattern with attribute_id/value search
@@ -284,7 +287,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

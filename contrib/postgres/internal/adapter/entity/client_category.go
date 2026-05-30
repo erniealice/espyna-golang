@@ -211,6 +211,10 @@ func (r *PostgresClientCategoryRepository) ListClientCategories(ctx context.Cont
 	}, nil
 }
 
+var clientCategorySortableSQLCols = []string{
+	"id", "name", "description", "active", "date_created", "date_modified",
+}
+
 // GetClientCategoryListPageData retrieves client_categories with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 	ctx context.Context,
@@ -243,14 +247,12 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(clientCategorySortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with filtering and pagination
@@ -280,7 +282,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

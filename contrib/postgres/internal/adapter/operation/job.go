@@ -512,6 +512,11 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 		return nil, fmt.Errorf("job ID is required")
 	}
 
+	// A1: scope to the caller's workspace. job carries its own workspace_id
+	// (verified against the baseline schema; the list method scopes j.workspace_id
+	// identically). Empty wsID = service-to-service call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := `
 		SELECT
 			j.id,
@@ -538,9 +543,10 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 			j.cycle_period_end
 		FROM job j
 		WHERE j.id = $1 AND j.active = true
+		  AND ($2 = '' OR j.workspace_id = $2)
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.JobId)
+	row := r.db.QueryRowContext(ctx, query, req.JobId, workspaceID)
 
 	var (
 		id               string
@@ -703,6 +709,13 @@ func (r *PostgresJobRepository) GetJobsByClient(
 		return nil, fmt.Errorf("client ID is required")
 	}
 
+	// A1: scope to the caller's workspace. job carries its own workspace_id
+	// (verified against the baseline schema). This lookup keys on client_id,
+	// which is not unique across tenants — without the predicate a caller could
+	// resolve another tenant's jobs for the same client. Empty wsID =
+	// service-to-service call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		SELECT id, date_created, date_modified, active, name,
 		       job_template_id, origin_type, origin_id, client_id,
@@ -712,10 +725,11 @@ func (r *PostgresJobRepository) GetJobsByClient(
 		       cycle_index, cycle_period_start, cycle_period_end
 		FROM %s
 		WHERE client_id = $1 AND active = true
+		  AND ($2 = '' OR workspace_id = $2)
 		ORDER BY date_created DESC
 	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, req.ClientId)
+	rows, err := r.db.QueryContext(ctx, query, req.ClientId, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list jobs by client: %w", err)
 	}
@@ -741,6 +755,13 @@ func (r *PostgresJobRepository) GetJobsByOrigin(
 		return nil, fmt.Errorf("origin ID is required")
 	}
 
+	// A1: scope to the caller's workspace. job carries its own workspace_id
+	// (verified against the baseline schema). This lookup keys on
+	// origin_type/origin_id, which are not unique across tenants — without the
+	// predicate a caller could resolve another tenant's jobs for the same origin.
+	// Empty wsID = service-to-service call → no scoping.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		SELECT id, date_created, date_modified, active, name,
 		       job_template_id, origin_type, origin_id, client_id,
@@ -750,10 +771,11 @@ func (r *PostgresJobRepository) GetJobsByOrigin(
 		       cycle_index, cycle_period_start, cycle_period_end
 		FROM %s
 		WHERE origin_type = $1 AND origin_id = $2 AND active = true
+		  AND ($3 = '' OR workspace_id = $3)
 		ORDER BY parent_job_id NULLS FIRST, date_created ASC
 	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, req.OriginType.String(), req.OriginId)
+	rows, err := r.db.QueryContext(ctx, query, req.OriginType.String(), req.OriginId, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list jobs by origin: %w", err)
 	}
@@ -781,14 +803,22 @@ func (r *PostgresJobRepository) UpdateJobStatus(
 
 	newStatus := req.Status.String()
 
+	// A1: scope the mutation to the caller's workspace. job carries its own
+	// workspace_id (verified against the baseline schema) — without the predicate
+	// a caller could transition another tenant's job. Empty wsID =
+	// service-to-service call → no scoping. The id-not-found path already maps a
+	// no-match row to a not-found error (effective ownership check).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		UPDATE %s SET status = $1, date_modified = NOW()
 		WHERE id = $2 AND active = true
+		  AND ($3 = '' OR workspace_id = $3)
 		RETURNING id
 	`, r.tableName)
 
 	var id string
-	err := r.db.QueryRowContext(ctx, query, newStatus, req.JobId).Scan(&id)
+	err := r.db.QueryRowContext(ctx, query, newStatus, req.JobId, workspaceID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("job not found with ID: %s", req.JobId)
 	}

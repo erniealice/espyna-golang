@@ -457,11 +457,18 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = true
 			LEFT JOIN product p ON rli.product_id = p.id AND p.active = true
 			WHERE rli.id = $1 AND rli.active = true
+			  AND ($2::text = '' OR rli.workspace_id = $2::text)
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.RevenueLineItemId)
+	// A1 (CRITICAL): scope to the caller's workspace. revenue_line_item carries
+	// its own workspace_id column (the list method scopes rli.workspace_id the
+	// same way), so scope directly. Without this a caller could fetch another
+	// tenant's line item by ID. Empty wsID = service-to-service call → no
+	// scoping. wsID is appended as $2.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	row := r.db.QueryRowContext(ctx, query, req.RevenueLineItemId, workspaceID)
 
 	var (
 		id                 string

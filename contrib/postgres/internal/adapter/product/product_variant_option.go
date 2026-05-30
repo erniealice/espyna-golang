@@ -220,6 +220,15 @@ func (r *PostgresProductVariantOptionRepository) ListProductVariantOptions(ctx c
 	}, nil
 }
 
+// productVariantOptionSortableSQLCols is the fail-closed sort whitelist for
+// GetProductVariantOptionListPageData. Only columns/aliases projected by the CTE
+// SELECT are included so ORDER BY can never reference an unprojected/injected
+// identifier.
+var productVariantOptionSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "product_variant_id",
+	"product_option_value_id", "variant_sku", "option_value_label",
+}
+
 // GetProductVariantOptionListPageData retrieves product variant options with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with product_variant and product_option_value tables for enriched data
 func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPageData(
@@ -253,14 +262,13 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPage
 		}
 	}
 
-	// Default sort
-	sortField := "pvo.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (date_created) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(productVariantOptionSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with joins for variant SKU and option value label
@@ -290,7 +298,7 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPage
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

@@ -213,6 +213,11 @@ func (r *PostgresCriteriaOptionRepository) ListCriteriaOptions(ctx context.Conte
 	}, nil
 }
 
+var criteriaOptionSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "outcome_criteria_id",
+	"option_label", "option_key", "display_order", "severity",
+}
+
 // GetCriteriaOptionListPageData retrieves criteria options with pagination, filtering, sorting, and search
 func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 	ctx context.Context,
@@ -242,13 +247,12 @@ func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 		}
 	}
 
-	sortField := "co.display_order"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed. Default preserves display_order ASC.
+	orderByClause, err := postgresCore.BuildOrderBy(criteriaOptionSortableSQLCols, req.GetSort(), "display_order ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -275,7 +279,7 @@ func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

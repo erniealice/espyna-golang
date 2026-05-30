@@ -169,8 +169,14 @@ func (r *PostgresFulfillmentRepository) DeleteFulfillment(ctx context.Context, r
 		return nil, fmt.Errorf("fulfillment ID is required")
 	}
 
-	query := `UPDATE fulfillment SET active = false, date_modified = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, req.Id)
+	// A1 (CRITICAL): scope the soft-delete to the caller's workspace. The
+	// fulfillment table carries its own workspace_id (sibling methods
+	// GetFulfillmentListPageData/GetFulfillmentItemPageData/TransitionStatus all
+	// scope f.workspace_id). Empty wsID = service-to-service call → no scoping
+	// (the empty-string bypass is preserved). $2 is the workspace_id arg.
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	query := `UPDATE fulfillment SET active = false, date_modified = NOW() WHERE id = $1 AND ($2 = '' OR workspace_id = $2)`
+	_, err := r.db.ExecContext(ctx, query, req.Id, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete fulfillment: %w", err)
 	}
@@ -262,15 +268,13 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 		}
 	}
 
-	sortField := "f.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.id, e.date_created, ...),
+	// so the ORDER BY references unprefixed whitelist columns. An unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(fulfillmentSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -330,7 +334,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			e.status_event_count,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $3 OFFSET $4;
 	`
 

@@ -214,6 +214,14 @@ func (r *PostgresJobOutcomeSummaryRepository) ListJobOutcomeSummarys(ctx context
 	}, nil
 }
 
+var jobOutcomeSummarySortableSQLCols = []string{
+	"id", "job_id", "summary_type", "overall_determination", "scoring_method",
+	"summary_score", "total_criteria_count", "pass_count", "fail_count",
+	"conditional_count", "deferred_count", "na_count", "narrative",
+	"issued_by", "issued_date", "valid_until_date", "supersedes_id",
+	"attachment_ids", "active", "date_created", "date_modified",
+}
+
 // GetJobOutcomeSummaryListPageData retrieves job outcome summaries with pagination
 func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 	ctx context.Context,
@@ -243,13 +251,13 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		}
 	}
 
-	sortField := "jos.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
+	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
+	// references unprefixed whitelist columns. An unknown column errors instead
+	// of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(jobOutcomeSummarySortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	josColumns := `
@@ -276,7 +284,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		SELECT
 			e.*, c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

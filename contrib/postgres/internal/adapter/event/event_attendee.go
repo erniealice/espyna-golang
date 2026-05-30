@@ -221,6 +221,12 @@ func (r *PostgresEventAttendeeRepository) ListEventAttendees(ctx context.Context
 	}, nil
 }
 
+var eventAttendeeSortableSQLCols = []string{
+	"id", "event_id", "client_id", "workspace_user_id", "role", "status",
+	"is_organizer", "display_name", "workspace_id", "active",
+	"date_created", "date_modified",
+}
+
 // GetEventAttendeeListPageData retrieves paginated event attendee list data with CTE
 // CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresEventAttendeeRepository) GetEventAttendeeListPageData(
@@ -257,18 +263,16 @@ func (r *PostgresEventAttendeeRepository) GetEventAttendeeListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(eventAttendeeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query — join table pattern with event FK and optional client/workspace_user FK filtering
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				ea.id,
@@ -298,9 +302,9 @@ func (r *PostgresEventAttendeeRepository) GetEventAttendeeListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $3 OFFSET $4;
-	`
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {

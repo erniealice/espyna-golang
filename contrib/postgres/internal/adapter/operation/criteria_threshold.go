@@ -214,6 +214,11 @@ func (r *PostgresCriteriaThresholdRepository) ListCriteriaThresholds(ctx context
 	}, nil
 }
 
+var criteriaThresholdSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "outcome_criteria_id",
+	"threshold_role", "value",
+}
+
 // GetCriteriaThresholdListPageData retrieves criteria_thresholds with pagination, filtering, sorting, and search
 func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 	ctx context.Context,
@@ -243,16 +248,16 @@ func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 		}
 	}
 
-	sortField := "ct.threshold_role"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY. Default order
+	// preserves the existing threshold_role ASC behavior.
+	orderByClause, err := postgresCore.BuildOrderBy(criteriaThresholdSortableSQLCols, req.GetSort(), "threshold_role ASC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				ct.id,
@@ -274,9 +279,9 @@ func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

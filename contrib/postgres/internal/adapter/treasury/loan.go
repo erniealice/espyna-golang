@@ -222,6 +222,13 @@ func (r *PostgresLoanRepository) ListLoans(ctx context.Context, req *loanpb.List
 	}, nil
 }
 
+var loanSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "loan_number",
+	"description", "loan_type", "lender_name", "principal_amount",
+	"interest_rate", "term_months", "start_date", "maturity_date",
+	"status", "remaining_balance", "account_id",
+}
+
 // GetLoanListPageData retrieves loans with pagination, filtering, sorting, and search using CTE
 func (r *PostgresLoanRepository) GetLoanListPageData(
 	ctx context.Context,
@@ -251,13 +258,12 @@ func (r *PostgresLoanRepository) GetLoanListPageData(
 		}
 	}
 
-	sortField := "l.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed.
+	orderByClause, err := postgresCore.BuildOrderBy(loanSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := fmt.Sprintf(`
@@ -293,9 +299,9 @@ func (r *PostgresLoanRepository) GetLoanListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		%s
 		LIMIT $2 OFFSET $3;
-	`, r.tableName, sortField, sortOrder)
+	`, r.tableName, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

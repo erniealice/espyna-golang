@@ -211,6 +211,11 @@ func (r *PostgresTemplateTaskCriteriaRepository) ListTemplateTaskCriterias(ctx c
 	}, nil
 }
 
+var templateTaskCriteriaSortableSQLCols = []string{
+	"id", "date_created", "active", "job_template_task_id",
+	"outcome_criteria_id", "sequence_order", "required_override",
+}
+
 // GetTemplateTaskCriteriaListPageData retrieves template task criterias with pagination
 func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPageData(
 	ctx context.Context,
@@ -240,13 +245,12 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 		}
 	}
 
-	sortField := "ttc.sequence_order"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
+	// runs against the outer `enriched e` projection (unprefixed cols), so the
+	// whitelist + fallback are unprefixed. Default preserves sequence_order ASC.
+	orderByClause, err := postgresCore.BuildOrderBy(templateTaskCriteriaSortableSQLCols, req.GetSort(), "sequence_order ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -271,7 +275,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

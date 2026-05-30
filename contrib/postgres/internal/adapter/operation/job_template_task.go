@@ -215,6 +215,14 @@ func (r *PostgresJobTemplateTaskRepository) ListJobTemplateTasks(ctx context.Con
 	}, nil
 }
 
+// jobTemplateTaskSortableSQLCols is the fail-closed sort whitelist for
+// GetJobTemplateTaskListPageData. Only columns projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+var jobTemplateTaskSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "job_template_phase_id",
+	"name", "step_order", "estimated_duration_minutes",
+}
+
 // GetJobTemplateTaskListPageData retrieves tasks with pagination, filtering, sorting, and search
 func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 	ctx context.Context,
@@ -244,13 +252,13 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 		}
 	}
 
-	sortField := "jtt.step_order"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (step_order) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(jobTemplateTaskSortableSQLCols, req.GetSort(), "step_order ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -276,7 +284,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

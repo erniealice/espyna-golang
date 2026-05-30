@@ -211,6 +211,14 @@ func (r *PostgresTaskOutcomeCheckRepository) ListTaskOutcomeChecks(ctx context.C
 	}, nil
 }
 
+// taskOutcomeCheckSortableSQLCols is the fail-closed sort whitelist for
+// GetTaskOutcomeCheckListPageData. Only columns projected by the CTE SELECT are
+// included so ORDER BY can never reference an unprojected/injected identifier.
+var taskOutcomeCheckSortableSQLCols = []string{
+	"id", "date_created", "task_outcome_id", "criteria_option_id",
+	"checked", "note",
+}
+
 // GetTaskOutcomeCheckListPageData retrieves task outcome checks with pagination
 func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 	ctx context.Context,
@@ -240,13 +248,13 @@ func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 		}
 	}
 
-	sortField := "toc.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (date_created) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(taskOutcomeCheckSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -269,7 +277,7 @@ func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

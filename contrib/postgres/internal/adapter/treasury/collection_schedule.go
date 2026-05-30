@@ -207,6 +207,12 @@ func (r *PostgresCollectionScheduleRepository) ListCollectionSchedules(ctx conte
 	}, nil
 }
 
+var collectionScheduleSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "revenue_id", "sequence",
+	"amount", "due_date", "due_date_string", "status", "paid_amount",
+	"paid_date", "collection_id", "payment_term_id",
+}
+
 // GetCollectionScheduleListPageData retrieves collection schedules with pagination, filtering, sorting, and search using CTE
 func (r *PostgresCollectionScheduleRepository) GetCollectionScheduleListPageData(
 	ctx context.Context,
@@ -236,16 +242,16 @@ func (r *PostgresCollectionScheduleRepository) GetCollectionScheduleListPageData
 		}
 	}
 
-	sortField := "cs.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY. amount and
+	// paid_amount are stored in centavos, so sorting is numeric on the integer.
+	orderByClause, err := postgresCore.BuildOrderBy(collectionScheduleSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				cs.id,
@@ -262,7 +268,7 @@ func (r *PostgresCollectionScheduleRepository) GetCollectionScheduleListPageData
 				cs.paid_date,
 				cs.collection_id,
 				cs.payment_term_id
-			FROM ` + r.tableName + ` cs
+			FROM %s cs
 			WHERE cs.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       cs.status ILIKE $1)
@@ -274,9 +280,9 @@ func (r *PostgresCollectionScheduleRepository) GetCollectionScheduleListPageData
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, r.tableName, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

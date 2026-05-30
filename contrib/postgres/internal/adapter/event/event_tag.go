@@ -253,16 +253,15 @@ func (r *PostgresEventTagRepository) GetEventTagListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(eventTagSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				et.id,
@@ -287,9 +286,9 @@ func (r *PostgresEventTagRepository) GetEventTagListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $3 OFFSET $4;
-	`
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {

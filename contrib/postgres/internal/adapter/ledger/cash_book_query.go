@@ -11,7 +11,8 @@ import (
 
 // GetCashBookReport executes a UNION ALL query over revenue and expenditure tables
 // to produce a simple chronological cash book showing receipts and disbursements.
-// amounts are stored in pesos in the DB and multiplied by 100 to produce centavos.
+// amounts are stored in centavos in the DB (project-wide convention) and are
+// selected as-is; the view layer divides by 100 once for display.
 func (a *LedgerReportingAdapter) GetCashBookReport(
 	ctx context.Context,
 	req *reportpb.CashBookReportRequest,
@@ -31,8 +32,7 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 				COALESCE(NULLIF(TRIM(name), ''), 'Collection') AS description,
 				COALESCE(NULLIF(reference_number, ''), '-') AS reference,
 				'Receipt' AS tx_type,
-				-- TODO(Q-CENTAVO-INFLATION): verify fycha display caller before changing *100
-				(total_amount * 100)::bigint AS amount
+				total_amount::bigint AS amount
 			FROM ` + a.tableConfig.Revenue + `
 			WHERE status NOT IN ('cancelled', 'draft')
 			AND ($1::text IS NULL OR workspace_id = $1)
@@ -44,8 +44,7 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 				COALESCE(NULLIF(name, ''), 'Payment') AS description,
 				COALESCE(NULLIF(reference_number, ''), '-') AS reference,
 				CASE WHEN expenditure_type = 'purchase' THEN 'Purchase' ELSE 'Expense' END AS tx_type,
-				-- TODO(Q-CENTAVO-INFLATION): verify fycha display caller before changing *100
-				(total_amount * 100)::bigint AS amount
+				total_amount::bigint AS amount
 			FROM ` + a.tableConfig.Expenditure + `
 			WHERE status NOT IN ('cancelled', 'draft')
 			AND ($1::text IS NULL OR workspace_id = $1)

@@ -215,6 +215,11 @@ func (r *PostgresPettyCashReplenishmentRepository) ListPettyCashReplenishments(c
 	}, nil
 }
 
+var pettyCashReplenishmentSortableSQLCols = []string{
+	"id", "date_created", "fund_id", "replenishment_number", "amount",
+	"replenishment_date", "posted_by", "notes",
+}
+
 // GetPettyCashReplenishmentListPageData retrieves petty_cash_replenishments with pagination, filtering, sorting, and search using CTE
 func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentListPageData(
 	ctx context.Context,
@@ -244,16 +249,16 @@ func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentList
 		}
 	}
 
-	sortField := "pcr.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY. amount is
+	// stored in centavos, so sorting is numeric on the stored integer.
+	orderByClause, err := postgresCore.BuildOrderBy(pettyCashReplenishmentSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				pcr.id,
@@ -276,9 +281,9 @@ func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentList
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

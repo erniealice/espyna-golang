@@ -238,6 +238,17 @@ func (r *PostgresInventoryTransactionRepository) ListInventoryTransactions(ctx c
 	}, nil
 }
 
+// inventoryTransactionSortableSQLCols is the fail-closed sort whitelist for
+// GetInventoryTransactionListPageData. Only columns/aliases projected by the CTE
+// SELECT are included so ORDER BY can never reference an unprojected/injected
+// identifier.
+var inventoryTransactionSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "inventory_item_id",
+	"transaction_type", "quantity", "status", "reference_type", "reference_id",
+	"from_location_id", "to_location_id", "notes", "serial_number",
+	"performed_by", "inventory_item_name",
+}
+
 // GetInventoryTransactionListPageData retrieves inventory transactions with advanced filtering, sorting, searching, and pagination using CTE
 // This method joins with the inventory_item table to include the parent item name
 // Supports search on transaction_type, status, and inventory item name
@@ -272,14 +283,13 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 		}
 	}
 
-	// Default sort
-	sortField := "it.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
+	// references the outer enriched projection (date_created) since the page rows
+	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(inventoryTransactionSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with inventory_item join
@@ -317,7 +327,7 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

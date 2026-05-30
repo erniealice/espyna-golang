@@ -169,6 +169,13 @@ func (r *PostgresCostPlanRepository) ListCostPlans(ctx context.Context, req *cos
 	return &costplanpb.ListCostPlansResponse{Data: items}, nil
 }
 
+var costPlanSortableSQLCols = []string{
+	"id", "name", "description", "active", "supplier_plan_id", "cost_schedule_id",
+	"billing_kind", "amount_basis", "billing_amount", "billing_currency",
+	"billing_cycle_value", "billing_cycle_unit", "default_term_value",
+	"default_term_unit", "date_created", "date_modified",
+}
+
 func (r *PostgresCostPlanRepository) GetCostPlanListPageData(ctx context.Context, req *costplanpb.GetCostPlanListPageDataRequest) (*costplanpb.GetCostPlanListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request required")
@@ -186,14 +193,14 @@ func (r *PostgresCostPlanRepository) GetCostPlanListPageData(ctx context.Context
 			offset = (op.Page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == 1 {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). The whitelist
+	// holds only the raw cost_plan (cp) columns, each surfaced as a distinct output
+	// column name, so the emitted ORDER BY "<col>" resolves unambiguously. The
+	// joined sp.name AS supplier_plan_name alias is intentionally excluded
+	// (not cp.-qualifiable). An unknown column errors instead of being interpolated.
+	orderByClause, err := postgresCore.BuildOrderBy(costPlanSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 	query := `SELECT cp.id, cp.name, cp.description, cp.active, cp.supplier_plan_id, cp.cost_schedule_id,
 	                 cp.billing_kind, cp.amount_basis, cp.billing_amount, cp.billing_currency,
@@ -204,7 +211,7 @@ func (r *PostgresCostPlanRepository) GetCostPlanListPageData(ctx context.Context
 	          LEFT JOIN supplier_plan sp ON cp.supplier_plan_id = sp.id
 	          WHERE cp.active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR cp.name ILIKE $1 OR cp.description ILIKE $1)
-	          ORDER BY cp.` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3`
+	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

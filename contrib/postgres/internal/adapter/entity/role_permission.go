@@ -211,6 +211,10 @@ func (r *PostgresRolePermissionRepository) ListRolePermissions(ctx context.Conte
 	}, nil
 }
 
+var rolePermissionSortableSQLCols = []string{
+	"id", "role_id", "permission_id", "active", "date_created", "date_modified",
+}
+
 // GetRolePermissionListPageData retrieves role permissions with advanced filtering, sorting, and pagination using CTE
 func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 	ctx context.Context,
@@ -237,14 +241,12 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(rolePermissionSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build WHERE clause for filtering
@@ -274,7 +276,7 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $1 OFFSET $2;
 	`
 

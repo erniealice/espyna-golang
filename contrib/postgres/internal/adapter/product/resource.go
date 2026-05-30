@@ -264,14 +264,14 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Finish the
+	// in-progress migration: the resourceSortableSQLCols whitelist already exists
+	// (and gates ListResources via ValidateSortColumns); wire it into the page
+	// ORDER BY via core.BuildOrderBy so an unknown column errors instead of being
+	// interpolated verbatim.
+	orderByClause, err := postgresCore.BuildOrderBy(resourceSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Simple entity pattern with name/description/product search
@@ -299,7 +299,7 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
 

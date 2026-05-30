@@ -211,6 +211,10 @@ func (r *PostgresWorkspaceUserRoleRepository) ListWorkspaceUserRoles(ctx context
 	}, nil
 }
 
+var workspaceUserRoleSortableSQLCols = []string{
+	"id", "workspace_user_id", "role_id", "active", "date_created", "date_modified",
+}
+
 // GetWorkspaceUserRoleListPageData retrieves paginated workspace user role list data with CTE
 func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(ctx context.Context, req *workspaceuserrolepb.GetWorkspaceUserRoleListPageDataRequest) (*workspaceuserrolepb.GetWorkspaceUserRoleListPageDataResponse, error) {
 	if req == nil {
@@ -230,15 +234,15 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 			offset = (page - 1) * limit
 		}
 	}
-	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(workspaceUserRoleSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	query := `WITH enriched AS (SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM workspace_user_role WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR workspace_user_id ILIKE $1 OR role_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM workspace_user_role WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR workspace_user_id ILIKE $1 OR role_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ` + orderByClause + ` LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

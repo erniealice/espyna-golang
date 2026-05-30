@@ -211,6 +211,10 @@ func (r *PostgresGroupRepository) ListGroups(ctx context.Context, req *grouppb.L
 	}, nil
 }
 
+var groupSortableSQLCols = []string{
+	"id", "name", "description", "active", "date_created", "date_modified",
+}
+
 // GetGroupListPageData retrieves groups with advanced filtering, sorting, searching, and pagination using CTE
 func (r *PostgresGroupRepository) GetGroupListPageData(
 	ctx context.Context,
@@ -243,14 +247,12 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 		}
 	}
 
-	// Default sort
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
+	// caller-supplied sort column through core.BuildOrderBy so an unknown column
+	// errors instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := postgresCore.BuildOrderBy(groupSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// CTE Query - Single round-trip with filtering and pagination
@@ -258,7 +260,7 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 	// - INDEX RECOMMENDATION: Create index on "group".active for filtering active records
 	// - INDEX RECOMMENDATION: Create index on "group".name for search performance
 	// - INDEX RECOMMENDATION: Create index on "group".date_created for default sorting
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				g.id,
@@ -280,9 +282,9 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		%s
 		LIMIT $2 OFFSET $3;
-	`
+	`, orderByClause)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)

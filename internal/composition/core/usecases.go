@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/erniealice/espyna-golang/internal/composition/providers"
 
@@ -29,9 +30,13 @@ import (
 
 	// Application ports (for service interfaces)
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 
 	// Infrastructure adapters for mock services
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
+	// Production (non-mock) RBAC Authorizer — the Layer-4 use-case backstop.
+	rbacauth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/rbac"
+	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 
 	// Domain use cases (for proper initialization)
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset"
@@ -1087,20 +1092,45 @@ func (uci *UseCaseInitializer) getServices(container *Container) (
 	// Services are optional - translation service handles nil gracefully by returning fallback strings
 	// Auth and transaction services should be checked by use cases before use
 
-	// Get auth service from provider manager or create mock service as fallback
+	// Authorization selection (W0 — Q-AWS2 = A+C; see
+	// docs/plan/20260530-authz-workspace-hardening/w0-design.md §2.5).
+	//
+	// Resolution order:
+	//   1. Provider already an Authorizer (e.g. an injected real provider).
+	//   2. The real RBAC Authorizer built from the registered PermissionQuery
+	//      — the SAME chain the UI permission loader uses (no second SQL path).
+	//   3. AllowAll ONLY when provably a dev/mock build
+	//      (allowAllFallbackPermitted); otherwise a non-nil error is returned
+	//      so getServices propagates a hard boot-fail (Q-AWS2 = C). This makes
+	//      the "silently booted with allow-all" state impossible for a
+	//      password / non-dev build.
+
+	// 1. Provider already an Authorizer?
 	if authProvider := uci.providerManager.GetAuthProvider(); authProvider != nil {
 		if authService, ok := authProvider.(ports.Authorizer); ok {
 			authSvc = authService
 			fmt.Printf("🔐 Using authorization service from provider: %T\n", authSvc)
-		} else {
-			// Fallback to mock auth service if provider doesn't implement the interface
-			authSvc = mockAuth.NewAllowAllAuth()
-			// fmt.Printf("🔓 Created allow-all authorization service (provider fallback): %T\n", authSvc)
 		}
-	} else {
-		// No auth provider configured, use mock service
-		authSvc = mockAuth.NewAllowAllAuth()
-		// fmt.Printf("🔓 Created allow-all authorization service (no provider): %T\n", authSvc)
+	}
+
+	// 2. Build the real RBAC Authorizer from the registered PermissionQuery.
+	if authSvc == nil {
+		if pq := uci.resolvePermissionQuery(); pq != nil {
+			authSvc = rbacauth.NewPermissionAuthorizer(pq)
+			fmt.Printf("🔐 Using RBAC Authorizer (PermissionQuery-backed): %T\n", authSvc)
+		}
+	}
+
+	// 3. Fallback to AllowAll ONLY when provably a dev/mock build; else boot-fail.
+	if authSvc == nil {
+		if allowAllFallbackPermitted() {
+			authSvc = mockAuth.NewAllowAllAuth()
+			fmt.Printf("🔓 AllowAll authorization (dev/mock build — CONFIG_AUTH_PROVIDER=mock_auth)\n")
+		} else {
+			return nil, nil, nil, nil, fmt.Errorf(
+				"refusing to boot: no RBAC Authorizer available (PermissionQuery unregistered or no *sql.DB) " +
+					"and AllowAll fallback is forbidden for non-dev builds (set CONFIG_AUTH_PROVIDER=mock_auth for dev/mock)")
+		}
 	}
 
 	// Get ID service from provider manager
@@ -1134,6 +1164,60 @@ func (uci *UseCaseInitializer) getServices(container *Container) (
 	}
 
 	return authSvc, txSvc, i18nSvc, idSvc, nil
+}
+
+// resolvePermissionQuery returns the registered PermissionQuery backed by the
+// database provider's raw *sql.DB, or nil when no SQL connection or no RBAC
+// factory is available (e.g. non-postgres / non-mock builds).
+//
+// It mirrors initializers/service/security.go:permissionQueryFromDB and reuses
+// the same GetConnection()→*sql.DB extraction shape already present in
+// initializeServiceUseCases. This is the W0 v1 choice (OD-3): a standalone
+// helper that accepts the duplicate DB-handle extraction, rather than threading
+// the security-initializer's single PermissionQuery instance into getServices
+// (which runs per-domain, before/independent of the service use cases — the
+// reordering is the tradeoff flagged as the dedup follow-up).
+func (uci *UseCaseInitializer) resolvePermissionQuery() securityports.PermissionQuery {
+	var sqlDB *sql.DB
+	if dbProvider := uci.providerManager.GetDatabaseProvider(); dbProvider != nil {
+		if connHolder, ok := dbProvider.(interface{ GetConnection() any }); ok {
+			if conn := connHolder.GetConnection(); conn != nil {
+				if db, ok := conn.(*sql.DB); ok {
+					sqlDB = db
+				}
+			}
+		}
+	}
+	if sqlDB == nil {
+		return nil
+	}
+	factory, ok := internalregistry.GetPermissionQueryFactory()
+	if !ok || factory == nil {
+		return nil
+	}
+	// The factory takes `any` to dodge the cyclic import (see
+	// registry/permission_query.go); the postgres adapter expects a *sql.DB and
+	// returns a *PostgresPermissionQuery, the mock adapter ignores db.
+	if pq, ok := factory(sqlDB).(securityports.PermissionQuery); ok {
+		return pq
+	}
+	return nil
+}
+
+// allowAllFallbackPermitted reports whether selecting the AllowAll authorization
+// service is permitted (Q-AWS2 = C boot-fail guard, w0-design.md §2.7). It
+// returns true ONLY when the build is provably dev/mock — keyed on the same
+// CONFIG_AUTH_PROVIDER == "mock_auth" signal the app already discriminates on at
+// apps/service-admin/internal/composition/container.go:236,1496, so the dev/prod
+// boundary stays consistent.
+//
+// When this returns false and no RBAC Authorizer could be built, getServices
+// returns a non-nil error which propagates to the app entrypoint's log.Fatalf —
+// a hard boot fail. This is the W0 RUNTIME guard; the compile-time build-tag
+// flip of AllowAllAuthService to //go:build mock_auth is deferred to audit
+// Wave-0.1 (OD-5 / R4) after the NewAllowAllAuth-caller audit.
+func allowAllFallbackPermitted() bool {
+	return os.Getenv("CONFIG_AUTH_PROVIDER") == "mock_auth"
 }
 
 // initializeIntegrationUseCases initializes integration use cases (email, payment, scheduler providers)

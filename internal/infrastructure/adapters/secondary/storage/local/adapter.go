@@ -23,14 +23,17 @@ import (
 // =============================================================================
 
 func init() {
+	// Registered name matches CONFIG_STORAGE_PROVIDER=local_storage (the wiki's
+	// documented value). The legacy dev literal "local" is normalized to
+	// "local_storage" in CreateStorageProvider so existing configs keep working.
 	registry.RegisterStorageProvider(
-		"local",
+		"local_storage",
 		func() ports.StorageProvider {
 			return NewLocalStorageProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterStorageBuildFromEnv("local", buildFromEnv)
+	registry.RegisterStorageBuildFromEnv("local_storage", buildFromEnv)
 }
 
 // buildFromEnv creates and initializes a local storage provider from environment variables.

@@ -25,14 +25,17 @@ import (
 // =============================================================================
 
 func init() {
+	// Registered name matches CONFIG_STORAGE_PROVIDER=gcs (the wiki's documented
+	// value). The build tag remains gcp_storage (see register_gcs.go); only the
+	// runtime selector name is "gcs".
 	registry.RegisterStorageProvider(
-		"gcp_storage",
+		"gcs",
 		func() ports.StorageProvider {
 			return NewGCSStorageProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterStorageBuildFromEnv("gcp_storage", buildFromEnv)
+	registry.RegisterStorageBuildFromEnv("gcs", buildFromEnv)
 }
 
 // buildFromEnv creates and initializes a GCS storage provider from environment variables.

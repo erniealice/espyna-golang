@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"database/sql"
+	"log"
 	"sync"
 
 	"github.com/erniealice/espyna-golang/consumer"
@@ -12,6 +13,77 @@ import (
 	"github.com/erniealice/espyna-golang/database/model"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
+
+// columnLessTenantTables is the set of TENANT-scoped tables that SHOULD be
+// workspace-isolated but currently lack a workspace_id column in the baseline
+// schema (packages/esqyma/scripts/init/baseline.sql — verified column-less, with
+// NO post-baseline migration adding the column as of 2026-05-30). Because they
+// are column-less, the WorkspaceAwareOperations decorator's
+// tableHasWorkspaceColumn() gate is FALSE for them, so generic Update / Delete /
+// HardDelete / Read-by-id silently pass through with NO tenant predicate — a
+// cross-tenant IDOR surface (workspace-scoping-1).
+//
+// SHADOW INSTRUMENTATION (Plan 3 W2 step 1 — zero behavior change): membership in
+// this set is used ONLY to decide whether to emit an AUTHZ_WS_SHADOW_PASS log
+// line on the column-less pass-through. It does NOT change the verdict — the call
+// still passes through exactly as before. This mirrors the W0
+// AUTHZ_RBAC_SHADOW_DENY posture (secondary/auth/rbac/authorizer.go): measure the
+// real runtime surface before fail-closing. The static set comes from the
+// w0-design.md §3 tenancy parent-JOIN map (needsMigration list, §3.2),
+// cross-checked against baseline.sql.
+//
+// Genuinely-GLOBAL column-less tables (workspace_user_role, session, account_group
+// and other reference/lookup tables) are deliberately ABSENT — their column-less
+// pass-through is CORRECT, so they get no log line (no false positives).
+//
+// The two proto-only entries (collection_schedule, disbursement_schedule) have no
+// baseline DDL table, so they never match a real runtime table; they are listed
+// for forward-completeness against the w0-design map and are runtime no-ops.
+//
+// Maintenance: when a table here receives its additive workspace_id migration
+// (the Q-AWS3-A / W2 later sub-wave), tableHasWorkspaceColumn() flips to TRUE and
+// the real workspace predicate applies — at that point remove the table from this
+// set (it is no longer a column-less pass-through).
+var columnLessTenantTables = map[string]bool{
+	"treasury_collection":      true,
+	"treasury_disbursement":    true,
+	"invoice":                  true,
+	"expenditure":              true,
+	"expenditure_line_item":    true,
+	"journal_entry":            true,
+	"journal_line":             true,
+	"account":                  true,
+	"security_deposit":         true,
+	"loan":                     true,
+	"loan_payment":             true,
+	"petty_cash_fund":          true,
+	"petty_cash_replenishment": true,
+	"petty_cash_voucher":       true,
+	// proto-only (no baseline DDL) — listed for forward-completeness, runtime no-op:
+	"collection_schedule":   true,
+	"disbursement_schedule": true,
+}
+
+// shadowLogColumnLessTenantPass emits a structured AUTHZ_WS_SHADOW_PASS line when
+// a column-less TENANT table (one in columnLessTenantTables) receives a generic
+// workspace-bearing op (wsID != "") that the decorator is about to pass through
+// WITHOUT a tenant predicate — i.e. the cross-tenant IDOR surface.
+//
+// This is SHADOW-ONLY: it logs and returns; the caller's behavior is unchanged.
+// Genuinely-global column-less tables are not in the set, so they log nothing.
+// The op argument is "update" | "delete" | "harddelete" | "read".
+func shadowLogColumnLessTenantPass(op, tableName, id, wsID string) {
+	if wsID == "" || !columnLessTenantTables[tableName] {
+		return
+	}
+	// Mirrors the W0 AUTHZ_RBAC_SHADOW_DENY shape (pipe-delimited key=val). Each
+	// line is a measurement: a real runtime generic op on a column-less tenant
+	// table under a known workspace that currently escapes tenant scoping. Grep
+	// these in prod logs to validate the static needsMigration set before
+	// fail-closing / applying the workspace_id migrations.
+	log.Printf("AUTHZ_WS_SHADOW_PASS | mode=SHADOW(passed) | table=%s | op=%s | id=%s | ws=%s",
+		tableName, op, id, wsID)
+}
 
 // WorkspaceAwareOperations is a decorator over DatabaseOperation that
 // transparently injects workspace_id filtering derived from the request context.
@@ -115,6 +187,10 @@ func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, i
 	// Only apply workspace enforcement when the table has the column.
 	// Tables without workspace_id are not tenant-scoped and pass through.
 	if !w.tableHasWorkspaceColumn(ctx, tableName) {
+		// SHADOW (Plan 3 W2 step 1): if this column-less table is actually a
+		// TENANT table that lacks the column (IDOR surface), log the unscoped
+		// read-by-id but pass through unchanged. Global tables log nothing.
+		shadowLogColumnLessTenantPass("read", tableName, id, wsID)
 		return result, nil
 	}
 
@@ -158,6 +234,11 @@ func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string,
 			}
 		}
 		data = cloned
+	} else if wsID != "" {
+		// SHADOW (Plan 3 W2 step 1): column-less pass-through. If this is a
+		// TENANT table missing the column (IDOR surface), log the unscoped
+		// generic update but pass through unchanged.
+		shadowLogColumnLessTenantPass("update", tableName, id, wsID)
 	}
 	return w.inner.Update(ctx, tableName, id, data)
 }
@@ -170,6 +251,11 @@ func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string,
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
+	} else if wsID != "" {
+		// SHADOW (Plan 3 W2 step 1): column-less pass-through. If this is a
+		// TENANT table missing the column (IDOR surface), log the unscoped
+		// generic delete but pass through unchanged.
+		shadowLogColumnLessTenantPass("delete", tableName, id, wsID)
 	}
 	return w.inner.Delete(ctx, tableName, id)
 }
@@ -182,6 +268,11 @@ func (w *WorkspaceAwareOperations) HardDelete(ctx context.Context, tableName str
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
+	} else if wsID != "" {
+		// SHADOW (Plan 3 W2 step 1): column-less pass-through. If this is a
+		// TENANT table missing the column (IDOR surface), log the unscoped
+		// generic hard-delete but pass through unchanged.
+		shadowLogColumnLessTenantPass("harddelete", tableName, id, wsID)
 	}
 	return w.inner.HardDelete(ctx, tableName, id)
 }

@@ -51,29 +51,48 @@ func (uc *ListAttachmentsByEntityUseCase) Execute(ctx context.Context, moduleKey
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "attachment.validation.entity_required", "Module key and entity ID are required [DEFAULT]"))
 	}
 
-	return uc.repositories.Attachment.ListAttachments(ctx, &attachmentpb.ListAttachmentsRequest{
-		Filters: &commonpb.FilterRequest{
-			Logic: commonpb.FilterLogic_AND,
-			Filters: []*commonpb.TypedFilter{
-				{
-					Field: "module_key",
-					FilterType: &commonpb.TypedFilter_StringFilter{
-						StringFilter: &commonpb.StringFilter{
-							Operator: commonpb.StringOperator_STRING_EQUALS,
-							Value:    moduleKey,
-						},
-					},
-				},
-				{
-					Field: "foreign_key",
-					FilterType: &commonpb.TypedFilter_StringFilter{
-						StringFilter: &commonpb.StringFilter{
-							Operator: commonpb.StringOperator_STRING_EQUALS,
-							Value:    entityID,
-						},
-					},
+	filters := []*commonpb.TypedFilter{
+		{
+			Field: "module_key",
+			FilterType: &commonpb.TypedFilter_StringFilter{
+				StringFilter: &commonpb.StringFilter{
+					Operator: commonpb.StringOperator_STRING_EQUALS,
+					Value:    moduleKey,
 				},
 			},
+		},
+		{
+			Field: "foreign_key",
+			FilterType: &commonpb.TypedFilter_StringFilter{
+				StringFilter: &commonpb.StringFilter{
+					Operator: commonpb.StringOperator_STRING_EQUALS,
+					Value:    entityID,
+				},
+			},
+		},
+	}
+
+	// Workspace scoping (ST-H4 backstop): when a workspace is present in context,
+	// require the row's workspace_id to match so a same-(module,foreign) collision
+	// across tenants cannot leak. A non-workspaced context (service-to-service)
+	// stays a pass-through, matching the WorkspaceAwareOperations decorator's own
+	// empty-context behavior.
+	if ws := contextutil.ExtractWorkspaceIDFromContext(ctx); ws != "" {
+		filters = append(filters, &commonpb.TypedFilter{
+			Field: "workspace_id",
+			FilterType: &commonpb.TypedFilter_StringFilter{
+				StringFilter: &commonpb.StringFilter{
+					Operator: commonpb.StringOperator_STRING_EQUALS,
+					Value:    ws,
+				},
+			},
+		})
+	}
+
+	return uc.repositories.Attachment.ListAttachments(ctx, &attachmentpb.ListAttachmentsRequest{
+		Filters: &commonpb.FilterRequest{
+			Logic:   commonpb.FilterLogic_AND,
+			Filters: filters,
 		},
 	})
 }

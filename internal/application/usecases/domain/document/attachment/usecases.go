@@ -20,12 +20,14 @@ type AttachmentServices struct {
 
 // UseCases contains all attachment-related use cases
 type UseCases struct {
-	CreateAttachment        *CreateAttachmentUseCase
-	ReadAttachment          *ReadAttachmentUseCase
-	UpdateAttachment        *UpdateAttachmentUseCase
-	DeleteAttachment        *DeleteAttachmentUseCase
-	ListAttachments         *ListAttachmentsUseCase
-	ListAttachmentsByEntity *ListAttachmentsByEntityUseCase
+	CreateAttachment         *CreateAttachmentUseCase
+	ReadAttachment           *ReadAttachmentUseCase
+	ReadAttachmentByEntity   *ReadAttachmentByEntityUseCase
+	UpdateAttachment         *UpdateAttachmentUseCase
+	DeleteAttachment         *DeleteAttachmentUseCase
+	DeleteAttachmentByEntity *DeleteAttachmentByEntityUseCase
+	ListAttachments          *ListAttachmentsUseCase
+	ListAttachmentsByEntity  *ListAttachmentsByEntityUseCase
 }
 
 // NewUseCases creates a new collection of attachment use cases
@@ -48,6 +50,13 @@ func NewUseCases(
 		Translator: services.Translator,
 	}
 
+	readByEntityRepos := ReadAttachmentByEntityRepositories(repositories)
+	readByEntityServices := ReadAttachmentByEntityServices{
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
+	}
+
 	updateRepos := UpdateAttachmentRepositories(repositories)
 	updateServices := UpdateAttachmentServices{
 		Authorizer: services.Authorizer,
@@ -57,6 +66,13 @@ func NewUseCases(
 
 	deleteRepos := DeleteAttachmentRepositories(repositories)
 	deleteServices := DeleteAttachmentServices{
+		Authorizer: services.Authorizer,
+		Transactor: services.Transactor,
+		Translator: services.Translator,
+	}
+
+	deleteByEntityRepos := DeleteAttachmentByEntityRepositories(repositories)
+	deleteByEntityServices := DeleteAttachmentByEntityServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -77,11 +93,13 @@ func NewUseCases(
 	}
 
 	return &UseCases{
-		CreateAttachment:        NewCreateAttachmentUseCase(createRepos, createServices),
-		ReadAttachment:          NewReadAttachmentUseCase(readRepos, readServices),
-		UpdateAttachment:        NewUpdateAttachmentUseCase(updateRepos, updateServices),
-		DeleteAttachment:        NewDeleteAttachmentUseCase(deleteRepos, deleteServices),
-		ListAttachments:         NewListAttachmentsUseCase(listRepos, listServices),
-		ListAttachmentsByEntity: NewListAttachmentsByEntityUseCase(listByEntityRepos, listByEntityServices),
+		CreateAttachment:         NewCreateAttachmentUseCase(createRepos, createServices),
+		ReadAttachment:           NewReadAttachmentUseCase(readRepos, readServices),
+		ReadAttachmentByEntity:   NewReadAttachmentByEntityUseCase(readByEntityRepos, readByEntityServices),
+		UpdateAttachment:         NewUpdateAttachmentUseCase(updateRepos, updateServices),
+		DeleteAttachment:         NewDeleteAttachmentUseCase(deleteRepos, deleteServices),
+		DeleteAttachmentByEntity: NewDeleteAttachmentByEntityUseCase(deleteByEntityRepos, deleteByEntityServices),
+		ListAttachments:          NewListAttachmentsUseCase(listRepos, listServices),
+		ListAttachmentsByEntity:  NewListAttachmentsByEntityUseCase(listByEntityRepos, listByEntityServices),
 	}
 }

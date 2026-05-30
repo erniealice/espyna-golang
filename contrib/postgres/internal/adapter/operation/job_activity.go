@@ -618,14 +618,22 @@ func (r *PostgresJobActivityRepository) SubmitForApproval(ctx context.Context, r
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// A1/A6: scope the mutation to the caller's workspace. job_activity carries
+	// its own workspace_id (verified against the baseline schema) — without the
+	// predicate a caller could transition another tenant's activity. Empty wsID =
+	// service-to-service call → no scoping. The id-not-found path already maps a
+	// no-match row to a not-found error (effective ownership check).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		UPDATE %s SET approval_status = 'ACTIVITY_APPROVAL_STATUS_SUBMITTED', date_modified = NOW()
 		WHERE id = $1 AND active = true AND approval_status = 'ACTIVITY_APPROVAL_STATUS_DRAFT'
+		  AND ($2 = '' OR workspace_id = $2)
 		RETURNING id
 	`, r.tableName)
 
 	var id string
-	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId).Scan(&id)
+	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId, workspaceID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("activity not found or not in DRAFT status: %s", req.ActivityId)
 	}
@@ -675,14 +683,22 @@ func (r *PostgresJobActivityRepository) ApproveActivity(ctx context.Context, req
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// A1/A6: scope the mutation to the caller's workspace. job_activity carries
+	// its own workspace_id (verified against the baseline schema) — without the
+	// predicate a caller could transition another tenant's activity. Empty wsID =
+	// service-to-service call → no scoping. The id-not-found path already maps a
+	// no-match row to a not-found error (effective ownership check).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		UPDATE %s SET approval_status = 'ACTIVITY_APPROVAL_STATUS_APPROVED', date_modified = NOW()
 		WHERE id = $1 AND active = true AND approval_status = 'ACTIVITY_APPROVAL_STATUS_SUBMITTED'
+		  AND ($2 = '' OR workspace_id = $2)
 		RETURNING id
 	`, r.tableName)
 
 	var id string
-	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId).Scan(&id)
+	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId, workspaceID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("activity not found or not in SUBMITTED status: %s", req.ActivityId)
 	}
@@ -731,14 +747,22 @@ func (r *PostgresJobActivityRepository) RejectActivity(ctx context.Context, req 
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// A1/A6: scope the mutation to the caller's workspace. job_activity carries
+	// its own workspace_id (verified against the baseline schema) — without the
+	// predicate a caller could transition another tenant's activity. Empty wsID =
+	// service-to-service call → no scoping. The id-not-found path already maps a
+	// no-match row to a not-found error (effective ownership check).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		UPDATE %s SET approval_status = 'ACTIVITY_APPROVAL_STATUS_REJECTED', date_modified = NOW()
 		WHERE id = $1 AND active = true AND approval_status = 'ACTIVITY_APPROVAL_STATUS_SUBMITTED'
+		  AND ($2 = '' OR workspace_id = $2)
 		RETURNING id
 	`, r.tableName)
 
 	var id string
-	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId).Scan(&id)
+	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId, workspaceID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("activity not found or not in SUBMITTED status: %s", req.ActivityId)
 	}
@@ -787,6 +811,13 @@ func (r *PostgresJobActivityRepository) PostActivity(ctx context.Context, req *p
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// A1/A6: scope the mutation to the caller's workspace. job_activity carries
+	// its own workspace_id (verified against the baseline schema) — without the
+	// predicate a caller could post another tenant's activity. Empty wsID =
+	// service-to-service call → no scoping. The id-not-found path already maps a
+	// no-match row to a not-found error (effective ownership check).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		UPDATE %s SET
 			posting_status = 'ACTIVITY_POSTING_STATUS_POSTED',
@@ -796,11 +827,12 @@ func (r *PostgresJobActivityRepository) PostActivity(ctx context.Context, req *p
 		WHERE id = $1 AND active = true
 			AND approval_status = 'ACTIVITY_APPROVAL_STATUS_APPROVED'
 			AND posting_status = 'ACTIVITY_POSTING_STATUS_UNPOSTED'
+			AND ($3 = '' OR workspace_id = $3)
 		RETURNING id
 	`, r.tableName)
 
 	var id string
-	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId, req.PostedBy).Scan(&id)
+	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId, req.PostedBy, workspaceID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("activity not found, not approved, or already posted: %s", req.ActivityId)
 	}
@@ -849,17 +881,25 @@ func (r *PostgresJobActivityRepository) ReverseActivity(ctx context.Context, req
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// A1/A6: scope the mutation to the caller's workspace. job_activity carries
+	// its own workspace_id (verified against the baseline schema) — without the
+	// predicate a caller could reverse another tenant's activity. Empty wsID =
+	// service-to-service call → no scoping. The id-not-found path already maps a
+	// no-match row to a not-found error (effective ownership check).
+	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+
 	query := fmt.Sprintf(`
 		UPDATE %s SET
 			posting_status = 'ACTIVITY_POSTING_STATUS_REVERSED',
 			date_modified = NOW()
 		WHERE id = $1 AND active = true
 			AND posting_status = 'ACTIVITY_POSTING_STATUS_POSTED'
+			AND ($2 = '' OR workspace_id = $2)
 		RETURNING id
 	`, r.tableName)
 
 	var id string
-	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId).Scan(&id)
+	err := db.GetDB().QueryRowContext(ctx, query, req.ActivityId, workspaceID).Scan(&id)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("activity not found or not in POSTED status: %s", req.ActivityId)
 	}

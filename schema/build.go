@@ -12,12 +12,18 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
-// forceImportZeroImporterTables are the resolved table names of the 5 pb packages
+// forceImportZeroImporterTables are the resolved table names of the pb packages
 // that have ZERO importers in espyna today (their adapters are unwired). Their
 // init() only runs because barrel.go blank-imports them; without that they would
 // be silently absent from protoregistry.GlobalTypes. Build() asserts every one of
 // these is present after the walk so a future regression (dropping a barrel import,
 // or a rename) fails LOUD rather than silently shrinking the registry.
+//
+// disbursement_method was added 2026-05-31: its DisbursementMethod message IS
+// table-annotated, but no espyna .go file imports the pb package (treasury/
+// disbursement.go only references the disbursement_method_id FK as a raw SQL
+// string), so its init() never ran and the boot-shot reported the live table as
+// "no descriptor" — the exact GAP-C zero-importer failure mode.
 //
 // See docs/plan/20260530-reflectionless-crud/phase0-findings.md §c (GAP-C).
 var forceImportZeroImporterTables = []string{
@@ -25,6 +31,7 @@ var forceImportZeroImporterTables = []string{
 	"asset_disposal",
 	"asset_location",
 	"asset_maintenance",
+	"disbursement_method",
 	"integration_config",
 }
 
@@ -38,7 +45,7 @@ var forceImportZeroImporterTables = []string{
 // generous head/tail room while still catching a collapse to a handful of tables.
 //
 // This floor is NOT enforced inside build()/Build() itself: in an isolated unit-test
-// binary only the messages transitively imported by that test (plus the 5 barrel
+// binary only the messages transitively imported by that test (plus the barrel
 // packages) register in protoregistry.GlobalTypes — legitimately far below 150.
 // GlobalTypes population is incidental to the import graph (phase0-findings §c), so
 // the floor is meaningful only once the adapter barrel is linked. The container
@@ -56,7 +63,7 @@ var buildOnce sync.Once
 // extension; if table == true it resolves the table name (table_name override, else
 // message-name -> snake_case), classifies the columns (Q-DD1=C), and stores them.
 //
-// After the walk it asserts the 5 zero-importer force-imported tables are present
+// After the walk it asserts the zero-importer force-imported tables are present
 // and the total clears the minimum, returning an error if either check fails. No SQL.
 func Build() error {
 	var buildErr error
@@ -87,7 +94,7 @@ func build(reg *Registry) error {
 		return walkErr
 	}
 
-	// Always-valid regression guard: the 5 force-imported zero-importer tables
+	// Always-valid regression guard: the force-imported zero-importer tables
 	// register in ANY binary that imports this package (via barrel.go), so a miss
 	// here is a real regression regardless of how much of the adapter graph is
 	// linked. The total-count floor is deliberately NOT enforced here (see

@@ -41,7 +41,7 @@ func TestTableOptionsResolvesOverride(t *testing.T) {
 }
 
 // TestBuildCoversZeroImporters runs a full walk into a fresh registry and confirms
-// the barrel did its job: the 5 zero-importer tables are present, the override
+// the barrel did its job: the zero-importer tables are present, the override
 // table is present, and the coverage assertion passes. This exercises the real
 // protoregistry.GlobalTypes (populated by every blank/transitive import in the
 // test binary, including barrel.go).
@@ -63,7 +63,7 @@ func TestBuildCoversZeroImporters(t *testing.T) {
 
 	// NOTE: the total-count floor (minExpectedTables) is intentionally NOT asserted
 	// here. In this isolated schema-package test binary only the messages
-	// transitively imported by the tests (plus the 5 barrel packages) register in
+	// transitively imported by the tests (plus the barrel packages) register in
 	// protoregistry.GlobalTypes — legitimately far below 150. The floor is enforced
 	// by AssertMinimumCoverage() at the container wirePoint, where the full adapter
 	// barrel is linked. See build.go minExpectedTables doc.

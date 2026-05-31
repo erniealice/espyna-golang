@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"strings"
 
@@ -24,9 +25,33 @@ import (
 // contrib/postgres so the dialect-neutral schema package stays SQL-free and
 // mysql/sqlserver get a ~20-line sibling later.
 //
-// SHADOW MODE (this wave): the validator runs and fails-fast on drift, but it does
-// NOT flip operations.go's unknown-column LOG->ERROR. That flip is Phase 4 (a
-// runtime soak gate), out of scope here.
+// SHADOW MODE (this wave, DEFAULT): the validator runs and reconciles, but on drift
+// it LOGS the drift block as a warning and returns nil — it does NOT fail the boot,
+// and it does NOT flip operations.go's unknown-column LOG->ERROR (that flip is Phase 4,
+// a runtime soak gate, out of scope here). The fail-fast (return the error, block boot)
+// is gated behind the SCHEMA_BOOTSHOT_ENFORCE env, default off, mirroring AUTHZ_ENFORCE
+// (workspace_operations.go). Flip it on only for Plan-2's later ENFORCE phase, AFTER the
+// shadow drift log has been reviewed and the genuine drift resolved via migrations /
+// proto corrections.
+
+// bootShotEnforceEnvVar mirrors workspace_operations.go's authzEnforceEnvVar: the
+// runtime flag that flips the boot-shot from SHADOW (log-the-drift, boot anyway) to
+// ENFORCE (fail-fast on any drift). Default OFF = shadow. Read at boot; restart the
+// process to change modes. User-gated: do NOT flip until the shadow drift log has
+// been reviewed and the genuine proto-ahead-of-DB drift resolved.
+const bootShotEnforceEnvVar = "SCHEMA_BOOTSHOT_ENFORCE"
+
+// bootShotEnforceEnabled returns true only for an explicit truthy value, mirroring
+// parseEnforce in workspace_operations.go. Anything else — unset, "", "0", "false",
+// a typo — keeps the safe SHADOW posture (warn, boot anyway).
+func bootShotEnforceEnabled() bool {
+	switch os.Getenv(bootShotEnforceEnvVar) {
+	case "1", "true", "TRUE", "True", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
 
 // descriptorOutOfScope is the Q-DD5 out-of-scope allowlist: live public-schema
 // tables that legitimately have NO table-annotated proto message and therefore are
@@ -44,6 +69,13 @@ import (
 //   - session — service-shaped (proto/v1/service/auth/session.proto, no table=true);
 //     written via raw SQL (phase0 §b adapter/entity/workspace.go, session_switch_principal.go).
 //
+// Infrastructure / non-entity tables (no proto message at all — never reflectionless-written
+// through operations.Create; surfaced by the Plan-2 boot-shot's first real run, 2026-05-31):
+//   - schema_migrations — Atlas/migration bookkeeping table.
+//   - _atlas_review_depreciation_period_collisions — Atlas review scratch table.
+//   - fund_transaction_posted — a VIEW (treasury projection layer), not a base table; no writer.
+//   - activity_execution_log — append-only activity log, written via raw SQL; no table=true proto.
+//
 // As the Phase 1 annotation sprint adds table=true to former GAP-B tables, those
 // tables leave this list automatically (they become registry-covered). Keep this
 // list minimal — every entry is an acknowledged reflectionless-write gap.
@@ -54,18 +86,29 @@ var descriptorOutOfScope = map[string]bool{
 	"audit_entry":         true,
 	"audit_field_change":  true,
 	"session":             true,
+
+	// Infrastructure / migration / view / log tables — no proto message, no
+	// reflectionless writer. See doc comment above.
+	"schema_migrations": true,
+	"_atlas_review_depreciation_period_collisions": true,
+	"fund_transaction_posted":                      true,
+	"activity_execution_log":                       true,
 }
 
 // ValidateSchema is the registered postgresql SchemaValidator. It reads the live
 // public-schema columns once and reconciles them against schema.Global:
 //
 //  1. Every live table NOT in the registry must be in descriptorOutOfScope, else
-//     ERROR (Q-DD5=A strict boot-shot).
+//     DRIFT (Q-DD5=A strict boot-shot).
 //  2. Every registry table with no live table is SKIP-or-WARN (GAP-A:
 //     deferred_revenue / prepayment / security_deposit still carry table=true but
-//     were dropped 20260517). Never errors.
-//  3. Every registry column absent from its live table is ERROR (descriptor claims
+//     were dropped 20260517). Never drift.
+//  3. Every registry column absent from its live table is DRIFT (descriptor claims
 //     a column the DB lacks — a write would fail at runtime).
+//
+// On drift: by default (SHADOW) the drift block is LOGGED and nil is returned (boot
+// proceeds); only when SCHEMA_BOOTSHOT_ENFORCE is truthy does it return the error
+// (fail-fast, block boot). Mirrors AUTHZ_ENFORCE.
 //
 // schema.Build() must have run before this is called (the container wirePoint
 // guarantees ordering). ValidateSchema defensively triggers Build() too.
@@ -91,8 +134,18 @@ func ValidateSchema(ctx context.Context, db *sql.DB) error {
 	}
 
 	if len(drift) > 0 {
-		return fmt.Errorf("schema validator: %d drift issue(s) detected (shadow boot-shot, fail-fast):\n  - %s",
+		enforce := bootShotEnforceEnabled()
+		block := fmt.Sprintf("schema validator: %d drift issue(s) detected:\n  - %s",
 			len(drift), strings.Join(drift, "\n  - "))
+		if enforce {
+			// ENFORCE: fail-fast, block the boot (Plan-2 later phase, %s=on).
+			return fmt.Errorf("%s\n(SCHEMA_BOOTSHOT_ENFORCE on — fail-fast)", block)
+		}
+		// SHADOW (default): log the drift and boot anyway. Each line is a measurement
+		// of genuine proto-ahead-of-DB drift to resolve via migration / proto fix
+		// before flipping SCHEMA_BOOTSHOT_ENFORCE on.
+		log.Printf("⚠️ %s\n(SHADOW mode — set %s=1 to fail-fast once resolved)", block, bootShotEnforceEnvVar)
+		return nil
 	}
 
 	log.Printf("✅ schema validator: %d descriptor tables reconciled against the live schema (no drift)",

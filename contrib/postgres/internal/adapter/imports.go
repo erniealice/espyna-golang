@@ -26,4 +26,5 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/tax"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/tenancy"
 	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/treasury"
+	_ "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/workflow"
 )

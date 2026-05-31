@@ -22,6 +22,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	orchcontracts "github.com/erniealice/espyna-golang/internal/orchestration/contracts"
 	workflowregistry "github.com/erniealice/espyna-golang/internal/orchestration/workflow"
+	"github.com/erniealice/espyna-golang/schema"
 )
 
 // RouteManager defines the interface for route management to avoid import cycles
@@ -280,6 +281,19 @@ func (c *Container) Initialize() error {
 	c.providers = providerManager
 	fmt.Printf("✅ Provider manager initialized (table config: %s)\n", providerManager.GetDBTableConfig().TableName("client"))
 
+	// Plan 2 (reflectionless CRUD) — descriptor registry build + boot-shot schema
+	// validator. This runs AFTER every adapter init() has populated
+	// protoregistry.GlobalTypes (the provider manager above triggered the provider
+	// factory, whose package's transitive imports register the pb messages). The
+	// container is dialect-neutral, so it cannot import the postgresql-tagged
+	// validator directly: it resolves the active provider's validator via the
+	// registry hook (mirroring RegisterDatabaseTableConfigBuilder) and calls it with
+	// the *sql.DB from the provider connection. SHADOW mode — the validator
+	// fails-fast on drift but does NOT flip operations.go's unknown-column behavior.
+	if err := c.runSchemaBootShot(); err != nil {
+		return fmt.Errorf("schema boot-shot validation failed: %w", err)
+	}
+
 	// Initialize email provider from environment
 	fmt.Printf("📧 Initializing email provider...\n")
 	if provider, err := integration.CreateEmailProvider(); err != nil {
@@ -508,6 +522,51 @@ func (c *Container) GetProviderManager() *providers.Manager {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.providers
+}
+
+// runSchemaBootShot builds the dialect-neutral descriptor registry and runs the
+// active provider's registered boot-shot schema validator (Plan 2). It is a no-op
+// for providers without a registered validator (mock, firestore) and for providers
+// whose connection is not a *sql.DB — keeping the dialect-neutral container free of
+// any SQL-dialect knowledge.
+//
+// Ordering: called from Initialize() immediately after the provider manager is set,
+// so every adapter init() has already populated protoregistry.GlobalTypes.
+func (c *Container) runSchemaBootShot() error {
+	// Build the descriptor registry from protoregistry.GlobalTypes (idempotent).
+	if err := schema.Build(); err != nil {
+		return fmt.Errorf("descriptor registry build: %w", err)
+	}
+	// Enforce the total-table-count floor only in the fully-linked binary; a
+	// collapse of the adapter import graph fails the boot loud.
+	if err := schema.AssertMinimumCoverage(); err != nil {
+		return err
+	}
+
+	dbProvider := c.GetDatabaseProvider()
+	if dbProvider == nil {
+		return nil
+	}
+
+	validator, ok := registry.GetSchemaValidator(dbProvider.Name())
+	if !ok {
+		// No validator registered for this provider (mock / firestore). Shadow
+		// boot-shot is postgres-only this wave; nothing to reconcile.
+		return nil
+	}
+
+	connHolder, ok := dbProvider.(interface{ GetConnection() any })
+	if !ok {
+		return nil
+	}
+	sqlDB, ok := connHolder.GetConnection().(*sql.DB)
+	if !ok || sqlDB == nil {
+		// Provider has a validator but a non-SQL connection — should not happen for
+		// postgresql, but stay defensive rather than panic at boot.
+		return nil
+	}
+
+	return validator(context.Background(), sqlDB)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

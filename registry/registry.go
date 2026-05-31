@@ -69,6 +69,17 @@ var (
 )
 
 // =============================================================================
+// Database Schema Validator Registry (Plan 2 — reflectionless CRUD boot-shot)
+// =============================================================================
+
+type SchemaValidator = internal.SchemaValidator
+
+var (
+	RegisterSchemaValidator = internal.RegisterSchemaValidator
+	GetSchemaValidator      = internal.GetSchemaValidator
+)
+
+// =============================================================================
 // Table Config (Map-Based)
 // =============================================================================
 

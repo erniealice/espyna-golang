@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/erniealice/espyna-golang/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
+	"github.com/erniealice/espyna-golang/schema"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	_ "github.com/lib/pq"
 )
@@ -74,11 +76,17 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 		return nil, model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)
 	}
 
-	// Normalize camelCase keys to snake_case (protojson compatibility)
+	// Normalize camelCase keys to snake_case (protojson compatibility).
+	// NOTE: the descriptor-registry shadow lookups below (schema.ColsFor /
+	// schema.ColByName) depend on this running FIRST — descriptor column names are
+	// the proto snake_case TextNames, so they only match the map keys / reflected
+	// column names after camelCase keys are snake_cased (phase0 §b key-match invariant).
 	data = normalizeKeys(data)
 
 	// Get actual table columns so we can discard fields that don't exist in the DB
-	// (e.g. protobuf-only fields like date_created_string, date_modified_string)
+	// (e.g. protobuf-only fields like date_created_string, date_modified_string).
+	// This reflected set remains the authoritative source-of-truth in SHADOW mode
+	// (Phase 2); its deletion is deferred to Phase 5.
 	resultColumns, err := p.getTableColumns(ctx, tableName)
 	if err != nil {
 		return nil, model.NewDatabaseError(
@@ -101,14 +109,21 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 		)
 	}
 
-	// Set creation properties
+	// SHADOW: assert the descriptor-derived column set agrees with the reflected set.
+	// On disagreement this WARNs and falls back to the reflected validColumns below.
+	shadowAssertColumnSet(tableName, validColumns)
+
+	// Set creation properties. The timestamp column type feeding autoTimestampValue
+	// is sourced from the descriptor (bigint-millis vs Timestamp) and cross-checked
+	// against the reflected information_schema data_type — on mismatch a WARN is
+	// logged and the reflected type wins (SHADOW: reflection authoritative).
 	now := time.Now().UTC()
 	if _, exists := data["id"]; !exists {
 		data["id"] = generateUUID()
 	}
 	data["active"] = true
-	data["date_created"] = autoTimestampValue(columnTypes["date_created"], now)
-	data["date_modified"] = autoTimestampValue(columnTypes["date_modified"], now)
+	data["date_created"] = autoTimestampValue(shadowTimestampType(tableName, "date_created", columnTypes), now)
+	data["date_modified"] = autoTimestampValue(shadowTimestampType(tableName, "date_modified", columnTypes), now)
 
 	// Build INSERT query (only columns that exist in the table)
 	columns := make([]string, 0, len(data))
@@ -130,6 +145,9 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 	if len(skipped) > 0 {
 		log.Printf("PostgresOperations.Create: dropped %d unknown column(s) for table=%q skipped=%v", len(skipped), tableName, skipped)
 	}
+	// SHADOW: surface where a descriptor-authoritative drop would differ from the
+	// reflected drop (the reflected `skipped` set still drives the write).
+	shadowAssertDropSet(tableName, data, skipped, false)
 
 	query := fmt.Sprintf(
 		"INSERT INTO \"%s\" (%s) VALUES (%s) RETURNING *",
@@ -215,10 +233,13 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 		return nil, model.NewDatabaseError("record ID is required", "MISSING_RECORD_ID", 400)
 	}
 
-	// Normalize camelCase keys to snake_case (protojson compatibility)
+	// Normalize camelCase keys to snake_case (protojson compatibility).
+	// The descriptor-registry shadow lookups below depend on this running FIRST
+	// (phase0 §b key-match invariant — see Create).
 	data = normalizeKeys(data)
 
-	// Get actual table columns to discard protobuf-only fields
+	// Get actual table columns to discard protobuf-only fields. Reflected set
+	// remains authoritative in SHADOW mode; deletion deferred to Phase 5.
 	resultColumns, err := p.getTableColumns(ctx, tableName)
 	if err != nil {
 		return nil, model.NewDatabaseError(
@@ -241,6 +262,9 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 		)
 	}
 
+	// SHADOW: assert descriptor-derived column set agrees with the reflected set.
+	shadowAssertColumnSet(tableName, validColumns)
+
 	// Check if record exists (query without active filter so we can update
 	// inactive records too, e.g. re-activating a soft-deleted record).
 	existQuery := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
@@ -258,9 +282,14 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	}
 
 	// Set update properties (column-type-aware: BIGINT timestamp columns
-	// receive unix ms, TIMESTAMP columns receive time.Time).
+	// receive unix ms, TIMESTAMP columns receive time.Time). The timestamp type
+	// is sourced from the descriptor (bigint-millis vs Timestamp), cross-checked
+	// against the reflected information_schema data_type — on mismatch WARN + the
+	// reflected type wins (SHADOW: reflection authoritative).
 	now := time.Now().UTC()
-	data["date_modified"] = autoTimestampValue(columnTypes["date_modified"], now)
+	dateModifiedType := shadowTimestampType(tableName, "date_modified", columnTypes)
+	dateCreatedType := shadowTimestampType(tableName, "date_created", columnTypes)
+	data["date_modified"] = autoTimestampValue(dateModifiedType, now)
 
 	// Preserve original creation data.
 	// scanRowToMap normalises TIMESTAMP columns to int64 unix ms for the
@@ -268,7 +297,7 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	// before passing to pq. For BIGINT columns the stored int64 is already
 	// the wire format pq expects.
 	if dc := existing["date_created"]; dc != nil {
-		if columnTypes["date_created"] == "bigint" {
+		if dateCreatedType == "bigint" {
 			data["date_created"] = dc
 		} else if millis, ok := dc.(int64); ok {
 			data["date_created"] = time.UnixMilli(millis).UTC()
@@ -298,6 +327,10 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	if len(skipped) > 0 {
 		log.Printf("PostgresOperations.Update: dropped %d unknown column(s) for table=%q id=%q skipped=%v", len(skipped), tableName, id, skipped)
 	}
+	// SHADOW: surface where a descriptor-authoritative drop would differ from the
+	// reflected drop (the reflected `skipped` set still drives the write). The
+	// update loop skips the id key, so the descriptor drop computation does too.
+	shadowAssertDropSet(tableName, data, skipped, true)
 	values = append(values, id) // Add ID as last parameter
 
 	// No active filter — allows re-activating soft-deleted records.
@@ -348,7 +381,11 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 	}
 
 	// Soft delete by setting active to false. date_modified may be BIGINT
-	// unix ms or TIMESTAMP depending on the entity schema; introspect.
+	// unix ms or TIMESTAMP depending on the entity schema. The type is sourced
+	// from the descriptor (schema.ColByName via shadowTimestampType) and
+	// cross-checked against the reflected information_schema data_type — on
+	// disagreement a WARN is logged and the reflected type wins (SHADOW:
+	// reflection authoritative; getTableColumnTypes stays as the cross-check).
 	columnTypes, err := p.getTableColumnTypes(ctx, tableName)
 	if err != nil {
 		return model.NewDatabaseError(
@@ -358,15 +395,17 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 		)
 	}
 	now := time.Now().UTC()
+	dateModifiedType := shadowTimestampType(tableName, "date_modified", columnTypes)
 	// Soft-delete is idempotent: deleting an already-inactive row is not an
 	// error (prior behavior required active = true in WHERE, which caused
 	// RECORD_NOT_FOUND when users ran Delete from the inactive list).
+	// Soft-delete stamps active=false + date_modified in Go (Q-RC6 reverted, unchanged).
 	query := fmt.Sprintf(
 		"UPDATE \"%s\" SET active = false, date_modified = $1 WHERE id = $2",
 		tableName,
 	)
 
-	result, err := p.getExecutor(ctx).ExecContext(ctx, query, autoTimestampValue(columnTypes["date_modified"], now), id)
+	result, err := p.getExecutor(ctx).ExecContext(ctx, query, autoTimestampValue(dateModifiedType, now), id)
 	if err != nil {
 		return model.NewDatabaseError(
 			fmt.Sprintf("failed to delete record: %v", err),
@@ -1112,6 +1151,159 @@ func autoTimestampValue(columnType string, now time.Time) any {
 	return now
 }
 
+// ---------------------------------------------------------------------------
+// SHADOW MODE (Plan 2, docs/plan/20260530-reflectionless-crud/, Phase 2)
+//
+// The descriptor registry (schema.Global, populated by schema.Build() at the
+// container wirePoint) is the future source of column truth. This wave runs it
+// in SHADOW: the descriptor-derived column set and the descriptor column types
+// are computed ALONGSIDE the existing reflection path (getTableColumns /
+// getTableColumnTypes), the two are asserted to agree, and on ANY disagreement a
+// structured WARN is logged and the code FALLS BACK to the reflection-derived
+// data — reflection remains authoritative this wave. Net behavior change is ZERO;
+// the agreement metric is now observable (the Q-RC4 0-disagreement gate
+// prerequisite for Phase 4). The unknown-column silent-drop LOG line is NOT
+// flipped to ERROR — that is Phase 4 (a runtime soak gate), out of scope here.
+// ---------------------------------------------------------------------------
+
+// descriptorColumnSet returns (validColumns, ok) for tableName from the descriptor
+// registry. ok=false when the table is not registry-covered (e.g. an out-of-scope
+// allowlist table such as payment_method / session, or a not-yet-annotated GAP-B
+// table) — callers then have nothing to shadow-assert and silently fall back to
+// reflection. The key set is the descriptor column names, which are the proto
+// snake_case TextNames and therefore directly comparable to post-normalizeKeys map
+// keys / reflected information_schema column names (phase0 §b key-match invariant).
+func descriptorColumnSet(tableName string) (map[string]bool, bool) {
+	cols, ok := schema.ColsFor(tableName)
+	if !ok {
+		return nil, false
+	}
+	set := make(map[string]bool, len(cols))
+	for _, c := range cols {
+		set[c.Name] = true
+	}
+	return set, true
+}
+
+// shadowAssertColumnSet compares the descriptor-derived column set against the
+// reflection-derived set for tableName and logs a structured WARN listing the
+// per-side diffs on disagreement. It NEVER returns an error and NEVER mutates the
+// reflected set — reflection stays authoritative. A table absent from the registry
+// is a no-op (nothing to assert).
+func shadowAssertColumnSet(tableName string, reflected map[string]bool) {
+	derived, ok := descriptorColumnSet(tableName)
+	if !ok {
+		return
+	}
+	var derivedOnly, reflectedOnly []string
+	for col := range derived {
+		if !reflected[col] {
+			derivedOnly = append(derivedOnly, col)
+		}
+	}
+	for col := range reflected {
+		if !derived[col] {
+			reflectedOnly = append(reflectedOnly, col)
+		}
+	}
+	if len(derivedOnly) == 0 && len(reflectedOnly) == 0 {
+		return
+	}
+	sort.Strings(derivedOnly)
+	sort.Strings(reflectedOnly)
+	log.Printf("WARN shadow-crud: column-set disagreement table=%q derived_only=%v reflected_only=%v (shadow: falling back to reflection)",
+		tableName, derivedOnly, reflectedOnly)
+}
+
+// descriptorTimestampType returns the autoTimestampValue columnType string for a
+// timestamp column, sourced from the descriptor registry, plus whether the
+// descriptor knew the column. The descriptor's IsBigintMillis flag maps to the
+// "bigint" sentinel autoTimestampValue's bigint→UnixMilli branch keys on; any
+// other descriptor column maps to "" (the non-bigint / time.Time branch).
+func descriptorTimestampType(tableName, column string) (string, bool) {
+	ci, ok := schema.ColByName(tableName, column)
+	if !ok {
+		return "", false
+	}
+	if ci.IsBigintMillis {
+		return "bigint", true
+	}
+	return "", true
+}
+
+// shadowTimestampType resolves the autoTimestampValue columnType for a timestamp
+// column under SHADOW: it prefers the descriptor type, but cross-checks against the
+// reflected information_schema data_type and, on mismatch, logs a WARN and FALLS
+// BACK to the reflected type (reflection authoritative this wave). When the
+// descriptor does not know the column it returns the reflected type unchanged.
+func shadowTimestampType(tableName, column string, reflectedTypes map[string]string) string {
+	reflected := reflectedTypes[column]
+	derived, ok := descriptorTimestampType(tableName, column)
+	if !ok {
+		return reflected
+	}
+	// autoTimestampValue only distinguishes "bigint" from everything else, so we
+	// compare on that axis: descriptor-bigint must match reflected information_schema
+	// "bigint", and a non-bigint descriptor must match a non-bigint reflected type.
+	derivedIsBigint := derived == "bigint"
+	reflectedIsBigint := reflected == "bigint"
+	if derivedIsBigint != reflectedIsBigint {
+		log.Printf("WARN shadow-crud: timestamp-type disagreement table=%q column=%q derived=%q reflected=%q (shadow: falling back to reflection)",
+			tableName, column, derived, reflected)
+		return reflected
+	}
+	return reflected
+}
+
+// shadowAssertDropSet compares the would-be unknown-column DROP set computed
+// against the DESCRIPTOR-derived valid set with the actual (reflected) drop set,
+// for the same data keys. On disagreement it logs a parallel WARN. Behavior is
+// unchanged: the reflected drop set (reflectedSkipped) still drives the write; this
+// only surfaces where descriptor-authoritative dropping would differ. A table
+// absent from the registry is a no-op. The unknown-column LOG is NOT flipped to
+// ERROR this wave (Phase 4).
+func shadowAssertDropSet(tableName string, data map[string]any, reflectedSkipped []string, skipID bool) {
+	derived, ok := descriptorColumnSet(tableName)
+	if !ok {
+		return
+	}
+	var derivedDrop []string
+	for column := range data {
+		if skipID && column == "id" {
+			continue
+		}
+		if !derived[column] {
+			derivedDrop = append(derivedDrop, column)
+		}
+	}
+	reflectedSet := make(map[string]bool, len(reflectedSkipped))
+	for _, c := range reflectedSkipped {
+		reflectedSet[c] = true
+	}
+	derivedSet := make(map[string]bool, len(derivedDrop))
+	for _, c := range derivedDrop {
+		derivedSet[c] = true
+	}
+	var derivedOnly, reflectedOnly []string
+	for c := range derivedSet {
+		if !reflectedSet[c] {
+			derivedOnly = append(derivedOnly, c)
+		}
+	}
+	for c := range reflectedSet {
+		if !derivedSet[c] {
+			reflectedOnly = append(reflectedOnly, c)
+		}
+	}
+	if len(derivedOnly) == 0 && len(reflectedOnly) == 0 {
+		return
+	}
+	sort.Strings(derivedOnly)
+	sort.Strings(reflectedOnly)
+	log.Printf("WARN shadow-crud: drop-set disagreement table=%q descriptor_would_drop_only=%v reflection_dropped_only=%v (shadow: reflection still drives the write)",
+		tableName, derivedOnly, reflectedOnly)
+}
+
 // scanRowToMap scans a single row into a map with snake_case keys (matching DB columns).
 func (p *PostgresOperations) scanRowToMap(row *sql.Row, columns []string) (map[string]any, error) {
 	values := make([]any, len(columns))
@@ -1328,6 +1520,12 @@ func serializeValue(v any) any {
 // normalizeKeys converts all map keys from camelCase to snake_case.
 // This ensures protojson-marshaled data (camelCase) maps correctly to
 // PostgreSQL column names (snake_case).
+//
+// LOAD-BEARING for the descriptor-registry shadow path: normalizeKeys MUST run
+// before any schema.ColsFor / schema.ColByName lookup in Create/Update/Delete.
+// Descriptor column names are the proto snake_case TextNames (== camelToSnake of
+// the protojson field name), so they only match the map keys once those keys are
+// snake_cased here. This ordering is the phase0 §b key-match invariant.
 func normalizeKeys(data map[string]any) map[string]any {
 	result := make(map[string]any, len(data))
 	for key, value := range data {

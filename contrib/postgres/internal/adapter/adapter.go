@@ -56,6 +56,11 @@ func init() {
 	)
 	registry.RegisterDatabaseBuildFromEnv("postgresql", buildFromEnv)
 	registry.RegisterDatabaseTableConfigBuilder("postgresql", buildPgTableConfig)
+	// Plan 2 (reflectionless CRUD): register the boot-shot schema validator so the
+	// dialect-neutral container can resolve and run it for the postgresql provider
+	// without importing this postgresql-tagged package directly. Mirrors the
+	// RegisterDatabaseTableConfigBuilder hook above.
+	registry.RegisterSchemaValidator("postgresql", core.ValidateSchema)
 }
 
 // buildPgTableConfig creates table config from POSTGRES_TABLE_* environment variables.

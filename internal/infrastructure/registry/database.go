@@ -23,6 +23,8 @@
 package registry
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 
@@ -141,6 +143,55 @@ func BuildDatabaseTableConfig(providerName string) (*TableConfig, error) {
 		return NewDefaultTableConfig(), nil
 	}
 	return builder(), nil
+}
+
+// =============================================================================
+// Database Schema Validator Registry
+// =============================================================================
+//
+// SchemaValidatorRegistry lets a per-dialect adapter register a boot-shot schema
+// validator (Plan 2, docs/plan/20260530-reflectionless-crud/). The validator reads
+// the live schema (information_schema for SQL dialects) ONCE at startup and
+// reconciles it against the dialect-neutral descriptor registry, failing fast on
+// drift. The container is dialect-neutral and cannot import the postgresql-tagged
+// validator directly, so the validator self-registers in the adapter's init()
+// (mirroring RegisterDatabaseTableConfigBuilder) and the container resolves it for
+// the active provider.
+//
+// =============================================================================
+
+// SchemaValidator reads the live schema once and reconciles it against the
+// descriptor registry. It returns an error on drift (strict boot-shot, Q-DD5=A).
+type SchemaValidator func(ctx context.Context, db *sql.DB) error
+
+// schemaValidators holds registered per-provider schema validators.
+var schemaValidators = struct {
+	validators map[string]SchemaValidator
+	mutex      sync.RWMutex
+}{
+	validators: make(map[string]SchemaValidator),
+}
+
+// RegisterSchemaValidator registers a boot-shot schema validator for a provider.
+// Called from init() in each SQL database adapter (postgresql today;
+// mysql/sqlserver get a sibling later). A nil validator panics.
+func RegisterSchemaValidator(providerName string, validator SchemaValidator) {
+	schemaValidators.mutex.Lock()
+	defer schemaValidators.mutex.Unlock()
+
+	if validator == nil {
+		panic(fmt.Sprintf("RegisterSchemaValidator: validator is nil for %s", providerName))
+	}
+	schemaValidators.validators[providerName] = validator
+}
+
+// GetSchemaValidator retrieves a registered schema validator for a provider.
+func GetSchemaValidator(providerName string) (SchemaValidator, bool) {
+	schemaValidators.mutex.RLock()
+	defer schemaValidators.mutex.RUnlock()
+
+	validator, exists := schemaValidators.validators[providerName]
+	return validator, exists
 }
 
 // =============================================================================

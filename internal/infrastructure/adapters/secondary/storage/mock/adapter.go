@@ -3,8 +3,10 @@
 package mock
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -418,6 +420,162 @@ func (p *MockStorageProvider) IsEnabled() bool {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
 	return p.enabled
+}
+
+// =============================================================================
+// Streaming tier (StreamingStorageProvider) + capability discovery
+// =============================================================================
+
+// Compile-time assertions that mock implements both optional sub-interfaces.
+var (
+	_ ports.StreamingStorageProvider  = (*MockStorageProvider)(nil)
+	_ ports.StorageCapabilityProvider = (*MockStorageProvider)(nil)
+)
+
+// UploadStream io.ReadAll's body into the in-memory map. The mock has no real I/O,
+// so buffering is acceptable here — the point is to exercise the capability-gated
+// streaming code path under CONFIG_STORAGE_PROVIDER=mock_storage (the .env default)
+// without cloud creds. The proto req carries the envelope; req.Content is ignored.
+func (p *MockStorageProvider) UploadStream(ctx context.Context, req *pb.UploadObjectRequest, body io.Reader) (*pb.UploadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "mock storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+
+	if req.ContainerName == "" || req.ObjectKey == "" {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "container_name and object_key are required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to read stream: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "stream read failed", err)
+	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if _, exists := p.containers[req.ContainerName]; !exists {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("container not found: %s", req.ContainerName),
+		}, ports.NewStorageError(ports.StorageErrorCodeNotFound, "container not found", nil)
+	}
+
+	key := objectKey(req.ContainerName, req.ObjectKey)
+	if _, exists := p.objects[key]; exists && !req.Overwrite {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "object already exists and overwrite is false",
+		}, ports.NewStorageError(ports.StorageErrorCodeAlreadyExists, "object exists", nil)
+	}
+
+	now := time.Now()
+	storageObject := &pb.StorageObject{
+		Id:            storagecommon.GenerateObjectID(req.ContainerName, req.ObjectKey),
+		Provider:      pb.StorageProvider_STORAGE_PROVIDER_LOCAL,
+		ContainerName: req.ContainerName,
+		ObjectKey:     req.ObjectKey,
+		Size:          int64(len(data)),
+		ContentType:   req.ContentType,
+		Etag:          fmt.Sprintf("mock-etag-%d", now.Unix()),
+		LastModified:  timestamppb.New(now),
+		CreatedAt:     timestamppb.New(now),
+		StorageClass:  "mock",
+		IsEncrypted:   req.EnableEncryption,
+		Metadata:      req.Metadata,
+	}
+	p.objects[key] = &mockObject{
+		data:      data,
+		metadata:  storageObject,
+		createdAt: now,
+		updatedAt: now,
+	}
+
+	return &pb.UploadObjectResponse{
+		Success:          true,
+		Object:           storageObject,
+		UploadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:          "upload successful",
+	}, nil
+}
+
+// DownloadStream wraps the stored []byte in io.NopCloser(bytes.NewReader(...)) so
+// the caller can exercise the io.ReadCloser path. The metadata response leaves
+// Content nil; the bytes flow through the ReadCloser.
+func (p *MockStorageProvider) DownloadStream(ctx context.Context, req *pb.DownloadObjectRequest) (io.ReadCloser, *pb.DownloadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "mock storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+
+	if req.ContainerName == "" || req.ObjectKey == "" {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "container_name and object_key are required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing fields", nil)
+	}
+
+	p.mutex.RLock()
+	key := objectKey(req.ContainerName, req.ObjectKey)
+	obj, exists := p.objects[key]
+	if !exists {
+		p.mutex.RUnlock()
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("object not found: %s/%s", req.ContainerName, req.ObjectKey),
+		}, ports.NewStorageError(ports.StorageErrorCodeNotFound, "not found", nil)
+	}
+	// Copy the bytes under the read lock so the returned reader is stable even if
+	// the object is later mutated/cleared.
+	dataCopy := make([]byte, len(obj.data))
+	copy(dataCopy, obj.data)
+	meta := obj.metadata
+	p.mutex.RUnlock()
+
+	resp := &pb.DownloadObjectResponse{
+		Success:            true,
+		Object:             meta,
+		Content:            nil, // bytes flow through the ReadCloser
+		DownloadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:            "download stream opened",
+	}
+	return io.NopCloser(bytes.NewReader(dataCopy)), resp, nil
+}
+
+// GetCapabilities returns the mock capability set. Streaming is included so the
+// capability-gated path is exercisable under mock_storage; PresignedUrls is NOT
+// (the mock presign is a stub URL), so callers fall back to stream-through.
+func (p *MockStorageProvider) GetCapabilities() []ports.StorageCapability {
+	return []ports.StorageCapability{
+		ports.StorageCapabilityUpload,
+		ports.StorageCapabilityDownload,
+		ports.StorageCapabilityDelete,
+		ports.StorageCapabilityStreaming,
+	}
+}
+
+// SupportsCapability reports whether mock supports a given capability.
+func (p *MockStorageProvider) SupportsCapability(capability ports.StorageCapability) bool {
+	for _, c := range p.GetCapabilities() {
+		if c == capability {
+			return true
+		}
+	}
+	return false
 }
 
 // Helper functions for testing

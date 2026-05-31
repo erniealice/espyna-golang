@@ -5,6 +5,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"io"
 	"mime"
 	"os"
 	"path/filepath"
@@ -537,6 +538,227 @@ func (p *LocalStorageProvider) Close() error {
 // IsEnabled returns whether this provider is currently enabled
 func (p *LocalStorageProvider) IsEnabled() bool {
 	return p.enabled
+}
+
+// =============================================================================
+// Streaming tier (StreamingStorageProvider) + capability discovery
+// =============================================================================
+
+// Compile-time assertions that local implements both optional sub-interfaces.
+var (
+	_ ports.StreamingStorageProvider  = (*LocalStorageProvider)(nil)
+	_ ports.StorageCapabilityProvider = (*LocalStorageProvider)(nil)
+)
+
+// UploadStream validates/sanitizes the path (reusing the same guards as
+// UploadObject), creates the file with os.Create, and io.Copy's body into it. This
+// is the universal stream-through default for dev/self-host — bounded memory, no
+// pre-buffering of the whole object. The proto req carries the container/key/
+// content-type envelope; req.Content is ignored.
+func (p *LocalStorageProvider) UploadStream(ctx context.Context, req *pb.UploadObjectRequest, body io.Reader) (*pb.UploadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "local storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "provider not initialized", nil)
+	}
+
+	if req.ContainerName == "" {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "container_name is required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "container name required", nil)
+	}
+	if req.ObjectKey == "" {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "object_key is required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "object key required", nil)
+	}
+
+	// Security: same path-traversal guards as the buffered UploadObject.
+	if !isValidPath(req.ContainerName) || !isValidPath(req.ObjectKey) {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "path traversal attempt detected",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "invalid path", nil)
+	}
+
+	containerPath := filepath.Join(p.basePath, sanitizePath(req.ContainerName))
+	objectPath := filepath.Join(containerPath, sanitizePath(req.ObjectKey))
+	if !isPathWithinBase(objectPath, p.basePath) {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "path traversal attempt detected",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "invalid path", nil)
+	}
+
+	dir := filepath.Dir(objectPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to create directory: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "directory creation failed", err)
+	}
+
+	if _, err := os.Stat(objectPath); err == nil && !req.Overwrite {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "object already exists and overwrite is false",
+		}, ports.NewStorageError(ports.StorageErrorCodeAlreadyExists, "object exists", nil)
+	}
+
+	f, err := os.Create(objectPath)
+	if err != nil {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to create file: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "create failed", err)
+	}
+	// io.Copy streams body -> file with a bounded internal buffer.
+	if _, err := io.Copy(f, body); err != nil {
+		_ = f.Close()
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to write file: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "stream copy failed", err)
+	}
+	if err := f.Close(); err != nil {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to close file: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "close failed", err)
+	}
+
+	fileInfo, _ := os.Stat(objectPath)
+	contentType := req.ContentType
+	if contentType == "" {
+		contentType = mime.TypeByExtension(filepath.Ext(req.ObjectKey))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+	}
+
+	storageObject := &pb.StorageObject{
+		Id:            storagecommon.GenerateObjectID(req.ContainerName, req.ObjectKey),
+		Provider:      pb.StorageProvider_STORAGE_PROVIDER_LOCAL,
+		ContainerName: req.ContainerName,
+		ObjectKey:     req.ObjectKey,
+		ContentType:   contentType,
+		StorageClass:  "local",
+		IsEncrypted:   false,
+		Url:           fmt.Sprintf("file://%s", objectPath),
+	}
+	if fileInfo != nil {
+		storageObject.Size = fileInfo.Size()
+		storageObject.Etag = fmt.Sprintf("%d-%d", fileInfo.Size(), fileInfo.ModTime().Unix())
+		storageObject.LastModified = timestamppb.New(fileInfo.ModTime())
+		storageObject.CreatedAt = timestamppb.New(fileInfo.ModTime())
+	}
+
+	return &pb.UploadObjectResponse{
+		Success:          true,
+		Object:           storageObject,
+		UploadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:          "upload successful",
+	}, nil
+}
+
+// DownloadStream opens the file with os.Open and returns the *os.File (an
+// io.ReadCloser) directly — the caller MUST Close it. No os.ReadFile / io.ReadAll.
+func (p *LocalStorageProvider) DownloadStream(ctx context.Context, req *pb.DownloadObjectRequest) (io.ReadCloser, *pb.DownloadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "local storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "provider not initialized", nil)
+	}
+
+	if req.ContainerName == "" || req.ObjectKey == "" {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "container_name and object_key are required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	containerPath := filepath.Join(p.basePath, sanitizePath(req.ContainerName))
+	objectPath := filepath.Join(containerPath, sanitizePath(req.ObjectKey))
+	if !isPathWithinBase(objectPath, p.basePath) {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "path traversal attempt detected",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "invalid path", nil)
+	}
+
+	f, err := os.Open(objectPath)
+	if os.IsNotExist(err) {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("file not found: %s/%s", req.ContainerName, req.ObjectKey),
+		}, ports.NewStorageError(ports.StorageErrorCodeNotFound, "file not found", err)
+	}
+	if err != nil {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to open file: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeDownloadFailed, "open failed", err)
+	}
+
+	contentType := mime.TypeByExtension(filepath.Ext(req.ObjectKey))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	storageObject := &pb.StorageObject{
+		Id:            storagecommon.GenerateObjectID(req.ContainerName, req.ObjectKey),
+		Provider:      pb.StorageProvider_STORAGE_PROVIDER_LOCAL,
+		ContainerName: req.ContainerName,
+		ObjectKey:     req.ObjectKey,
+		ContentType:   contentType,
+		StorageClass:  "local",
+	}
+	if fileInfo, statErr := f.Stat(); statErr == nil {
+		storageObject.Size = fileInfo.Size()
+		storageObject.Etag = fmt.Sprintf("%d-%d", fileInfo.Size(), fileInfo.ModTime().Unix())
+		storageObject.LastModified = timestamppb.New(fileInfo.ModTime())
+		storageObject.CreatedAt = timestamppb.New(fileInfo.ModTime())
+	}
+
+	resp := &pb.DownloadObjectResponse{
+		Success:            true,
+		Object:             storageObject,
+		Content:            nil, // bytes flow through the *os.File ReadCloser
+		DownloadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:            "download stream opened",
+	}
+	return f, resp, nil
+}
+
+// GetCapabilities returns the local capability set. Local has NO presign tier (its
+// GetPresignedUrl is a stub), so PresignedUrls is intentionally absent — callers
+// fall back to the stream-through default.
+func (p *LocalStorageProvider) GetCapabilities() []ports.StorageCapability {
+	return []ports.StorageCapability{
+		ports.StorageCapabilityUpload,
+		ports.StorageCapabilityDownload,
+		ports.StorageCapabilityDelete,
+		ports.StorageCapabilityStreaming,
+		ports.StorageCapabilityMetadata,
+	}
+}
+
+// SupportsCapability reports whether local supports a given capability.
+func (p *LocalStorageProvider) SupportsCapability(capability ports.StorageCapability) bool {
+	for _, c := range p.GetCapabilities() {
+		if c == capability {
+			return true
+		}
+	}
+	return false
 }
 
 // Upload provides backward compatibility with simple interface

@@ -56,6 +56,7 @@ type (
 	StorageProvider           = infrastructure.StorageProvider
 	StorageCapability         = infrastructure.StorageCapability
 	StorageCapabilityProvider = infrastructure.StorageCapabilityProvider
+	StreamingStorageProvider  = infrastructure.StreamingStorageProvider
 	StorageError              = infrastructure.StorageError
 	StorageConfigAdapter      = infrastructure.StorageConfigAdapter
 )

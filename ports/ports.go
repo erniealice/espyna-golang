@@ -59,6 +59,7 @@ type (
 	StorageProvider           = internal.StorageProvider
 	StorageCapability         = internal.StorageCapability
 	StorageCapabilityProvider = internal.StorageCapabilityProvider
+	StreamingStorageProvider  = internal.StreamingStorageProvider
 	StorageError              = internal.StorageError
 	StorageConfigAdapter      = internal.StorageConfigAdapter
 )

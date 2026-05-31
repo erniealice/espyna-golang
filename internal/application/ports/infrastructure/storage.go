@@ -3,6 +3,7 @@ package infrastructure
 import (
 	"context"
 	"fmt"
+	"io"
 
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
@@ -108,6 +109,55 @@ type StorageCapabilityProvider interface {
 
 	// SupportsCapability checks if a specific capability is supported
 	SupportsCapability(capability StorageCapability) bool
+}
+
+// StreamingStorageProvider is an OPTIONAL capability sub-interface that extends
+// StorageProvider with bounded-memory, stream-through upload/download. It mirrors
+// the StorageCapabilityProvider pattern above: the base StorageProvider does NOT
+// declare these methods, so adapters that have not yet opted in keep compiling
+// unchanged (mock/local/non-streaming adapters are not forced to implement the
+// stream tier in lockstep — that would break the build across all 5 adapters at
+// once).
+//
+// Q-ST-STREAM (LOCKED, B+C): stream-through (io.Reader on the way in,
+// io.ReadCloser on the way out, copied via io.Copy) is the UNIVERSAL default; the
+// presigned-direct tier (StorageCapabilityPresignedUrls) is the capability-gated
+// cloud add-on. Streaming bypasses the in-memory []byte Content field on the proto
+// request/response so a multi-hundred-MB object never lands fully in RAM; the proto
+// req still carries the container/key/content-type/metadata envelope.
+//
+// CALLERS MUST type-assert and fall back. Streaming is a capability-gated default,
+// not a hard requirement:
+//
+//	if s, ok := provider.(StreamingStorageProvider); ok {
+//	    // bounded-memory path: pump req.Body through io.Copy
+//	    resp, err := s.UploadStream(ctx, req, body)        // body is an io.Reader
+//	    rc, dlResp, err := s.DownloadStream(ctx, dlReq)    // rc is an io.ReadCloser — caller MUST Close()
+//	} else {
+//	    // buffered fallback: read the whole object into req.Content / resp.Content
+//	    resp, err := provider.UploadObject(ctx, reqWithContent)
+//	    dlResp, err := provider.DownloadObject(ctx, dlReq)
+//	}
+//
+// The io.Reader handed to UploadStream is the place to wrap http.MaxBytesReader so
+// the byte ceiling is enforced as the stream is consumed (no pre-buffering needed).
+type StreamingStorageProvider interface {
+	StorageProvider
+
+	// UploadStream uploads an object by streaming body directly to the backend.
+	// The proto req carries the container/key/content-type/metadata envelope; its
+	// []byte Content field is IGNORED — the streamed body is the payload. The
+	// returned response mirrors UploadObject (object metadata, no Content echo).
+	// Implementations must NOT buffer the whole body in memory when the backend
+	// supports a native streaming writer (S3 PutObject Body, GCS writer, Azure
+	// upload-stream, local os.Create+io.Copy).
+	UploadStream(ctx context.Context, req *pb.UploadObjectRequest, body io.Reader) (*pb.UploadObjectResponse, error)
+
+	// DownloadStream opens the object as a stream and returns the body as an
+	// io.ReadCloser the caller MUST Close, alongside the metadata response (whose
+	// []byte Content field is left nil — the bytes flow through the ReadCloser, not
+	// the proto). Returns a not-found-shaped error when the object is absent.
+	DownloadStream(ctx context.Context, req *pb.DownloadObjectRequest) (io.ReadCloser, *pb.DownloadObjectResponse, error)
 }
 
 // StorageError represents storage-related errors

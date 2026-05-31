@@ -764,3 +764,205 @@ func (p *AzureStorageProvider) Close() error {
 func (p *AzureStorageProvider) IsEnabled() bool {
 	return p.enabled
 }
+
+// =============================================================================
+// Streaming tier (StreamingStorageProvider) + capability discovery
+// =============================================================================
+
+// Compile-time assertions that Azure implements both optional sub-interfaces.
+var (
+	_ ports.StreamingStorageProvider  = (*AzureStorageProvider)(nil)
+	_ ports.StorageCapabilityProvider = (*AzureStorageProvider)(nil)
+)
+
+// UploadStream streams body to Azure Blob via the SDK's UploadStream API (which
+// buffers in bounded BlockSize chunks and uploads them as block blobs — no full
+// in-RAM copy of the object). The proto req carries the container/key/content-type/
+// metadata envelope; req.Content is ignored.
+func (p *AzureStorageProvider) UploadStream(ctx context.Context, req *pb.UploadObjectRequest, body io.Reader) (*pb.UploadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "Azure Blob storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+
+	if req.ContainerName == "" || req.ObjectKey == "" {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "container_name and object_key are required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	containerName := req.ContainerName
+	if containerName == "" {
+		containerName = p.containerName
+	}
+	blobName := strings.Trim(req.ObjectKey, "/")
+
+	uploadCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	contentType := req.ContentType
+	if contentType == "" {
+		contentType = mime.TypeByExtension(filepath.Ext(req.ObjectKey))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+	}
+
+	uploadOptions := &azblob.UploadStreamOptions{
+		HTTPHeaders: &blob.HTTPHeaders{
+			BlobContentType: to.Ptr(contentType),
+		},
+		Metadata: toAzureMetadata(req.Metadata),
+	}
+	if req.CacheControl != "" {
+		uploadOptions.HTTPHeaders.BlobCacheControl = to.Ptr(req.CacheControl)
+	}
+	if req.ContentDisposition != "" {
+		uploadOptions.HTTPHeaders.BlobContentDisposition = to.Ptr(req.ContentDisposition)
+	}
+	if azureOpts := req.GetAzureOptions(); azureOpts != nil {
+		if azureOpts.AccessTier != "" {
+			uploadOptions.AccessTier = (*blob.AccessTier)(to.Ptr(azureOpts.AccessTier))
+		}
+		if azureOpts.EncryptionScope != "" {
+			uploadOptions.CPKScopeInfo = &blob.CPKScopeInfo{
+				EncryptionScope: to.Ptr(azureOpts.EncryptionScope),
+			}
+		}
+	}
+
+	_, err := p.client.UploadStream(uploadCtx, containerName, blobName, body, uploadOptions)
+	if err != nil {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to upload blob stream: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "upload failed", err)
+	}
+
+	now := time.Now()
+	storageObject := &pb.StorageObject{
+		Id:            storagecommon.GenerateObjectID(containerName, blobName),
+		Provider:      pb.StorageProvider_STORAGE_PROVIDER_AZURE,
+		ContainerName: containerName,
+		ObjectKey:     blobName,
+		ContentType:   contentType,
+		LastModified:  timestamppb.New(now),
+		CreatedAt:     timestamppb.New(now),
+		StorageClass:  "standard",
+		IsEncrypted:   req.EnableEncryption,
+		Metadata:      req.Metadata,
+	}
+
+	return &pb.UploadObjectResponse{
+		Success:          true,
+		Object:           storageObject,
+		UploadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:          "upload successful",
+	}, nil
+}
+
+// DownloadStream returns the Azure blob DownloadStream response body (an
+// io.ReadCloser) directly — the caller MUST Close it. No io.ReadAll. The metadata
+// response carries object attributes but leaves Content nil.
+func (p *AzureStorageProvider) DownloadStream(ctx context.Context, req *pb.DownloadObjectRequest) (io.ReadCloser, *pb.DownloadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "Azure Blob storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+
+	if req.ContainerName == "" || req.ObjectKey == "" {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "container_name and object_key are required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	containerName := req.ContainerName
+	if containerName == "" {
+		containerName = p.containerName
+	}
+	blobName := strings.Trim(req.ObjectKey, "/")
+
+	blobClient := p.client.ServiceClient().NewContainerClient(containerName).NewBlobClient(blobName)
+
+	downloadOptions := &azblob.DownloadStreamOptions{}
+	if req.Range != "" {
+		downloadOptions.Range = azblob.HTTPRange{}
+	}
+
+	// NOTE: no per-call timeout — the stream may outlive p.timeout while the caller
+	// copies bytes. The parent ctx governs cancellation.
+	response, err := blobClient.DownloadStream(ctx, downloadOptions)
+	if err != nil {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return nil, &pb.DownloadObjectResponse{
+				Success: false,
+				Message: fmt.Sprintf("blob not found: %s/%s", containerName, blobName),
+			}, ports.NewStorageError(ports.StorageErrorCodeNotFound, "not found", err)
+		}
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to download blob: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeDownloadFailed, "download failed", err)
+	}
+
+	storageObject := &pb.StorageObject{
+		Id:            storagecommon.GenerateObjectID(containerName, blobName),
+		Provider:      pb.StorageProvider_STORAGE_PROVIDER_AZURE,
+		ContainerName: containerName,
+		ObjectKey:     blobName,
+		StorageClass:  "standard",
+	}
+	if response.ContentLength != nil {
+		storageObject.Size = *response.ContentLength
+	}
+	if response.ContentType != nil {
+		storageObject.ContentType = *response.ContentType
+	}
+	if response.ETag != nil {
+		storageObject.Etag = string(*response.ETag)
+	}
+	if response.LastModified != nil {
+		storageObject.LastModified = timestamppb.New(*response.LastModified)
+	}
+
+	resp := &pb.DownloadObjectResponse{
+		Success:            true,
+		Object:             storageObject,
+		Content:            nil, // bytes flow through the ReadCloser
+		DownloadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:            "download stream opened",
+	}
+	return response.Body, resp, nil
+}
+
+// GetCapabilities returns the Azure Blob capability set (stream + presigned/SAS).
+func (p *AzureStorageProvider) GetCapabilities() []ports.StorageCapability {
+	return []ports.StorageCapability{
+		ports.StorageCapabilityUpload,
+		ports.StorageCapabilityDownload,
+		ports.StorageCapabilityDelete,
+		ports.StorageCapabilityStreaming,
+		ports.StorageCapabilityPresignedUrls,
+		ports.StorageCapabilityMetadata,
+	}
+}
+
+// SupportsCapability reports whether Azure supports a given capability.
+func (p *AzureStorageProvider) SupportsCapability(capability ports.StorageCapability) bool {
+	for _, c := range p.GetCapabilities() {
+		if c == capability {
+			return true
+		}
+	}
+	return false
+}

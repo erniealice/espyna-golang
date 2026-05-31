@@ -567,3 +567,188 @@ func (p *GCSStorageProvider) Close() error {
 func (p *GCSStorageProvider) IsEnabled() bool {
 	return p.enabled
 }
+
+// =============================================================================
+// Streaming tier (StreamingStorageProvider) + capability discovery
+// =============================================================================
+
+// Compile-time assertions that GCS implements both optional sub-interfaces.
+var (
+	_ ports.StreamingStorageProvider  = (*GCSStorageProvider)(nil)
+	_ ports.StorageCapabilityProvider = (*GCSStorageProvider)(nil)
+)
+
+// UploadStream streams body to GCS via ObjectHandle.NewWriter + io.Copy. The GCS
+// writer chunks the upload (default ChunkSize) so the object never lands fully in
+// RAM. The proto req carries the container/key/content-type/metadata envelope;
+// req.Content is ignored.
+func (p *GCSStorageProvider) UploadStream(ctx context.Context, req *pb.UploadObjectRequest, body io.Reader) (*pb.UploadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "GCS storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+
+	if req.ContainerName == "" || req.ObjectKey == "" {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: "container_name and object_key are required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	bucketName := req.ContainerName
+	if bucketName == "" {
+		bucketName = p.bucketName
+	}
+	objectKey := strings.Trim(req.ObjectKey, "/")
+
+	uploadCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	client := p.clientManager.GetStorageClient()
+	obj := client.Bucket(bucketName).Object(objectKey)
+
+	writer := obj.NewWriter(uploadCtx)
+	contentType := req.ContentType
+	if contentType == "" {
+		contentType = mime.TypeByExtension(filepath.Ext(req.ObjectKey))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+	}
+	writer.ContentType = contentType
+	if len(req.Metadata) > 0 {
+		writer.Metadata = req.Metadata
+	}
+
+	// io.Copy streams body -> GCS in bounded chunks. On a copy error we still
+	// Close() to release the writer's resources, then surface the copy error.
+	if _, err := io.Copy(writer, body); err != nil {
+		_ = writer.Close()
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to stream data: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "stream copy failed", err)
+	}
+	if err := writer.Close(); err != nil {
+		return &pb.UploadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to finalize upload: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeUploadFailed, "finalize failed", err)
+	}
+
+	attrs, _ := obj.Attrs(uploadCtx)
+	storageObject := &pb.StorageObject{
+		Id:            storagecommon.GenerateObjectID(bucketName, objectKey),
+		Provider:      pb.StorageProvider_STORAGE_PROVIDER_GCP,
+		ContainerName: bucketName,
+		ObjectKey:     objectKey,
+		ContentType:   contentType,
+		StorageClass:  "STANDARD",
+	}
+	if attrs != nil {
+		storageObject.Size = attrs.Size
+		storageObject.Etag = attrs.Etag
+		storageObject.LastModified = timestamppb.New(attrs.Updated)
+		storageObject.CreatedAt = timestamppb.New(attrs.Created)
+		storageObject.StorageClass = string(attrs.StorageClass)
+		storageObject.Url = attrs.MediaLink
+	}
+
+	return &pb.UploadObjectResponse{
+		Success:          true,
+		Object:           storageObject,
+		UploadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:          "upload successful",
+	}, nil
+}
+
+// DownloadStream returns the GCS ObjectHandle reader (*storage.Reader, an
+// io.ReadCloser) directly — the caller MUST Close it. No io.ReadAll. The metadata
+// response carries object attributes but leaves Content nil.
+func (p *GCSStorageProvider) DownloadStream(ctx context.Context, req *pb.DownloadObjectRequest) (io.ReadCloser, *pb.DownloadObjectResponse, error) {
+	startTime := time.Now()
+
+	if !p.enabled {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "GCS storage provider is not initialized",
+		}, ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+
+	if req.ContainerName == "" || req.ObjectKey == "" {
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: "container_name and object_key are required",
+		}, ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	bucketName := req.ContainerName
+	if bucketName == "" {
+		bucketName = p.bucketName
+	}
+	objectKey := strings.Trim(req.ObjectKey, "/")
+
+	client := p.clientManager.GetStorageClient()
+	obj := client.Bucket(bucketName).Object(objectKey)
+
+	// NOTE: no per-call timeout — the stream may outlive p.timeout while the caller
+	// copies bytes. The parent ctx governs cancellation.
+	reader, err := obj.NewReader(ctx)
+	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return nil, &pb.DownloadObjectResponse{
+				Success: false,
+				Message: fmt.Sprintf("file not found: %s/%s", bucketName, objectKey),
+			}, ports.NewStorageError(ports.StorageErrorCodeNotFound, "not found", err)
+		}
+		return nil, &pb.DownloadObjectResponse{
+			Success: false,
+			Message: fmt.Sprintf("failed to open object: %v", err),
+		}, ports.NewStorageError(ports.StorageErrorCodeDownloadFailed, "open failed", err)
+	}
+
+	storageObject := &pb.StorageObject{
+		Id:            storagecommon.GenerateObjectID(bucketName, objectKey),
+		Provider:      pb.StorageProvider_STORAGE_PROVIDER_GCP,
+		ContainerName: bucketName,
+		ObjectKey:     objectKey,
+		Size:          reader.Attrs.Size,
+		ContentType:   reader.Attrs.ContentType,
+		StorageClass:  "STANDARD",
+	}
+
+	resp := &pb.DownloadObjectResponse{
+		Success:            true,
+		Object:             storageObject,
+		Content:            nil, // bytes flow through the ReadCloser
+		DownloadDurationMs: time.Since(startTime).Milliseconds(),
+		Message:            "download stream opened",
+	}
+	return reader, resp, nil
+}
+
+// GetCapabilities returns the GCS capability set (stream + signed URLs).
+func (p *GCSStorageProvider) GetCapabilities() []ports.StorageCapability {
+	return []ports.StorageCapability{
+		ports.StorageCapabilityUpload,
+		ports.StorageCapabilityDownload,
+		ports.StorageCapabilityDelete,
+		ports.StorageCapabilityStreaming,
+		ports.StorageCapabilityPresignedUrls,
+		ports.StorageCapabilityMetadata,
+	}
+}
+
+// SupportsCapability reports whether GCS supports a given capability.
+func (p *GCSStorageProvider) SupportsCapability(capability ports.StorageCapability) bool {
+	for _, c := range p.GetCapabilities() {
+		if c == capability {
+			return true
+		}
+	}
+	return false
+}

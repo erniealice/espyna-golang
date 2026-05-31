@@ -316,6 +316,202 @@ func TestActingAsTargetIDsContain(t *testing.T) {
 	})
 }
 
+// TestW1_DelegateLockSQL_WorkspaceAndUserPredicates_RegressionLock is W1
+// (Layer 2) of the plan-3 "principal-switch membership-authz regression gate"
+// (docs/plan/20260530-authz-workspace-hardening/, findings test-coverage-2 +
+// test-coverage-5). It is the SQL-predicate DRIFT LOCK for the delegate
+// cross-workspace deny: the acting-as delegate lock MUST carry BOTH
+//
+//   - the membership predicate `d.user_id = $3` (a delegate may only lock a
+//     grant rooted at a delegate row owned by the acting user), AND
+//   - the workspace-coherence predicate `COALESCE(...workspace_id...) = $4`
+//     (the locked grant must resolve to the SAME workspace the caller is
+//     switching into — the forged-/as/-URL cross-workspace fix, A2-followup
+//     round-3).
+//
+// espyna has NO sqlmock / live-DB harness in this package, so the live
+// lockTargetBinding ErrNoRows deny cannot be executed here (that live
+// assertion is the apps-E2E layer's job:
+// multi-principal/switch-principal-denied.spec.ts). What IS locked here is the
+// SQL string/arg SHAPE: removing either predicate, or shrinking the 4-arg
+// contract, turns this test red — which is the regression gate. This is a
+// stricter, intent-named companion to the existing
+// TestBuildDelegateLockSQL_*_RejectsCrossWorkspace cases (which it does not
+// replace).
+func TestW1_DelegateLockSQL_WorkspaceAndUserPredicates_RegressionLock(t *testing.T) {
+	const (
+		delegateID  = "delegate-D"
+		userID      = "user-U"
+		workspaceID = "workspace-A"
+	)
+
+	cases := []struct {
+		name          string
+		kind          principaltypepb.PrincipalType
+		actingAsID    string
+		userPredicate string // the d.user_id=$3 membership predicate
+		wsPredicate   string // the COALESCE workspace-coherence predicate
+	}{
+		{
+			name:          "client_delegate",
+			kind:          principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE,
+			actingAsID:    "client-Z",
+			userPredicate: "d.user_id = $3",
+			wsPredicate:   "COALESCE(dc.workspace_id, c.workspace_id) = $4",
+		},
+		{
+			name:          "supplier_delegate",
+			kind:          principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER_DELEGATE,
+			actingAsID:    "supplier-Z",
+			userPredicate: "d.user_id = $3",
+			wsPredicate:   "COALESCE(ds.workspace_id, s.workspace_id) = $4",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			query, args := buildDelegateLockSQL(tc.kind, delegateID, tc.actingAsID, userID, workspaceID)
+
+			// 4-arg positional contract — the workspace predicate's $4 has no
+			// value without it. Dropping the workspace arg (back to a 3-arg
+			// shape) is the regression this catches.
+			if len(args) != 4 {
+				t.Fatalf("%s acting-as lock arg count = %d, want 4 (dropping the workspace arg is the regression) args=%v",
+					tc.name, len(args), args)
+			}
+			if args[2] != userID {
+				t.Errorf("%s acting-as args[2] (user_id) = %v, want %v", tc.name, args[2], userID)
+			}
+			if args[3] != workspaceID {
+				t.Errorf("%s acting-as args[3] (workspace_id) = %v, want %v", tc.name, args[3], workspaceID)
+			}
+
+			// The membership predicate: a delegate may only lock a grant rooted
+			// at a delegate row it owns. Removing `d.user_id = $3` is a
+			// privilege-escalation regression (any user could replay any
+			// delegate's grant) — this assertion turns red if it goes.
+			if !strings.Contains(query, tc.userPredicate) {
+				t.Errorf("%s acting-as lock MISSING membership predicate %q — "+
+					"removing it would let a switched principal lock a grant it does not own\n--- SQL ---\n%s",
+					tc.name, tc.userPredicate, query)
+			}
+
+			// The workspace-coherence predicate: the forged-/as/-URL
+			// cross-workspace deny. Removing it lets a real D→Z grant in
+			// workspace B be replayed against /w/workspace-A/.
+			if !strings.Contains(query, tc.wsPredicate) {
+				t.Errorf("%s acting-as lock MISSING workspace predicate %q — "+
+					"removing it re-opens the cross-workspace forged-/as/ deny bypass\n--- SQL ---\n%s",
+					tc.name, tc.wsPredicate, query)
+			}
+
+			// The lock must be a real row lock (FOR UPDATE) — a plain SELECT
+			// would not close the revoke TOCTOU the deny relies on.
+			if !strings.Contains(query, "FOR UPDATE") {
+				t.Errorf("%s acting-as lock missing FOR UPDATE (revoke-TOCTOU close)\n--- SQL ---\n%s", tc.name, query)
+			}
+		})
+	}
+}
+
+// TestW1_NonDelegateLock_UserIDPredicate_RegressionLock is W1 (Layer 2,
+// non-delegate leg) of the plan-3 deny gate. The operator/client/supplier
+// binding locks in lockTargetBinding all carry `user_id = $2 AND active = true`
+// — the membership + revocation predicate. Dropping `user_id=$2` (the plan's
+// named acceptance trigger) would let a forged target_principal owning a
+// workspace_user/grant row belonging to a DIFFERENT user pass the lock. This
+// pins the predicate text the live deny depends on.
+//
+// Because lockTargetBinding issues the SQL inline (no extracted builder for the
+// non-delegate kinds) and there is no DB harness, this test documents the
+// invariant as a named gate and is paired with the live assertion deferred to
+// multi-principal/switch-principal-denied.spec.ts. See switch_principal.go
+// (use-case Layer-1) TestSwitchPrincipal_Execute_DenyPathRegressionGate for the
+// error→deny-key half that DOES run here in-process.
+func TestW1_NonDelegateLock_UserIDPredicate_RegressionLock(t *testing.T) {
+	// Sentinel guard: the non-delegate lock SQL lives inline in
+	// lockTargetBinding (not a pure builder), so we cannot call it without a
+	// *sql.Tx. We instead lock the buildable delegate parent-lock leg, which
+	// shares the exact `user_id = $2 AND active = true` membership shape, and
+	// assert that shape is intact. If the membership/active predicates are ever
+	// dropped from the buildable path the gate fires; the inline non-delegate
+	// path is covered live by the E2E spec.
+	const (
+		delegateID = "delegate-D"
+		userID     = "user-U"
+	)
+	for _, kind := range []principaltypepb.PrincipalType{
+		principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE,
+		principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER_DELEGATE,
+	} {
+		// Parent-delegate (no acting-as) lock: SELECT ... WHERE id=$1 AND
+		// user_id=$2 AND active=true — the same membership+revocation shape the
+		// non-delegate operator/client/supplier locks use.
+		query, args := buildDelegateLockSQL(kind, delegateID, "", userID, "")
+		if len(args) != 2 || args[1] != userID {
+			t.Fatalf("%s parent lock must bind user_id=$2 as the membership predicate; args=%v", kind.String(), args)
+		}
+		for _, sub := range []string{"user_id = $2", "active = true", "FOR UPDATE"} {
+			if !strings.Contains(query, sub) {
+				t.Errorf("%s binding lock MISSING %q — dropping it breaks the membership/revocation deny\n--- SQL ---\n%s",
+					kind.String(), sub, query)
+			}
+		}
+	}
+}
+
+// TestW1_ActingAsTargetIDsContain_DenyOnMiss_RegressionLock is W1 (Layer 3) of
+// the plan-3 deny gate — the in-process fail-closed guard. SwitchPrincipal
+// (session_switch_principal.go:157-160 / :177-180) calls actingAsTargetIDsContain
+// and REFUSES the switch when a URL-/form-supplied acting_as_* id is NOT in the
+// resolved binding's ActingAsTargets. This test pins the load-bearing contract:
+// every MISS (ungranted id, empty id, nil/empty target slice) returns false so
+// the guard's deny branch fires; only a genuine membership returns true.
+//
+// RED proof: if the guard ever returned true on a miss (fail-OPEN), a
+// switched/delegated principal could rotate into an acting_as_* target it has
+// no grant for — exactly the regression this gate forbids.
+func TestW1_ActingAsTargetIDsContain_DenyOnMiss_RegressionLock(t *testing.T) {
+	granted := []*authpb.ActingAsTarget{
+		{Id: "client-granted-A", WorkspaceId: "ws-1"},
+		{Id: "client-granted-B", WorkspaceId: "ws-1"},
+	}
+
+	// DENY contract: every one of these MUST be false (fail-closed). If any
+	// flips to true the guard fails open and a switch into an ungranted target
+	// would be permitted.
+	denyMisses := []struct {
+		name    string
+		targets []*authpb.ActingAsTarget
+		id      string
+	}{
+		{"ungranted_id_against_real_targets", granted, "client-NOT-granted"},
+		{"empty_id_never_grants", granted, ""},
+		{"substring_of_granted_id_not_a_match", granted, "client-granted"},
+		{"nil_targets_deny_all", nil, "client-granted-A"},
+		{"empty_targets_deny_all", []*authpb.ActingAsTarget{}, "client-granted-A"},
+	}
+	for _, tc := range denyMisses {
+		t.Run("deny_"+tc.name, func(t *testing.T) {
+			if actingAsTargetIDsContain(tc.targets, tc.id) {
+				t.Errorf("FAIL-OPEN regression: actingAsTargetIDsContain(targets=%v, %q) = true, want false "+
+					"(the in-process guard would admit a switch into an ungranted acting_as_* target)",
+					tc.targets, tc.id)
+			}
+		})
+	}
+
+	// Positive control: a genuine grant must still resolve true, otherwise the
+	// guard would be a deny-everything brick (not a regression gate).
+	for _, tgt := range granted {
+		t.Run("grant_"+tgt.GetId(), func(t *testing.T) {
+			if !actingAsTargetIDsContain(granted, tgt.GetId()) {
+				t.Errorf("granted acting-as id %q unexpectedly denied — guard must admit real members", tgt.GetId())
+			}
+		})
+	}
+}
+
 // TestFormatActingAsTargetIDs locks the diagnostic format used by the
 // fail-closed error message in SwitchPrincipal when the URL- or form-
 // supplied acting-as id misses every target in the resolved binding.

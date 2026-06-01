@@ -1,3 +1,32 @@
+// Package context owns the request-scoped values that flow through every use
+// case Execute body — user ID, workspace ID, workspace-user ID, email, business
+// type, confirmation flags, translation handles, and the spawn-jobs/schedule
+// hints. The context keys are unexported so callers MUST go through the typed
+// With*/Require*/Get* helpers; the application layer owns the keyspace and no
+// adapter may stuff or read raw context values directly. It is a Layer-3 leaf
+// (see hexagonal-rules.md §5) sitting beneath the use case layer.
+//
+// Charter — this package MUST NOT import:
+//   - proto entity types (esqyma/...)
+//   - DB drivers or adapter packages
+//   - anything under internal/application/usecases/...
+//
+// Depends only on the Go standard library plus internal/application/ports
+// (for the Translator handle carried on the context).
+//
+// Consumers (keep in sync):
+//   - The full use case layer: usecases/domain/<X>/** and usecases/service/<X>/**
+//     read user/workspace identity at the top of every Execute and emit
+//     context-aware translated errors (~976 .go files import this package).
+//   - The driven adapters that translate transport context into application
+//     context: contrib/{postgres,mysql,sqlserver,fiber,http} request setup.
+//   - internal/application/shared/{authcheck,testutil} — authcheck reads the
+//     user ID for permission checks; testutil seeds user/business-type for tests.
+//   - internal/orchestration/engine and the grpc/rbac infrastructure adapters.
+//
+// Adding a new caller is expected (this is the canonical request-context leaf);
+// adding a new context KEY is the change that needs review — keep the keyspace
+// small and the helpers typed.
 package context
 
 import (

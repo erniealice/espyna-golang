@@ -60,10 +60,23 @@ type CrossDomainRepositories struct {
 // `proto/v1/service/dashboard/payroll/`; the repository composition lives
 // at `usecases/service/dashboard/payroll/`. See hexagonal-rules.md §8 Wave B
 // P1.C.6 worked example.
+//
+// 20260530-audit-remediation-program Wave 1.4 (structure audit 20260527144541
+// F5 / Q9→A) — the `Orchestrator *payrollservice.Orchestrator` flat field has
+// been REMOVED. It exposed the runtime payroll lifecycle service (a
+// services/payroll object, not a payroll entity sub-aggregate) directly on the
+// Layer-7 aggregator — the F5 "flat aggregator field when sub-aggregates exist"
+// drift. The orchestrator's two consumable flows are already nested under the
+// PayrollRun sub-aggregate as `.PayrollRun.Calculate` /
+// `.PayrollRun.GeneratePayCycles` (Phase 3 F6 closure), and the flat field had
+// ZERO readers anywhere in the monorepo (no direct access, no reflection
+// navigator, no tests, not referenced by the routing config or composition
+// root). Removal is therefore behavior-preserving: the orchestrator is still
+// constructed below and threaded into the two wrappers exactly as before — it
+// is simply no longer re-exposed as dead aggregator state.
 type PayrollUseCases struct {
 	PayrollRun        *payrollrunuc.UseCases
 	PayrollRemittance *payrollremittanceuc.UseCases
-	Orchestrator      *payrollservice.Orchestrator
 }
 
 // NewUseCases creates all payroll use cases with proper constructor injection.
@@ -140,6 +153,5 @@ func NewUseCases(
 	return &PayrollUseCases{
 		PayrollRun:        payrollRunUC,
 		PayrollRemittance: payrollremittanceuc.NewUseCases(remittanceRepos, remittanceServices),
-		Orchestrator:      orch,
 	}
 }

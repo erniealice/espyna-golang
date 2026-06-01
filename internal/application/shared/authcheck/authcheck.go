@@ -12,11 +12,13 @@
 // Depends only on the Go standard library plus
 // internal/application/ports + internal/application/shared/context.
 //
-// Consumer surface: 957 .go files across espyna-golang call
+// Consumers (keep in sync): ~957 .go files across espyna-golang call
 // authcheck.Check(ctx, authSvc, i18nSvc, "<entity>", ports.Action<X>) as the
-// FIRST line of every use case Execute body. Adding a new caller is the
-// canonical signal that you are at the use case layer; needing to call it
-// from a non-use-case file is a smell.
+// FIRST line of every use case Execute body — i.e. the entire use case layer
+// (usecases/domain/<X>/** + usecases/service/<X>/**). The consumer count is
+// too large to enumerate file-by-file; the maintenance discipline is the
+// inverse: adding a new caller is the canonical signal that you are at the use
+// case layer; needing to call it from a non-use-case file is a smell.
 package authcheck
 
 import (

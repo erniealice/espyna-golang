@@ -1,3 +1,32 @@
+// Package listdata is the in-memory list-processing leaf: pagination, filtering,
+// sorting, and search applied to an arbitrary slice of items behind the
+// proto-shaped request/response types from domain/common. It is the Go helper
+// layer OVER the existing wire contracts at
+// proto/v1/domain/common/{pagination,sort,filter}.proto — it adds NO new proto
+// of its own (see hexagonal-rules.md §3 worked example, where listdata is the
+// canonical "no NEW proto" shared helper).
+//
+// Charter — this package MUST NOT import:
+//   - proto entity/service types other than domain/common (esqyma/.../domain/<entity>,
+//     .../service/<X>) — it operates on opaque interface{} items via reflection,
+//     never on a concrete entity proto.
+//   - DB drivers or adapter packages
+//   - anything under internal/application/usecases/...
+//
+// PERMITTED exception: it imports esqyma/.../domain/common for the
+// Pagination/Sort/Filter/Search request+response messages. domain/common is the
+// shared wire vocabulary, not an entity domain, so this is not the "shared pkg
+// imports entity proto" smell that hexagonal-rules.md §6 row 9 forbids — the
+// FOUR-SIGNAL check explicitly carves common/ out.
+//
+// Depends only on the Go standard library (reflect) plus the domain/common protos.
+//
+// Consumers (keep in sync):
+//   - The Get<Entity>ListPageData use cases that paginate in memory:
+//     usecases/domain/{entity,event,product,subscription,workflow}/<entity>/
+//     get_*_list_page_data.go (~20 callers across 5 domains).
+//   - internal/infrastructure/adapters/secondary/database/mock/entity/session.go
+//     (mock adapter list paging).
 package listdata
 
 import (

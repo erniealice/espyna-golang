@@ -391,17 +391,17 @@ func (a *PasswordAuthAdapter) Login(ctx context.Context, email, password string)
 
 	// --- Credential verification ---
 	if err := a.passwordService.VerifyPassword(passwordHash, password); err != nil {
-		// Increment counter; lock if threshold is reached.
-		newCount := failedAttempts + 1
-		updateData := map[string]any{
-			"failed_login_attempts": newCount,
-		}
-		if newCount >= a.maxAttempts {
-			updateData["locked_until"] = time.Now().Add(time.Duration(a.lockoutMinutes) * time.Minute)
-		}
-		if _, updateErr := a.ops.Update(ctx, "user", userID, updateData); updateErr != nil {
-			log.Printf("[AUTH] failed to update login attempt counter for user %s: %v", userID, updateErr)
-		}
+		// Increment the failed-attempt counter and lock the account once the
+		// configured threshold is crossed. This MUST be atomic at the DB level:
+		// the `failedAttempts` value read above is only a precheck snapshot, and
+		// under a concurrent bad-password burst a read-modify-write (read N,
+		// write N+1 in Go) lets multiple goroutines compute the same N+1, so the
+		// stored counter lags the real attempt count and lockout can slip past
+		// the threshold. recordFailedAttempt performs a single
+		// `UPDATE ... SET failed_login_attempts = failed_login_attempts + 1`,
+		// reading the post-increment value back from the DB so the lockout
+		// decision is made on the true count even under contention.
+		a.recordFailedAttempt(ctx, userID, failedAttempts)
 		return "", nil, errInvalidCredentials
 	}
 
@@ -661,6 +661,84 @@ func (a *PasswordAuthAdapter) GetSessionWorkspaceContext(ctx context.Context, to
 // =============================================================================
 // Internal helpers
 // =============================================================================
+
+// executorProvider is satisfied by the postgres DatabaseOperation (and its
+// workspace-aware wrapper), which expose a transaction-aware raw SQL executor
+// via GetExecutor. The interface is declared locally (matching the convention
+// in contrib/postgres/.../entity/entity_executor.go) so the adapter can reach a
+// raw executor without depending on the concrete adapter type. The mock
+// DatabaseOperation used in non-postgres builds and unit tests does NOT
+// implement this, so recordFailedAttempt transparently falls back to the
+// read-modify-write path for those backends.
+type executorProvider interface {
+	GetExecutor(ctx context.Context) dbinterfaces.DBExecutor
+}
+
+// recordFailedAttempt increments the failed-login counter for userID and locks
+// the account once the configured threshold is reached.
+//
+// When the underlying DatabaseOperation exposes a raw SQL executor (the
+// production postgres path), the increment and lockout decision are performed
+// in a SINGLE atomic statement:
+//
+//	UPDATE "user"
+//	   SET failed_login_attempts = failed_login_attempts + 1,
+//	       locked_until = CASE
+//	           WHEN failed_login_attempts + 1 >= $maxAttempts
+//	               THEN $lockUntil
+//	           ELSE locked_until
+//	       END
+//	 WHERE id = $userID
+//	RETURNING failed_login_attempts
+//
+// Because Postgres evaluates the SET expressions against the row under a write
+// lock, two concurrent bad-password attempts can never read the same stale
+// counter and both write the same N+1 — each increment is serialized, so the
+// stored counter always equals the true number of failed attempts and the
+// lockout fires at EXACTLY maxAttempts. The CASE keeps the lockout-window write
+// in the same statement (atomic with the increment) and never clears an
+// existing locked_until below the threshold.
+//
+// snapshotAttempts is the precheck value read earlier in Login; it is used only
+// for the non-atomic fallback (mock / non-executor backends) and for diagnostic
+// logging — it is NEVER the basis for the lockout decision on the atomic path.
+func (a *PasswordAuthAdapter) recordFailedAttempt(ctx context.Context, userID string, snapshotAttempts int) {
+	lockUntil := time.Now().Add(time.Duration(a.lockoutMinutes) * time.Minute)
+
+	if ep, ok := a.ops.(executorProvider); ok {
+		const q = `UPDATE "user"
+			SET failed_login_attempts = failed_login_attempts + 1,
+			    locked_until = CASE
+			        WHEN failed_login_attempts + 1 >= $2 THEN $3
+			        ELSE locked_until
+			    END
+			WHERE id = $1
+			RETURNING failed_login_attempts`
+		var newCount int
+		err := ep.GetExecutor(ctx).
+			QueryRowContext(ctx, q, userID, a.maxAttempts, lockUntil).
+			Scan(&newCount)
+		if err != nil {
+			log.Printf("[AUTH] failed to atomically update login attempt counter for user %s: %v", userID, err)
+		}
+		return
+	}
+
+	// Fallback: backends without a raw executor (mock DB, non-postgres builds,
+	// unit tests) keep the original read-modify-write. Not atomic, but these
+	// backends are single-process / test-only and not subject to the concurrent
+	// production burst this fix targets.
+	newCount := snapshotAttempts + 1
+	updateData := map[string]any{
+		"failed_login_attempts": newCount,
+	}
+	if newCount >= a.maxAttempts {
+		updateData["locked_until"] = lockUntil
+	}
+	if _, updateErr := a.ops.Update(ctx, "user", userID, updateData); updateErr != nil {
+		log.Printf("[AUTH] failed to update login attempt counter for user %s: %v", userID, updateErr)
+	}
+}
 
 // fetchIdentity queries the user table and builds an Identity protobuf.
 func (a *PasswordAuthAdapter) fetchIdentity(ctx context.Context, userID string) (*authpb.Identity, error) {

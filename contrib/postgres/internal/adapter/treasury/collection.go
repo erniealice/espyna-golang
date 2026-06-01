@@ -358,14 +358,11 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			       tc.reference_number ILIKE $2 OR
 			       tc.status ILIKE $2 OR
 			       tc.collection_type ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		ORDER BY ` + sortField + ` ` + sortOrder + `
 		LIMIT $3 OFFSET $4;
 	`

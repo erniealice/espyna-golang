@@ -275,14 +275,11 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 			LEFT JOIN job j ON j.id = ja.job_id
 			WHERE ja.active = true
 			  AND ($1 = '' OR ja.workspace_id = $1)
-		),
-		counted AS (
-			SELECT COUNT(*) AS total FROM enriched
 		)
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		%s
 		LIMIT $2 OFFSET $3
 	`, orderByClause)

@@ -336,9 +336,17 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 		argCounter++
 	}
 
+	// A3 (Q-PAGE-COUNT default tier): fold the prior separate `SELECT COUNT(*)`
+	// round-trip into the page query via COUNT(*) OVER (). The window count spans
+	// the full filtered_data set (same i.active + workspace + filter + search
+	// predicates as the page rows) and is computed in the same scan before
+	// LIMIT/OFFSET. filtered_data's joins are 1:1 FK LEFT JOINs (invoice→
+	// subscription→client→user), so its row cardinality equals the matching
+	// invoice count — identical to the old `COUNT(*) FROM invoice i LEFT JOIN
+	// subscription s` count query. _total_count lands in the final scan slot.
 	query += `
 		)
-		SELECT * FROM filtered_data
+		SELECT filtered_data.*, COUNT(*) OVER () AS _total_count FROM filtered_data
 	`
 
 	// A2: route the caller-supplied sort column through the fail-closed
@@ -380,6 +388,7 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 
 	// Parse results
 	var invoices []*invoicepb.Invoice
+	var totalCount int64
 	for rows.Next() {
 		var (
 			// Invoice fields
@@ -415,6 +424,8 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 			userDateCreated  sql.NullTime
 			userDateModified sql.NullTime
 			userActive       sql.NullBool
+			// Windowed total — same filter as the page rows (COUNT(*) OVER ()).
+			rowTotalCount int64
 		)
 
 		err := rows.Scan(
@@ -422,10 +433,13 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 			&subID, &subName, &subPlanID, &subClientID, &subDateStart, &subDateEnd, &subDateCreated, &subDateModified, &subActive,
 			&clientID, &clientUserID, &clientInternalID, &clientDateCreated, &clientDateModified, &clientActive,
 			&userID, &userFirstName, &userLastName, &userEmailAddress, &userDateCreated, &userDateModified, &userActive,
+			&rowTotalCount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan invoice row: %w", err)
 		}
+
+		totalCount = rowTotalCount
 
 		// Build invoice protobuf
 		invoice := &invoicepb.Invoice{
@@ -552,67 +566,8 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("error iterating invoice rows: %w", err)
 	}
 
-	// Get total count for pagination.
-	// Joins subscription so the count can scope on the same s.workspace_id tenant
-	// predicate as the page query (invoice has no workspace_id column of its own).
-	countQuery := `
-		SELECT COUNT(*) FROM invoice i
-		LEFT JOIN subscription s ON i.subscription_id = s.id
-		WHERE i.active = true
-	`
-	var countArgs []interface{}
-	countArgCounter := 1
-
-	// A1: same workspace scoping as the page query above. $1 reserved for wsID.
-	countQuery += fmt.Sprintf(" AND ($%d::text = '' OR s.workspace_id = $%d::text)", countArgCounter, countArgCounter)
-	countArgs = append(countArgs, wsID)
-	countArgCounter++
-
-	// Apply same filters for count
-	if req.Filters != nil && len(req.Filters.Filters) > 0 {
-		for _, filter := range req.Filters.Filters {
-			if filter.Field == "invoice_number" {
-				if strFilter := filter.GetStringFilter(); strFilter != nil {
-					countQuery += fmt.Sprintf(" AND i.invoice_number = $%d", countArgCounter)
-					countArgs = append(countArgs, strFilter.Value)
-					countArgCounter++
-				}
-			}
-			if filter.Field == "subscription_id" {
-				if strFilter := filter.GetStringFilter(); strFilter != nil {
-					countQuery += fmt.Sprintf(" AND i.subscription_id = $%d", countArgCounter)
-					countArgs = append(countArgs, strFilter.Value)
-					countArgCounter++
-				}
-			}
-			if filter.Field == "date_created_start" {
-				if numFilter := filter.GetNumberFilter(); numFilter != nil {
-					countQuery += fmt.Sprintf(" AND i.date_created >= $%d", countArgCounter)
-					countArgs = append(countArgs, int64(numFilter.Value))
-					countArgCounter++
-				}
-			}
-			if filter.Field == "date_created_end" {
-				if numFilter := filter.GetNumberFilter(); numFilter != nil {
-					countQuery += fmt.Sprintf(" AND i.date_created <= $%d", countArgCounter)
-					countArgs = append(countArgs, int64(numFilter.Value))
-					countArgCounter++
-				}
-			}
-		}
-	}
-	if req.Search != nil && req.Search.Query != "" {
-		countQuery += fmt.Sprintf(" AND i.invoice_number ILIKE $%d", countArgCounter)
-		countArgs = append(countArgs, "%"+req.Search.Query+"%")
-	}
-
-	var totalCount int64
-	err = db.GetDB().QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get total count: %w", err)
-	}
-
-	// Calculate pagination metadata
+	// Calculate pagination metadata. totalCount is the windowed COUNT(*) OVER ()
+	// projected on each page row above — the separate count round-trip is gone.
 	totalPages := int32(0)
 	if limit > 0 {
 		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))

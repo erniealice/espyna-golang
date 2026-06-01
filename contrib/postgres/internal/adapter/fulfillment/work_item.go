@@ -308,9 +308,6 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			  AND ($2::text IS NULL OR $2::text = '' OR
 			       f.status ILIKE $2 OR f.provider_reference ILIKE $2)
 			GROUP BY f.id, s.name
-		),
-		counted AS (
-			SELECT COUNT(*) AS total FROM enriched
 		)
 		SELECT
 			e.id,
@@ -332,8 +329,8 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			e.supplier_name,
 			e.item_count,
 			e.status_event_count,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		` + orderByClause + `
 		LIMIT $3 OFFSET $4;
 	`

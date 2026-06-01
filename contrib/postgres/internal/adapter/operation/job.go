@@ -302,14 +302,11 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			  AND ($1 = '' OR j.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
 			       j.name ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		%s
 		LIMIT $3 OFFSET $4;
 	`, orderByClause)

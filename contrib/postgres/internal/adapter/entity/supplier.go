@@ -426,14 +426,19 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			LEFT JOIN "user" u ON s.user_id = u.id
 			LEFT JOIN payment_term pt ON s.payment_term_id = pt.id
 			%s
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () replaces the prior
+		-- counted CTE + comma cross-join, which forced enriched to be materialized
+		-- twice (once for the rows, once for the count). The window count spans the
+		-- full filtered enriched set (same WHERE) and is computed in the same scan
+		-- before LIMIT/OFFSET, so the total is identical. The enriched joins are 1:1
+		-- (supplier->user, supplier->payment_term, both FK LEFT JOINs), so row
+		-- cardinality is unchanged vs the old COUNT(*). The total still lands in the
+		-- final scan slot, so rows.Scan(...) is unchanged.
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		%s
 		LIMIT $%d OFFSET $%d;
 	`, whereSQL, orderByClause, limitIdx, offsetIdx)

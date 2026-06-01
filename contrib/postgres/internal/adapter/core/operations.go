@@ -10,6 +10,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -124,6 +125,13 @@ func (p *PostgresOperations) Create(ctx context.Context, tableName string, data 
 	data["active"] = true
 	data["date_created"] = autoTimestampValue(shadowTimestampType(tableName, "date_created", columnTypes), now)
 	data["date_modified"] = autoTimestampValue(shadowTimestampType(tableName, "date_modified", columnTypes), now)
+
+	// SHADOW: compare the descriptor-derived autoTimestamp VALUE against the
+	// reflection-derived value for the SAME `now` (not just the type axis). The
+	// reflection-derived value (already stamped above) drives the write; this only
+	// records the agreement metric + WARNs on a value divergence.
+	shadowAssertAutoTimestamp(tableName, "date_created", columnTypes, now)
+	shadowAssertAutoTimestamp(tableName, "date_modified", columnTypes, now)
 
 	// Build INSERT query (only columns that exist in the table)
 	columns := make([]string, 0, len(data))
@@ -291,6 +299,11 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 	dateCreatedType := shadowTimestampType(tableName, "date_created", columnTypes)
 	data["date_modified"] = autoTimestampValue(dateModifiedType, now)
 
+	// SHADOW: value-axis agreement check for the only auto-stamped column on Update
+	// (date_modified). date_created is preserved from the existing row, not stamped,
+	// so it is not compared here. Observe-only; reflection still drives the write.
+	shadowAssertAutoTimestamp(tableName, "date_modified", columnTypes, now)
+
 	// Preserve original creation data.
 	// scanRowToMap normalises TIMESTAMP columns to int64 unix ms for the
 	// caller, so for TIMESTAMP columns we must convert back to time.Time
@@ -396,6 +409,9 @@ func (p *PostgresOperations) Delete(ctx context.Context, tableName string, id st
 	}
 	now := time.Now().UTC()
 	dateModifiedType := shadowTimestampType(tableName, "date_modified", columnTypes)
+	// SHADOW: value-axis agreement check for the date_modified stamp written by the
+	// soft-delete UPDATE below. Observe-only; reflection still drives the write.
+	shadowAssertAutoTimestamp(tableName, "date_modified", columnTypes, now)
 	// Soft-delete is idempotent: deleting an already-inactive row is not an
 	// error (prior behavior required active = true in WHERE, which caused
 	// RECORD_NOT_FOUND when users ran Delete from the inactive list).
@@ -1156,15 +1172,73 @@ func autoTimestampValue(columnType string, now time.Time) any {
 //
 // The descriptor registry (schema.Global, populated by schema.Build() at the
 // container wirePoint) is the future source of column truth. This wave runs it
-// in SHADOW: the descriptor-derived column set and the descriptor column types
-// are computed ALONGSIDE the existing reflection path (getTableColumns /
-// getTableColumnTypes), the two are asserted to agree, and on ANY disagreement a
-// structured WARN is logged and the code FALLS BACK to the reflection-derived
-// data — reflection remains authoritative this wave. Net behavior change is ZERO;
-// the agreement metric is now observable (the Q-RC4 0-disagreement gate
-// prerequisite for Phase 4). The unknown-column silent-drop LOG line is NOT
-// flipped to ERROR — that is Phase 4 (a runtime soak gate), out of scope here.
+// in SHADOW: the descriptor-derived column set, the descriptor column types, AND
+// the descriptor-derived auto-timestamp VALUE are computed ALONGSIDE the existing
+// reflection path (getTableColumns / getTableColumnTypes), the two are asserted to
+// agree, and on ANY disagreement a structured WARN is logged and the code FALLS
+// BACK to the reflection-derived data — reflection remains authoritative this wave.
+// Net behavior change is ZERO; the agreement metric is now observable (the Q-RC4
+// 0-disagreement gate prerequisite for Phase 4). The unknown-column silent-drop LOG
+// line is NOT flipped to ERROR — that is Phase 4 (a runtime soak gate), out of
+// scope here.
+//
+// Phase-2 wiring (this wave, observe-only) over the Phase-1 shadow-rewire:
+//   - Every shadow comparison (column-set, drop-set, timestamp-type, and the NEW
+//     timestamp-VALUE check) records an AGREE / DISAGREE tick into the package-level
+//     shadowMetric so the per-write agreement rate is observable — the Phase-4 flip
+//     is gated on this metric reading 0 disagreements, which previously could only be
+//     inferred from the ABSENCE of WARN lines. ShadowAgreementSnapshot() exposes the
+//     running counts.
+//   - shadowAssertAutoTimestamp closes the gap the Phase-1 type-axis check left open:
+//     it computes the autoTimestampValue the DESCRIPTOR type would produce for the
+//     same `now` and compares it (kind + concrete value) against the value the
+//     REFLECTED type produces. The reflected value is still what is stamped into the
+//     row; this only surfaces a divergence in the actually-written value.
+//
+// NO new env flag / fail-fast / boot-blocker is introduced: the per-call shadow is
+// unconditionally WARN-only (reflection authoritative), matching the Phase-1
+// convention. The only enforce gate in this plan is the boot-shot's
+// SCHEMA_BOOTSHOT_ENFORCE (schema_validator.go), which is unrelated to this per-call
+// path and untouched here.
 // ---------------------------------------------------------------------------
+
+// shadowCrudMetric is the structured agreement/disagreement counter for the
+// per-write descriptor-vs-reflection shadow comparisons. Each shadow assertion
+// records exactly one tick (AGREE or DISAGREE) per dimension it checks. The
+// Phase-4 enforce flip (descriptor becomes authoritative; reflection fallback
+// removed) is gated on Disagree reading 0 across a soak window — this counter is
+// what makes that gate observable rather than inferred from the absence of WARN
+// lines.
+type shadowCrudMetric struct {
+	agree    atomic.Int64
+	disagree atomic.Int64
+}
+
+// shadowMetric is the package-level singleton. It is process-wide (the shadow path
+// has no per-instance state) and lock-free.
+var shadowMetric shadowCrudMetric
+
+// ShadowAgreementSnapshot returns the running (agree, disagree) shadow-comparison
+// counts. Exported so a soak harness / health endpoint can read the agreement rate
+// without reaching into the unexported counter. Observe-only.
+func ShadowAgreementSnapshot() (agree, disagree int64) {
+	return shadowMetric.agree.Load(), shadowMetric.disagree.Load()
+}
+
+// shadowRecord ticks the agreement metric and, on disagreement, emits a structured
+// pipe-delimited WARN (mirroring the AUTHZ_WS_SHADOW_PASS shape in
+// workspace_operations.go: a stable prefix + key=val fields). `detail` carries the
+// already-formatted per-dimension diff. It NEVER returns an error and NEVER affects
+// the write — reflection stays authoritative.
+func shadowRecord(dimension, tableName string, agreed bool, detail string) {
+	if agreed {
+		shadowMetric.agree.Add(1)
+		return
+	}
+	shadowMetric.disagree.Add(1)
+	log.Printf("WARN shadow-crud | mode=SHADOW(reflection-authoritative) | dim=%s | table=%q | %s",
+		dimension, tableName, detail)
+}
 
 // descriptorColumnSet returns (validColumns, ok) for tableName from the descriptor
 // registry. ok=false when the table is not registry-covered (e.g. an out-of-scope
@@ -1186,10 +1260,16 @@ func descriptorColumnSet(tableName string) (map[string]bool, bool) {
 }
 
 // shadowAssertColumnSet compares the descriptor-derived column set against the
-// reflection-derived set for tableName and logs a structured WARN listing the
-// per-side diffs on disagreement. It NEVER returns an error and NEVER mutates the
-// reflected set — reflection stays authoritative. A table absent from the registry
-// is a no-op (nothing to assert).
+// reflection-derived set for tableName, ticks the agreement metric, and on
+// disagreement logs a structured WARN listing the per-side diffs. It NEVER returns
+// an error and NEVER mutates the reflected set — reflection stays authoritative. A
+// table absent from the registry is a no-op (nothing to assert; not counted —
+// only registry-covered tables contribute to the agreement rate).
+//
+// The descriptor set is already proto-(db).ignore-stripped by schema.Classify
+// (rule 3: an annotated *_string mirror never becomes a ColumnInfo), so it is
+// apples-to-apples with the reflected information_schema set, which likewise never
+// contains those proto-only mirror fields. No extra stripping is needed here.
 func shadowAssertColumnSet(tableName string, reflected map[string]bool) {
 	derived, ok := descriptorColumnSet(tableName)
 	if !ok {
@@ -1207,12 +1287,13 @@ func shadowAssertColumnSet(tableName string, reflected map[string]bool) {
 		}
 	}
 	if len(derivedOnly) == 0 && len(reflectedOnly) == 0 {
+		shadowRecord("column-set", tableName, true, "")
 		return
 	}
 	sort.Strings(derivedOnly)
 	sort.Strings(reflectedOnly)
-	log.Printf("WARN shadow-crud: column-set disagreement table=%q derived_only=%v reflected_only=%v (shadow: falling back to reflection)",
-		tableName, derivedOnly, reflectedOnly)
+	shadowRecord("column-set", tableName, false,
+		fmt.Sprintf("derived_only=%v | reflected_only=%v | note=falling-back-to-reflection", derivedOnly, reflectedOnly))
 }
 
 // descriptorTimestampType returns the autoTimestampValue columnType string for a
@@ -1248,11 +1329,59 @@ func shadowTimestampType(tableName, column string, reflectedTypes map[string]str
 	derivedIsBigint := derived == "bigint"
 	reflectedIsBigint := reflected == "bigint"
 	if derivedIsBigint != reflectedIsBigint {
-		log.Printf("WARN shadow-crud: timestamp-type disagreement table=%q column=%q derived=%q reflected=%q (shadow: falling back to reflection)",
-			tableName, column, derived, reflected)
+		shadowRecord("timestamp-type", tableName, false,
+			fmt.Sprintf("column=%q | derived=%q | reflected=%q | note=falling-back-to-reflection", column, derived, reflected))
 		return reflected
 	}
+	shadowRecord("timestamp-type", tableName, true, "")
 	return reflected
+}
+
+// shadowAssertAutoTimestamp closes the gap the Phase-1 type-axis check left open: it
+// computes the autoTimestampValue the DESCRIPTOR-derived type would produce for the
+// SAME `now`, and compares it (Go kind + concrete value) against the value the
+// REFLECTED type produces. The reflected value is what the caller has already
+// stamped into the row; this only surfaces a divergence in the actually-written
+// VALUE (e.g. descriptor says bigint-millis -> int64 ms while the live column is
+// TIMESTAMPTZ -> time.Time). It ticks the agreement metric and WARNs on divergence.
+//
+// A table/column the descriptor does not know is a no-op (nothing to assert; not
+// counted) — reflection silently drives the write, exactly as before. Observe-only;
+// reflection stays authoritative.
+func shadowAssertAutoTimestamp(tableName, column string, reflectedTypes map[string]string, now time.Time) {
+	derivedType, ok := descriptorTimestampType(tableName, column)
+	if !ok {
+		return
+	}
+	reflectedType := reflectedTypes[column]
+	derivedVal := autoTimestampValue(derivedType, now)
+	reflectedVal := autoTimestampValue(reflectedType, now)
+	if autoTimestampValuesEqual(derivedVal, reflectedVal) {
+		shadowRecord("timestamp-value", tableName, true, "")
+		return
+	}
+	shadowRecord("timestamp-value", tableName, false,
+		fmt.Sprintf("column=%q | derived=%T(%v) | reflected=%T(%v) | note=reflection-value-still-written",
+			column, derivedVal, derivedVal, reflectedVal, reflectedVal))
+}
+
+// autoTimestampValuesEqual compares two autoTimestampValue results on both Go type
+// and concrete value. autoTimestampValue returns either int64 unix-ms (bigint) or a
+// time.Time; a mismatch in EITHER the type or the value is a divergence. Pinned to
+// the two shapes autoTimestampValue can return so the comparison stays exact rather
+// than relying on reflect.DeepEqual across unrelated kinds.
+func autoTimestampValuesEqual(a, b any) bool {
+	switch av := a.(type) {
+	case int64:
+		bv, ok := b.(int64)
+		return ok && av == bv
+	case time.Time:
+		bv, ok := b.(time.Time)
+		return ok && av.Equal(bv)
+	default:
+		// autoTimestampValue never returns any other type; treat as divergent.
+		return false
+	}
 }
 
 // shadowAssertDropSet compares the would-be unknown-column DROP set computed
@@ -1296,12 +1425,13 @@ func shadowAssertDropSet(tableName string, data map[string]any, reflectedSkipped
 		}
 	}
 	if len(derivedOnly) == 0 && len(reflectedOnly) == 0 {
+		shadowRecord("drop-set", tableName, true, "")
 		return
 	}
 	sort.Strings(derivedOnly)
 	sort.Strings(reflectedOnly)
-	log.Printf("WARN shadow-crud: drop-set disagreement table=%q descriptor_would_drop_only=%v reflection_dropped_only=%v (shadow: reflection still drives the write)",
-		tableName, derivedOnly, reflectedOnly)
+	shadowRecord("drop-set", tableName, false,
+		fmt.Sprintf("descriptor_would_drop_only=%v | reflection_dropped_only=%v | note=reflection-still-drives-the-write", derivedOnly, reflectedOnly))
 }
 
 // scanRowToMap scans a single row into a map with snake_case keys (matching DB columns).

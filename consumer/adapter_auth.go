@@ -338,6 +338,62 @@ func (a *AuthAdapter) GetSessionWorkspaceContext(ctx context.Context, token stri
 	return dbAuth.GetSessionWorkspaceContext(ctx, token)
 }
 
+// SessionIdentity is the coherent identity snapshot resolved from a single
+// session token: the authenticated user plus the workspace binding that token
+// currently points at.
+//
+// Security-critical (P3-W3 — stale-binding carry-over on principal switch):
+// every field here is keyed by the SAME live cookie token, so the workspace
+// binding ALWAYS reflects the post-switch session row, never a cached or
+// torn pre-switch value. See AuthAdapter.ResolveSessionIdentity.
+type SessionIdentity struct {
+	UserID          string
+	WorkspaceID     string
+	WorkspaceUserID string
+}
+
+// ResolveSessionIdentity validates the session token and resolves the
+// workspace binding it points at, in that order, keyed by a SINGLE token.
+//
+// Why this exists (P3-W3 — eliminate stale-permission carry-over on principal
+// switch): the prior SessionMiddleware flow issued ValidateSession(token) and
+// GetSessionWorkspaceContext(token) as two independent reads. After a principal
+// switch A→B the cookie token is either rotated (workspace change) or the
+// in-place session row is mutated (same workspace, new binding). In both cases
+// the binding the request must use is the one the CURRENT cookie token resolves
+// to. Splitting the resolution across two reads opened a torn-read window: a
+// switch committing between the two reads could stamp the request with a userID
+// from one snapshot and a workspace binding from another.
+//
+// Collapsing resolution behind one accessor keyed on one token closes that
+// window. The workspace binding is read ONLY after ValidateSession confirms the
+// token names a live, non-expired, active session — so a session that was
+// rotated out from under this request (old token → active=false) fails the
+// validate step and never reaches the workspace read. There is no per-request
+// cache here: every request re-resolves from the cookie token, so B's request
+// can never observe A's binding.
+//
+// Returns an error only when the token does not name a valid session (the
+// caller redirects to login). A valid session with no workspace selected yet
+// returns empty WorkspaceID/WorkspaceUserID — that is a legitimate
+// pre-selection state, NOT a denial, and is preserved exactly as before.
+func (a *AuthAdapter) ResolveSessionIdentity(ctx context.Context, token string) (SessionIdentity, error) {
+	userID, err := a.ValidateSession(ctx, token)
+	if err != nil {
+		return SessionIdentity{}, err
+	}
+	// Workspace binding is keyed by the same validated token, so it reflects
+	// the post-switch session row. NULL/empty columns (e.g. workspace_user_id
+	// after an operator→client in-place switch) surface as empty strings, which
+	// is the correct post-switch value — not a carry-over from the old binding.
+	wsUserID, wsID := a.GetSessionWorkspaceContext(ctx, token)
+	return SessionIdentity{
+		UserID:          userID,
+		WorkspaceID:     wsID,
+		WorkspaceUserID: wsUserID,
+	}, nil
+}
+
 // --- Re-export error codes for consumer convenience ---
 
 const (

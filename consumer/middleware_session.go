@@ -75,27 +75,39 @@ func (m *SessionMiddleware) Handler(next http.Handler) http.Handler {
 			return
 		}
 
-		// Read session token from cookie
+		// Read session token from cookie. This is the SINGLE source of binding
+		// truth for the request: after a principal switch A→B the cookie holds
+		// either the rotated token (workspace change) or the same token whose
+		// session row was mutated in place (same workspace, new binding). Either
+		// way, everything below is keyed by THIS token, so the request always
+		// resolves B's binding — never a cached or carried-over copy of A's.
 		token := m.getSessionCookie(r)
 		if token == "" {
 			m.redirectToLogin(w, r)
 			return
 		}
 
-		// Validate session via auth adapter
-		userID, err := m.AuthAdapter.ValidateSession(r.Context(), token)
+		// Resolve the user + workspace binding as one coherent snapshot keyed by
+		// the single cookie token (P3-W3). ResolveSessionIdentity validates the
+		// session first, then reads the workspace binding from the SAME token, so
+		// the userID and the workspace context can never be torn across a
+		// concurrent switch. There is no per-request identity cache: every
+		// request re-resolves from the live cookie token.
+		identity, err := m.AuthAdapter.ResolveSessionIdentity(r.Context(), token)
 		if err != nil {
-			// Invalid or expired session — clear cookie and redirect
+			// Invalid, expired, or rotated-out session — clear cookie and redirect.
+			// (A token rotated out by a switch is now active=false and fails the
+			// validate step, so a stale token can never resolve a live binding.)
 			m.clearSessionCookie(w)
 			m.redirectToLogin(w, r)
 			return
 		}
 
-		// Fetch workspace context stored on the session row.
-		wsUserID, wsID := m.AuthAdapter.GetSessionWorkspaceContext(r.Context(), token)
-
-		// Inject full session identity (user, workspace, email) into request context.
-		ctx := WithSessionIdentity(r.Context(), userID, wsID, wsUserID, "")
+		// Inject full session identity (user, workspace, email) into request
+		// context. An empty WorkspaceID/WorkspaceUserID here is a legitimate
+		// pre-selection state for a valid session — preserved exactly, NOT a
+		// denial, and NOT a carry-over from any prior binding.
+		ctx := WithSessionIdentity(r.Context(), identity.UserID, identity.WorkspaceID, identity.WorkspaceUserID, "")
 		ctx = context.WithValue(ctx, ContextKeySessionToken, token)
 
 		next.ServeHTTP(w, r.WithContext(ctx))

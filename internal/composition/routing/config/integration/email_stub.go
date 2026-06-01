@@ -1,4 +1,4 @@
-//go:build (!google || !gmail) && (!microsoft || !microsoftgraph)
+//go:build (!google || !gmail) && (!microsoft || !microsoftgraph) && !microsoft_email
 
 package integration
 

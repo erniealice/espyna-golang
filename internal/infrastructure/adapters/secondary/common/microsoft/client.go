@@ -1,4 +1,4 @@
-//go:build microsoft
+//go:build microsoft || microsoft_email
 
 package microsoft
 

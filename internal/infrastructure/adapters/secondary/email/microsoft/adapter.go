@@ -1,4 +1,4 @@
-//go:build microsoft && microsoftgraph
+//go:build (microsoft && microsoftgraph) || microsoft_email
 
 package microsoft
 

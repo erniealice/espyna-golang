@@ -135,11 +135,10 @@ func (r *PostgresRevenueTaxLineRepository) DeleteByRevenueID(ctx context.Context
 	if r.db == nil {
 		return fmt.Errorf("DeleteByRevenueID requires raw *sql.DB")
 	}
-	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM revenue_tax_line WHERE revenue_id = $1`,
-		revenueID,
-	)
-	if err != nil {
+	// Hoisted into the sanctioned core write funnel (P2 Phase-3 Q-WRITE-PREPARE).
+	// HardDeleteByColumn emits the byte-equivalent
+	// "DELETE FROM revenue_tax_line WHERE revenue_id = $1".
+	if _, err := postgresCore.HardDeleteByColumn(ctx, r.db, "revenue_tax_line", "revenue_id", revenueID); err != nil {
 		return fmt.Errorf("DeleteByRevenueID: %w", err)
 	}
 	return nil

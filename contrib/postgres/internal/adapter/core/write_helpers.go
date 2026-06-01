@@ -76,6 +76,49 @@ func UpdateWithWorkspaceGuard(
 	return affected, nil
 }
 
+// HardDeleteByColumn runs a physical DELETE scoped by a single equality
+// predicate (e.g. "DELETE FROM <table> WHERE <column> = $1") and returns the
+// number of rows deleted. It is the sanctioned funnel for the small set of
+// adapters that must HARD-delete a set of rows keyed by a foreign column
+// rather than soft-delete a single row by primary key (the generic
+// PostgresOperations.Delete path).
+//
+//	table  — the (already-trusted, not user-supplied) table name.
+//	column — the (already-trusted, not user-supplied) predicate column name.
+//	value  — the value bound to the single $1 placeholder.
+//
+// The emitted SQL is exactly:
+//
+//	DELETE FROM <table> WHERE <column> = $1
+//
+// which is byte-equivalent to the open-coded statements this helper replaces.
+// Callers that previously discarded RowsAffected may ignore the returned count.
+func HardDeleteByColumn(
+	ctx context.Context,
+	db interfaces.DBExecutor,
+	table string,
+	column string,
+	value any,
+) (int64, error) {
+	if table == "" {
+		return 0, fmt.Errorf("HardDeleteByColumn: table name is required")
+	}
+	if column == "" {
+		return 0, fmt.Errorf("HardDeleteByColumn: column name is required")
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s = $1", table, column)
+	res, err := db.ExecContext(ctx, query, value)
+	if err != nil {
+		return 0, fmt.Errorf("HardDeleteByColumn: delete %s: %w", table, err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("HardDeleteByColumn: rows affected for %s: %w", table, err)
+	}
+	return affected, nil
+}
+
 // BulkInsertFromSelect runs a single set-based INSERT (typically an
 // "INSERT INTO <table> (...) SELECT ... FROM <source> WHERE ..." statement) and
 // returns the number of rows inserted. It is the A7 fix for converting per-row

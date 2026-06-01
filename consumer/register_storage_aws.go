@@ -1,4 +1,4 @@
-//go:build s3
+//go:build aws
 
 package consumer
 

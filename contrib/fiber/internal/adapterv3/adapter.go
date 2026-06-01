@@ -119,6 +119,15 @@ func (a *FiberV3Adapter) Initialize(container any) error {
 		})
 	})
 
+	// Add root endpoint — response shape mirrors vanilla routes.go setupBasicRoutes.
+	app.Get("/", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Espyna API (Fiber v3)",
+			"version": "1.0.0",
+		})
+	})
+
 	log.Printf("Fiber v3 adapter initialized successfully")
 	return nil
 }

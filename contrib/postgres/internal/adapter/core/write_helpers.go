@@ -119,6 +119,61 @@ func HardDeleteByColumn(
 	return affected, nil
 }
 
+// UpdateColumnByID runs a single-row UPDATE scoped by primary key ONLY (no
+// workspace predicate) and returns the number of rows affected. It is the
+// sanctioned funnel for the small set of adapters that legitimately update a
+// row keyed by `id` alone — typically a soft-delete (SET active = false) or a
+// single-column write on a child row whose tenant is already established by its
+// parent. For UPDATEs that MUST be tenant-scoped, use UpdateWithWorkspaceGuard
+// instead; do NOT reach for this helper to drop a workspace predicate.
+//
+//	table     — the (already-trusted, not user-supplied) table name.
+//	setClause — the column assignments WITHOUT the leading "SET", using
+//	            positional placeholders starting at $1 (e.g. "active = false" or
+//	            "quantity_delivered = $1").
+//	setArgs   — the args bound to the placeholders in setClause, in order. May be
+//	            empty when the setClause is fully literal (e.g. "active = false").
+//	id        — the row primary key, bound to the trailing $N placeholder.
+//
+// The id placeholder is appended AFTER setArgs, so the emitted SQL is exactly:
+//
+//	UPDATE <table> SET <setClause> WHERE id = $N
+//
+// which is byte-equivalent to the open-coded statements this helper replaces.
+// Callers that previously discarded RowsAffected may ignore the returned count.
+func UpdateColumnByID(
+	ctx context.Context,
+	db interfaces.DBExecutor,
+	table string,
+	setClause string,
+	setArgs []any,
+	id string,
+) (int64, error) {
+	if table == "" {
+		return 0, fmt.Errorf("UpdateColumnByID: table name is required")
+	}
+	if setClause == "" {
+		return 0, fmt.Errorf("UpdateColumnByID: set clause is required")
+	}
+
+	idPos := len(setArgs) + 1
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE id = $%d", table, setClause, idPos)
+
+	args := make([]any, 0, len(setArgs)+1)
+	args = append(args, setArgs...)
+	args = append(args, id)
+
+	res, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("UpdateColumnByID: update %s: %w", table, err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("UpdateColumnByID: rows affected for %s: %w", table, err)
+	}
+	return affected, nil
+}
+
 // BulkInsertFromSelect runs a single set-based INSERT (typically an
 // "INSERT INTO <table> (...) SELECT ... FROM <source> WHERE ..." statement) and
 // returns the number of rows inserted. It is the A7 fix for converting per-row

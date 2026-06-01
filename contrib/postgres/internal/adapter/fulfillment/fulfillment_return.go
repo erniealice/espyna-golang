@@ -210,11 +210,11 @@ func (r *PostgresFulfillmentReturnRepository) DeleteFulfillmentReturn(ctx contex
 		return fmt.Errorf("fulfillment return ID is required")
 	}
 
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE fulfillment_return SET active = false WHERE id = $1`,
-		id,
-	)
-	if err != nil {
+	// Hoisted into the sanctioned core write funnel (P2 Phase-3 Q-WRITE-PREPARE,
+	// write-hoist-clean). UpdateColumnByID emits the byte-equivalent
+	// "UPDATE fulfillment_return SET active = false WHERE id = $1"; the literal
+	// table name and id-only predicate are preserved (no workspace guard added).
+	if _, err := postgresCore.UpdateColumnByID(ctx, r.db, "fulfillment_return", "active = false", nil, id); err != nil {
 		return fmt.Errorf("failed to delete fulfillment return: %w", err)
 	}
 	return nil

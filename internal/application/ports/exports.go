@@ -329,6 +329,11 @@ const (
 	EntityEventTag           = security.EntityEventTag
 	EntityEventTagAssignment = security.EntityEventTagAssignment
 
+	// Communication Domain
+	EntityConversation            = security.EntityConversation
+	EntityConversationPost        = security.EntityConversationPost
+	EntityConversationReadReceipt = security.EntityConversationReadReceipt
+
 	// Framework Domain
 	EntityFramework = security.EntityFramework
 	EntityObjective = security.EntityObjective

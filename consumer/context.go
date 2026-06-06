@@ -64,3 +64,15 @@ func WithWorkspaceID(ctx context.Context, wsID string) context.Context {
 func WithWorkspaceUserID(ctx context.Context, wsUserID string) context.Context {
 	return internalctx.WithWorkspaceUserID(ctx, wsUserID)
 }
+
+// WithActingAsClientID stores the session's acting-as client scope on the
+// context (Communication directive Q-MSG-5). Empty for staff principals.
+func WithActingAsClientID(ctx context.Context, clientID string) context.Context {
+	return internalctx.WithActingAsClientID(ctx, clientID)
+}
+
+// GetActingAsClientIDFromContext returns the acting-as client scope set by the
+// portal/auth middleware, or "" when the caller is staff (workspace-wide).
+func GetActingAsClientIDFromContext(ctx context.Context) string {
+	return internalctx.GetActingAsClientIDFromContext(ctx)
+}

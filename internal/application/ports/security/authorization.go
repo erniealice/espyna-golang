@@ -159,6 +159,11 @@ const (
 	EntityEventTag           = "event_tag"
 	EntityEventTagAssignment = "event_tag_assignment"
 
+	// Communication Domain (3 active entities; conversation_participant is a v2-queried seam with no use cases)
+	EntityConversation            = "conversation"
+	EntityConversationPost        = "conversation_post"
+	EntityConversationReadReceipt = "conversation_read_receipt"
+
 	// Framework Domain (3 entities)
 	EntityFramework = "framework"
 	EntityObjective = "objective"

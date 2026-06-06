@@ -54,6 +54,15 @@ func WithSessionIdentity(ctx context.Context, userID, workspaceID, workspaceUser
 	return internalctx.WithSessionIdentity(ctx, userID, workspaceID, workspaceUserID, email)
 }
 
+// WithActingAsClientID creates a new context carrying the session's acting-as
+// client scope (the client a direct or delegate client principal is acting as).
+// Client-scoped use cases + the client portal read this to row-scope; "" means
+// no client scope (staff/operator). Re-exported so block/view layers can set or
+// read it without importing the consumer package.
+func WithActingAsClientID(ctx context.Context, clientID string) context.Context {
+	return internalctx.WithActingAsClientID(ctx, clientID)
+}
+
 // --- Readers (extract identity from a context) ---
 
 // ExtractUserIDFromContext extracts the user ID from context (set by auth
@@ -83,4 +92,11 @@ func GetWorkspaceIDFromContext(ctx context.Context) string {
 // Wraps the internal ExtractWorkspaceUserIDFromContext (public name mirrors consumer).
 func GetWorkspaceUserIDFromContext(ctx context.Context) string {
 	return internalctx.ExtractWorkspaceUserIDFromContext(ctx)
+}
+
+// GetActingAsClientIDFromContext returns the acting-as client scope, or "" if
+// none is set (fail-closed for client row-scoping). Block/view layers read this
+// to gate the client portal without importing the consumer package.
+func GetActingAsClientIDFromContext(ctx context.Context) string {
+	return internalctx.GetActingAsClientIDFromContext(ctx)
 }

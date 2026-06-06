@@ -16,6 +16,7 @@ func GetAllDomainConfigurations(useCases *usecases.Aggregate, engineService port
 		domain.ConfigureCommonDomain(useCases.Common),
 		domain.ConfigureEntityDomain(useCases.Entity),
 		domain.ConfigureEventDomain(useCases.Event),
+		domain.ConfigureCommunicationDomain(useCases.Communication),
 		domain.ConfigureFulfillmentDomain(useCases.Fulfillment),
 		domain.ConfigureIntegrationDomain(useCases.Integration),
 		domain.ConfigureInventoryDomain(useCases.Inventory),

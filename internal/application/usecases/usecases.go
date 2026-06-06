@@ -4,6 +4,7 @@ import (
 	// Domain use case packages
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/communication"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/document"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/event"
@@ -45,28 +46,29 @@ import (
 //   - Payroll:      2 entities (PayrollRun, PayrollRemittance)
 //   - Fulfillment:  1 entity (Fulfillment — placeholder, use cases pending)
 type Aggregate struct {
-	Common       *common.CommonUseCases
-	Document     *document.UseCases
-	Entity       *entity.EntityUseCases
-	Event        *event.EventUseCases
-	Expenditure  *expenditure.ExpenditureUseCases
-	Finance      *finance.FinanceUseCases
-	Fulfillment  *fulfillment.UseCases
-	Funding      *funding.FundingUseCases
-	Inventory    *inventory.InventoryUseCases
-	Ledger       *ledger.LedgerUseCases
-	Operation    *operation.OperationUseCases
-	Payroll      *payroll.PayrollUseCases
-	Procurement  *procurement.ProcurementUseCases
-	Tax          *tax.TaxUseCases
-	Tenancy      *tenancy.TenancyUseCases
-	Treasury     *treasury.TreasuryUseCases
-	Product      *product.ProductUseCases
-	Revenue      *revenue.RevenueUseCases
-	Subscription *subscription.SubscriptionUseCases
-	Workflow     *workflow.WorkflowUseCases
-	Integration  *integration.IntegrationUseCases
-	Asset        *asset.AssetUseCases // Phase 1-2: asset typed stack (adapter in Phase 4)
+	Common        *common.CommonUseCases
+	Document      *document.UseCases
+	Entity        *entity.EntityUseCases
+	Event         *event.EventUseCases
+	Communication *communication.CommunicationUseCases
+	Expenditure   *expenditure.ExpenditureUseCases
+	Finance       *finance.FinanceUseCases
+	Fulfillment   *fulfillment.UseCases
+	Funding       *funding.FundingUseCases
+	Inventory     *inventory.InventoryUseCases
+	Ledger        *ledger.LedgerUseCases
+	Operation     *operation.OperationUseCases
+	Payroll       *payroll.PayrollUseCases
+	Procurement   *procurement.ProcurementUseCases
+	Tax           *tax.TaxUseCases
+	Tenancy       *tenancy.TenancyUseCases
+	Treasury      *treasury.TreasuryUseCases
+	Product       *product.ProductUseCases
+	Revenue       *revenue.RevenueUseCases
+	Subscription  *subscription.SubscriptionUseCases
+	Workflow      *workflow.WorkflowUseCases
+	Integration   *integration.IntegrationUseCases
+	Asset         *asset.AssetUseCases // Phase 1-2: asset typed stack (adapter in Phase 4)
 	// Service is the service-driven domain sub-aggregate added by
 	// 20260518-hexagonal-strict-adherence Phase 1.D — hosts use cases
 	// for cross-cutting concerns (audit query, eventually reporting/
@@ -86,6 +88,7 @@ func NewAggregate(
 	documentUC *document.UseCases,
 	entityUC *entity.EntityUseCases,
 	eventUC *event.EventUseCases,
+	communicationUC *communication.CommunicationUseCases,
 	expenditureUC *expenditure.ExpenditureUseCases,
 	financeUC *finance.FinanceUseCases,
 	fulfillmentUC *fulfillment.UseCases,
@@ -107,29 +110,30 @@ func NewAggregate(
 	serviceUC *service.ServiceUseCases,
 ) *Aggregate {
 	return &Aggregate{
-		Common:       commonUC,
-		Document:     documentUC,
-		Entity:       entityUC,
-		Event:        eventUC,
-		Expenditure:  expenditureUC,
-		Finance:      financeUC,
-		Fulfillment:  fulfillmentUC,
-		Funding:      fundingUC,
-		Inventory:    inventoryUC,
-		Ledger:       ledgerUC,
-		Operation:    operationUC,
-		Payroll:      payrollUC,
-		Procurement:  procurementUC,
-		Tax:          taxUC,
-		Tenancy:      tenancyUC,
-		Treasury:     treasuryUC,
-		Product:      productUC,
-		Revenue:      revenueUC,
-		Subscription: subscriptionUC,
-		Workflow:     workflowUC,
-		Integration:  integrationUC,
-		Asset:        assetUC,
-		Service:      serviceUC,
+		Common:        commonUC,
+		Document:      documentUC,
+		Entity:        entityUC,
+		Event:         eventUC,
+		Communication: communicationUC,
+		Expenditure:   expenditureUC,
+		Finance:       financeUC,
+		Fulfillment:   fulfillmentUC,
+		Funding:       fundingUC,
+		Inventory:     inventoryUC,
+		Ledger:        ledgerUC,
+		Operation:     operationUC,
+		Payroll:       payrollUC,
+		Procurement:   procurementUC,
+		Tax:           taxUC,
+		Tenancy:       tenancyUC,
+		Treasury:      treasuryUC,
+		Product:       productUC,
+		Revenue:       revenueUC,
+		Subscription:  subscriptionUC,
+		Workflow:      workflowUC,
+		Integration:   integrationUC,
+		Asset:         assetUC,
+		Service:       serviceUC,
 	}
 }
 
@@ -137,28 +141,29 @@ func NewAggregate(
 // This is useful for testing or gradual initialization scenarios.
 func NewEmptyAggregate() *Aggregate {
 	return &Aggregate{
-		Common:       &common.CommonUseCases{},
-		Document:     &document.UseCases{},
-		Entity:       &entity.EntityUseCases{},
-		Event:        &event.EventUseCases{},
-		Expenditure:  &expenditure.ExpenditureUseCases{},
-		Finance:      &finance.FinanceUseCases{},
-		Fulfillment:  &fulfillment.UseCases{},
-		Funding:      &funding.FundingUseCases{},
-		Inventory:    &inventory.InventoryUseCases{},
-		Ledger:       &ledger.LedgerUseCases{},
-		Operation:    &operation.OperationUseCases{},
-		Payroll:      &payroll.PayrollUseCases{},
-		Procurement:  &procurement.ProcurementUseCases{},
-		Tax:          &tax.TaxUseCases{},
-		Tenancy:      &tenancy.TenancyUseCases{},
-		Treasury:     &treasury.TreasuryUseCases{},
-		Product:      &product.ProductUseCases{},
-		Revenue:      &revenue.RevenueUseCases{},
-		Subscription: &subscription.SubscriptionUseCases{},
-		Workflow:     &workflow.WorkflowUseCases{},
-		Integration:  &integration.IntegrationUseCases{},
-		Asset:        &asset.AssetUseCases{},
-		Service:      &service.ServiceUseCases{},
+		Common:        &common.CommonUseCases{},
+		Document:      &document.UseCases{},
+		Entity:        &entity.EntityUseCases{},
+		Event:         &event.EventUseCases{},
+		Communication: &communication.CommunicationUseCases{},
+		Expenditure:   &expenditure.ExpenditureUseCases{},
+		Finance:       &finance.FinanceUseCases{},
+		Fulfillment:   &fulfillment.UseCases{},
+		Funding:       &funding.FundingUseCases{},
+		Inventory:     &inventory.InventoryUseCases{},
+		Ledger:        &ledger.LedgerUseCases{},
+		Operation:     &operation.OperationUseCases{},
+		Payroll:       &payroll.PayrollUseCases{},
+		Procurement:   &procurement.ProcurementUseCases{},
+		Tax:           &tax.TaxUseCases{},
+		Tenancy:       &tenancy.TenancyUseCases{},
+		Treasury:      &treasury.TreasuryUseCases{},
+		Product:       &product.ProductUseCases{},
+		Revenue:       &revenue.RevenueUseCases{},
+		Subscription:  &subscription.SubscriptionUseCases{},
+		Workflow:      &workflow.WorkflowUseCases{},
+		Integration:   &integration.IntegrationUseCases{},
+		Asset:         &asset.AssetUseCases{},
+		Service:       &service.ServiceUseCases{},
 	}
 }

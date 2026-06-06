@@ -99,6 +99,14 @@ const (
 	EventTagAssignment = "event_tag_assignment"
 )
 
+// Communication domain
+const (
+	Conversation            = "conversation"
+	ConversationPost        = "conversation_post"
+	ConversationReadReceipt = "conversation_read_receipt"
+	ConversationParticipant = "conversation_participant"
+)
+
 // Product domain
 const (
 	Collection           = "collection"
@@ -341,6 +349,11 @@ var EventEntities = []string{
 	Event, EventAttendee, EventAttribute, EventClient,
 	EventOccurrence, EventProduct, EventRecurrence, EventResource,
 	EventTag, EventTagAssignment,
+}
+
+// CommunicationEntities lists all entity IDs in the Communication domain.
+var CommunicationEntities = []string{
+	Conversation, ConversationPost, ConversationReadReceipt, ConversationParticipant,
 }
 
 // ProductEntities lists all entity IDs in the Product domain.

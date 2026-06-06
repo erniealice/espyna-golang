@@ -41,6 +41,7 @@ import (
 	// Domain use cases (for proper initialization)
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/common"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/communication"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/document"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/event"
@@ -125,6 +126,12 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	if err != nil {
 		// Only Event domain fails - use empty struct for this domain only
 		eventUC = &event.EventUseCases{}
+	}
+
+	communicationUC, err := uci.initializeCommunicationUseCases(container)
+	if err != nil {
+		// Only Communication domain fails - use empty struct for this domain only
+		communicationUC = &communication.CommunicationUseCases{}
 	}
 
 	ledgerUC, err := uci.initializeLedgerUseCases(container)
@@ -310,6 +317,7 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		documentUC,
 		entityUC,
 		eventUC,
+		communicationUC,
 		expenditureUC,
 		financeUC,
 		fulfillmentUC,
@@ -426,6 +434,23 @@ func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*e
 	fmt.Printf("✅ Event domain initialized successfully: %v\n", eventUseCases != nil)
 
 	return eventUseCases, nil
+}
+
+// initializeCommunicationUseCases initializes Communication domain use cases
+// (conversation, conversation_post, conversation_read_receipt; participant is a
+// v2-queried seam with no use cases).
+func (uci *UseCaseInitializer) initializeCommunicationUseCases(container *Container) (*communication.CommunicationUseCases, error) {
+	repos, err := repodomain.NewCommunicationRepositories(uci.providerManager.GetDatabaseProvider(), uci.providerManager.GetDBTableConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
+	if err != nil {
+		return nil, err
+	}
+
+	return domain.InitializeCommunication(repos, authSvc, txSvc, i18nSvc, idSvc)
 }
 
 // initializeLedgerUseCases initializes Ledger domain use cases (document template)

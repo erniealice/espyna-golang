@@ -19,6 +19,7 @@ import (
 	clientAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_attribute"
 	clientCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_category"
 	clientPortalGrantUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_portal_grant"
+	clientWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_workspace_user"
 	delegateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/delegate"
 	delegateAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/delegate_attribute"
 	delegateClientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/delegate_client"
@@ -332,6 +333,22 @@ func InitializeEntity(
 				Role:              repos.Role,
 			},
 			workspaceUserRoleUseCases.WorkspaceUserRoleServices(svc()),
+		)
+	}
+
+	if repos.ClientWorkspaceUser != nil {
+		s := svc()
+		result.ClientWorkspaceUser = clientWorkspaceUserUseCases.NewUseCases(
+			clientWorkspaceUserUseCases.ClientWorkspaceUserRepositories{
+				ClientWorkspaceUser: repos.ClientWorkspaceUser,
+				Client:              repos.Client,
+			},
+			clientWorkspaceUserUseCases.ClientWorkspaceUserServices{
+				Authorizer:  s.Authorizer,
+				Transactor:  s.Transactor,
+				Translator:  s.Translator,
+				IDGenerator: s.IDGenerator,
+			},
 		)
 	}
 

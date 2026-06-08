@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 )
@@ -38,7 +39,7 @@ func NewUpdateProcurementRequestLineUseCase(
 // Execute performs the update procurement request line operation.
 func (uc *UpdateProcurementRequestLineUseCase) Execute(ctx context.Context, req *procurementrequestlinepb.UpdateProcurementRequestLineRequest) (*procurementrequestlinepb.UpdateProcurementRequestLineResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityProcurementRequestLine, ports.ActionUpdate); err != nil {
+		entityProcurementRequestLine, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {

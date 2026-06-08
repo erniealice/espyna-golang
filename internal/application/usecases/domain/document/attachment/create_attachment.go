@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
@@ -48,7 +49,7 @@ func NewCreateAttachmentUseCase(
 // Execute performs the create attachment operation
 func (uc *CreateAttachmentUseCase) Execute(ctx context.Context, req *attachmentpb.CreateAttachmentRequest) (*attachmentpb.CreateAttachmentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAttachment, ports.ActionCreate); err != nil {
+		entityAttachment, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

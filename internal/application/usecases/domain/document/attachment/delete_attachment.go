@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
 )
@@ -42,7 +43,7 @@ func NewDeleteAttachmentUseCase(
 // Execute performs the delete attachment operation
 func (uc *DeleteAttachmentUseCase) Execute(ctx context.Context, req *attachmentpb.DeleteAttachmentRequest) (*attachmentpb.DeleteAttachmentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAttachment, ports.ActionDelete); err != nil {
+		entityAttachment, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

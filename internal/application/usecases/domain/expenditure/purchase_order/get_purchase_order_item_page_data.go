@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 )
@@ -43,7 +44,7 @@ func NewGetPurchaseOrderItemPageDataUseCase(
 // Execute performs the get purchase order item page data operation
 func (uc *GetPurchaseOrderItemPageDataUseCase) Execute(ctx context.Context, req *purchaseorderpb.GetPurchaseOrderItemPageDataRequest) (*purchaseorderpb.GetPurchaseOrderItemPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPurchaseOrder, ports.ActionRead); err != nil {
+		entityPurchaseOrder, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

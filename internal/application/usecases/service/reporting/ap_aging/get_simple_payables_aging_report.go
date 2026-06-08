@@ -10,6 +10,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // GetSimplePayablesAgingReportUseCase is the proto-shaped wrapper for the
@@ -57,7 +58,7 @@ func (uc *GetSimplePayablesAgingReportUseCase) Execute(
 		uc.authorizationService,
 		uc.translationService,
 		"reports",
-		ports.ActionList,
+		entityid.ActionList,
 	); err != nil {
 		return nil, err
 	}

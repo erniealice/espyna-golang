@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 )
@@ -44,7 +45,7 @@ func NewGetAssetListPageDataUseCase(
 func (uc *GetAssetListPageDataUseCase) Execute(ctx context.Context, req *assetpb.GetAssetListPageDataRequest) (*assetpb.GetAssetListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAsset, ports.ActionList); err != nil {
+		entityAsset, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

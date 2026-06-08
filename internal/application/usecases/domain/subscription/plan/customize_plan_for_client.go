@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
@@ -99,11 +100,11 @@ func (uc *CustomizePlanForClientUseCase) Execute(
 	// We require both plan:create AND price_plan:create; revenue:create is
 	// not consulted here because the use case never writes Revenue rows.
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPlan, ports.ActionCreate); err != nil {
+		entityid.Plan, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPricePlan, ports.ActionCreate); err != nil {
+		entityid.PricePlan, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

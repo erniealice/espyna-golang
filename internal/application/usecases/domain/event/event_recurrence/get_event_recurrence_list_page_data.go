@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	eventrecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 )
 
@@ -45,7 +46,7 @@ func (uc *GetEventRecurrenceListPageDataUseCase) Execute(
 ) (*eventrecurrencepb.GetEventRecurrenceListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"event_recurrence", ports.ActionList); err != nil {
+		"event_recurrence", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

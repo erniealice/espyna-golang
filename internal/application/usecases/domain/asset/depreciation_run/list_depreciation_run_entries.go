@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	depschpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation"
 	deprunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation_run"
@@ -47,7 +48,7 @@ func (uc *ListDepreciationRunEntriesUseCase) Execute(
 	req *deprunpb.ListDepreciationRunEntriesRequest,
 ) (*depschpb.ListDepreciationSchedulesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetDepreciationRun, ports.ActionRead); err != nil {
+		entityAssetDepreciationRun, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	runID := ""

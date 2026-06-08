@@ -15,6 +15,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
@@ -59,7 +60,7 @@ func (uc *ListAdvanceCollectionsForDashboardUseCase) Execute(
 	_ = req // request fields are reserved for future as-of filtering.
 
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"treasury_collection", ports.ActionList); err != nil {
+		"treasury_collection", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

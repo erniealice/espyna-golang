@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -48,7 +49,7 @@ func NewCreatePlanSettingsUseCase(
 func (uc *CreatePlanSettingsUseCase) Execute(ctx context.Context, req *plansettingspb.CreatePlanSettingsRequest) (*plansettingspb.CreatePlanSettingsResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPlanSettings, ports.ActionCreate); err != nil {
+		entityid.PlanSettings, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 
@@ -59,7 +60,7 @@ func (uc *CreatePlanSettingsUseCase) Execute(ctx context.Context, req *plansetti
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityPlanSettings, ports.ActionCreate)
+	permission := entityid.EntityPermission(entityid.PlanSettings, entityid.ActionCreate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "plan_settings.errors.authorization_failed", "Authorization failed for plan settings [DEFAULT]")

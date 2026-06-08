@@ -14,13 +14,15 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/shared/amortize_schedule"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	serviceamortization "github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
+	amortizationpb "github.com/erniealice/esqyma/pkg/schema/v1/service/amortization"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -35,10 +37,15 @@ type AmortizeAdvanceDisbursementRepositories struct {
 
 // AmortizeAdvanceDisbursementServices groups infra services.
 type AmortizeAdvanceDisbursementServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
-	IDGenerator ports.IDGenerator
+	Authorizer   ports.Authorizer
+	Transactor   ports.Transactor
+	Translator   ports.Translator
+	IDGenerator  ports.IDGenerator
+	// Amortization is the service-driven amortization schedule wrapper.
+	// When non-nil, ComputeNextDueTranche calls go through the proto-typed
+	// service use case. Wired by the composition root via
+	// serviceamortization.From(serviceUseCases).
+	Amortization *serviceamortization.ComputeNextDueTrancheUseCase
 }
 
 // AmortizeAdvanceDisbursementUseCase mirrors AmortizeAdvanceCollectionUseCase.
@@ -66,11 +73,11 @@ func (uc *AmortizeAdvanceDisbursementUseCase) Execute(
 		req = &disbursementpb.AmortizeAdvanceDisbursementRequest{}
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTreasuryDisbursement, ports.ActionUpdate); err != nil {
+		entityTreasuryDisbursement, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"expense_recognition", ports.ActionCreate); err != nil {
+		"expense_recognition", entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryDisbursementId()) == "" {
@@ -138,24 +145,24 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 		return errored(err), err
 	}
 
-	// 3. Compute next-due tranche.
+	// 3. Compute next-due tranche via the service-driven amortization wrapper.
 	asOf := req.GetAsOfDate()
 	if strings.TrimSpace(asOf) == "" {
 		asOf = time.Now().UTC().Format("2006-01-02")
 	}
-	tranche, ok, err := amortizeschedule.ComputeNextDueTranche(amortizeschedule.Inputs{
+	trancheResp, err := uc.services.Amortization.Execute(ctx, &amortizationpb.ComputeNextDueTrancheRequest{
 		StartDate:       adv.GetAdvanceStartDate(),
 		EndDate:         adv.GetAdvanceEndDate(),
-		PeriodCount:     int(adv.GetAdvancePeriodCount()),
+		PeriodCount:     int32(adv.GetAdvancePeriodCount()),
 		PeriodUnit:      adv.GetAdvancePeriodUnit(),
 		TotalAmount:     adv.GetAdvanceTotalAmount(),
-		ProrationPolicy: protoProrationToHelper(adv.GetAdvanceProrationPolicy()),
+		ProrationPolicy: advanceProrationToAmortization(adv.GetAdvanceProrationPolicy()),
 		AsOfDate:        asOf,
 	})
 	if err != nil {
 		return errored(err), err
 	}
-	if !ok {
+	if !trancheResp.GetFound() {
 		return &disbursementpb.AmortizeAdvanceDisbursementResponse{
 			Outcome:             advancekindpb.AdvanceAmortizeOutcome_ADVANCE_AMORTIZE_OUTCOME_SKIPPED,
 			NewRemainingAmount:  adv.GetAdvanceRemainingAmount(),
@@ -163,14 +170,15 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 			NewStatus:           adv.GetAdvanceStatus(),
 		}, nil
 	}
+	tranche := trancheResp.GetTranche()
 
 	// 4. Idempotency check FIRST. Derive the canonical key + see if any
 	// ExpenseRecognition already covers this tranche.
 	idempotencyKey := req.GetIdempotencyKey()
 	if strings.TrimSpace(idempotencyKey) == "" {
-		idempotencyKey = BuildAdvanceIdempotencyKey(req.GetWorkspaceId(), req.GetTreasuryDisbursementId(), tranche.PeriodStart)
+		idempotencyKey = BuildAdvanceIdempotencyKey(req.GetWorkspaceId(), req.GetTreasuryDisbursementId(), tranche.GetPeriodStart())
 	}
-	if conflictID, found, listErr := uc.findExistingRecognitionForKey(ctx, idempotencyKey, req.GetTreasuryDisbursementId(), tranche.PeriodStart); listErr != nil {
+	if conflictID, found, listErr := uc.findExistingRecognitionForKey(ctx, idempotencyKey, req.GetTreasuryDisbursementId(), tranche.GetPeriodStart()); listErr != nil {
 		return errored(listErr), listErr
 	} else if found {
 		conflict := conflictID
@@ -180,9 +188,9 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 			NewRemainingAmount:              adv.GetAdvanceRemainingAmount(),
 			NewRecognizedAmount:             adv.GetAdvanceRecognizedAmount(),
 			NewStatus:                       adv.GetAdvanceStatus(),
-			TrancheStart:                    tranche.PeriodStart,
-			TrancheEnd:                      tranche.PeriodEnd,
-			TrancheAmount:                   tranche.Amount,
+			TrancheStart:                    tranche.GetPeriodStart(),
+			TrancheEnd:                      tranche.GetPeriodEnd(),
+			TrancheAmount:                   tranche.GetAmount(),
 		}, nil
 	}
 
@@ -193,11 +201,11 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 	}
 
 	// 6. UPDATE treasury_disbursement advance_* counters + status.
-	newRemaining := adv.GetAdvanceRemainingAmount() - tranche.Amount
+	newRemaining := adv.GetAdvanceRemainingAmount() - tranche.GetAmount()
 	if newRemaining < 0 {
 		newRemaining = 0
 	}
-	newRecognized := adv.GetAdvanceRecognizedAmount() + tranche.Amount
+	newRecognized := adv.GetAdvanceRecognizedAmount() + tranche.GetAmount()
 	newStatus := advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE
 	if newRemaining == 0 {
 		newStatus = advancekindpb.AdvanceStatus_ADVANCE_STATUS_FULLY_AMORTIZED
@@ -224,9 +232,9 @@ func (uc *AmortizeAdvanceDisbursementUseCase) executeCore(
 		NewRemainingAmount:   newRemaining,
 		NewRecognizedAmount:  newRecognized,
 		NewStatus:            newStatus,
-		TrancheStart:         tranche.PeriodStart,
-		TrancheEnd:           tranche.PeriodEnd,
-		TrancheAmount:        tranche.Amount,
+		TrancheStart:         tranche.GetPeriodStart(),
+		TrancheEnd:           tranche.GetPeriodEnd(),
+		TrancheAmount:        tranche.GetAmount(),
 	}, nil
 }
 
@@ -308,7 +316,7 @@ func (uc *AmortizeAdvanceDisbursementUseCase) findExistingRecognitionForKey(
 func (uc *AmortizeAdvanceDisbursementUseCase) insertRecognition(
 	ctx context.Context,
 	adv *disbursementpb.Disbursement,
-	tranche amortizeschedule.TrancheSpec,
+	tranche *amortizationpb.TrancheSpec,
 	req *disbursementpb.AmortizeAdvanceDisbursementRequest,
 	idempotencyKey string,
 ) (string, error) {
@@ -317,8 +325,8 @@ func (uc *AmortizeAdvanceDisbursementUseCase) insertRecognition(
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)
 
-	ps, _ := time.Parse("2006-01-02", tranche.PeriodStart)
-	pe, _ := time.Parse("2006-01-02", tranche.PeriodEnd)
+	ps, _ := time.Parse("2006-01-02", tranche.GetPeriodStart())
+	pe, _ := time.Parse("2006-01-02", tranche.GetPeriodEnd())
 	periodStart := timestamppb.New(ps)
 	periodEnd := timestamppb.New(pe)
 	recognitionDate := timestamppb.New(pe)
@@ -335,12 +343,12 @@ func (uc *AmortizeAdvanceDisbursementUseCase) insertRecognition(
 		DateModified:          &dc,
 		DateModifiedString:    &dcStr,
 		Active:                true,
-		Name:                  fmt.Sprintf("Advance amortization %s → %s", tranche.PeriodStart, tranche.PeriodEnd),
+		Name:                  fmt.Sprintf("Advance amortization %s → %s", tranche.GetPeriodStart(), tranche.GetPeriodEnd()),
 		RecognitionDate:       recognitionDate,
 		PeriodStart:           periodStart,
 		PeriodEnd:             periodEnd,
 		Currency:              adv.GetCurrency(),
-		TotalAmount:           tranche.Amount,
+		TotalAmount:           tranche.GetAmount(),
 		Status:                expenserecognitionpb.ExpenseRecognitionStatus_EXPENSE_RECOGNITION_STATUS_POSTED,
 		IdempotencyKey:        idempotencyKey,
 		AdvanceDisbursementId: &advanceID,
@@ -352,7 +360,7 @@ func (uc *AmortizeAdvanceDisbursementUseCase) insertRecognition(
 		r := runID
 		rec.RunId = &r
 	}
-	notes := treasurycollectionPeriodMarker(tranche.PeriodStart, tranche.PeriodEnd)
+	notes := treasurycollectionPeriodMarker(tranche.GetPeriodStart(), tranche.GetPeriodEnd())
 	rec.Notes = &notes
 
 	resp, err := uc.repositories.ExpenseRecognition.CreateExpenseRecognition(ctx, &expenserecognitionpb.CreateExpenseRecognitionRequest{
@@ -390,14 +398,14 @@ func treasurycollectionPeriodMarker(start, end string) string {
 	}
 }
 
-func protoProrationToHelper(p advancekindpb.AdvanceProrationPolicy) amortizeschedule.ProrationPolicy {
+func advanceProrationToAmortization(p advancekindpb.AdvanceProrationPolicy) amortizationpb.ProrationPolicy {
 	switch p {
 	case advancekindpb.AdvanceProrationPolicy_ADVANCE_PRORATION_POLICY_DAY_PRORATED:
-		return amortizeschedule.ProrationPolicyDayProrated
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_DAY_PRORATED
 	case advancekindpb.AdvanceProrationPolicy_ADVANCE_PRORATION_POLICY_NEXT_PERIOD_START:
-		return amortizeschedule.ProrationPolicyNextPeriodStart
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_NEXT_PERIOD_START
 	default:
-		return amortizeschedule.ProrationPolicyFullTranche
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_FULL_TRANCHE
 	}
 }
 

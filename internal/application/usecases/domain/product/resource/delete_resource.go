@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 )
@@ -44,7 +45,7 @@ func NewDeleteResourceUseCase(
 func (uc *DeleteResourceUseCase) Execute(ctx context.Context, req *resourcepb.DeleteResourceRequest) (*resourcepb.DeleteResourceResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityResource, ports.ActionDelete); err != nil {
+		entityid.Resource, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

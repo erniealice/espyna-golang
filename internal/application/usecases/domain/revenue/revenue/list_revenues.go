@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 )
@@ -42,7 +43,7 @@ func NewListRevenuesUseCase(
 // Execute performs the list revenues operation
 func (uc *ListRevenuesUseCase) Execute(ctx context.Context, req *revenuepb.ListRevenuesRequest) (*revenuepb.ListRevenuesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenue, ports.ActionList); err != nil {
+		entityRevenue, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
@@ -107,7 +108,7 @@ func (uc *RevalueAssetUseCase) Execute(
 	pbReq *revaluation_pb.RevalueAssetUseCaseRequest,
 ) (*revaluation_pb.RevalueAssetUseCaseResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetRevaluation, ports.ActionCreate); err != nil {
+		entityAssetRevaluation, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

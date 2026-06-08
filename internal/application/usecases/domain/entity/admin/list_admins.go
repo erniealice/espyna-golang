@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
@@ -43,7 +44,7 @@ func NewListAdminsUseCase(
 func (uc *ListAdminsUseCase) Execute(ctx context.Context, req *adminpb.ListAdminsRequest) (*adminpb.ListAdminsResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityAdmin, ports.ActionList); err != nil {
+		entityid.Admin, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

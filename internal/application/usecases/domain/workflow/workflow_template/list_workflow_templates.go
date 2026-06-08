@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
@@ -64,7 +65,7 @@ func NewListWorkflowTemplatesUseCaseUngrouped(workflowTemplateRepo workflow_temp
 func (uc *ListWorkflowTemplatesUseCase) Execute(ctx context.Context, req *workflow_templatepb.ListWorkflowTemplatesRequest) (*workflow_templatepb.ListWorkflowTemplatesResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow_template", ports.ActionList); err != nil {
+		"workflow_template", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

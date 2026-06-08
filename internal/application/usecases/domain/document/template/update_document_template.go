@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 )
@@ -44,7 +45,7 @@ func NewUpdateDocumentTemplateUseCase(
 // Execute performs the update document template operation
 func (uc *UpdateDocumentTemplateUseCase) Execute(ctx context.Context, req *documenttemplatepb.UpdateDocumentTemplateRequest) (*documenttemplatepb.UpdateDocumentTemplateResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDocumentTemplate, ports.ActionUpdate); err != nil {
+		entityDocumentTemplate, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

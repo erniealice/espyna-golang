@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
@@ -60,7 +61,7 @@ func NewDeleteWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomai
 func (uc *DeleteWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.DeleteWorkspaceRequest) (*workspacepb.DeleteWorkspaceResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityWorkspace, ports.ActionDelete); err != nil {
+		entityid.Workspace, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

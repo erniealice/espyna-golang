@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
@@ -44,7 +45,7 @@ func NewReadPlanAttributeUseCase(
 func (uc *ReadPlanAttributeUseCase) Execute(ctx context.Context, req *planattributepb.ReadPlanAttributeRequest) (*planattributepb.ReadPlanAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPlanAttribute, ports.ActionRead); err != nil {
+		entityid.PlanAttribute, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

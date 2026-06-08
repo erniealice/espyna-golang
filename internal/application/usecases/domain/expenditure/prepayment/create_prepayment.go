@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
 )
@@ -48,7 +49,7 @@ func NewCreatePrepaymentUseCase(
 // Execute performs the create prepayment operation
 func (uc *CreatePrepaymentUseCase) Execute(ctx context.Context, req *prepaymentpb.CreatePrepaymentRequest) (*prepaymentpb.CreatePrepaymentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPrepayment, ports.ActionCreate); err != nil {
+		entityPrepayment, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

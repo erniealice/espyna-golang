@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
@@ -44,7 +45,7 @@ func NewUpdateExpenditureUseCase(
 // Execute performs the update expenditure operation
 func (uc *UpdateExpenditureUseCase) Execute(ctx context.Context, req *expenditurepb.UpdateExpenditureRequest) (*expenditurepb.UpdateExpenditureResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenditure, ports.ActionUpdate); err != nil {
+		entityExpenditure, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

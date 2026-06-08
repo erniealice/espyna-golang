@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
@@ -45,7 +46,7 @@ func NewListConversationsUseCase(repos ListConversationsRepositories, svcs ListC
 // WorkspaceAwareOperations layer applies the workspace predicate from context).
 func (uc *ListConversationsUseCase) Execute(ctx context.Context, req *conversationpb.ListConversationsRequest) (*conversationpb.ListConversationsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityConversation, ports.ActionList); err != nil {
+		entityid.Conversation, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

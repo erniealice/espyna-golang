@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
 )
@@ -43,7 +44,7 @@ func NewListLoanPaymentsUseCase(
 // Execute performs the list loan payments operation.
 func (uc *ListLoanPaymentsUseCase) Execute(ctx context.Context, req *loanpaymentpb.ListLoanPaymentsRequest) (*loanpaymentpb.ListLoanPaymentsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityLoanPayment, ports.ActionList); err != nil {
+		entityLoanPayment, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 )
@@ -48,7 +49,7 @@ func (uc *FindApplicablePriceListUseCase) Execute(
 ) (*pricelistpb.FindApplicablePriceListResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPriceList, ports.ActionList); err != nil {
+		entityid.PriceList, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

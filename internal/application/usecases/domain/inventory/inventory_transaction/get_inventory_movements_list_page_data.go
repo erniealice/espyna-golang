@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventorytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_transaction"
 )
@@ -46,7 +47,7 @@ func (uc *GetInventoryMovementsListPageDataUseCase) Execute(
 	req *inventorytransactionpb.GetInventoryMovementsListPageDataRequest,
 ) (*inventorytransactionpb.GetInventoryMovementsListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventoryTransaction, ports.ActionList); err != nil {
+		entityid.InventoryTransaction, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

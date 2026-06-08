@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventtagassignmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag_assignment"
 )
@@ -42,7 +43,7 @@ func NewDeleteEventTagAssignmentUseCase(
 // Execute performs the delete event_tag_assignment operation
 func (uc *DeleteEventTagAssignmentUseCase) Execute(ctx context.Context, req *eventtagassignmentpb.DeleteEventTagAssignmentRequest) (*eventtagassignmentpb.DeleteEventTagAssignmentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventTagAssignment, ports.ActionDelete); err != nil {
+		entityid.EventTagAssignment, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -52,7 +53,7 @@ func (uc *DeleteEventTagAssignmentUseCase) Execute(ctx context.Context, req *eve
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventTagAssignment, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.EventTagAssignment, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")

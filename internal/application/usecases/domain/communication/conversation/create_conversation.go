@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -43,7 +44,7 @@ func NewCreateConversationUseCase(repos CreateConversationRepositories, svcs Cre
 // Execute performs the create conversation operation.
 func (uc *CreateConversationUseCase) Execute(ctx context.Context, req *conversationpb.CreateConversationRequest) (*conversationpb.CreateConversationResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityConversation, ports.ActionCreate); err != nil {
+		entityid.Conversation, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

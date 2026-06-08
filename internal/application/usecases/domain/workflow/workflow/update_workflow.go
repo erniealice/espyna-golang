@@ -10,6 +10,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
 )
 
@@ -62,7 +63,7 @@ func NewUpdateWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainSer
 func (uc *UpdateWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.UpdateWorkflowRequest) (*workflowpb.UpdateWorkflowResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow", ports.ActionUpdate); err != nil {
+		"workflow", entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

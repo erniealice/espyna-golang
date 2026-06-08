@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
@@ -71,7 +72,7 @@ func NewReadEventProductUseCaseUngrouped(
 func (uc *ReadEventProductUseCase) Execute(ctx context.Context, req *eventproductpb.ReadEventProductRequest) (*eventproductpb.ReadEventProductResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventProduct, ports.ActionRead); err != nil {
+		entityid.EventProduct, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -95,7 +96,7 @@ func (uc *ReadEventProductUseCase) Execute(ctx context.Context, req *eventproduc
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventProduct, ports.ActionRead)
+	permission := entityid.EntityPermission(entityid.EventProduct, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")

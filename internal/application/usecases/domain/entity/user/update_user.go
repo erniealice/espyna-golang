@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
@@ -61,7 +62,7 @@ func NewUpdateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *Upd
 func (uc *UpdateUserUseCase) Execute(ctx context.Context, req *userpb.UpdateUserRequest) (*userpb.UpdateUserResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityUser, ports.ActionUpdate); err != nil {
+		entityid.User, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
 )
@@ -44,7 +45,7 @@ func NewUpdateAttachmentUseCase(
 // Execute performs the update attachment operation
 func (uc *UpdateAttachmentUseCase) Execute(ctx context.Context, req *attachmentpb.UpdateAttachmentRequest) (*attachmentpb.UpdateAttachmentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAttachment, ports.ActionUpdate); err != nil {
+		entityAttachment, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

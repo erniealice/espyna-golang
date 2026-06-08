@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -59,7 +60,7 @@ func NewDeleteAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 func (uc *DeleteAttributeUseCase) Execute(ctx context.Context, req *attributepb.DeleteAttributeRequest) (*attributepb.DeleteAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"attribute", ports.ActionDelete); err != nil {
+		"attribute", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

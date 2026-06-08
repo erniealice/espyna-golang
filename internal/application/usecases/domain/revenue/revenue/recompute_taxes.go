@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userctx "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
@@ -83,7 +84,7 @@ func (uc *RecomputeTaxesUseCase) Execute(
 	req *RecomputeTaxesRequest,
 ) (*RecomputeTaxesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"revenue_tax_line", ports.ActionCreate); err != nil {
+		"revenue_tax_line", entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

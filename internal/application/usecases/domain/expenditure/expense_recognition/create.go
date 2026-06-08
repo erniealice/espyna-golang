@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 )
@@ -48,7 +49,7 @@ func NewCreateExpenseRecognitionUseCase(
 // Execute performs the create operation.
 func (uc *CreateExpenseRecognitionUseCase) Execute(ctx context.Context, req *expenserecognitionpb.CreateExpenseRecognitionRequest) (*expenserecognitionpb.CreateExpenseRecognitionResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, ports.ActionCreate); err != nil {
+		entityExpenseRecognition, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

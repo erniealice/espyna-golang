@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventtagpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag"
@@ -68,7 +69,7 @@ func NewSetEventTagAssignmentsUseCase(
 func (uc *SetEventTagAssignmentsUseCase) Execute(ctx context.Context, req *SetEventTagAssignmentsRequest) (*SetEventTagAssignmentsResponse, error) {
 	// Authorization: this is effectively a create operation on assignments.
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventTagAssignment, ports.ActionCreate); err != nil {
+		entityid.EventTagAssignment, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

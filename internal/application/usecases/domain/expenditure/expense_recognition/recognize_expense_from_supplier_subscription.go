@@ -10,6 +10,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
@@ -122,11 +123,11 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) Execute(
 	input RecognizeExpenseFromSupplierSubscriptionInput,
 ) (*RecognizeExpenseFromSupplierSubscriptionOutput, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, ports.ActionCreate); err != nil {
+		entityExpenseRecognition, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier_subscription", ports.ActionRead); err != nil {
+		"supplier_subscription", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(input.SupplierSubscriptionID) == "" {

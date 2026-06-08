@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
@@ -45,7 +46,7 @@ func (uc *GetWorkspaceUserRoleItemPageDataUseCase) Execute(
 ) (*workspaceuserrolepb.GetWorkspaceUserRoleItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityWorkspaceUserRole, ports.ActionList); err != nil {
+		entityid.WorkspaceUserRole, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

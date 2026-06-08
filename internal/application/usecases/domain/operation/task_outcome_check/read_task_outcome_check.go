@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 )
@@ -41,7 +42,7 @@ func NewReadTaskOutcomeCheckUseCase(
 func (uc *ReadTaskOutcomeCheckUseCase) Execute(ctx context.Context, req *pb.ReadTaskOutcomeCheckRequest) (*pb.ReadTaskOutcomeCheckResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityTaskOutcomeCheck, ports.ActionRead); err != nil {
+		entityid.TaskOutcomeCheck, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

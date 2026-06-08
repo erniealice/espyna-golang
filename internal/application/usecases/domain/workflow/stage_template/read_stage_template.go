@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 )
@@ -62,7 +63,7 @@ func NewReadStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.Stag
 func (uc *ReadStageTemplateUseCase) Execute(ctx context.Context, req *stageTemplatepb.ReadStageTemplateRequest) (*stageTemplatepb.ReadStageTemplateResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"stage_template", ports.ActionRead); err != nil {
+		"stage_template", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

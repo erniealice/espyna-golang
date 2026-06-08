@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
@@ -69,7 +70,7 @@ func NewListEventClientsUseCaseUngrouped(eventClientRepo eventclientpb.EventClie
 func (uc *ListEventClientsUseCase) Execute(ctx context.Context, req *eventclientpb.ListEventClientsRequest) (*eventclientpb.ListEventClientsResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventClient, ports.ActionList); err != nil {
+		entityid.EventClient, entityid.ActionList); err != nil {
 		return nil, err
 	}
 
@@ -80,7 +81,7 @@ func (uc *ListEventClientsUseCase) Execute(ctx context.Context, req *eventclient
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventClient, ports.ActionList)
+	permission := entityid.EntityPermission(entityid.EventClient, entityid.ActionList)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_client.errors.authorization_failed", "Authorization failed for schedule enrollment")

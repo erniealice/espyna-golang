@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 )
@@ -31,7 +31,7 @@ func NewListProductPricePlansUseCase(
 // Execute performs the list product price plans operation
 func (uc *ListProductPricePlansUseCase) Execute(ctx context.Context, req *productpriceplanpb.ListProductPricePlansRequest) (*productpriceplanpb.ListProductPricePlansResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPricePlan, ports.ActionList); err != nil {
+		entityid.PricePlan, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

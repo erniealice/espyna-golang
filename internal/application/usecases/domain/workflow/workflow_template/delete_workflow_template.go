@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
@@ -66,7 +67,7 @@ func NewDeleteWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 func (uc *DeleteWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.DeleteWorkflowTemplateRequest) (*workflow_templatepb.DeleteWorkflowTemplateResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow_template", ports.ActionDelete); err != nil {
+		"workflow_template", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

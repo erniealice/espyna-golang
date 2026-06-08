@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
 )
@@ -60,7 +61,7 @@ func NewDeleteStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) 
 func (uc *DeleteStageUseCase) Execute(ctx context.Context, req *stagepb.DeleteStageRequest) (*stagepb.DeleteStageResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"stage", ports.ActionDelete); err != nil {
+		"stage", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

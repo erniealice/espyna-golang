@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
@@ -45,7 +46,7 @@ type GetFulfillmentUseCase struct {
 // Execute creates a fulfillment and its line items in one transaction.
 // It generates IDs, sets PENDING status, and logs the initial nil→PENDING status event.
 func (uc *CreateFulfillmentUseCase) Execute(ctx context.Context, req *pb.CreateFulfillmentRequest) (*pb.CreateFulfillmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionCreate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -96,7 +97,7 @@ func (uc *CreateFulfillmentUseCase) Execute(ctx context.Context, req *pb.CreateF
 // ---- GetFulfillment ----
 
 func (uc *GetFulfillmentUseCase) Execute(ctx context.Context, req *pb.GetFulfillmentRequest) (*pb.GetFulfillmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Id == "" {

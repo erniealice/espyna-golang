@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
@@ -41,7 +42,7 @@ func NewCountActiveByClientIdsUseCase(
 // Execute performs an authorization check then delegates to the repository.
 func (uc *CountActiveByClientIdsUseCase) Execute(ctx context.Context, req *subscriptionpb.CountActiveByClientIdsRequest) (*subscriptionpb.CountActiveByClientIdsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntitySubscription, ports.ActionList); err != nil {
+		entityid.Subscription, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	return uc.repositories.Subscription.CountActiveByClientIds(ctx, req)

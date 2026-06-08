@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
@@ -65,7 +66,7 @@ func NewCreateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer, auth
 func (uc *CreateUserUseCase) Execute(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.CreateUserResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityUser, ports.ActionCreate); err != nil {
+		entityid.User, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

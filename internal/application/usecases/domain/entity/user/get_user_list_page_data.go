@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
@@ -59,7 +60,7 @@ func NewGetUserListPageDataUseCaseUngrouped(userRepo userpb.UserDomainServiceSer
 func (uc *GetUserListPageDataUseCase) Execute(ctx context.Context, req *userpb.GetUserListPageDataRequest) (*userpb.GetUserListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityUser, ports.ActionList); err != nil {
+		entityid.User, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

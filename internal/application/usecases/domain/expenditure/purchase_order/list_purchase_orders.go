@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 )
@@ -42,7 +43,7 @@ func NewListPurchaseOrdersUseCase(
 // Execute performs the list purchase orders operation
 func (uc *ListPurchaseOrdersUseCase) Execute(ctx context.Context, req *purchaseorderpb.ListPurchaseOrdersRequest) (*purchaseorderpb.ListPurchaseOrdersResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPurchaseOrder, ports.ActionList); err != nil {
+		entityPurchaseOrder, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 )
@@ -45,7 +46,7 @@ func NewDeletePriceProductUseCase(
 func (uc *DeletePriceProductUseCase) Execute(ctx context.Context, req *priceproductpb.DeletePriceProductRequest) (*priceproductpb.DeletePriceProductResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPriceProduct, ports.ActionDelete); err != nil {
+		entityid.PriceProduct, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +88,7 @@ func (uc *DeletePriceProductUseCase) executeCore(ctx context.Context, req *price
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityPriceProduct, ports.ActionDelete)
+	permission := entityid.Permission(entityid.PriceProduct, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")

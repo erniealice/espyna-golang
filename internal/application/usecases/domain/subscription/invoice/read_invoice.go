@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
@@ -44,7 +45,7 @@ func NewReadInvoiceUseCase(
 func (uc *ReadInvoiceUseCase) Execute(ctx context.Context, req *invoicepb.ReadInvoiceRequest) (*invoicepb.ReadInvoiceResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInvoice, ports.ActionRead); err != nil {
+		entityid.Invoice, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -55,7 +56,7 @@ func (uc *ReadInvoiceUseCase) Execute(ctx context.Context, req *invoicepb.ReadIn
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInvoice, ports.ActionRead)
+	permission := entityid.EntityPermission(entityid.Invoice, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "invoice.errors.authorization_failed", "Authorization failed for billing statements [DEFAULT]")

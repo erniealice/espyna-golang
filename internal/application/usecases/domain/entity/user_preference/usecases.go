@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	userpreferencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user_preference"
 )
 
@@ -53,7 +54,7 @@ type CreateUserPreferenceUseCase struct {
 
 func (uc *CreateUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.CreateUserPreferenceRequest) (*userpreferencepb.CreateUserPreferenceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityUserPreference, ports.ActionCreate); err != nil {
+		entityUserPreference, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -77,7 +78,7 @@ type ReadUserPreferenceUseCase struct {
 
 func (uc *ReadUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.ReadUserPreferenceRequest) (*userpreferencepb.ReadUserPreferenceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityUserPreference, ports.ActionRead); err != nil {
+		entityUserPreference, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadUserPreference(ctx, req)
@@ -91,7 +92,7 @@ type UpdateUserPreferenceUseCase struct {
 
 func (uc *UpdateUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.UpdateUserPreferenceRequest) (*userpreferencepb.UpdateUserPreferenceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityUserPreference, ports.ActionUpdate); err != nil {
+		entityUserPreference, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -110,7 +111,7 @@ type DeleteUserPreferenceUseCase struct {
 
 func (uc *DeleteUserPreferenceUseCase) Execute(ctx context.Context, req *userpreferencepb.DeleteUserPreferenceRequest) (*userpreferencepb.DeleteUserPreferenceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityUserPreference, ports.ActionDelete); err != nil {
+		entityUserPreference, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteUserPreference(ctx, req)
@@ -124,7 +125,7 @@ type ListUserPreferencesUseCase struct {
 
 func (uc *ListUserPreferencesUseCase) Execute(ctx context.Context, req *userpreferencepb.ListUserPreferencesRequest) (*userpreferencepb.ListUserPreferencesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityUserPreference, ports.ActionRead); err != nil {
+		entityUserPreference, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListUserPreferences(ctx, req)

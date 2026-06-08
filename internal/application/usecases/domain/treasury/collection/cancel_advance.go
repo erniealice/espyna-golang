@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -64,7 +65,7 @@ func (uc *CancelAdvanceUseCase) Execute(
 		req = &collectionpb.CancelAdvanceCollectionRequest{}
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTreasuryCollection, ports.ActionUpdate); err != nil {
+		entityTreasuryCollection, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryCollectionId()) == "" {

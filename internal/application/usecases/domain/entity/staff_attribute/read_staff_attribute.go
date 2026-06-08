@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
@@ -61,7 +62,7 @@ func NewReadStaffAttributeUseCaseUngrouped(staffAttributeRepo staffattributepb.S
 func (uc *ReadStaffAttributeUseCase) Execute(ctx context.Context, req *staffattributepb.ReadStaffAttributeRequest) (*staffattributepb.ReadStaffAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityStaffAttribute, ports.ActionRead); err != nil {
+		entityid.StaffAttribute, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

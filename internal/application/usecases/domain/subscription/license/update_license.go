@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
@@ -47,7 +48,7 @@ func NewUpdateLicenseUseCase(
 func (uc *UpdateLicenseUseCase) Execute(ctx context.Context, req *licensepb.UpdateLicenseRequest) (*licensepb.UpdateLicenseResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityLicense, ports.ActionUpdate); err != nil {
+		entityid.License, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

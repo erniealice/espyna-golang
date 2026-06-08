@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 )
@@ -45,7 +46,7 @@ func NewReadPriceProductUseCase(
 func (uc *ReadPriceProductUseCase) Execute(ctx context.Context, req *priceproductpb.ReadPriceProductRequest) (*priceproductpb.ReadPriceProductResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPriceProduct, ports.ActionRead); err != nil {
+		entityid.PriceProduct, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -56,7 +57,7 @@ func (uc *ReadPriceProductUseCase) Execute(ctx context.Context, req *priceproduc
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityPriceProduct, ports.ActionRead)
+	permission := entityid.EntityPermission(entityid.PriceProduct, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")

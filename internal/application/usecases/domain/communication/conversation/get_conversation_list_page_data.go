@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 )
@@ -36,7 +37,7 @@ func NewGetConversationListPageDataUseCase(repos GetConversationListPageDataRepo
 // Execute performs the get conversation list page data operation.
 func (uc *GetConversationListPageDataUseCase) Execute(ctx context.Context, req *conversationpb.GetConversationListPageDataRequest) (*conversationpb.GetConversationListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityConversation, ports.ActionList); err != nil {
+		entityid.Conversation, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

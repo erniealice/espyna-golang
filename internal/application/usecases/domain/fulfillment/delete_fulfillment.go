@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
@@ -28,7 +29,7 @@ type DeleteFulfillmentUseCase struct {
 // Deletion is only allowed when the fulfillment is in PENDING or CANCELLED status.
 // All other statuses (in-flight, delivered) are guarded to prevent data loss.
 func (uc *DeleteFulfillmentUseCase) Execute(ctx context.Context, req *pb.DeleteFulfillmentRequest) (*pb.DeleteFulfillmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionDelete); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Id == "" {

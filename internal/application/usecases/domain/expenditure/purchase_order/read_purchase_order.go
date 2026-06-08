@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 )
@@ -42,7 +43,7 @@ func NewReadPurchaseOrderUseCase(
 // Execute performs the read purchase order operation
 func (uc *ReadPurchaseOrderUseCase) Execute(ctx context.Context, req *purchaseorderpb.ReadPurchaseOrderRequest) (*purchaseorderpb.ReadPurchaseOrderResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPurchaseOrder, ports.ActionRead); err != nil {
+		entityPurchaseOrder, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

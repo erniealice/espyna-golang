@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 )
@@ -44,7 +45,7 @@ func NewDeleteAssetUseCase(
 func (uc *DeleteAssetUseCase) Execute(ctx context.Context, req *assetpb.DeleteAssetRequest) (*assetpb.DeleteAssetResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAsset, ports.ActionDelete); err != nil {
+		entityAsset, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

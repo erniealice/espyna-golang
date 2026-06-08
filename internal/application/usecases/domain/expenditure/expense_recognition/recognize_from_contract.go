@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 )
@@ -44,7 +45,7 @@ func NewRecognizeFromContractUseCase(
 // Execute performs the recognize-from-contract operation.
 func (uc *RecognizeFromContractUseCase) Execute(ctx context.Context, req *expenserecognitionpb.RecognizeFromContractRequest) (*expenserecognitionpb.RecognizeFromContractResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, ports.ActionCreate); err != nil {
+		entityExpenseRecognition, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractId() == "" {

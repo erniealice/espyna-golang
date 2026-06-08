@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
 )
@@ -45,7 +46,7 @@ func NewReadCollectionPlanUseCase(
 func (uc *ReadCollectionPlanUseCase) Execute(ctx context.Context, req *collectionplanpb.ReadCollectionPlanRequest) (*collectionplanpb.ReadCollectionPlanResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCollectionPlan, ports.ActionRead); err != nil {
+		entityid.CollectionPlan, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -56,7 +57,7 @@ func (uc *ReadCollectionPlanUseCase) Execute(ctx context.Context, req *collectio
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityCollectionPlan, ports.ActionRead)
+	permission := entityid.EntityPermission(entityid.CollectionPlan, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")

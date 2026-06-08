@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	tenantpaymentmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tenancy/tenant_payment_method"
 )
 
@@ -53,7 +54,7 @@ type CreateTenantPaymentMethodUseCase struct {
 
 func (uc *CreateTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.CreateTenantPaymentMethodRequest) (*tenantpaymentmethodpb.CreateTenantPaymentMethodResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantPaymentMethod, ports.ActionCreate); err != nil {
+		entityTenantPaymentMethod, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -77,7 +78,7 @@ type ReadTenantPaymentMethodUseCase struct {
 
 func (uc *ReadTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.ReadTenantPaymentMethodRequest) (*tenantpaymentmethodpb.ReadTenantPaymentMethodResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantPaymentMethod, ports.ActionRead); err != nil {
+		entityTenantPaymentMethod, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadTenantPaymentMethod(ctx, req)
@@ -91,7 +92,7 @@ type UpdateTenantPaymentMethodUseCase struct {
 
 func (uc *UpdateTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.UpdateTenantPaymentMethodRequest) (*tenantpaymentmethodpb.UpdateTenantPaymentMethodResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantPaymentMethod, ports.ActionUpdate); err != nil {
+		entityTenantPaymentMethod, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -110,7 +111,7 @@ type DeleteTenantPaymentMethodUseCase struct {
 
 func (uc *DeleteTenantPaymentMethodUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.DeleteTenantPaymentMethodRequest) (*tenantpaymentmethodpb.DeleteTenantPaymentMethodResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantPaymentMethod, ports.ActionDelete); err != nil {
+		entityTenantPaymentMethod, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteTenantPaymentMethod(ctx, req)
@@ -124,7 +125,7 @@ type ListTenantPaymentMethodsUseCase struct {
 
 func (uc *ListTenantPaymentMethodsUseCase) Execute(ctx context.Context, req *tenantpaymentmethodpb.ListTenantPaymentMethodsRequest) (*tenantpaymentmethodpb.ListTenantPaymentMethodsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantPaymentMethod, ports.ActionRead); err != nil {
+		entityTenantPaymentMethod, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListTenantPaymentMethods(ctx, req)

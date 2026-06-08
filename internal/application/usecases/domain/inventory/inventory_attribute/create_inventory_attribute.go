@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
 )
@@ -45,7 +46,7 @@ func NewCreateInventoryAttributeUseCase(
 // Execute performs the create inventory attribute operation
 func (uc *CreateInventoryAttributeUseCase) Execute(ctx context.Context, req *inventoryattributepb.CreateInventoryAttributeRequest) (*inventoryattributepb.CreateInventoryAttributeResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventoryAttribute, ports.ActionCreate); err != nil {
+		entityid.InventoryAttribute, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +79,7 @@ func (uc *CreateInventoryAttributeUseCase) executeCore(ctx context.Context, req 
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInventoryAttribute, ports.ActionCreate)
+	permission := entityid.EntityPermission(entityid.InventoryAttribute, entityid.ActionCreate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_attribute.errors.authorization_failed", "Authorization failed for inventory attributes [DEFAULT]")

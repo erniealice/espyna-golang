@@ -30,12 +30,22 @@ func InitializeOperation(
 		JobTemplateTask:     repos.JobTemplateTask,
 		JobTemplateRelation: repos.JobTemplateRelation,
 		JobActivity:         repos.JobActivity,
+		OutcomeCriteria:     repos.OutcomeCriteria,
+		// Performance Evaluation (20260604 v1).
+		Evaluation:             repos.Evaluation,
+		EvaluationResponse:     repos.EvaluationResponse,
+		EvaluationTemplate:     repos.EvaluationTemplate,
+		EvaluationTemplateItem: repos.EvaluationTemplateItem,
+		EvaluationCycle:        repos.EvaluationCycle,
+		EvaluationCycleMember:  repos.EvaluationCycleMember,
 	}
 	if subRepos != nil {
 		opRepos.BillingEvent = subRepos.BillingEvent
 		opRepos.Subscription = subRepos.Subscription
 		opRepos.PricePlan = subRepos.PricePlan
 		opRepos.ProductPricePlan = subRepos.ProductPricePlan
+		// SubscriptionSeat backs the evaluation anchor-ownership IDOR check.
+		opRepos.SubscriptionSeat = subRepos.SubscriptionSeat
 	}
 	return operation.NewUseCases(
 		opRepos,

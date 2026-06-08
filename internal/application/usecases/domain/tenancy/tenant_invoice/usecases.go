@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	tenantinvoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tenancy/tenant_invoice"
 )
 
@@ -53,7 +54,7 @@ type CreateTenantInvoiceUseCase struct {
 
 func (uc *CreateTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.CreateTenantInvoiceRequest) (*tenantinvoicepb.CreateTenantInvoiceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantInvoice, ports.ActionCreate); err != nil {
+		entityTenantInvoice, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -77,7 +78,7 @@ type ReadTenantInvoiceUseCase struct {
 
 func (uc *ReadTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.ReadTenantInvoiceRequest) (*tenantinvoicepb.ReadTenantInvoiceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantInvoice, ports.ActionRead); err != nil {
+		entityTenantInvoice, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadTenantInvoice(ctx, req)
@@ -91,7 +92,7 @@ type UpdateTenantInvoiceUseCase struct {
 
 func (uc *UpdateTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.UpdateTenantInvoiceRequest) (*tenantinvoicepb.UpdateTenantInvoiceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantInvoice, ports.ActionUpdate); err != nil {
+		entityTenantInvoice, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -110,7 +111,7 @@ type DeleteTenantInvoiceUseCase struct {
 
 func (uc *DeleteTenantInvoiceUseCase) Execute(ctx context.Context, req *tenantinvoicepb.DeleteTenantInvoiceRequest) (*tenantinvoicepb.DeleteTenantInvoiceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantInvoice, ports.ActionDelete); err != nil {
+		entityTenantInvoice, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteTenantInvoice(ctx, req)
@@ -124,7 +125,7 @@ type ListTenantInvoicesUseCase struct {
 
 func (uc *ListTenantInvoicesUseCase) Execute(ctx context.Context, req *tenantinvoicepb.ListTenantInvoicesRequest) (*tenantinvoicepb.ListTenantInvoicesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantInvoice, ports.ActionRead); err != nil {
+		entityTenantInvoice, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListTenantInvoices(ctx, req)

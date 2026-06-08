@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
@@ -64,7 +65,7 @@ func NewCreateGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) 
 func (uc *CreateGroupUseCase) Execute(ctx context.Context, req *grouppb.CreateGroupRequest) (*grouppb.CreateGroupResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityGroup, ports.ActionCreate); err != nil {
+		entityid.Group, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

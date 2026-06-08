@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
 )
@@ -43,7 +44,7 @@ func NewCreateCriteriaThresholdUseCase(
 func (uc *CreateCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.CreateCriteriaThresholdRequest) (*pb.CreateCriteriaThresholdResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCriteriaThreshold, ports.ActionCreate); err != nil {
+		entityid.CriteriaThreshold, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

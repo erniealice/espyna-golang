@@ -13,13 +13,15 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/shared/amortize_schedule"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	serviceamortization "github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
+	amortizationpb "github.com/erniealice/esqyma/pkg/schema/v1/service/amortization"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
 
@@ -43,10 +45,15 @@ type AmortizeAdvanceCollectionRepositories struct {
 
 // AmortizeAdvanceCollectionServices groups infra services.
 type AmortizeAdvanceCollectionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
-	IDGenerator ports.IDGenerator
+	Authorizer    ports.Authorizer
+	Transactor    ports.Transactor
+	Translator    ports.Translator
+	IDGenerator   ports.IDGenerator
+	// Amortization is the service-driven amortization schedule wrapper.
+	// When non-nil, ComputeNextDueTranche calls go through the proto-typed
+	// service use case. Wired by the composition root via
+	// serviceamortization.From(serviceUseCases).
+	Amortization  *serviceamortization.ComputeNextDueTrancheUseCase
 }
 
 // AmortizeAdvanceCollectionUseCase wires Plan B's selling-side amortization.
@@ -86,11 +93,11 @@ func (uc *AmortizeAdvanceCollectionUseCase) Execute(
 		req = &collectionpb.AmortizeAdvanceCollectionRequest{}
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTreasuryCollection, ports.ActionUpdate); err != nil {
+		entityTreasuryCollection, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"revenue", ports.ActionCreate); err != nil {
+		"revenue", entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryCollectionId()) == "" {
@@ -161,24 +168,24 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 		return errored(err), err
 	}
 
-	// 3. Compute the next-due tranche.
+	// 3. Compute the next-due tranche via the service-driven amortization wrapper.
 	asOf := req.GetAsOfDate()
 	if strings.TrimSpace(asOf) == "" {
 		asOf = time.Now().UTC().Format("2006-01-02")
 	}
-	tranche, ok, err := amortizeschedule.ComputeNextDueTranche(amortizeschedule.Inputs{
+	trancheResp, err := uc.services.Amortization.Execute(ctx, &amortizationpb.ComputeNextDueTrancheRequest{
 		StartDate:       adv.GetAdvanceStartDate(),
 		EndDate:         adv.GetAdvanceEndDate(),
-		PeriodCount:     int(adv.GetAdvancePeriodCount()),
+		PeriodCount:     int32(adv.GetAdvancePeriodCount()),
 		PeriodUnit:      adv.GetAdvancePeriodUnit(),
 		TotalAmount:     adv.GetAdvanceTotalAmount(),
-		ProrationPolicy: ProtoProrationToHelper(adv.GetAdvanceProrationPolicy()),
+		ProrationPolicy: AdvanceProrationToAmortization(adv.GetAdvanceProrationPolicy()),
 		AsOfDate:        asOf,
 	})
 	if err != nil {
 		return errored(err), err
 	}
-	if !ok {
+	if !trancheResp.GetFound() {
 		// No tranche due as of this date — treat as SKIPPED for run aggregate.
 		return &collectionpb.AmortizeAdvanceCollectionResponse{
 			Outcome:             advancekindpb.AdvanceAmortizeOutcome_ADVANCE_AMORTIZE_OUTCOME_SKIPPED,
@@ -187,11 +194,12 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 			NewStatus:           adv.GetAdvanceStatus(),
 		}, nil
 	}
+	tranche := trancheResp.GetTranche()
 
 	// 4. Idempotency check FIRST. We look for any existing Revenue carrying
 	// advance_collection_id == this advance AND period_marker covering the
 	// computed tranche period_start. If found, we SKIP — DO NOT INSERT.
-	if conflictID, found, listErr := uc.findExistingRevenueForPeriod(ctx, req.GetTreasuryCollectionId(), tranche.PeriodStart, tranche.PeriodEnd); listErr != nil {
+	if conflictID, found, listErr := uc.findExistingRevenueForPeriod(ctx, req.GetTreasuryCollectionId(), tranche.GetPeriodStart(), tranche.GetPeriodEnd()); listErr != nil {
 		return errored(listErr), listErr
 	} else if found {
 		conflict := conflictID
@@ -201,9 +209,9 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 			NewRemainingAmount:   adv.GetAdvanceRemainingAmount(),
 			NewRecognizedAmount:  adv.GetAdvanceRecognizedAmount(),
 			NewStatus:            adv.GetAdvanceStatus(),
-			TrancheStart:         tranche.PeriodStart,
-			TrancheEnd:           tranche.PeriodEnd,
-			TrancheAmount:        tranche.Amount,
+			TrancheStart:         tranche.GetPeriodStart(),
+			TrancheEnd:           tranche.GetPeriodEnd(),
+			TrancheAmount:        tranche.GetAmount(),
 		}, nil
 	}
 
@@ -220,16 +228,16 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 	if err != nil {
 		if strings.Contains(err.Error(), "period_already_invoiced") {
 			conflictID, _, _ := uc.findExistingRevenueForPeriod(
-				ctx, req.GetTreasuryCollectionId(), tranche.PeriodStart, tranche.PeriodEnd,
+				ctx, req.GetTreasuryCollectionId(), tranche.GetPeriodStart(), tranche.GetPeriodEnd(),
 			)
 			resp := &collectionpb.AmortizeAdvanceCollectionResponse{
 				Outcome:             advancekindpb.AdvanceAmortizeOutcome_ADVANCE_AMORTIZE_OUTCOME_SKIPPED,
 				NewRemainingAmount:  adv.GetAdvanceRemainingAmount(),
 				NewRecognizedAmount: adv.GetAdvanceRecognizedAmount(),
 				NewStatus:           adv.GetAdvanceStatus(),
-				TrancheStart:        tranche.PeriodStart,
-				TrancheEnd:          tranche.PeriodEnd,
-				TrancheAmount:       tranche.Amount,
+				TrancheStart:        tranche.GetPeriodStart(),
+				TrancheEnd:          tranche.GetPeriodEnd(),
+				TrancheAmount:       tranche.GetAmount(),
 			}
 			if conflictID != "" {
 				resp.ConflictingRevenueId = &conflictID
@@ -240,11 +248,11 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 	}
 
 	// 6. UPDATE treasury_collection advance_* counters + status.
-	newRemaining := adv.GetAdvanceRemainingAmount() - tranche.Amount
+	newRemaining := adv.GetAdvanceRemainingAmount() - tranche.GetAmount()
 	if newRemaining < 0 {
 		newRemaining = 0
 	}
-	newRecognized := adv.GetAdvanceRecognizedAmount() + tranche.Amount
+	newRecognized := adv.GetAdvanceRecognizedAmount() + tranche.GetAmount()
 	newStatus := advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE
 	if newRemaining == 0 {
 		newStatus = advancekindpb.AdvanceStatus_ADVANCE_STATUS_FULLY_RECOGNIZED
@@ -275,9 +283,9 @@ func (uc *AmortizeAdvanceCollectionUseCase) executeCore(
 		NewRemainingAmount:  newRemaining,
 		NewRecognizedAmount: newRecognized,
 		NewStatus:           newStatus,
-		TrancheStart:        tranche.PeriodStart,
-		TrancheEnd:          tranche.PeriodEnd,
-		TrancheAmount:       tranche.Amount,
+		TrancheStart:        tranche.GetPeriodStart(),
+		TrancheEnd:          tranche.GetPeriodEnd(),
+		TrancheAmount:       tranche.GetAmount(),
 	}, nil
 }
 
@@ -341,7 +349,7 @@ func (uc *AmortizeAdvanceCollectionUseCase) findExistingRevenueForPeriod(
 func (uc *AmortizeAdvanceCollectionUseCase) insertRevenue(
 	ctx context.Context,
 	adv *collectionpb.Collection,
-	tranche amortizeschedule.TrancheSpec,
+	tranche *amortizationpb.TrancheSpec,
 	req *collectionpb.AmortizeAdvanceCollectionRequest,
 ) (string, error) {
 	revenueID := uc.services.IDGenerator.GenerateID()
@@ -349,10 +357,10 @@ func (uc *AmortizeAdvanceCollectionUseCase) insertRevenue(
 	dc := now.UnixMilli()
 	dcStr := now.Format(time.RFC3339)
 
-	notes := BuildAdvanceNotes(tranche.PeriodStart, tranche.PeriodEnd)
+	notes := BuildAdvanceNotes(tranche.GetPeriodStart(), tranche.GetPeriodEnd())
 	advanceID := adv.GetId()
 	clientID := adv.GetClientId()
-	revenueDate := tranche.PeriodEnd
+	revenueDate := tranche.GetPeriodEnd()
 
 	rev := &revenuepb.Revenue{
 		Id:                  revenueID,
@@ -363,7 +371,7 @@ func (uc *AmortizeAdvanceCollectionUseCase) insertRevenue(
 		Active:              true,
 		ClientId:            clientID,
 		RevenueDate:         &revenueDate,
-		TotalAmount:         tranche.Amount,
+		TotalAmount:         tranche.GetAmount(),
 		Currency:            adv.GetCurrency(),
 		Status:              "posted",
 		Notes:               &notes,
@@ -407,16 +415,27 @@ func BuildAdvanceNotes(start, end string) string {
 	return BuildAdvancePeriodMarker(start, end)
 }
 
-// ProtoProrationToHelper translates the proto enum to the helper's policy.
-func ProtoProrationToHelper(p advancekindpb.AdvanceProrationPolicy) amortizeschedule.ProrationPolicy {
+// AdvanceProrationToAmortization translates the advance_kind proto proration
+// policy enum to the amortization service proto's ProrationPolicy enum.
+func AdvanceProrationToAmortization(p advancekindpb.AdvanceProrationPolicy) amortizationpb.ProrationPolicy {
 	switch p {
 	case advancekindpb.AdvanceProrationPolicy_ADVANCE_PRORATION_POLICY_DAY_PRORATED:
-		return amortizeschedule.ProrationPolicyDayProrated
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_DAY_PRORATED
 	case advancekindpb.AdvanceProrationPolicy_ADVANCE_PRORATION_POLICY_NEXT_PERIOD_START:
-		return amortizeschedule.ProrationPolicyNextPeriodStart
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_NEXT_PERIOD_START
 	default:
-		return amortizeschedule.ProrationPolicyFullTranche
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_FULL_TRANCHE
 	}
+}
+
+// ProtoProrationToHelper is the legacy translation function. Kept as a
+// compatibility alias during the migration to the service-driven amortization
+// domain. Callers should migrate to AdvanceProrationToAmortization + the
+// service use case's proto request.
+//
+// Deprecated: use AdvanceProrationToAmortization instead.
+func ProtoProrationToHelper(p advancekindpb.AdvanceProrationPolicy) amortizationpb.ProrationPolicy {
+	return AdvanceProrationToAmortization(p)
 }
 
 // errored wraps an error into the proto response so the run engine can record

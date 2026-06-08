@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
 )
@@ -42,7 +43,7 @@ func NewDeleteExpenditureAttributeUseCase(
 // Execute performs the delete expenditure attribute operation
 func (uc *DeleteExpenditureAttributeUseCase) Execute(ctx context.Context, req *pb.DeleteExpenditureAttributeRequest) (*pb.DeleteExpenditureAttributeResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenditureAttribute, ports.ActionDelete); err != nil {
+		entityExpenditureAttribute, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 )
@@ -42,7 +43,7 @@ func NewReadDocumentTemplateUseCase(
 // Execute performs the read document template operation
 func (uc *ReadDocumentTemplateUseCase) Execute(ctx context.Context, req *documenttemplatepb.ReadDocumentTemplateRequest) (*documenttemplatepb.ReadDocumentTemplateResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDocumentTemplate, ports.ActionRead); err != nil {
+		entityDocumentTemplate, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

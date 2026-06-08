@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 )
@@ -66,7 +67,7 @@ func NewCreateAssetUseCaseUngrouped(assetRepo assetpb.AssetDomainServiceServer) 
 func (uc *CreateAssetUseCase) Execute(ctx context.Context, req *assetpb.CreateAssetRequest) (*assetpb.CreateAssetResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAsset, ports.ActionCreate); err != nil {
+		entityAsset, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

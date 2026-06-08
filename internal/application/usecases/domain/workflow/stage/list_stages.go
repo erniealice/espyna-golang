@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
@@ -61,7 +62,7 @@ func NewListStagesUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) *
 func (uc *ListStagesUseCase) Execute(ctx context.Context, req *stagepb.ListStagesRequest) (*stagepb.ListStagesResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"stage", ports.ActionList); err != nil {
+		"stage", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

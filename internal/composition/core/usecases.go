@@ -62,16 +62,8 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
 	servicetax "github.com/erniealice/espyna-golang/internal/application/usecases/service/tax"
 
-	// service/registrar blank-import: triggers init() of every
-	// dynamically-registered service-driven candidate (currently
-	// tax_compute; future dashboards/reporting). MUST be loaded before
-	// initservice.InitializeAll so service.Register has populated
-	// the factory map by the time service.NewServiceUseCases iterates it.
-	// See docs/wiki/articles/hexagonal-rules.md §8 (tax_compute worked
-	// example) for the canonical shape.
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription"
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription"
-	_ "github.com/erniealice/espyna-golang/internal/application/usecases/service/registrar"
 
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax"
 	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
@@ -256,13 +248,6 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 		}
 	}
 
-	// Capture entity-layer compute into the service/tax registry BEFORE
-	// initializeServiceUseCases runs. The registered factory reads the
-	// captured value at construction time; passing nil leaves the
-	// service.Tax sub-aggregate unresolved and the RecognizeRevenueFromSubscription
-	// invoker rewire below degrades to a no-op (no warning, no panic).
-	servicetax.SetEntityCompute(entityCompute)
-
 	financeUC, err := uci.initializeFinanceUseCases(container)
 	if err != nil {
 		financeUC = &finance.FinanceUseCases{}
@@ -288,7 +273,9 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	// service factory can plug in; degrades to a no-op service when the
 	// connection isn't SQL-backed (mock/firestore). Option B: entity-auth
 	// is built internally by the service initializer via txSvc + idSvc.
-	serviceUC, err := uci.initializeServiceUseCases(container)
+	// 2026-06-08 — entityCompute (entity-layer tax use case) is threaded
+	// through to initialize the service/tax wrapper.
+	serviceUC, err := uci.initializeServiceUseCases(container, entityCompute)
 	if err != nil {
 		serviceUC = &service.ServiceUseCases{}
 	}
@@ -298,17 +285,15 @@ func (uci *UseCaseInitializer) InitializeAll(container *Container) error {
 	// entity-layer use case directly. The proto-shaped wrapper satisfies the
 	// narrow ComputeTaxesForRevenueInvoker contract via its ExecuteForRevenue
 	// pass-through (defined in service/tax/compute_taxes_for_revenue.go) — no
-	// failure-semantics change. serviceUC.Tax resolves via the dynamic
-	// registry (servicetax.From == service.Get[*servicetax.UseCases]); when
-	// the entity-layer compute is nil (no SQL provider), From returns nil and
-	// SetComputeTaxes(nil) below leaves the hook disabled per its nil-safe
-	// contract.
-	if serviceUC != nil && revenueUC != nil && revenueUC.Revenue != nil &&
+	// failure-semantics change. serviceUC.Tax is a typed field (converted from
+	// dynamic registry 2026-06-08); when the entity-layer compute is nil (no SQL
+	// provider), serviceUC.Tax is nil and SetComputeTaxes(nil) below leaves the
+	// hook disabled per its nil-safe contract.
+	if serviceUC != nil && serviceUC.Tax != nil && serviceUC.Tax.ComputeTaxesForRevenue != nil &&
+		revenueUC != nil && revenueUC.Revenue != nil &&
 		revenueUC.Revenue.RecognizeRevenueFromSubscription != nil {
-		if taxSub := servicetax.From(serviceUC); taxSub != nil && taxSub.ComputeTaxesForRevenue != nil {
-			revenueUC.Revenue.RecognizeRevenueFromSubscription.SetComputeTaxes(taxSub.ComputeTaxesForRevenue)
-			fmt.Printf("Tax compute wired into revenue domain via service/tax (ComputeTaxesForRevenue → RecognizeRevenueFromSubscription [service-driven path])\n")
-		}
+		revenueUC.Revenue.RecognizeRevenueFromSubscription.SetComputeTaxes(serviceUC.Tax.ComputeTaxesForRevenue)
+		fmt.Printf("Tax compute wired into revenue domain via service/tax (ComputeTaxesForRevenue → RecognizeRevenueFromSubscription [service-driven path])\n")
 	}
 
 	// Create aggregate with successfully initialized domains
@@ -1392,14 +1377,16 @@ func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (
 }
 
 // initializeServiceUseCases initializes the service-driven domain
-// sub-aggregate (audit query; reporting; security per Q7). The
-// audit sub-aggregate needs a raw *sql.DB so the audit service factory
+// sub-aggregate (audit query; reporting; security, tax, amortization per Q7).
+// The audit sub-aggregate needs a raw *sql.DB so the audit service factory
 // can plug in; on non-SQL providers (mock/firestore) the AuditService
 // resolves to nil and the use cases degrade gracefully.
 // txSvc and idSvc are threaded through to InitializeAll (Option B:
 // entity-auth is built internally by the service initializer).
-func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container) (*service.ServiceUseCases, error) {
-	fmt.Printf("🧩 Initializing Service-driven use cases (audit, security, auth)...\n")
+// entityComputeTaxes is the entity-layer tax use case wrapped by the
+// service/tax proto layer (Q-SDM-TAX).
+func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, entityComputeTaxes *computepkg.ComputeTaxesForRevenueUseCase) (*service.ServiceUseCases, error) {
+	fmt.Printf("🧩 Initializing Service-driven use cases (audit, security, auth, tax, amortization)...\n")
 
 	authSvc, txSvc, i18nSvc, idSvc, err := uci.getServices(container)
 	if err != nil {
@@ -1490,15 +1477,17 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container) (
 	// pattern (see ar_aging.SetReporter in service/reporting/ar_aging/).
 	var ledgerReportingSvcForARAging any = nil
 
-	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging)
+	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging, entityComputeTaxes)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize service-driven use cases: %v\n", err)
 		return &service.ServiceUseCases{}, err
 	}
-	fmt.Printf("✅ Service-driven use cases initialized (audit: %v, security: %v, auth: %v)\n",
+	fmt.Printf("✅ Service-driven use cases initialized (audit: %v, security: %v, auth: %v, tax: %v, amortization: %v)\n",
 		svcUC != nil && svcUC.Audit != nil,
 		svcUC != nil && svcUC.Security != nil,
-		svcUC != nil && svcUC.Auth != nil)
+		svcUC != nil && svcUC.Auth != nil,
+		svcUC != nil && svcUC.Tax != nil,
+		svcUC != nil && svcUC.Amortization != nil)
 	return svcUC, nil
 }
 

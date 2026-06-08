@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -46,7 +47,7 @@ func NewRegisterBillingUseCase(
 // Execute performs the register billing operation.
 func (uc *RegisterBillingUseCase) Execute(ctx context.Context, req RegisterBillingRequest) error {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContract, ports.ActionUpdate); err != nil {
+		entitySupplierContract, entityid.ActionUpdate); err != nil {
 		return err
 	}
 	if req.ContractID == "" {

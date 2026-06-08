@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	withholdingcertificatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/withholding_certificate"
 )
@@ -39,7 +40,7 @@ func NewCreateWithholdingCertificateUseCase(repositories CreateWithholdingCertif
 // Execute performs the create withholding_certificate operation.
 func (uc *CreateWithholdingCertificateUseCase) Execute(ctx context.Context, req *withholdingcertificatepb.CreateWithholdingCertificateRequest) (*withholdingcertificatepb.CreateWithholdingCertificateResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityWithholdingCertificate, ports.ActionCreate); err != nil {
+		entityWithholdingCertificate, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

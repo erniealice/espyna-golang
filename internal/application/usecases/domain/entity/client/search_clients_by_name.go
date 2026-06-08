@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )
@@ -43,7 +44,7 @@ func NewSearchClientsByNameUseCase(
 func (uc *SearchClientsByNameUseCase) Execute(ctx context.Context, req *clientpb.SearchClientsByNameRequest) (*clientpb.SearchClientsByNameResponse, error) {
 	// Authorization check — search is a read/list operation
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityClient, ports.ActionList); err != nil {
+		entityid.Client, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 )
@@ -46,7 +47,7 @@ func NewListByRevenueRevenueTaxLineUseCase(
 // Execute returns all revenue_tax_line rows for the given revenue.
 func (uc *ListByRevenueRevenueTaxLineUseCase) Execute(ctx context.Context, revenueID string) ([]*revenuetaxlinepb.RevenueTaxLine, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueTaxLine, ports.ActionList); err != nil {
+		entityRevenueTaxLine, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if revenueID == "" {

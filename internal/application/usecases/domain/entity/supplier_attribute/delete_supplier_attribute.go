@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	supplierattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_attribute"
 )
@@ -60,7 +61,7 @@ func NewDeleteSupplierAttributeUseCaseUngrouped(supplierAttributeRepo supplierat
 func (uc *DeleteSupplierAttributeUseCase) Execute(ctx context.Context, req *supplierattributepb.DeleteSupplierAttributeRequest) (*supplierattributepb.DeleteSupplierAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier_attribute", ports.ActionDelete); err != nil {
+		"supplier_attribute", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

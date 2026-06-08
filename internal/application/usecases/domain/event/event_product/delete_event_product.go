@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_product"
@@ -69,7 +70,7 @@ func NewDeleteEventProductUseCaseUngrouped(eventProductRepo eventproductpb.Event
 func (uc *DeleteEventProductUseCase) Execute(ctx context.Context, req *eventproductpb.DeleteEventProductRequest) (*eventproductpb.DeleteEventProductResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventProduct, ports.ActionDelete); err != nil {
+		entityid.EventProduct, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -80,7 +81,7 @@ func (uc *DeleteEventProductUseCase) Execute(ctx context.Context, req *eventprod
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventProduct, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.EventProduct, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_product.errors.authorization_failed", "Authorization failed for event product")

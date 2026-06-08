@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventoccurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_occurrence"
 )
@@ -43,7 +44,7 @@ func NewGetEventOccurrenceItemPageDataUseCase(
 func (uc *GetEventOccurrenceItemPageDataUseCase) Execute(ctx context.Context, req *eventoccurrencepb.GetEventOccurrenceItemPageDataRequest) (*eventoccurrencepb.GetEventOccurrenceItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventOccurrence, ports.ActionRead); err != nil {
+		entityid.EventOccurrence, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

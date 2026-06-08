@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	linepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
@@ -51,7 +52,7 @@ func NewUpdateProductLineUseCase(
 func (uc *UpdateProductLineUseCase) Execute(ctx context.Context, req *productlinepb.UpdateProductLineRequest) (*productlinepb.UpdateProductLineResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductLine, ports.ActionUpdate); err != nil {
+		entityid.ProductLine, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -93,7 +94,7 @@ func (uc *UpdateProductLineUseCase) executeCore(ctx context.Context, req *produc
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityProductLine, ports.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.ProductLine, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_line.errors.authorization_failed", "Authorization failed for product lines [DEFAULT]")

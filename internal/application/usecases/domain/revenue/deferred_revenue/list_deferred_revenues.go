@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
@@ -42,7 +43,7 @@ func NewListDeferredRevenuesUseCase(
 // Execute performs the list deferred revenues operation
 func (uc *ListDeferredRevenuesUseCase) Execute(ctx context.Context, req *deferredrevenuepb.ListDeferredRevenuesRequest) (*deferredrevenuepb.ListDeferredRevenuesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDeferredRevenue, ports.ActionList); err != nil {
+		entityDeferredRevenue, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

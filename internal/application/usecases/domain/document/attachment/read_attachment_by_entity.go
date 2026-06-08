@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
 )
@@ -51,7 +52,7 @@ func NewReadAttachmentByEntityUseCase(
 // not-found-shaped error (Success=false, nil Data) so existence is not leaked.
 func (uc *ReadAttachmentByEntityUseCase) Execute(ctx context.Context, id, moduleKey, foreignKey string) (*attachmentpb.ReadAttachmentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAttachment, ports.ActionRead); err != nil {
+		entityAttachment, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

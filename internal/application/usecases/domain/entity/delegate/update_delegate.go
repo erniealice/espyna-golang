@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 )
@@ -63,7 +64,7 @@ func NewUpdateDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 func (uc *UpdateDelegateUseCase) Execute(ctx context.Context, req *delegatepb.UpdateDelegateRequest) (*delegatepb.UpdateDelegateResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityDelegate, ports.ActionUpdate); err != nil {
+		entityid.Delegate, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 )
@@ -45,7 +46,7 @@ func (uc *GetProductAttributeItemPageDataUseCase) Execute(
 ) (*productattributepb.GetProductAttributeItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductAttribute, ports.ActionList); err != nil {
+		entityid.ProductAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

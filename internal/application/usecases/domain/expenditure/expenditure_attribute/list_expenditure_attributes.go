@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_attribute"
 )
@@ -42,7 +43,7 @@ func NewListExpenditureAttributesUseCase(
 // Execute performs the list expenditure attributes operation
 func (uc *ListExpenditureAttributesUseCase) Execute(ctx context.Context, req *pb.ListExpenditureAttributesRequest) (*pb.ListExpenditureAttributesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenditureAttribute, ports.ActionList); err != nil {
+		entityExpenditureAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

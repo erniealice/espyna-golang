@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	serialhistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/serial_history"
 )
@@ -44,7 +45,7 @@ func NewReadInventorySerialHistoryUseCase(
 // Execute performs the read inventory serial history operation
 func (uc *ReadInventorySerialHistoryUseCase) Execute(ctx context.Context, req *serialhistorypb.ReadInventorySerialHistoryRequest) (*serialhistorypb.ReadInventorySerialHistoryResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventorySerialHistory, ports.ActionRead); err != nil {
+		entityid.InventorySerialHistory, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -54,7 +55,7 @@ func (uc *ReadInventorySerialHistoryUseCase) Execute(ctx context.Context, req *s
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInventorySerialHistory, ports.ActionRead)
+	permission := entityid.EntityPermission(entityid.InventorySerialHistory, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")

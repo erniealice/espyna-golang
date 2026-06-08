@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
@@ -44,7 +45,7 @@ func NewListConversationPostsUseCase(repos ListConversationPostsRepositories, sv
 // predicate). Verb: conversation_post:read.
 func (uc *ListConversationPostsUseCase) Execute(ctx context.Context, req *conversationPostpb.ListConversationPostsRequest) (*conversationPostpb.ListConversationPostsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityConversationPost, ports.ActionRead); err != nil {
+		entityid.ConversationPost, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

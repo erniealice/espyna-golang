@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_line"
 )
@@ -45,7 +46,7 @@ func NewDeleteProductLineUseCase(
 func (uc *DeleteProductLineUseCase) Execute(ctx context.Context, req *productlinepb.DeleteProductLineRequest) (*productlinepb.DeleteProductLineResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductLine, ports.ActionDelete); err != nil {
+		entityid.ProductLine, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +88,7 @@ func (uc *DeleteProductLineUseCase) executeCore(ctx context.Context, req *produc
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityProductLine, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.ProductLine, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_line.errors.authorization_failed", "Authorization failed for product lines [DEFAULT]")

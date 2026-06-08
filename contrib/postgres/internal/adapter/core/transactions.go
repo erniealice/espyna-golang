@@ -38,8 +38,20 @@ func (tm *PostgreSQLTransactionManager) StartTransaction(ctx context.Context) (i
 	return tm.StartTransactionWithOptions(ctx, interfaces.DefaultTransactionOptions())
 }
 
-// StartTransactionWithOptions creates and begins a new transaction with specific options
+// StartTransactionWithOptions creates and begins a new transaction with specific options.
+//
+// Re-entrancy guard: if the context already carries an active (Pending)
+// PostgreSQL transaction, we DO NOT open a second physical transaction on a
+// fresh pooled connection (which would deadlock against / be invisible to the
+// outer tx). We return the existing transaction so the caller joins it. Only
+// when no active tx is present do we BeginTx a real one.
 func (tm *PostgreSQLTransactionManager) StartTransactionWithOptions(ctx context.Context, options interfaces.TransactionOptions) (interfaces.Transaction, error) {
+	if existing, ok := operations.GetTransactionFromContext(ctx); ok {
+		if pgTx, ok := existing.(*PostgreSQLTransaction); ok && pgTx.State() == interfaces.TransactionStatePending {
+			return pgTx, nil
+		}
+	}
+
 	// Create transaction context with timeout if specified
 	txCtx := ctx
 	if options.Timeout > 0 {
@@ -75,8 +87,27 @@ func (tm *PostgreSQLTransactionManager) RunInTransaction(ctx context.Context, fn
 	return tm.RunInTransactionWithOptions(ctx, interfaces.DefaultTransactionOptions(), fn)
 }
 
-// RunInTransactionWithOptions executes a function within a transaction with specific options
+// RunInTransactionWithOptions executes a function within a transaction with specific options.
+//
+// Re-entrancy guard (authoritative — every caller including the application
+// Transactor bridge flows through here): if the context already carries an
+// active (Pending) PostgreSQL transaction, this is a NESTED call. We must NOT
+// BeginTx a second physical transaction (a different pooled connection that the
+// outer tx can neither see nor be rolled back by, and that can self-deadlock on
+// rows the outer tx locked). Instead we join the outer tx by running fn(ctx)
+// directly. getExecutor already routes DML onto the active *sql.Tx, so the inner
+// work sees the outer's uncommitted writes and participates in the outer's
+// single commit/rollback. We deliberately do NOT commit or rollback here — the
+// OUTERMOST RunInTransactionWithOptions that opened the tx owns that lifecycle;
+// we only propagate fn's error so the outer owner rolls back the whole tx.
 func (tm *PostgreSQLTransactionManager) RunInTransactionWithOptions(ctx context.Context, options interfaces.TransactionOptions, fn func(ctx context.Context) error) error {
+	if existing, ok := operations.GetTransactionFromContext(ctx); ok {
+		if pgTx, ok := existing.(*PostgreSQLTransaction); ok && pgTx.State() == interfaces.TransactionStatePending {
+			// Nested call: join the active transaction; do not begin/commit/rollback.
+			return fn(ctx)
+		}
+	}
+
 	// Start transaction
 	tx, err := tm.StartTransactionWithOptions(ctx, options)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
@@ -43,7 +44,7 @@ func NewGetBalanceAttributeListPageDataUseCase(
 func (uc *GetBalanceAttributeListPageDataUseCase) Execute(ctx context.Context, req *balanceattributepb.GetBalanceAttributeListPageDataRequest) (*balanceattributepb.GetBalanceAttributeListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityBalanceAttribute, ports.ActionList); err != nil {
+		entityid.BalanceAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

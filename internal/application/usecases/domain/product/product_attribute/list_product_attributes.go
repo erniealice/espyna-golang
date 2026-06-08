@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 )
@@ -45,7 +46,7 @@ func NewListProductAttributesUseCase(
 func (uc *ListProductAttributesUseCase) Execute(ctx context.Context, req *productattributepb.ListProductAttributesRequest) (*productattributepb.ListProductAttributesResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductAttribute, ports.ActionList); err != nil {
+		entityid.ProductAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 
@@ -56,7 +57,7 @@ func (uc *ListProductAttributesUseCase) Execute(ctx context.Context, req *produc
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityProductAttribute, ports.ActionList)
+	permission := entityid.EntityPermission(entityid.ProductAttribute, entityid.ActionList)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")

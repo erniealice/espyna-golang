@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
 )
@@ -42,7 +43,7 @@ func NewReadAttachmentUseCase(
 // Execute performs the read attachment operation
 func (uc *ReadAttachmentUseCase) Execute(ctx context.Context, req *attachmentpb.ReadAttachmentRequest) (*attachmentpb.ReadAttachmentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAttachment, ports.ActionRead); err != nil {
+		entityAttachment, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

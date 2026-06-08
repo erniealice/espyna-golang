@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
@@ -50,7 +51,7 @@ func NewCreateResourceUseCase(
 func (uc *CreateResourceUseCase) Execute(ctx context.Context, req *resourcepb.CreateResourceRequest) (*resourcepb.CreateResourceResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityResource, ports.ActionCreate); err != nil {
+		entityid.Resource, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

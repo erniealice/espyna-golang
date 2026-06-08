@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 )
@@ -52,7 +53,7 @@ func NewCreatePayrollRemittanceUseCase(
 // Execute performs the create payroll remittance operation.
 func (uc *CreatePayrollRemittanceUseCase) Execute(ctx context.Context, req *payrollremittancepb.CreatePayrollRemittanceRequest) (*payrollremittancepb.CreatePayrollRemittanceResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPayrollRemittance, ports.ActionCreate); err != nil {
+		entityPayrollRemittance, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

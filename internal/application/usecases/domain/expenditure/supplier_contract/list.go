@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 )
 
@@ -37,7 +38,7 @@ func NewListSupplierContractsUseCase(
 // Execute performs the list supplier contracts operation.
 func (uc *ListSupplierContractsUseCase) Execute(ctx context.Context, req *suppliercontractpb.ListSupplierContractsRequest) (*suppliercontractpb.ListSupplierContractsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContract, ports.ActionList); err != nil {
+		entitySupplierContract, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	return uc.repositories.SupplierContract.ListSupplierContracts(ctx, req)

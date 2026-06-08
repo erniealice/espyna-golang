@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/shared/amortize_schedule"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	serviceamortization "github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
 	treasurycollection "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -18,6 +19,7 @@ import (
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
+	amortizationpb "github.com/erniealice/esqyma/pkg/schema/v1/service/amortization"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -64,8 +66,13 @@ type ListRevenueRunCandidatesRepositories struct {
 
 // ListRevenueRunCandidatesServices groups all business service dependencies.
 type ListRevenueRunCandidatesServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer   ports.Authorizer
+	Translator   ports.Translator
+	// Amortization is the service-driven amortization schedule wrapper.
+	// Used by buildAdvanceCandidate to compute next-due tranches with
+	// proto-typed IO. Wired by the composition root via
+	// serviceamortization.From(serviceUseCases).
+	Amortization *serviceamortization.ComputeNextDueTrancheUseCase
 }
 
 // ListRevenueRunCandidatesUseCase enumerates pending billing periods for the
@@ -102,11 +109,11 @@ func (uc *ListRevenueRunCandidatesUseCase) Execute(
 ) (*revenuerunpb.ListRevenueRunCandidatesResponse, error) {
 	// 1. Auth checks
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenue, ports.ActionCreate); err != nil {
+		entityRevenue, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySubscription, ports.ActionRead); err != nil {
+		entitySubscription, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -750,29 +757,30 @@ func (uc *ListRevenueRunCandidatesUseCase) buildAdvanceCandidate(
 	adv *collectionpb.Collection,
 	asOfDate string,
 ) *revenuerunpb.RevenueRunCandidate {
-	tranche, ok, err := amortizeschedule.ComputeNextDueTranche(amortizeschedule.Inputs{
+	trancheResp, err := uc.services.Amortization.Execute(ctx, &amortizationpb.ComputeNextDueTrancheRequest{
 		StartDate:       adv.GetAdvanceStartDate(),
 		EndDate:         adv.GetAdvanceEndDate(),
-		PeriodCount:     int(adv.GetAdvancePeriodCount()),
+		PeriodCount:     int32(adv.GetAdvancePeriodCount()),
 		PeriodUnit:      adv.GetAdvancePeriodUnit(),
 		TotalAmount:     adv.GetAdvanceTotalAmount(),
 		ProrationPolicy: treasurycollection.ProtoProrationToHelper(adv.GetAdvanceProrationPolicy()),
 		AsOfDate:        asOfDate,
 	})
-	if err != nil || !ok {
+	if err != nil || !trancheResp.GetFound() {
 		return nil
 	}
+	tranche := trancheResp.GetTranche()
 
 	advanceID := adv.GetId()
-	marker := treasurycollection.BuildAdvancePeriodMarker(tranche.PeriodStart, tranche.PeriodEnd)
+	marker := treasurycollection.BuildAdvancePeriodMarker(tranche.GetPeriodStart(), tranche.GetPeriodEnd())
 	candidate := &revenuerunpb.RevenueRunCandidate{
 		ClientId:            adv.GetClientId(),
 		Currency:            adv.GetCurrency(),
-		PeriodStart:         tranche.PeriodStart,
-		PeriodEnd:           tranche.PeriodEnd,
-		PeriodLabel:         fmt.Sprintf("%s – %s", tranche.PeriodStart, tranche.PeriodEnd),
+		PeriodStart:         tranche.GetPeriodStart(),
+		PeriodEnd:           tranche.GetPeriodEnd(),
+		PeriodLabel:         fmt.Sprintf("%s – %s", tranche.GetPeriodStart(), tranche.GetPeriodEnd()),
 		PeriodMarker:        marker,
-		Amount:              tranche.Amount,
+		Amount:              tranche.GetAmount(),
 		LineItemCount:       1,
 		Eligible:            true,
 		SourceKind:          revenuerunpb.RevenueRunSourceKind_REVENUE_RUN_SOURCE_KIND_ADVANCE_COLLECTION,

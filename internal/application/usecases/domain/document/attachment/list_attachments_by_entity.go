@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
@@ -43,7 +44,7 @@ func NewListAttachmentsByEntityUseCase(
 // Execute lists attachments belonging to a specific entity (identified by moduleKey + entityID)
 func (uc *ListAttachmentsByEntityUseCase) Execute(ctx context.Context, moduleKey, entityID string) (*attachmentpb.ListAttachmentsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAttachment, ports.ActionList); err != nil {
+		entityAttachment, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

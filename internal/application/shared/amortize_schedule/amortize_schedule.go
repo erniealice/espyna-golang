@@ -11,10 +11,18 @@
 // Depends only on the Go standard library.
 //
 // Consumers (keep in sync):
-//   - usecases/treasury/collection/amortize_advance_collection.go
-//   - usecases/treasury/disbursement/amortize_advance_disbursement.go
-//   - usecases/revenue/revenue/list_revenue_run_candidates.go
+//   - usecases/service/amortization/ — proto-shaped wrapper (primary consumer)
 //   - usecases/expenditure/expense_recognition_run/list_expense_run_candidates.go
+//     (uses AddPeriod only for period enumeration; does NOT call
+//     EnumerateTranches/ComputeNextDueTranche directly — those go through
+//     the service wrapper)
+//
+// History: originally consumed directly by 4 domain use cases
+// (treasury/collection, treasury/disbursement, revenue/revenue,
+// expenditure/expense_recognition_run). Promoted to a service-driven domain
+// with proto contract at proto/v1/service/amortization/ per Mantra 3/3
+// rule-of-three (2026-06-08). The pure math stays here; the service wrapper
+// provides the versioned wire contract.
 package amortizeschedule
 
 import (

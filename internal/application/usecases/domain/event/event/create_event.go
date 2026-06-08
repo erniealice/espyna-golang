@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
@@ -67,7 +68,7 @@ func NewCreateEventUseCaseUngrouped(eventRepo eventpb.EventDomainServiceServer) 
 func (uc *CreateEventUseCase) Execute(ctx context.Context, req *eventpb.CreateEventRequest) (*eventpb.CreateEventResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEvent, ports.ActionCreate); err != nil {
+		entityid.Event, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

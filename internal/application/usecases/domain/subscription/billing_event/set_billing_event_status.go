@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -45,7 +46,7 @@ func (uc *SetBillingEventStatusUseCase) Execute(
 	ctx context.Context, req *billingeventpb.SetBillingEventStatusRequest,
 ) (*billingeventpb.SetBillingEventStatusResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"billing_event", ports.ActionUpdate); err != nil {
+		"billing_event", entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil {

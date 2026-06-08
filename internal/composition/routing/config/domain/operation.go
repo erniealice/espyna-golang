@@ -6,6 +6,8 @@ import (
 	operationuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 
+	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
+	evaluationtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
@@ -180,6 +182,84 @@ func ConfigureOperationDomain(operationUseCases *operationuc.OperationUseCases) 
 				Method:  "POST",
 				Path:    "/api/operation/job-task/get-list-page-data",
 				Handler: contracts.NewGenericHandler(operationUseCases.JobTask.GetJobTaskListPageData, &jobtaskpb.GetJobTaskListPageDataRequest{}),
+			})
+		}
+	}
+
+	// Evaluation routes (Performance Evaluation 20260604 v1).
+	if operationUseCases.Evaluation != nil {
+		if operationUseCases.Evaluation.CreateEvaluation != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.Evaluation.CreateEvaluation, &evaluationpb.CreateEvaluationRequest{}),
+			})
+		}
+		if operationUseCases.Evaluation.ReadEvaluation != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.Evaluation.ReadEvaluation, &evaluationpb.ReadEvaluationRequest{}),
+			})
+		}
+		if operationUseCases.Evaluation.UpdateEvaluation != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.Evaluation.UpdateEvaluation, &evaluationpb.UpdateEvaluationRequest{}),
+			})
+		}
+		if operationUseCases.Evaluation.DeleteEvaluation != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.Evaluation.DeleteEvaluation, &evaluationpb.DeleteEvaluationRequest{}),
+			})
+		}
+		if operationUseCases.Evaluation.ListEvaluations != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.Evaluation.ListEvaluations, &evaluationpb.ListEvaluationsRequest{}),
+			})
+		}
+		if operationUseCases.Evaluation.GetEvaluationListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.Evaluation.GetEvaluationListPageData, &evaluationpb.GetEvaluationListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.Evaluation.GetEvaluationItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.Evaluation.GetEvaluationItemPageData, &evaluationpb.GetEvaluationItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// EvaluationTemplate routes.
+	if operationUseCases.EvaluationTemplate != nil {
+		if operationUseCases.EvaluationTemplate.Create != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation-template/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.EvaluationTemplate.Create, &evaluationtemplatepb.CreateEvaluationTemplateRequest{}),
+			})
+		}
+		if operationUseCases.EvaluationTemplate.List != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation-template/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.EvaluationTemplate.List, &evaluationtemplatepb.ListEvaluationTemplatesRequest{}),
+			})
+		}
+		if operationUseCases.EvaluationTemplate.GetListPage != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/evaluation-template/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.EvaluationTemplate.GetListPage, &evaluationtemplatepb.GetEvaluationTemplateListPageDataRequest{}),
 			})
 		}
 	}

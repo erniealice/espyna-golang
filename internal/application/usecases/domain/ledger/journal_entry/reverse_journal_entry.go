@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
 )
@@ -51,7 +52,7 @@ func NewReverseJournalEntryUseCase(
 func (uc *ReverseJournalEntryUseCase) Execute(ctx context.Context, req *journalentrypb.ReverseJournalEntryRequest) (*journalentrypb.ReverseJournalEntryResponse, error) {
 	// Authorization check — reversing requires update-level access
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityJournalEntry, ports.ActionUpdate); err != nil {
+		entityJournalEntry, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

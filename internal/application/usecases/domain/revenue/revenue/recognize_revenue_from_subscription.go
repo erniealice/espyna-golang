@@ -12,6 +12,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"google.golang.org/protobuf/proto"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -193,11 +194,11 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) Execute(
 	req *revenuepb.CreateRevenueWithLineItemsRequest,
 ) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenue, ports.ActionCreate); err != nil {
+		entityRevenue, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySubscription, ports.ActionRead); err != nil {
+		entitySubscription, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

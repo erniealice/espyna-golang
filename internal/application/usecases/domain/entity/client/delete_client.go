@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 )
@@ -61,7 +62,7 @@ func NewDeleteClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 func (uc *DeleteClientUseCase) Execute(ctx context.Context, req *clientpb.DeleteClientRequest) (*clientpb.DeleteClientResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityClient, ports.ActionDelete); err != nil {
+		entityid.Client, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

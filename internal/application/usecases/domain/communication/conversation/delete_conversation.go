@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -41,7 +42,7 @@ func NewDeleteConversationUseCase(repos DeleteConversationRepositories, svcs Del
 // Execute performs the delete conversation operation.
 func (uc *DeleteConversationUseCase) Execute(ctx context.Context, req *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityConversation, ports.ActionDelete); err != nil {
+		entityid.Conversation, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

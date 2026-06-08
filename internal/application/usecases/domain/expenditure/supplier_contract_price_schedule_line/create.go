@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
 )
@@ -47,7 +48,7 @@ func NewCreateSupplierContractPriceScheduleLineUseCase(
 // Execute performs the create operation.
 func (uc *CreateSupplierContractPriceScheduleLineUseCase) Execute(ctx context.Context, req *scpslpb.CreateSupplierContractPriceScheduleLineRequest) (*scpslpb.CreateSupplierContractPriceScheduleLineResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContractPriceScheduleLine, ports.ActionCreate); err != nil {
+		entitySupplierContractPriceScheduleLine, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

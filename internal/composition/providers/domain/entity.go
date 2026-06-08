@@ -16,6 +16,7 @@ import (
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 	clientportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_portal_grant"
+	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
@@ -73,6 +74,8 @@ type EntityRepositories struct {
 	Workspace           workspacepb.WorkspaceDomainServiceServer
 	WorkspaceUser       workspaceuserpb.WorkspaceUserDomainServiceServer
 	WorkspaceUserRole   workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer
+	// Outsourcing-vertical client account-team membership
+	ClientWorkspaceUser clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer
 	// Cross-domain dependency from Common domain
 	Attribute attributepb.AttributeDomainServiceServer
 }
@@ -191,6 +194,9 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	}
 	if r := tryCreate(entityid.WorkspaceUserRole); r != nil {
 		repos.WorkspaceUserRole = r.(workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ClientWorkspaceUser); r != nil {
+		repos.ClientWorkspaceUser = r.(clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer)
 	}
 	// Cross-domain dependency: Attribute repository from Common domain
 	if r := tryCreate(entityid.Attribute); r != nil {

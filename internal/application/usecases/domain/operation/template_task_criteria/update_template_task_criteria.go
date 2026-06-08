@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
@@ -41,7 +42,7 @@ func NewUpdateTemplateTaskCriteriaUseCase(
 func (uc *UpdateTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.UpdateTemplateTaskCriteriaRequest) (*pb.UpdateTemplateTaskCriteriaResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityTemplateTaskCriteria, ports.ActionUpdate); err != nil {
+		entityid.TemplateTaskCriteria, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

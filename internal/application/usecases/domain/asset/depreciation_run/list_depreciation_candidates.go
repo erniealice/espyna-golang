@@ -11,6 +11,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	depengine "github.com/erniealice/espyna-golang/internal/domain/asset/depreciation"
 
@@ -59,7 +60,7 @@ func (uc *ListDepreciationCandidatesUseCase) Execute(
 	req *deprunpb.ListDepreciationCandidatesRequest,
 ) (*deprunpb.ListDepreciationCandidatesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetDepreciationRun, ports.ActionRead); err != nil {
+		entityAssetDepreciationRun, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

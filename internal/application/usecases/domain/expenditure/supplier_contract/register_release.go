@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -57,7 +58,7 @@ func NewRegisterReleaseUseCase(
 // Execute performs the register release operation.
 func (uc *RegisterReleaseUseCase) Execute(ctx context.Context, req RegisterReleaseRequest) error {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContract, ports.ActionUpdate); err != nil {
+		entitySupplierContract, entityid.ActionUpdate); err != nil {
 		return err
 	}
 	if req.ContractID == "" {

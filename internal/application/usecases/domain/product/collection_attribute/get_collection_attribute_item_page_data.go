@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
 )
@@ -46,7 +47,7 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) Execute(
 ) (*collectionattributepb.GetCollectionAttributeItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCollectionAttribute, ports.ActionList); err != nil {
+		entityid.CollectionAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

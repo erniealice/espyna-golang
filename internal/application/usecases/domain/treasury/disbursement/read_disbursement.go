@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
@@ -42,7 +43,7 @@ func NewReadDisbursementUseCase(
 // Execute performs the read disbursement operation
 func (uc *ReadDisbursementUseCase) Execute(ctx context.Context, req *disbursementpb.ReadDisbursementRequest) (*disbursementpb.ReadDisbursementResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDisbursement, ports.ActionRead); err != nil {
+		entityDisbursement, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

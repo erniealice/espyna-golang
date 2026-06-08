@@ -28,6 +28,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // Check verifies that the user in context has the given permission.
@@ -59,7 +60,7 @@ func Check(
 		return errors.New(msg)
 	}
 
-	permission := ports.EntityPermission(entity, action)
+	permission := entityid.EntityPermission(entity, action)
 	hasPerm, err := authService.HasPermission(ctx, userID, permission)
 	if err != nil {
 		log.Printf("AUTHZ_ERROR | user=%s | permission=%s | error=%v", userID, permission, err)

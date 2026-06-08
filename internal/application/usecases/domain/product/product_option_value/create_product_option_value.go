@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productoptionvaluepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option_value"
 )
@@ -46,7 +47,7 @@ func NewCreateProductOptionValueUseCase(
 func (uc *CreateProductOptionValueUseCase) Execute(ctx context.Context, req *productoptionvaluepb.CreateProductOptionValueRequest) (*productoptionvaluepb.CreateProductOptionValueResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductOptionValue, ports.ActionCreate); err != nil {
+		entityid.ProductOptionValue, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +88,7 @@ func (uc *CreateProductOptionValueUseCase) executeCore(ctx context.Context, req 
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityProductOptionValue, ports.ActionCreate)
+	permission := entityid.EntityPermission(entityid.ProductOptionValue, entityid.ActionCreate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_option_value.errors.authorization_failed", "Authorization failed for product option values [DEFAULT]")

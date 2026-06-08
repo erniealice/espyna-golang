@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
 	taxregistrationkindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration_kind"
@@ -58,7 +59,7 @@ func NewSupersedeTaxRegistrationUseCase(repositories SupersedeTaxRegistrationRep
 func (uc *SupersedeTaxRegistrationUseCase) Execute(ctx context.Context, req *SupersedeTaxRegistrationRequest) (*taxregistrationpb.TaxRegistration, error) {
 	// Supersede is an "update" action in CRUD permission terms.
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRegistration, ports.ActionUpdate); err != nil {
+		entityTaxRegistration, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

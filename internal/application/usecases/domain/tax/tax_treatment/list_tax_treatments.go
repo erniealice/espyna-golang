@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxtreatmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_treatment"
 )
@@ -35,7 +36,7 @@ func NewListTaxTreatmentsUseCase(repositories ListTaxTreatmentsRepositories, ser
 // Execute performs the list tax treatments operation.
 func (uc *ListTaxTreatmentsUseCase) Execute(ctx context.Context, req *taxtreatmentpb.ListTaxTreatmentsRequest) (*taxtreatmentpb.ListTaxTreatmentsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxTreatment, ports.ActionList); err != nil {
+		entityTaxTreatment, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

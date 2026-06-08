@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 )
@@ -35,7 +36,7 @@ func NewListCostPlansUseCase(
 
 func (uc *ListCostPlansUseCase) Execute(ctx context.Context, req *costplanpb.ListCostPlansRequest) (*costplanpb.ListCostPlansResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCostPlan, ports.ActionList); err != nil {
+		entityid.CostPlan, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

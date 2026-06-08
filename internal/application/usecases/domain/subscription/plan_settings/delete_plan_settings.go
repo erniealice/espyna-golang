@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
@@ -43,7 +44,7 @@ func NewDeletePlanSettingsUseCase(
 func (uc *DeletePlanSettingsUseCase) Execute(ctx context.Context, req *plansettingspb.DeletePlanSettingsRequest) (*plansettingspb.DeletePlanSettingsResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPlanSettings, ports.ActionDelete); err != nil {
+		entityid.PlanSettings, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

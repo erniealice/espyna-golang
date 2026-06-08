@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 )
@@ -45,7 +46,7 @@ func NewUpdatePriceListUseCase(
 func (uc *UpdatePriceListUseCase) Execute(ctx context.Context, req *pricelistpb.UpdatePriceListRequest) (*pricelistpb.UpdatePriceListResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPriceList, ports.ActionUpdate); err != nil {
+		entityid.PriceList, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +88,7 @@ func (uc *UpdatePriceListUseCase) executeCore(ctx context.Context, req *pricelis
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityPriceList, ports.ActionUpdate)
+	permission := entityid.Permission(entityid.PriceList, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_list.errors.authorization_failed", "Authorization failed for price lists [DEFAULT]")

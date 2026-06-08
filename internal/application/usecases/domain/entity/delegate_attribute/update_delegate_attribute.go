@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
@@ -74,7 +75,7 @@ func NewUpdateDelegateAttributeUseCaseUngrouped(
 func (uc *UpdateDelegateAttributeUseCase) Execute(ctx context.Context, req *delegateattributepb.UpdateDelegateAttributeRequest) (*delegateattributepb.UpdateDelegateAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityDelegateAttribute, ports.ActionUpdate); err != nil {
+		entityid.DelegateAttribute, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

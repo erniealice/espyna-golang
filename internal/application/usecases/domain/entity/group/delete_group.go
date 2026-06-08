@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
 )
@@ -60,7 +61,7 @@ func NewDeleteGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) 
 func (uc *DeleteGroupUseCase) Execute(ctx context.Context, req *grouppb.DeleteGroupRequest) (*grouppb.DeleteGroupResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityGroup, ports.ActionDelete); err != nil {
+		entityid.Group, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

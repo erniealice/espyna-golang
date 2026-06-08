@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
 )
@@ -60,7 +61,7 @@ func NewDeleteActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 func (uc *DeleteActivityUseCase) Execute(ctx context.Context, req *activitypb.DeleteActivityRequest) (*activitypb.DeleteActivityResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity", ports.ActionDelete); err != nil {
+		"activity", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

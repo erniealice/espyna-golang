@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
 )
@@ -42,7 +43,7 @@ func NewReadPrepaymentUseCase(
 // Execute performs the read prepayment operation
 func (uc *ReadPrepaymentUseCase) Execute(ctx context.Context, req *prepaymentpb.ReadPrepaymentRequest) (*prepaymentpb.ReadPrepaymentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPrepayment, ports.ActionRead); err != nil {
+		entityPrepayment, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

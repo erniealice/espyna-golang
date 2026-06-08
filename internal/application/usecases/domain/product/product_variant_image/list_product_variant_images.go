@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
 )
@@ -44,7 +45,7 @@ func NewListProductVariantImagesUseCase(
 func (uc *ListProductVariantImagesUseCase) Execute(ctx context.Context, req *productvariantimagepb.ListProductVariantImagesRequest) (*productvariantimagepb.ListProductVariantImagesResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductVariantImage, ports.ActionList); err != nil {
+		entityid.ProductVariantImage, entityid.ActionList); err != nil {
 		return nil, err
 	}
 
@@ -55,7 +56,7 @@ func (uc *ListProductVariantImagesUseCase) Execute(ctx context.Context, req *pro
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityProductVariantImage, ports.ActionList)
+	permission := entityid.EntityPermission(entityid.ProductVariantImage, entityid.ActionList)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")

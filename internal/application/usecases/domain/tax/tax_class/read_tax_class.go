@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxclasspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_class"
 )
@@ -35,7 +36,7 @@ func NewReadTaxClassUseCase(repositories ReadTaxClassRepositories, services Read
 // Execute performs the read tax_class operation.
 func (uc *ReadTaxClassUseCase) Execute(ctx context.Context, req *taxclasspb.ReadTaxClassRequest) (*taxclasspb.ReadTaxClassResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxClass, ports.ActionRead); err != nil {
+		entityTaxClass, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {

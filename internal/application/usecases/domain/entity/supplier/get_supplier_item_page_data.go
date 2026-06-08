@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 )
 
@@ -45,7 +46,7 @@ func (uc *GetSupplierItemPageDataUseCase) Execute(
 ) (*supplierpb.GetSupplierItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier", ports.ActionList); err != nil {
+		"supplier", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

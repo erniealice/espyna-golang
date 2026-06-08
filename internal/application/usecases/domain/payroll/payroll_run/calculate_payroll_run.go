@@ -7,6 +7,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/services/payroll"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
@@ -41,7 +42,7 @@ func NewCalculatePayrollRunUseCase(
 // PayCycles generated for it (use GeneratePayCycles first).
 func (uc *CalculatePayrollRunUseCase) Execute(ctx context.Context, req *payrollrunpb.CalculatePayrollRunRequest) (*payrollrunpb.CalculatePayrollRunResponse, error) {
 	if err := authcheck.Check(ctx, uc.authorizationService, uc.translationService,
-		entityPayrollRun, ports.ActionUpdate); err != nil {
+		entityPayrollRun, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.PayrollRunId == "" {
@@ -100,7 +101,7 @@ func NewGeneratePayCyclesUseCase(
 // Execute generates pay cycles for the run.
 func (uc *GeneratePayCyclesUseCase) Execute(ctx context.Context, req *payrollrunpb.GeneratePayCyclesRequest) (*payrollrunpb.GeneratePayCyclesResponse, error) {
 	if err := authcheck.Check(ctx, uc.authorizationService, uc.translationService,
-		entityPayrollRun, ports.ActionUpdate); err != nil {
+		entityPayrollRun, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.PayrollRunId == "" {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -127,7 +127,7 @@ func (uc *CreateSubscriptionWithPoolInvoiceUseCase) Execute(
 	// Authorization mirrors the plain path; centralised so the wrapping use
 	// case is self-contained.
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntitySubscription, ports.ActionCreate); err != nil {
+		entityid.Subscription, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

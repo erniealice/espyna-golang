@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventrecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 )
@@ -64,7 +65,7 @@ func NewDeleteEventRecurrenceUseCaseUngrouped(eventRecurrenceRepo eventrecurrenc
 func (uc *DeleteEventRecurrenceUseCase) Execute(ctx context.Context, req *eventrecurrencepb.DeleteEventRecurrenceRequest) (*eventrecurrencepb.DeleteEventRecurrenceResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"event_recurrence", ports.ActionDelete); err != nil {
+		"event_recurrence", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

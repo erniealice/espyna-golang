@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
 )
@@ -46,7 +47,7 @@ func NewReadCollectionAttributeUseCase(
 func (uc *ReadCollectionAttributeUseCase) Execute(ctx context.Context, req *collectionattributepb.ReadCollectionAttributeRequest) (*collectionattributepb.ReadCollectionAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCollectionAttribute, ports.ActionRead); err != nil {
+		entityid.CollectionAttribute, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -57,7 +58,7 @@ func (uc *ReadCollectionAttributeUseCase) Execute(ctx context.Context, req *coll
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityCollectionAttribute, ports.ActionRead)
+	permission := entityid.EntityPermission(entityid.CollectionAttribute, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")

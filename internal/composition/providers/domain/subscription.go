@@ -10,6 +10,7 @@ import (
 	// Protobuf domain services - Subscription domain
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
@@ -24,6 +25,8 @@ import (
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
+	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
+	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 )
 
 // SubscriptionRepositories contains all subscription domain repositories
@@ -43,7 +46,12 @@ type SubscriptionRepositories struct {
 	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
-	Attribute             attributepb.AttributeDomainServiceServer
+	// Outsourcing-vertical seat + servicing membership
+	SubscriptionSeat          subscriptionseatpb.SubscriptionSeatDomainServiceServer
+	SubscriptionWorkspaceUser subscriptionworkspaceuserpb.SubscriptionWorkspaceUserDomainServiceServer
+	// Cross-domain (entity): composite-FK pre-check for SubscriptionWorkspaceUser create
+	ClientWorkspaceUser clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer
+	Attribute           attributepb.AttributeDomainServiceServer
 }
 
 // NewSubscriptionRepositories creates and returns a new set of SubscriptionRepositories
@@ -150,23 +158,46 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		attributeServer = attributeRepo.(attributepb.AttributeDomainServiceServer)
 	}
 
+	// Outsourcing-vertical seat repository. Best-effort: when no adapter is
+	// registered (mock-only builds) the seat use cases are simply unresolved.
+	var subscriptionSeatServer subscriptionseatpb.SubscriptionSeatDomainServiceServer
+	if seatRepo, seatErr := repoCreator.CreateRepository(entityid.SubscriptionSeat, conn, tableConfig.TableName(entityid.SubscriptionSeat)); seatErr == nil {
+		subscriptionSeatServer = seatRepo.(subscriptionseatpb.SubscriptionSeatDomainServiceServer)
+	}
+
+	// Outsourcing-vertical servicing-membership repository (best-effort).
+	var subscriptionWorkspaceUserServer subscriptionworkspaceuserpb.SubscriptionWorkspaceUserDomainServiceServer
+	if swuRepo, swuErr := repoCreator.CreateRepository(entityid.SubscriptionWorkspaceUser, conn, tableConfig.TableName(entityid.SubscriptionWorkspaceUser)); swuErr == nil {
+		subscriptionWorkspaceUserServer = swuRepo.(subscriptionworkspaceuserpb.SubscriptionWorkspaceUserDomainServiceServer)
+	}
+
+	// Cross-domain client_workspace_user repository — used by the
+	// SubscriptionWorkspaceUser create composite-FK pre-check (best-effort).
+	var clientWorkspaceUserServer clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer
+	if cwuRepo, cwuErr := repoCreator.CreateRepository(entityid.ClientWorkspaceUser, conn, tableConfig.TableName(entityid.ClientWorkspaceUser)); cwuErr == nil {
+		clientWorkspaceUserServer = cwuRepo.(clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer)
+	}
+
 	// Type assert each repository to its interface
 	return &SubscriptionRepositories{
-		Balance:               balanceRepo.(balancepb.BalanceDomainServiceServer),
-		BalanceAttribute:      balanceAttributeRepo.(balanceattributepb.BalanceAttributeDomainServiceServer),
-		BillingEvent:          billingEventServer,
-		Client:                clientRepo.(clientpb.ClientDomainServiceServer),
-		Invoice:               invoiceRepo.(invoicepb.InvoiceDomainServiceServer),
-		InvoiceAttribute:      invoiceAttributeRepo.(invoiceattributepb.InvoiceAttributeDomainServiceServer),
-		Plan:                  planRepo.(planpb.PlanDomainServiceServer),
-		PlanAttribute:         planAttributeRepo.(planattributepb.PlanAttributeDomainServiceServer),
-		PlanSettings:          planSettingsRepo.(plansettingspb.PlanSettingsDomainServiceServer),
-		PricePlan:             pricePlanRepo.(priceplanpb.PricePlanDomainServiceServer),
-		PriceSchedule:         priceScheduleRepo.(priceschedulepb.PriceScheduleDomainServiceServer),
-		ProductPlan:           productPlanRepo.(productplanpb.ProductPlanDomainServiceServer),
-		ProductPricePlan:      productPricePlanRepo.(productpriceplanpb.ProductPricePlanDomainServiceServer),
-		Subscription:          subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
-		SubscriptionAttribute: subscriptionAttributeRepo.(subscriptionattributepb.SubscriptionAttributeDomainServiceServer),
-		Attribute:             attributeServer,
+		Balance:                   balanceRepo.(balancepb.BalanceDomainServiceServer),
+		BalanceAttribute:          balanceAttributeRepo.(balanceattributepb.BalanceAttributeDomainServiceServer),
+		BillingEvent:              billingEventServer,
+		Client:                    clientRepo.(clientpb.ClientDomainServiceServer),
+		Invoice:                   invoiceRepo.(invoicepb.InvoiceDomainServiceServer),
+		InvoiceAttribute:          invoiceAttributeRepo.(invoiceattributepb.InvoiceAttributeDomainServiceServer),
+		Plan:                      planRepo.(planpb.PlanDomainServiceServer),
+		PlanAttribute:             planAttributeRepo.(planattributepb.PlanAttributeDomainServiceServer),
+		PlanSettings:              planSettingsRepo.(plansettingspb.PlanSettingsDomainServiceServer),
+		PricePlan:                 pricePlanRepo.(priceplanpb.PricePlanDomainServiceServer),
+		PriceSchedule:             priceScheduleRepo.(priceschedulepb.PriceScheduleDomainServiceServer),
+		ProductPlan:               productPlanRepo.(productplanpb.ProductPlanDomainServiceServer),
+		ProductPricePlan:          productPricePlanRepo.(productpriceplanpb.ProductPricePlanDomainServiceServer),
+		Subscription:              subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
+		SubscriptionAttribute:     subscriptionAttributeRepo.(subscriptionattributepb.SubscriptionAttributeDomainServiceServer),
+		SubscriptionSeat:          subscriptionSeatServer,
+		SubscriptionWorkspaceUser: subscriptionWorkspaceUserServer,
+		ClientWorkspaceUser:       clientWorkspaceUserServer,
+		Attribute:                 attributeServer,
 	}, nil
 }

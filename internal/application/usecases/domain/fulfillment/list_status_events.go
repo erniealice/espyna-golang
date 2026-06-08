@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
@@ -26,7 +27,7 @@ type ListStatusEventsUseCase struct {
 
 // Execute returns the full append-only status event log for a fulfillment.
 func (uc *ListStatusEventsUseCase) Execute(ctx context.Context, req *pb.ListStatusEventsRequest) (*pb.ListStatusEventsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.FulfillmentId == "" {

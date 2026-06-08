@@ -8,6 +8,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 )
 
@@ -40,7 +41,7 @@ func NewDeleteByRevenueRevenueTaxLineUseCase(
 // Execute deletes all revenue_tax_line rows for the given revenue.
 func (uc *DeleteByRevenueRevenueTaxLineUseCase) Execute(ctx context.Context, revenueID string) error {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueTaxLine, ports.ActionDelete); err != nil {
+		entityRevenueTaxLine, entityid.ActionDelete); err != nil {
 		return err
 	}
 	if revenueID == "" {

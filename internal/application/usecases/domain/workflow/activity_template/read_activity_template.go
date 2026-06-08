@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 )
@@ -62,7 +63,7 @@ func NewReadActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTempla
 func (uc *ReadActivityTemplateUseCase) Execute(ctx context.Context, req *activityTemplatepb.ReadActivityTemplateRequest) (*activityTemplatepb.ReadActivityTemplateResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity_template", ports.ActionRead); err != nil {
+		"activity_template", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

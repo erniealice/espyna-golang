@@ -16,7 +16,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/shared/amortize_schedule"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	serviceamortization "github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
@@ -24,6 +26,7 @@ import (
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 	expenserecognitionrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_run"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
+	amortizationpb "github.com/erniealice/esqyma/pkg/schema/v1/service/amortization"
 	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
@@ -58,8 +61,13 @@ type ListExpenseRunCandidatesRepositories struct {
 
 // ListExpenseRunCandidatesServices groups infra services.
 type ListExpenseRunCandidatesServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer   ports.Authorizer
+	Translator   ports.Translator
+	// Amortization is the service-driven amortization schedule wrapper.
+	// Used by buildAdvanceCandidates to compute next-due tranches with
+	// proto-typed IO. Wired by the composition root via
+	// serviceamortization.From(serviceUseCases).
+	Amortization *serviceamortization.ComputeNextDueTrancheUseCase
 }
 
 // ListExpenseRunCandidatesUseCase enumerates pending recognition candidates
@@ -94,11 +102,11 @@ func (uc *ListExpenseRunCandidatesUseCase) Execute(
 	req *expenserecognitionrunpb.ListExpenseRunCandidatesRequest,
 ) (*expenserecognitionrunpb.ListExpenseRunCandidatesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, ports.ActionCreate); err != nil {
+		entityExpenseRecognition, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierSubscription, ports.ActionRead); err != nil {
+		entitySupplierSubscription, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -310,25 +318,26 @@ func (uc *ListExpenseRunCandidatesUseCase) buildAdvanceCandidates(
 		if adv.GetAdvanceStatus() != advancekindpb.AdvanceStatus_ADVANCE_STATUS_ACTIVE {
 			continue
 		}
-		tranche, ok, err := amortizeschedule.ComputeNextDueTranche(amortizeschedule.Inputs{
+		trancheResp, err := uc.services.Amortization.Execute(ctx, &amortizationpb.ComputeNextDueTrancheRequest{
 			StartDate:       adv.GetAdvanceStartDate(),
 			EndDate:         adv.GetAdvanceEndDate(),
-			PeriodCount:     int(adv.GetAdvancePeriodCount()),
+			PeriodCount:     int32(adv.GetAdvancePeriodCount()),
 			PeriodUnit:      adv.GetAdvancePeriodUnit(),
 			TotalAmount:     adv.GetAdvanceTotalAmount(),
-			ProrationPolicy: protoProrationToHelper(adv.GetAdvanceProrationPolicy()),
+			ProrationPolicy: advanceProrationToAmortization(adv.GetAdvanceProrationPolicy()),
 			AsOfDate:        asOfTime.Format("2006-01-02"),
 		})
-		if err != nil || !ok {
+		if err != nil || !trancheResp.GetFound() {
 			continue
 		}
+		tranche := trancheResp.GetTranche()
 		advID := adv.GetId()
 		supplierID := adv.GetSupplierId()
-		marker := fmt.Sprintf("Period: %s → %s", tranche.PeriodStart, tranche.PeriodEnd)
+		marker := fmt.Sprintf("Period: %s → %s", tranche.GetPeriodStart(), tranche.GetPeriodEnd())
 
 		// Idempotency screen: skip advance candidates whose tranche is already
 		// recognized (mirrors the subscription-cycle marker check).
-		if uc.advanceAlreadyRecognized(ctx, advID, tranche.PeriodStart) {
+		if uc.advanceAlreadyRecognized(ctx, advID, tranche.GetPeriodStart()) {
 			continue
 		}
 
@@ -339,19 +348,19 @@ func (uc *ListExpenseRunCandidatesUseCase) buildAdvanceCandidates(
 			SupplierName:          "",
 			SourceLabel:           adv.GetName(),
 			Currency:              adv.GetCurrency(),
-			PeriodStart:           tranche.PeriodStart,
-			PeriodEnd:             tranche.PeriodEnd,
-			PeriodLabel:           fmt.Sprintf("%s – %s", tranche.PeriodStart, tranche.PeriodEnd),
+			PeriodStart:           tranche.GetPeriodStart(),
+			PeriodEnd:             tranche.GetPeriodEnd(),
+			PeriodLabel:           fmt.Sprintf("%s – %s", tranche.GetPeriodStart(), tranche.GetPeriodEnd()),
 			PeriodMarker:          marker,
-			Amount:                tranche.Amount,
+			Amount:                tranche.GetAmount(),
 			Eligible:              true,
 		}
 		out = append(out, c)
 		if supplierID != "" {
 			bySupplier[supplierID] = append(bySupplier[supplierID], advancePeriod{
 				AdvanceID: advID,
-				Start:     tranche.PeriodStart,
-				End:       tranche.PeriodEnd,
+				Start:     tranche.GetPeriodStart(),
+				End:       tranche.GetPeriodEnd(),
 			})
 		}
 	}
@@ -632,13 +641,13 @@ func supplierName(sub *suppliersubscriptionpb.SupplierSubscription) string {
 	return ""
 }
 
-func protoProrationToHelper(p advancekindpb.AdvanceProrationPolicy) amortizeschedule.ProrationPolicy {
+func advanceProrationToAmortization(p advancekindpb.AdvanceProrationPolicy) amortizationpb.ProrationPolicy {
 	switch p {
 	case advancekindpb.AdvanceProrationPolicy_ADVANCE_PRORATION_POLICY_DAY_PRORATED:
-		return amortizeschedule.ProrationPolicyDayProrated
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_DAY_PRORATED
 	case advancekindpb.AdvanceProrationPolicy_ADVANCE_PRORATION_POLICY_NEXT_PERIOD_START:
-		return amortizeschedule.ProrationPolicyNextPeriodStart
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_NEXT_PERIOD_START
 	default:
-		return amortizeschedule.ProrationPolicyFullTranche
+		return amortizationpb.ProrationPolicy_PRORATION_POLICY_FULL_TRANCHE
 	}
 }

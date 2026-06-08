@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	eventattendeepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_attendee"
@@ -71,7 +72,7 @@ func NewUpdateEventAttendeeUseCaseUngrouped(
 func (uc *UpdateEventAttendeeUseCase) Execute(ctx context.Context, req *eventattendeepb.UpdateEventAttendeeRequest) (*eventattendeepb.UpdateEventAttendeeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventAttendee, ports.ActionUpdate); err != nil {
+		entityid.EventAttendee, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +83,7 @@ func (uc *UpdateEventAttendeeUseCase) Execute(ctx context.Context, req *eventatt
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventAttendee, ports.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.EventAttendee, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attendee.errors.authorization_failed", "Authorization failed for event attendee")

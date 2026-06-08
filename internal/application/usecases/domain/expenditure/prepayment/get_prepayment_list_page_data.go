@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	prepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/prepayment"
 )
@@ -43,7 +44,7 @@ func NewGetPrepaymentListPageDataUseCase(
 // Execute performs the get prepayment list page data operation
 func (uc *GetPrepaymentListPageDataUseCase) Execute(ctx context.Context, req *prepaymentpb.GetPrepaymentListPageDataRequest) (*prepaymentpb.GetPrepaymentListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPrepayment, ports.ActionList); err != nil {
+		entityPrepayment, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

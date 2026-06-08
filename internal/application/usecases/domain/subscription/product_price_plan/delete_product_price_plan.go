@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 )
@@ -31,7 +31,7 @@ func NewDeleteProductPricePlanUseCase(
 // Execute performs the delete product price plan operation
 func (uc *DeleteProductPricePlanUseCase) Execute(ctx context.Context, req *productpriceplanpb.DeleteProductPricePlanRequest) (*productpriceplanpb.DeleteProductPricePlanResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPricePlan, ports.ActionDelete); err != nil {
+		entityid.PricePlan, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
@@ -70,7 +71,7 @@ func NewCreateActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 func (uc *CreateActivityUseCase) Execute(ctx context.Context, req *activitypb.CreateActivityRequest) (*activitypb.CreateActivityResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity", ports.ActionCreate); err != nil {
+		"activity", entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

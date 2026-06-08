@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
@@ -48,7 +49,7 @@ func NewCreateDeferredRevenueUseCase(
 // Execute performs the create deferred revenue operation
 func (uc *CreateDeferredRevenueUseCase) Execute(ctx context.Context, req *deferredrevenuepb.CreateDeferredRevenueRequest) (*deferredrevenuepb.CreateDeferredRevenueResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDeferredRevenue, ports.ActionCreate); err != nil {
+		entityDeferredRevenue, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

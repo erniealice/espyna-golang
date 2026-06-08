@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 )
@@ -42,7 +43,7 @@ func NewListRevenueAttributesUseCase(
 // Execute performs the list revenue attributes operation
 func (uc *ListRevenueAttributesUseCase) Execute(ctx context.Context, req *pb.ListRevenueAttributesRequest) (*pb.ListRevenueAttributesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueAttribute, ports.ActionList); err != nil {
+		entityRevenueAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

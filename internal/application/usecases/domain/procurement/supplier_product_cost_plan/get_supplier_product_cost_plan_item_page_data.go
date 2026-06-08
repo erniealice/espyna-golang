@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	supplierproductcostplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_product_cost_plan"
 )
@@ -35,7 +36,7 @@ func NewGetSupplierProductCostPlanItemPageDataUseCase(
 
 func (uc *GetSupplierProductCostPlanItemPageDataUseCase) Execute(ctx context.Context, req *supplierproductcostplanpb.GetSupplierProductCostPlanItemPageDataRequest) (*supplierproductcostplanpb.GetSupplierProductCostPlanItemPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntitySupplierProductCostPlan, ports.ActionList); err != nil {
+		entityid.SupplierProductCostPlan, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil || req.SupplierProductCostPlanId == "" {

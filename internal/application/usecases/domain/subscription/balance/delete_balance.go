@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
@@ -44,7 +45,7 @@ func NewDeleteBalanceUseCase(
 func (uc *DeleteBalanceUseCase) Execute(ctx context.Context, req *balancepb.DeleteBalanceRequest) (*balancepb.DeleteBalanceResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityBalance, ports.ActionDelete); err != nil {
+		entityid.Balance, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -55,7 +56,7 @@ func (uc *DeleteBalanceUseCase) Execute(ctx context.Context, req *balancepb.Dele
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityBalance, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.Balance, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "balance.errors.authorization_failed", "Authorization failed for student account balances [DEFAULT]")

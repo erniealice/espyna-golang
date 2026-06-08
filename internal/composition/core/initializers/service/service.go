@@ -14,20 +14,27 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
 	svcusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service"
+	servicetax "github.com/erniealice/espyna-golang/internal/application/usecases/service/tax"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
 // InitializeAll wires every service-driven use case sub-aggregate.
 //
 // Wave B Round 1 LANDED: Audit, Security, Auth, Admin (P1.C.1),
-// Schedule (P1.C.7), Integration (registry path P1.C.10), AR Aging
-// (P1.E.1). Round 2a LANDED 2026-05-20: Location P1.C.2, Equity P1.C.4,
-// Payroll P1.C.6. Round 2b LANDED 2026-05-21: Ledger P1.C.3, Treasury
-// P1.C.5 (unified Loan+Cash).
+// Schedule (P1.C.7), AR Aging (P1.E.1). Round 2a LANDED 2026-05-20:
+// Location P1.C.2, Equity P1.C.4, Payroll P1.C.6. Round 2b LANDED
+// 2026-05-21: Ledger P1.C.3, Treasury P1.C.5 (unified Loan+Cash).
 //
 // Wave C Round 2b LANDED 2026-05-21: Expenditure P1.C.8, Job P1.C.9
 // (source aggregate `operation`), Product P1.C.11, Fulfillment P1.C.12.
+//
+// Wave B/C typed-field migration: Tax (Plan 2 / Q-SDM-TAX 20260520),
+// Amortization (20260604), Integration Dashboard (P1.C.10 20260520) —
+// converted from dynamic-registry pattern to typed fields.
 //
 // db may be nil when no SQL provider is in play; in that case the use
 // cases degrade gracefully (return empty responses).
@@ -52,18 +59,19 @@ func InitializeAll(
 	fulfillmentRepos *domain.FulfillmentRepositories,
 	scheduleEntityDash *eventdashboard.GetScheduleDashboardPageDataUseCase,
 	ledgerReportingSvc any,
+	entityComputeTaxes *compute_taxes_for_revenue.ComputeTaxesForRevenueUseCase,
 ) (*svcusecases.ServiceUseCases, error) {
-	deps := &svcusecases.Deps{
-		DB:         db,
-		Authorizer: authSvc,
-		Translator: i18nSvc,
-	}
-
 	auditUC := initServiceAudit(db, authSvc, i18nSvc)
 	securityUC := initServiceSecurity(db, i18nSvc)
-	authUC := initServiceAuth(entityRepos, deps, txSvc, i18nSvc, idSvc)
+	authUC := initServiceAuth(entityRepos, authSvc, i18nSvc, txSvc, idSvc)
 	dashboardUC := initServiceDashboard(db, authSvc, i18nSvc, entityRepos, ledgerRepos, payrollRepos, treasuryRepos, expenditureRepos, operationRepos, productRepos, fulfillmentRepos, scheduleEntityDash)
 	reportingUC := initServiceReporting(db, authSvc, i18nSvc, ledgerReportingSvc)
+	// Performance Evaluation (20260604 v1) service-layer orchestration.
+	performanceUC := initServicePerformance(operationRepos, authSvc, i18nSvc)
+	// Tax compute (Plan 2 / Q-SDM-TAX 20260520) — wraps entity-layer use case.
+	taxUC := initServiceTax(entityComputeTaxes)
+	// Amortization (20260604 v1) — pure computation service.
+	amortUC := initServiceAmortization()
 
-	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, deps), nil
+	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC), nil
 }

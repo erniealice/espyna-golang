@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	serialhistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/serial_history"
 )
@@ -43,7 +44,7 @@ func NewDeleteInventorySerialHistoryUseCase(
 // Execute performs the delete inventory serial history operation
 func (uc *DeleteInventorySerialHistoryUseCase) Execute(ctx context.Context, req *serialhistorypb.DeleteInventorySerialHistoryRequest) (*serialhistorypb.DeleteInventorySerialHistoryResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventorySerialHistory, ports.ActionDelete); err != nil {
+		entityid.InventorySerialHistory, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -77,7 +78,7 @@ func (uc *DeleteInventorySerialHistoryUseCase) executeCore(ctx context.Context, 
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInventorySerialHistory, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.InventorySerialHistory, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial_history.errors.authorization_failed", "Authorization failed for inventory serial history [DEFAULT]")

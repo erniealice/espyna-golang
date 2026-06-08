@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	securitydepositpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/security_deposit"
 )
@@ -43,7 +44,7 @@ func NewGetSecurityDepositListPageDataUseCase(
 // Execute performs the get security deposit list page data operation
 func (uc *GetSecurityDepositListPageDataUseCase) Execute(ctx context.Context, req *securitydepositpb.GetSecurityDepositListPageDataRequest) (*securitydepositpb.GetSecurityDepositListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySecurityDeposit, ports.ActionList); err != nil {
+		entitySecurityDeposit, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

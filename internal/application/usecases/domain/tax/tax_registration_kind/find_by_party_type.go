@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxregistrationkindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration_kind"
 )
@@ -46,7 +47,7 @@ func NewFindByPartyTypeTaxRegistrationKindUseCase(
 // Execute returns all TaxRegistrationKind rows applicable for the given party type.
 func (uc *FindByPartyTypeTaxRegistrationKindUseCase) Execute(ctx context.Context, partyType string) ([]*taxregistrationkindpb.TaxRegistrationKind, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRegistrationKind, ports.ActionList); err != nil {
+		entityTaxRegistrationKind, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if partyType == "" {

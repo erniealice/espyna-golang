@@ -2,7 +2,7 @@
 // service-driven domain.
 //
 // Wave B Round 1 LANDED 2026-05-20: P1.C.1 Admin + P1.C.7 Schedule +
-// P1.C.10 Integration (registry path — not on this umbrella).
+// P1.C.10 Integration.
 //
 // Wave B Round 2a LANDED 2026-05-20: P1.C.2 Location, P1.C.4 Equity,
 // P1.C.6 Payroll dashboards.
@@ -24,6 +24,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/fulfillment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/location"
@@ -130,11 +131,11 @@ type Deps struct {
 
 // DashboardUseCases is the per-candidate aggregator.
 //
-// Wave B/C status: 11/12 LANDED — Admin (P1.C.1), Location (P1.C.2),
+// Wave B/C status: 12/12 LANDED — Admin (P1.C.1), Location (P1.C.2),
 // Ledger (P1.C.3), Equity (P1.C.4), Treasury (P1.C.5 unified Loan+Cash),
-// Payroll (P1.C.6), Schedule (P1.C.7), Expenditure (P1.C.8), Job (P1.C.9,
-// source aggregate `operation`), Product (P1.C.11), Fulfillment (P1.C.12).
-// Integration (P1.C.10) lives on the registry path, not this umbrella.
+// Payroll (P1.C.6), Schedule (P1.C.7), Integration (P1.C.10),
+// Expenditure (P1.C.8), Job (P1.C.9, source aggregate `operation`),
+// Product (P1.C.11), Fulfillment (P1.C.12).
 type DashboardUseCases struct {
 	Admin       *admin.UseCases       // P1.C.1 LANDED
 	Location    *location.UseCases    // P1.C.2 LANDED 2026-05-20
@@ -143,6 +144,7 @@ type DashboardUseCases struct {
 	Treasury    *treasury.UseCases    // P1.C.5 LANDED 2026-05-21 (unified Loan+Cash)
 	Payroll     *payroll.UseCases     // P1.C.6 LANDED 2026-05-20
 	Schedule    *schedule.UseCases    // P1.C.7 LANDED
+	Integration *integration.UseCases // P1.C.10 LANDED 2026-06-08 (typed-field conversion)
 	Expenditure *expenditure.UseCases // P1.C.8 LANDED 2026-05-21
 	Job         *job.UseCases         // P1.C.9 LANDED 2026-05-21 (source aggregate `operation`)
 	Product     *product.UseCases     // P1.C.11 LANDED 2026-05-21
@@ -191,6 +193,7 @@ func NewDashboardUseCases(deps *Deps) *DashboardUseCases {
 			Authorizer:      deps.Authorizer,
 			Translator:      deps.Translator,
 		}),
+		Integration: integration.NewUseCases(), // Wave B P1.C.10 LANDED (typed-field conversion)
 		Expenditure: expenditure.NewUseCases(&expenditure.Deps{
 			Expenditure: deps.Expenditure,
 		}), // Wave C P1.C.8 LANDED 2026-05-21

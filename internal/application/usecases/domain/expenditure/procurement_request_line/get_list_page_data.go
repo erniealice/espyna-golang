@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 )
@@ -39,7 +40,7 @@ func NewGetProcurementRequestLineListPageDataUseCase(
 // Execute performs the get procurement request line list page data operation.
 func (uc *GetProcurementRequestLineListPageDataUseCase) Execute(ctx context.Context, req *procurementrequestlinepb.GetProcurementRequestLineListPageDataRequest) (*procurementrequestlinepb.GetProcurementRequestLineListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityProcurementRequestLine, ports.ActionList); err != nil {
+		entityProcurementRequestLine, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

@@ -22,6 +22,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
@@ -91,11 +92,11 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) Execute(
 		req = &collectionpb.RecognizeMilestoneAdvanceCollectionRequest{}
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTreasuryCollection, ports.ActionUpdate); err != nil {
+		entityTreasuryCollection, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"revenue", ports.ActionCreate); err != nil {
+		"revenue", entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryCollectionId()) == "" {

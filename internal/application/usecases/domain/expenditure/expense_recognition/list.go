@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 )
 
@@ -36,7 +37,7 @@ func NewListExpenseRecognitionsUseCase(
 // Execute performs the list operation.
 func (uc *ListExpenseRecognitionsUseCase) Execute(ctx context.Context, req *expenserecognitionpb.ListExpenseRecognitionsRequest) (*expenserecognitionpb.ListExpenseRecognitionsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, ports.ActionList); err != nil {
+		entityExpenseRecognition, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	return uc.repositories.ExpenseRecognition.ListExpenseRecognitions(ctx, req)

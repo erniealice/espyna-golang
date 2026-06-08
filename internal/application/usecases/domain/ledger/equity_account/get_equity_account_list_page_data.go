@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	equityaccountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/equity_account"
 )
@@ -43,7 +44,7 @@ func NewGetEquityAccountListPageDataUseCase(
 // Execute performs the get equity account list page data operation.
 func (uc *GetEquityAccountListPageDataUseCase) Execute(ctx context.Context, req *equityaccountpb.GetEquityAccountListPageDataRequest) (*equityaccountpb.GetEquityAccountListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityEquityAccount, ports.ActionList); err != nil {
+		entityEquityAccount, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

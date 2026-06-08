@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 )
@@ -60,7 +61,7 @@ func NewReadPaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentTer
 func (uc *ReadPaymentTermUseCase) Execute(ctx context.Context, req *paymenttermpb.ReadPaymentTermRequest) (*paymenttermpb.ReadPaymentTermResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"payment_term", ports.ActionRead); err != nil {
+		"payment_term", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 )
@@ -40,7 +41,7 @@ func NewGetSupplierContractListPageDataUseCase(
 // Execute performs the get supplier contract list page data operation.
 func (uc *GetSupplierContractListPageDataUseCase) Execute(ctx context.Context, req *suppliercontractpb.GetSupplierContractListPageDataRequest) (*suppliercontractpb.GetSupplierContractListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContract, ports.ActionList); err != nil {
+		entitySupplierContract, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

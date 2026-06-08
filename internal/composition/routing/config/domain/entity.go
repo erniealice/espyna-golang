@@ -11,6 +11,7 @@ import (
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
+	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
@@ -898,6 +899,37 @@ func ConfigureEntityDomain(entityUseCases *entity.EntityUseCases) contracts.Doma
 				Method:  "POST",
 				Path:    "/api/entity/workspace-user-role/get-item-page-data",
 				Handler: contracts.NewGenericHandler(entityUseCases.WorkspaceUserRole.GetWorkspaceUserRoleItemPageData, &workspaceuserrolepb.GetWorkspaceUserRoleItemPageDataRequest{}),
+			},
+		)
+	}
+
+	// Client Workspace User module routes (outsourcing-vertical account team).
+	if entityUseCases.ClientWorkspaceUser != nil {
+		routes = append(routes,
+			contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/entity/client-workspace-user/create",
+				Handler: contracts.NewGenericHandler(entityUseCases.ClientWorkspaceUser.CreateClientWorkspaceUser, &clientworkspaceuserpb.CreateClientWorkspaceUserRequest{}),
+			},
+			contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/entity/client-workspace-user/read",
+				Handler: contracts.NewGenericHandler(entityUseCases.ClientWorkspaceUser.ReadClientWorkspaceUser, &clientworkspaceuserpb.ReadClientWorkspaceUserRequest{}),
+			},
+			contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/entity/client-workspace-user/update",
+				Handler: contracts.NewGenericHandler(entityUseCases.ClientWorkspaceUser.UpdateClientWorkspaceUser, &clientworkspaceuserpb.UpdateClientWorkspaceUserRequest{}),
+			},
+			contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/entity/client-workspace-user/delete",
+				Handler: contracts.NewGenericHandler(entityUseCases.ClientWorkspaceUser.DeleteClientWorkspaceUser, &clientworkspaceuserpb.DeleteClientWorkspaceUserRequest{}),
+			},
+			contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/entity/client-workspace-user/list",
+				Handler: contracts.NewGenericHandler(entityUseCases.ClientWorkspaceUser.ListClientWorkspaceUsers, &clientworkspaceuserpb.ListClientWorkspaceUsersRequest{}),
 			},
 		)
 	}

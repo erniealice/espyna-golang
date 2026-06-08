@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
@@ -50,7 +51,7 @@ func NewUpdateProductPlanUseCase(
 func (uc *UpdateProductPlanUseCase) Execute(ctx context.Context, req *productplanpb.UpdateProductPlanRequest) (*productplanpb.UpdateProductPlanResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductPlan, ports.ActionUpdate); err != nil {
+		entityid.ProductPlan, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -61,7 +62,7 @@ func (uc *UpdateProductPlanUseCase) Execute(ctx context.Context, req *productpla
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityProductPlan, ports.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.ProductPlan, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_plan.errors.authorization_failed", "Authorization failed for product plans [DEFAULT]")

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -50,7 +51,7 @@ func NewUpdateBalanceAttributeUseCase(
 func (uc *UpdateBalanceAttributeUseCase) Execute(ctx context.Context, req *balanceattributepb.UpdateBalanceAttributeRequest) (*balanceattributepb.UpdateBalanceAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityBalanceAttribute, ports.ActionUpdate); err != nil {
+		entityid.BalanceAttribute, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

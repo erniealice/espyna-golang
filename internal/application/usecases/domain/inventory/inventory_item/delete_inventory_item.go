@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventoryitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_item"
 )
@@ -44,7 +45,7 @@ func NewDeleteInventoryItemUseCase(
 func (uc *DeleteInventoryItemUseCase) Execute(ctx context.Context, req *inventoryitempb.DeleteInventoryItemRequest) (*inventoryitempb.DeleteInventoryItemResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventoryItem, ports.ActionDelete); err != nil {
+		entityid.InventoryItem, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +87,7 @@ func (uc *DeleteInventoryItemUseCase) executeCore(ctx context.Context, req *inve
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInventoryItem, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.InventoryItem, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_item.errors.authorization_failed", "Authorization failed for inventory items [DEFAULT]")

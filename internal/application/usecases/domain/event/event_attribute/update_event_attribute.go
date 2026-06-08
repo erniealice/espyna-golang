@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
@@ -50,7 +51,7 @@ func NewUpdateEventAttributeUseCase(
 func (uc *UpdateEventAttributeUseCase) Execute(ctx context.Context, req *eventattributepb.UpdateEventAttributeRequest) (*eventattributepb.UpdateEventAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventAttribute, ports.ActionUpdate); err != nil {
+		entityid.EventAttribute, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -91,7 +92,7 @@ func (uc *UpdateEventAttributeUseCase) executeCore(ctx context.Context, req *eve
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventAttribute, ports.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.EventAttribute, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_attribute.errors.authorization_failed", "Authorization failed for event attributes [DEFAULT]")

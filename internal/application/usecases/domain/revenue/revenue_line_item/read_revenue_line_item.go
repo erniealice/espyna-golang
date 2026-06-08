@@ -7,6 +7,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 )
 
@@ -42,7 +43,7 @@ func NewReadRevenueLineItemUseCase(
 // Execute performs the read revenue line item operation
 func (uc *ReadRevenueLineItemUseCase) Execute(ctx context.Context, req *pb.ReadRevenueLineItemRequest) (*pb.ReadRevenueLineItemResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueLineItem, ports.ActionRead); err != nil {
+		entityRevenueLineItem, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

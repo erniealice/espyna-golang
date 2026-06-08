@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventorydepreciationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_depreciation"
 )
@@ -44,7 +45,7 @@ func NewUpdateInventoryDepreciationUseCase(
 // Execute performs the update inventory depreciation operation
 func (uc *UpdateInventoryDepreciationUseCase) Execute(ctx context.Context, req *inventorydepreciationpb.UpdateInventoryDepreciationRequest) (*inventorydepreciationpb.UpdateInventoryDepreciationResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventoryDepreciation, ports.ActionUpdate); err != nil {
+		entityid.InventoryDepreciation, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +79,7 @@ func (uc *UpdateInventoryDepreciationUseCase) executeCore(ctx context.Context, r
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInventoryDepreciation, ports.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.InventoryDepreciation, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_depreciation.errors.authorization_failed", "Authorization failed for inventory depreciations [DEFAULT]")

@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
 )
@@ -63,7 +64,7 @@ func NewGetClientAttributeItemPageDataUseCaseUngrouped(clientAttributeRepo clien
 func (uc *GetClientAttributeItemPageDataUseCase) Execute(ctx context.Context, req *clientattributepb.GetClientAttributeItemPageDataRequest) (*clientattributepb.GetClientAttributeItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityClientAttribute, ports.ActionList); err != nil {
+		entityid.ClientAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

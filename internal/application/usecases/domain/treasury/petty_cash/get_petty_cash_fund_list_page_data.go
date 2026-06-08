@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pettycashfundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_fund"
 )
@@ -43,7 +44,7 @@ func NewGetPettyCashFundListPageDataUseCase(
 // Execute performs the get petty cash fund list page data operation
 func (uc *GetPettyCashFundListPageDataUseCase) Execute(ctx context.Context, req *pettycashfundpb.GetPettyCashFundListPageDataRequest) (*pettycashfundpb.GetPettyCashFundListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPettyCashFund, ports.ActionList); err != nil {
+		entityPettyCashFund, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

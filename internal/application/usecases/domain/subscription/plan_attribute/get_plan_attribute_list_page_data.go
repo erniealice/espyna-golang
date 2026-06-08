@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
@@ -43,7 +44,7 @@ func NewGetPlanAttributeListPageDataUseCase(
 func (uc *GetPlanAttributeListPageDataUseCase) Execute(ctx context.Context, req *planattributepb.GetPlanAttributeListPageDataRequest) (*planattributepb.GetPlanAttributeListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPlanAttribute, ports.ActionList); err != nil {
+		entityid.PlanAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

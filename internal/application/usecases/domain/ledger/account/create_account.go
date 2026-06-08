@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
 )
@@ -49,7 +50,7 @@ func NewCreateAccountUseCase(
 func (uc *CreateAccountUseCase) Execute(ctx context.Context, req *accountpb.CreateAccountRequest) (*accountpb.CreateAccountResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAccount, ports.ActionCreate); err != nil {
+		entityAccount, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

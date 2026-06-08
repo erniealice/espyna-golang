@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 )
@@ -43,7 +44,7 @@ func NewCreateJobTemplatePhaseUseCase(
 func (uc *CreateJobTemplatePhaseUseCase) Execute(ctx context.Context, req *pb.CreateJobTemplatePhaseRequest) (*pb.CreateJobTemplatePhaseResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityJobTemplatePhase, ports.ActionCreate); err != nil {
+		entityid.JobTemplatePhase, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

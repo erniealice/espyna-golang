@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 )
@@ -41,7 +42,7 @@ func NewDeleteJobOutcomeSummaryUseCase(
 func (uc *DeleteJobOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.DeleteJobOutcomeSummaryRequest) (*pb.DeleteJobOutcomeSummaryResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityJobOutcomeSummary, ports.ActionDelete); err != nil {
+		entityid.JobOutcomeSummary, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

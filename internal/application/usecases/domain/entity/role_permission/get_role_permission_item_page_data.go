@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
 )
@@ -63,7 +64,7 @@ func NewGetRolePermissionItemPageDataUseCaseUngrouped(rolePermissionRepo roleper
 func (uc *GetRolePermissionItemPageDataUseCase) Execute(ctx context.Context, req *rolepermissionpb.GetRolePermissionItemPageDataRequest) (*rolepermissionpb.GetRolePermissionItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityRolePermission, ports.ActionList); err != nil {
+		entityid.RolePermission, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

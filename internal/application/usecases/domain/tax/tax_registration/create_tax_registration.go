@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
 	taxregistrationkindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration_kind"
@@ -42,7 +43,7 @@ func NewCreateTaxRegistrationUseCase(repositories CreateTaxRegistrationRepositor
 // It copies compute_path and party_role from the registration kind as a snapshot denorm.
 func (uc *CreateTaxRegistrationUseCase) Execute(ctx context.Context, req *taxregistrationpb.CreateTaxRegistrationRequest) (*taxregistrationpb.CreateTaxRegistrationResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRegistration, ports.ActionCreate); err != nil {
+		entityTaxRegistration, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

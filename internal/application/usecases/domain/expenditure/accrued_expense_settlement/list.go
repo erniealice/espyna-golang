@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 )
 
@@ -36,7 +37,7 @@ func NewListAccruedExpenseSettlementsUseCase(
 // Execute performs the list operation.
 func (uc *ListAccruedExpenseSettlementsUseCase) Execute(ctx context.Context, req *accruedexpensepb.ListAccruedExpenseSettlementsRequest) (*accruedexpensepb.ListAccruedExpenseSettlementsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAccruedExpenseSettlement, ports.ActionList); err != nil {
+		entityAccruedExpenseSettlement, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	return uc.repositories.AccruedExpenseSettlement.ListAccruedExpenseSettlements(ctx, req)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
 )
@@ -62,7 +63,7 @@ func NewDeleteDelegateAttributeUseCaseUngrouped(delegateAttributeRepo delegateat
 func (uc *DeleteDelegateAttributeUseCase) Execute(ctx context.Context, req *delegateattributepb.DeleteDelegateAttributeRequest) (*delegateattributepb.DeleteDelegateAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityDelegateAttribute, ports.ActionDelete); err != nil {
+		entityid.DelegateAttribute, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

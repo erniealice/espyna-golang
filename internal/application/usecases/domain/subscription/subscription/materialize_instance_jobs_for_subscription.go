@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -245,7 +246,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
 	ctx context.Context, req materializeInstanceJobsInternalRequest,
 ) (*materializeInstanceJobsInternalResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntitySubscription, ports.ActionUpdate); err != nil {
+		entityid.Subscription, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

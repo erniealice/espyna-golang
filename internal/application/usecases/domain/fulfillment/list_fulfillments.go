@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
@@ -39,7 +40,7 @@ type GetFulfillmentListPageDataUseCase struct {
 }
 
 func (uc *ListFulfillmentsUseCase) Execute(ctx context.Context, req *pb.ListFulfillmentsRequest) (*pb.ListFulfillmentsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
@@ -55,7 +56,7 @@ func (uc *ListFulfillmentsUseCase) Execute(ctx context.Context, req *pb.ListFulf
 // ---- GetFulfillmentListPageData ----
 
 func (uc *GetFulfillmentListPageDataUseCase) Execute(ctx context.Context, req *pb.GetFulfillmentListPageDataRequest) (*pb.GetFulfillmentListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

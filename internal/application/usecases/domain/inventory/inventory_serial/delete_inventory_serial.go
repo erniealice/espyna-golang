@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventoryserialpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_serial"
 )
@@ -43,7 +44,7 @@ func NewDeleteInventorySerialUseCase(
 // Execute performs the delete inventory serial operation
 func (uc *DeleteInventorySerialUseCase) Execute(ctx context.Context, req *inventoryserialpb.DeleteInventorySerialRequest) (*inventoryserialpb.DeleteInventorySerialResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventorySerial, ports.ActionDelete); err != nil {
+		entityid.InventorySerial, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -77,7 +78,7 @@ func (uc *DeleteInventorySerialUseCase) executeCore(ctx context.Context, req *in
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInventorySerial, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.InventorySerial, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_serial.errors.authorization_failed", "Authorization failed for inventory serials [DEFAULT]")

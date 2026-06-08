@@ -4,6 +4,12 @@ import (
 	// Operation use cases
 	criteriaOptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/criteria_option"
 	criteriaThresholdUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/criteria_threshold"
+	evaluationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation"
+	evaluationCycleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_cycle"
+	evaluationCycleMemberUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_cycle_member"
+	evaluationResponseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_response"
+	evaluationTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_template"
+	evaluationTemplateItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_template_item"
 	jobUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job"
 	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_activity"
 	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary"
@@ -25,6 +31,12 @@ import (
 	// Protobuf domain services for operation repositories
 	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
 	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
+	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
+	evaluationcyclepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_cycle"
+	evaluationcyclememberpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_cycle_member"
+	evaluationresponsepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_response"
+	evaluationtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template"
+	evaluationtemplateitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template_item"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
@@ -46,6 +58,7 @@ import (
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
+	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 )
 
 // OperationRepositories contains all operation domain repositories.
@@ -78,6 +91,16 @@ type OperationRepositories struct {
 	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
 	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
 
+	// Performance Evaluation (20260604 v1).
+	Evaluation             evaluationpb.EvaluationDomainServiceServer
+	EvaluationResponse     evaluationresponsepb.EvaluationResponseDomainServiceServer
+	EvaluationTemplate     evaluationtemplatepb.EvaluationTemplateDomainServiceServer
+	EvaluationTemplateItem evaluationtemplateitempb.EvaluationTemplateItemDomainServiceServer
+	EvaluationCycle        evaluationcyclepb.EvaluationCycleDomainServiceServer
+	EvaluationCycleMember  evaluationcyclememberpb.EvaluationCycleMemberDomainServiceServer
+	// SubscriptionSeat backs the evaluation anchor-ownership IDOR validation.
+	SubscriptionSeat subscriptionseatpb.SubscriptionSeatDomainServiceServer
+
 	// Milestone-billing cross-domain reads (Phase C).
 	BillingEvent     billingeventpb.BillingEventDomainServiceServer
 	Subscription     subscriptionpb.SubscriptionDomainServiceServer
@@ -107,6 +130,14 @@ type OperationUseCases struct {
 	TaskOutcomeCheck     *taskOutcomeCheckUseCases.UseCases
 	PhaseOutcomeSummary  *phaseOutcomeSummaryUseCases.UseCases
 	JobOutcomeSummary    *jobOutcomeSummaryUseCases.UseCases
+
+	// Performance Evaluation (20260604 v1).
+	Evaluation             *evaluationUseCases.UseCases
+	EvaluationResponse     *evaluationResponseUseCases.UseCases
+	EvaluationTemplate     *evaluationTemplateUseCases.UseCases
+	EvaluationTemplateItem *evaluationTemplateItemUseCases.UseCases
+	EvaluationCycle        *evaluationCycleUseCases.UseCases
+	EvaluationCycleMember  *evaluationCycleMemberUseCases.UseCases
 
 	// Dashboard field retired 2026-05-21 (Wave C P1.C.9 Job) — the dashboard
 	// now lives under `service.Dashboard.Job` (note the candidate-name vs.
@@ -286,6 +317,41 @@ func NewUseCases(
 		},
 	)
 
+	// Performance Evaluation (20260604 v1).
+	evaluationUC := evaluationUseCases.NewUseCases(
+		evaluationUseCases.EvaluationRepositories{
+			Evaluation:         repos.Evaluation,
+			EvaluationResponse: repos.EvaluationResponse,
+			OutcomeCriteria:    repos.OutcomeCriteria,
+			SubscriptionSeat:   repos.SubscriptionSeat,
+		},
+		evaluationUseCases.EvaluationServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+	)
+	evaluationResponseUC := evaluationResponseUseCases.NewUseCases(
+		evaluationResponseUseCases.Repositories{EvaluationResponse: repos.EvaluationResponse, Evaluation: repos.Evaluation},
+		evaluationResponseUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+	)
+	evaluationTemplateUC := evaluationTemplateUseCases.NewUseCases(
+		evaluationTemplateUseCases.Repositories{EvaluationTemplate: repos.EvaluationTemplate, EvaluationTemplateItem: repos.EvaluationTemplateItem, OutcomeCriteria: repos.OutcomeCriteria},
+		evaluationTemplateUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+	)
+	evaluationTemplateItemUC := evaluationTemplateItemUseCases.NewUseCases(
+		evaluationTemplateItemUseCases.Repositories{EvaluationTemplateItem: repos.EvaluationTemplateItem, EvaluationTemplate: repos.EvaluationTemplate},
+		evaluationTemplateItemUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+	)
+	evaluationCycleUC := evaluationCycleUseCases.NewUseCases(
+		evaluationCycleUseCases.Repositories{
+			EvaluationCycle:       repos.EvaluationCycle,
+			EvaluationCycleMember: repos.EvaluationCycleMember,
+			SubscriptionSeat:      repos.SubscriptionSeat,
+		},
+		evaluationCycleUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+	)
+	evaluationCycleMemberUC := evaluationCycleMemberUseCases.NewUseCases(
+		evaluationCycleMemberUseCases.Repositories{EvaluationCycleMember: repos.EvaluationCycleMember},
+		evaluationCycleMemberUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+	)
+
 	// Job dashboard wiring retired 2026-05-21 (Wave C P1.C.9 Job) —
 	// type-assertion + factory wiring now lives in the service-layer
 	// initializer at `internal/composition/core/initializers/service.go`
@@ -321,5 +387,12 @@ func NewUseCases(
 		TaskOutcomeCheck:     taskOutcomeCheckUC,
 		PhaseOutcomeSummary:  phaseOutcomeSummaryUC,
 		JobOutcomeSummary:    jobOutcomeSummaryUC,
+
+		Evaluation:             evaluationUC,
+		EvaluationResponse:     evaluationResponseUC,
+		EvaluationTemplate:     evaluationTemplateUC,
+		EvaluationTemplateItem: evaluationTemplateItemUC,
+		EvaluationCycle:        evaluationCycleUC,
+		EvaluationCycleMember:  evaluationCycleMemberUC,
 	}
 }

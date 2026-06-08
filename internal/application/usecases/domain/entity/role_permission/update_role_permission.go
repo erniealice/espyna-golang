@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
@@ -75,7 +76,7 @@ func (uc *UpdateRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityRolePermission, ports.ActionUpdate); err != nil {
+		entityid.RolePermission, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

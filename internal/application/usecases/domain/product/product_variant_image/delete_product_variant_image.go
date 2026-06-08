@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
 )
@@ -44,7 +45,7 @@ func NewDeleteProductVariantImageUseCase(
 func (uc *DeleteProductVariantImageUseCase) Execute(ctx context.Context, req *productvariantimagepb.DeleteProductVariantImageRequest) (*productvariantimagepb.DeleteProductVariantImageResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityProductVariantImage, ports.ActionDelete); err != nil {
+		entityid.ProductVariantImage, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +87,7 @@ func (uc *DeleteProductVariantImageUseCase) executeCore(ctx context.Context, req
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityProductVariantImage, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.ProductVariantImage, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_variant_image.errors.authorization_failed", "Authorization failed for product variant images [DEFAULT]")

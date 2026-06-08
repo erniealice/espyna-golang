@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	tenantsubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tenancy/tenant_subscription"
 )
 
@@ -53,7 +54,7 @@ type CreateTenantSubscriptionUseCase struct {
 
 func (uc *CreateTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.CreateTenantSubscriptionRequest) (*tenantsubscriptionpb.CreateTenantSubscriptionResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantSubscription, ports.ActionCreate); err != nil {
+		entityTenantSubscription, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -77,7 +78,7 @@ type ReadTenantSubscriptionUseCase struct {
 
 func (uc *ReadTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.ReadTenantSubscriptionRequest) (*tenantsubscriptionpb.ReadTenantSubscriptionResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantSubscription, ports.ActionRead); err != nil {
+		entityTenantSubscription, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadTenantSubscription(ctx, req)
@@ -91,7 +92,7 @@ type UpdateTenantSubscriptionUseCase struct {
 
 func (uc *UpdateTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.UpdateTenantSubscriptionRequest) (*tenantsubscriptionpb.UpdateTenantSubscriptionResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantSubscription, ports.ActionUpdate); err != nil {
+		entityTenantSubscription, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -110,7 +111,7 @@ type DeleteTenantSubscriptionUseCase struct {
 
 func (uc *DeleteTenantSubscriptionUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.DeleteTenantSubscriptionRequest) (*tenantsubscriptionpb.DeleteTenantSubscriptionResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantSubscription, ports.ActionDelete); err != nil {
+		entityTenantSubscription, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteTenantSubscription(ctx, req)
@@ -124,7 +125,7 @@ type ListTenantSubscriptionsUseCase struct {
 
 func (uc *ListTenantSubscriptionsUseCase) Execute(ctx context.Context, req *tenantsubscriptionpb.ListTenantSubscriptionsRequest) (*tenantsubscriptionpb.ListTenantSubscriptionsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTenantSubscription, ports.ActionRead); err != nil {
+		entityTenantSubscription, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListTenantSubscriptions(ctx, req)

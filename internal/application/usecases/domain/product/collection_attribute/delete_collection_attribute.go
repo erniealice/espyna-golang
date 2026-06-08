@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
 )
@@ -45,7 +46,7 @@ func NewDeleteCollectionAttributeUseCase(
 func (uc *DeleteCollectionAttributeUseCase) Execute(ctx context.Context, req *collectionattributepb.DeleteCollectionAttributeRequest) (*collectionattributepb.DeleteCollectionAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCollectionAttribute, ports.ActionDelete); err != nil {
+		entityid.CollectionAttribute, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +88,7 @@ func (uc *DeleteCollectionAttributeUseCase) executeCore(ctx context.Context, req
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityCollectionAttribute, ports.ActionDelete)
+	permission := entityid.EntityPermission(entityid.CollectionAttribute, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")

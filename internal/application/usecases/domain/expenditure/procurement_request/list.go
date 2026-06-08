@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 )
 
@@ -36,7 +37,7 @@ func NewListProcurementRequestsUseCase(
 // Execute performs the list procurement requests operation.
 func (uc *ListProcurementRequestsUseCase) Execute(ctx context.Context, req *procurementrequestpb.ListProcurementRequestsRequest) (*procurementrequestpb.ListProcurementRequestsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityProcurementRequest, ports.ActionList); err != nil {
+		entityProcurementRequest, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	return uc.repositories.ProcurementRequest.ListProcurementRequests(ctx, req)

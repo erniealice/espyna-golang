@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 )
 
@@ -44,7 +45,7 @@ func NewUpdateRevenueCategoryUseCase(
 // Execute performs the update revenue category operation
 func (uc *UpdateRevenueCategoryUseCase) Execute(ctx context.Context, req *pb.UpdateRevenueCategoryRequest) (*pb.UpdateRevenueCategoryResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueCategory, ports.ActionUpdate); err != nil {
+		entityRevenueCategory, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

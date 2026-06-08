@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	forexratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/finance/forex_rate"
 )
@@ -35,7 +36,7 @@ func NewListForexRatesUseCase(repositories ListForexRatesRepositories, services 
 // Execute performs the list forex_rates operation.
 func (uc *ListForexRatesUseCase) Execute(ctx context.Context, req *forexratepb.ListForexRatesRequest) (*forexratepb.ListForexRatesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityForexRate, ports.ActionList); err != nil {
+		entityForexRate, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

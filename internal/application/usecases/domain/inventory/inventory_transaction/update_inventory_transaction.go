@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventorytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_transaction"
 )
@@ -44,7 +45,7 @@ func NewUpdateInventoryTransactionUseCase(
 // Execute performs the update inventory transaction operation
 func (uc *UpdateInventoryTransactionUseCase) Execute(ctx context.Context, req *inventorytransactionpb.UpdateInventoryTransactionRequest) (*inventorytransactionpb.UpdateInventoryTransactionResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityInventoryTransaction, ports.ActionUpdate); err != nil {
+		entityid.InventoryTransaction, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +79,7 @@ func (uc *UpdateInventoryTransactionUseCase) executeCore(ctx context.Context, re
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityInventoryTransaction, ports.ActionUpdate)
+	permission := entityid.Permission(entityid.InventoryTransaction, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")

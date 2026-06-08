@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	costschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_schedule"
 )
@@ -45,7 +46,7 @@ func NewCreateCostScheduleUseCase(
 // Execute performs the create cost_schedule operation
 func (uc *CreateCostScheduleUseCase) Execute(ctx context.Context, req *costschedulepb.CreateCostScheduleRequest) (*costschedulepb.CreateCostScheduleResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCostSchedule, ports.ActionCreate); err != nil {
+		entityid.CostSchedule, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

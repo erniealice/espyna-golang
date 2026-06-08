@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
@@ -52,7 +53,7 @@ func NewCreateCollectionAttributeUseCase(
 func (uc *CreateCollectionAttributeUseCase) Execute(ctx context.Context, req *collectionattributepb.CreateCollectionAttributeRequest) (*collectionattributepb.CreateCollectionAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCollectionAttribute, ports.ActionCreate); err != nil {
+		entityid.CollectionAttribute, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +87,7 @@ func (uc *CreateCollectionAttributeUseCase) executeWithTransaction(ctx context.C
 
 // executeCore contains the core business logic (moved from original Execute method)
 func (uc *CreateCollectionAttributeUseCase) executeCore(ctx context.Context, req *collectionattributepb.CreateCollectionAttributeRequest) (*collectionattributepb.CreateCollectionAttributeResponse, error) {
-	// permission := ports.EntityPermission(ports.EntityCollectionAttribute, ports.ActionCreate)
+	// permission := entityid.EntityPermission(entityid.CollectionAttribute, entityid.ActionCreate)
 	// hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	// if err != nil {
 	// 	translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.authorization_failed", "Authorization failed for collection attributes [DEFAULT]")

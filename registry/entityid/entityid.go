@@ -83,6 +83,8 @@ const (
 	Workspace              = "workspace"
 	WorkspaceUser          = "workspace_user"
 	WorkspaceUserRole      = "workspace_user_role"
+	// Outsourcing-vertical client account-team membership (entity domain)
+	ClientWorkspaceUser = "client_workspace_user"
 )
 
 // Event domain
@@ -183,6 +185,9 @@ const (
 	ProductPricePlan      = "product_price_plan"
 	Subscription          = "subscription"
 	SubscriptionAttribute = "subscription_attribute"
+	// Outsourcing-vertical seat + servicing membership (subscription domain)
+	SubscriptionSeat          = "subscription_seat"
+	SubscriptionWorkspaceUser = "subscription_workspace_user"
 )
 
 // Treasury domain
@@ -246,6 +251,16 @@ const (
 	TaskOutcomeCheck     = "task_outcome_check"
 	PhaseOutcomeSummary  = "phase_outcome_summary"
 	JobOutcomeSummary    = "job_outcome_summary"
+)
+
+// Operation domain — Performance Evaluation (20260604-performance-evaluation v1)
+const (
+	Evaluation             = "evaluation"
+	EvaluationResponse     = "evaluation_response"
+	EvaluationTemplate     = "evaluation_template"
+	EvaluationTemplateItem = "evaluation_template_item"
+	EvaluationCycle        = "evaluation_cycle"
+	EvaluationCycleMember  = "evaluation_cycle_member"
 )
 
 // Ledger domain — Chart of Accounts
@@ -342,6 +357,7 @@ var EntityEntities = []string{
 	SupplierDependent, SupplierLifecycleEvent, SupplierPortalGrant,
 	User, UserPreference,
 	Workspace, WorkspaceUser, WorkspaceUserRole,
+	ClientWorkspaceUser,
 }
 
 // EventEntities lists all entity IDs in the Event domain.
@@ -400,6 +416,7 @@ var SubscriptionEntities = []string{
 	Plan, PlanAttribute, PlanSettings,
 	PricePlan, PriceSchedule, ProductPricePlan,
 	Subscription, SubscriptionAttribute,
+	SubscriptionSeat, SubscriptionWorkspaceUser,
 }
 
 // TreasuryEntities lists all entity IDs in the Treasury domain.
@@ -433,6 +450,8 @@ var OperationEntities = []string{
 	Job, JobPhase, JobTask, JobActivity,
 	ActivityLabor, ActivityMaterial, ActivityExpense,
 	JobSettlement, InventoryMovement,
+	Evaluation, EvaluationResponse, EvaluationTemplate,
+	EvaluationTemplateItem, EvaluationCycle, EvaluationCycleMember,
 }
 
 // OperationOutcomeEntities lists all entity IDs in the Operation Layer 7 Outcome domain.
@@ -560,6 +579,30 @@ const (
 
 // FundingEntities lists all entity IDs in the Funding domain.
 var FundingEntities = []string{Fund, FundAllocation, FundTransaction}
+
+// ---------------------------------------------------------------------------
+// Permission action vocabulary
+// ---------------------------------------------------------------------------
+
+// These are the canonical RBAC action verbs used in permission codes
+// (e.g. entityid.Evaluation + ":" + entityid.ActionList = "evaluation:list").
+// They live here — not in ports/security — because they are domain vocabulary:
+// the verbs that name what a principal can do, independent of any authorization
+// implementation.
+const (
+	ActionCreate = "create"
+	ActionRead   = "read"
+	ActionUpdate = "update"
+	ActionDelete = "delete"
+	ActionList   = "list"
+	ActionManage = "manage"
+)
+
+// EntityPermission builds a permission code from an entity name and action verb.
+// Example: EntityPermission(Evaluation, ActionList) = "evaluation:list".
+func EntityPermission(entity, action string) string {
+	return entity + ":" + action
+}
 
 // ---------------------------------------------------------------------------
 // Consolidated slice

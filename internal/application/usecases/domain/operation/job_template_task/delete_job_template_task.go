@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 )
@@ -41,7 +42,7 @@ func NewDeleteJobTemplateTaskUseCase(
 func (uc *DeleteJobTemplateTaskUseCase) Execute(ctx context.Context, req *pb.DeleteJobTemplateTaskRequest) (*pb.DeleteJobTemplateTaskResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityJobTemplateTask, ports.ActionDelete); err != nil {
+		entityid.JobTemplateTask, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

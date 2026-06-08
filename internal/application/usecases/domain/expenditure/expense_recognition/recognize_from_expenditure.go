@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
@@ -61,7 +62,7 @@ func NewRecognizeFromExpenditureUseCase(
 // Execute performs the recognize-from-expenditure operation.
 func (uc *RecognizeFromExpenditureUseCase) Execute(ctx context.Context, req *expenserecognitionpb.RecognizeFromExpenditureRequest) (*expenserecognitionpb.RecognizeFromExpenditureResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, ports.ActionCreate); err != nil {
+		entityExpenseRecognition, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetExpenditureId() == "" {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	eventtagpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag"
 )
 
@@ -44,7 +45,7 @@ func NewCreateEventTagUseCase(
 // Execute performs the create event_tag operation
 func (uc *CreateEventTagUseCase) Execute(ctx context.Context, req *eventtagpb.CreateEventTagRequest) (*eventtagpb.CreateEventTagResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventTag, ports.ActionCreate); err != nil {
+		entityid.EventTag, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

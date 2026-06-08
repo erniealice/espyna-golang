@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 )
@@ -41,7 +42,7 @@ func NewReadJobOutcomeSummaryUseCase(
 func (uc *ReadJobOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.ReadJobOutcomeSummaryRequest) (*pb.ReadJobOutcomeSummaryResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityJobOutcomeSummary, ports.ActionRead); err != nil {
+		entityid.JobOutcomeSummary, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

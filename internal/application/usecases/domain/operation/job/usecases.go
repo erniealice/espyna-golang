@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
@@ -176,7 +177,7 @@ type CreateJobUseCase struct {
 }
 
 func (uc *CreateJobUseCase) Execute(ctx context.Context, req *pb.CreateJobRequest) (*pb.CreateJobResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionCreate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -236,7 +237,7 @@ type ReadJobUseCase struct {
 }
 
 func (uc *ReadJobUseCase) Execute(ctx context.Context, req *pb.ReadJobRequest) (*pb.ReadJobResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -262,7 +263,7 @@ type UpdateJobUseCase struct {
 }
 
 func (uc *UpdateJobUseCase) Execute(ctx context.Context, req *pb.UpdateJobRequest) (*pb.UpdateJobResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionUpdate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -297,7 +298,7 @@ type DeleteJobUseCase struct {
 }
 
 func (uc *DeleteJobUseCase) Execute(ctx context.Context, req *pb.DeleteJobRequest) (*pb.DeleteJobResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionDelete); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -323,7 +324,7 @@ type ListJobsUseCase struct {
 }
 
 func (uc *ListJobsUseCase) Execute(ctx context.Context, req *pb.ListJobsRequest) (*pb.ListJobsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
@@ -349,7 +350,7 @@ type GetJobListPageDataUseCase struct {
 }
 
 func (uc *GetJobListPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobListPageDataRequest) (*pb.GetJobListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {
@@ -371,7 +372,7 @@ type GetJobItemPageDataUseCase struct {
 }
 
 func (uc *GetJobItemPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobItemPageDataRequest) (*pb.GetJobItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.JobId == "" {
@@ -393,7 +394,7 @@ type GetJobsByClientUseCase struct {
 }
 
 func (uc *GetJobsByClientUseCase) Execute(ctx context.Context, req *pb.GetJobsByClientRequest) (*pb.GetJobsByClientResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil || req.ClientId == "" {
@@ -415,7 +416,7 @@ type GetJobsByOriginUseCase struct {
 }
 
 func (uc *GetJobsByOriginUseCase) Execute(ctx context.Context, req *pb.GetJobsByOriginRequest) (*pb.GetJobsByOriginResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil || req.OriginId == "" {
@@ -459,7 +460,7 @@ var validTransitions = map[enumspb.JobStatus][]enumspb.JobStatus{
 }
 
 func (uc *UpdateJobStatusUseCase) Execute(ctx context.Context, req *pb.UpdateJobStatusRequest) (*pb.UpdateJobStatusResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", ports.ActionUpdate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job", entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.JobId == "" {

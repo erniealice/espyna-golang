@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	delegatesupplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_supplier"
 )
 
@@ -53,7 +54,7 @@ type CreateDelegateSupplierUseCase struct {
 
 func (uc *CreateDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.CreateDelegateSupplierRequest) (*delegatesupplierpb.CreateDelegateSupplierResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDelegateSupplier, ports.ActionCreate); err != nil {
+		entityDelegateSupplier, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -77,7 +78,7 @@ type ReadDelegateSupplierUseCase struct {
 
 func (uc *ReadDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.ReadDelegateSupplierRequest) (*delegatesupplierpb.ReadDelegateSupplierResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDelegateSupplier, ports.ActionRead); err != nil {
+		entityDelegateSupplier, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadDelegateSupplier(ctx, req)
@@ -91,7 +92,7 @@ type UpdateDelegateSupplierUseCase struct {
 
 func (uc *UpdateDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.UpdateDelegateSupplierRequest) (*delegatesupplierpb.UpdateDelegateSupplierResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDelegateSupplier, ports.ActionUpdate); err != nil {
+		entityDelegateSupplier, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -110,7 +111,7 @@ type DeleteDelegateSupplierUseCase struct {
 
 func (uc *DeleteDelegateSupplierUseCase) Execute(ctx context.Context, req *delegatesupplierpb.DeleteDelegateSupplierRequest) (*delegatesupplierpb.DeleteDelegateSupplierResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDelegateSupplier, ports.ActionDelete); err != nil {
+		entityDelegateSupplier, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteDelegateSupplier(ctx, req)
@@ -124,7 +125,7 @@ type ListDelegateSuppliersUseCase struct {
 
 func (uc *ListDelegateSuppliersUseCase) Execute(ctx context.Context, req *delegatesupplierpb.ListDelegateSuppliersRequest) (*delegatesupplierpb.ListDelegateSuppliersResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDelegateSupplier, ports.ActionRead); err != nil {
+		entityDelegateSupplier, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListDelegateSuppliers(ctx, req)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	suppliercategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_category"
 )
@@ -58,7 +59,7 @@ func NewDeleteSupplierCategoryUseCaseUngrouped(supplierCategoryRepo suppliercate
 func (uc *DeleteSupplierCategoryUseCase) Execute(ctx context.Context, req *suppliercategorypb.DeleteSupplierCategoryRequest) (*suppliercategorypb.DeleteSupplierCategoryResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier_category", ports.ActionDelete); err != nil {
+		"supplier_category", entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

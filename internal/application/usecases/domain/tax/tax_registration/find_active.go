@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
 )
@@ -50,7 +51,7 @@ func NewFindActiveTaxRegistrationUseCase(repositories FindActiveTaxRegistrationR
 // Execute returns all ACTIVE tax_registrations for (partyType, partyID) valid at asOf.
 func (uc *FindActiveTaxRegistrationUseCase) Execute(ctx context.Context, req *FindActiveTaxRegistrationRequest) ([]*taxregistrationpb.TaxRegistration, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRegistration, ports.ActionList); err != nil {
+		entityTaxRegistration, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil || req.PartyID == "" {

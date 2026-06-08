@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 )
@@ -42,7 +43,7 @@ func NewUpdateOutcomeCriteriaUseCase(
 func (uc *UpdateOutcomeCriteriaUseCase) Execute(ctx context.Context, req *pb.UpdateOutcomeCriteriaRequest) (*pb.UpdateOutcomeCriteriaResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityOutcomeCriteria, ports.ActionUpdate); err != nil {
+		entityid.OutcomeCriteria, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

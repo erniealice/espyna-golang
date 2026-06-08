@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 )
@@ -60,7 +61,7 @@ func NewDeleteDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 func (uc *DeleteDelegateUseCase) Execute(ctx context.Context, req *delegatepb.DeleteDelegateRequest) (*delegatepb.DeleteDelegateResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityDelegate, ports.ActionDelete); err != nil {
+		entityid.Delegate, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

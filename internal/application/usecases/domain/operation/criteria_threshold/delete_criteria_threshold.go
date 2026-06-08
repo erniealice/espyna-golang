@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
 )
@@ -41,7 +42,7 @@ func NewDeleteCriteriaThresholdUseCase(
 func (uc *DeleteCriteriaThresholdUseCase) Execute(ctx context.Context, req *pb.DeleteCriteriaThresholdRequest) (*pb.DeleteCriteriaThresholdResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCriteriaThreshold, ports.ActionDelete); err != nil {
+		entityid.CriteriaThreshold, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventtagassignmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag_assignment"
 )
@@ -42,7 +43,7 @@ func NewReadEventTagAssignmentUseCase(
 // Execute performs the read event_tag_assignment operation
 func (uc *ReadEventTagAssignmentUseCase) Execute(ctx context.Context, req *eventtagassignmentpb.ReadEventTagAssignmentRequest) (*eventtagassignmentpb.ReadEventTagAssignmentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventTagAssignment, ports.ActionRead); err != nil {
+		entityid.EventTagAssignment, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +65,7 @@ func (uc *ReadEventTagAssignmentUseCase) Execute(ctx context.Context, req *event
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventTagAssignment, ports.ActionRead)
+	permission := entityid.EntityPermission(entityid.EventTagAssignment, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag_assignment.errors.authorization_failed", "Authorization failed for event_tag_assignment")

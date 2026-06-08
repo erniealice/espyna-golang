@@ -12,6 +12,7 @@ import (
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
@@ -68,7 +69,7 @@ func NewUpdateSubscriptionUseCase(
 func (uc *UpdateSubscriptionUseCase) Execute(ctx context.Context, req *subscriptionpb.UpdateSubscriptionRequest) (*subscriptionpb.UpdateSubscriptionResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntitySubscription, ports.ActionUpdate); err != nil {
+		entityid.Subscription, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

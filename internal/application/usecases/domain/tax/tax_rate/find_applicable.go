@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_rate"
 )
@@ -57,7 +58,7 @@ func NewFindApplicableTaxRateUseCase(
 // Execute returns the most applicable TaxRate for the given parameters.
 func (uc *FindApplicableTaxRateUseCase) Execute(ctx context.Context, req *FindApplicableTaxRateRequest) (*taxratepb.TaxRate, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRate, ports.ActionRead); err != nil {
+		entityTaxRate, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	purchaseorderlineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order_line_item"
 )
@@ -47,7 +48,7 @@ func NewCreatePurchaseOrderLineItemUseCase(
 // Execute performs the create purchase order line item operation
 func (uc *CreatePurchaseOrderLineItemUseCase) Execute(ctx context.Context, req *purchaseorderlineitempb.CreatePurchaseOrderLineItemRequest) (*purchaseorderlineitempb.CreatePurchaseOrderLineItemResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPurchaseOrderLineItem, ports.ActionCreate); err != nil {
+		entityPurchaseOrderLineItem, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

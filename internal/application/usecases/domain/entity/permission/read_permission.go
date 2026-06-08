@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 )
@@ -60,7 +61,7 @@ func NewReadPermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionDom
 func (uc *ReadPermissionUseCase) Execute(ctx context.Context, req *permissionpb.ReadPermissionRequest) (*permissionpb.ReadPermissionResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityPermissions, ports.ActionRead); err != nil {
+		entityid.Permissions, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

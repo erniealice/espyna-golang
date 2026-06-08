@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
@@ -63,7 +64,7 @@ func NewGetGroupListPageDataUseCaseUngrouped(groupRepo grouppb.GroupDomainServic
 func (uc *GetGroupListPageDataUseCase) Execute(ctx context.Context, req *grouppb.GetGroupListPageDataRequest) (*grouppb.GetGroupListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityGroup, ports.ActionList); err != nil {
+		entityid.Group, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

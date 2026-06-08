@@ -63,6 +63,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -130,7 +131,7 @@ func (uc *SettleAccrualUseCase) SettleAccrual(
 	request *accruedexpensepb.SettleAccrualRequest,
 ) (*accruedexpensepb.SettleAccrualResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAccruedExpenseSettle, ports.ActionUpdate); err != nil {
+		entityAccruedExpenseSettle, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

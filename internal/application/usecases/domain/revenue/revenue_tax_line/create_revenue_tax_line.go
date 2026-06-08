@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 )
 
@@ -52,7 +53,7 @@ func NewCreateRevenueTaxLineUseCase(
 // Execute inserts a single revenue_tax_line row.
 func (uc *CreateRevenueTaxLineUseCase) Execute(ctx context.Context, line *revenuetaxlinepb.RevenueTaxLine) (*revenuetaxlinepb.RevenueTaxLine, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueTaxLine, ports.ActionCreate); err != nil {
+		entityRevenueTaxLine, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if line == nil {

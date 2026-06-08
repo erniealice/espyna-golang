@@ -7,6 +7,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	eventtagpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag"
 )
 
@@ -42,7 +43,7 @@ func NewListEventTagsUseCase(
 // Execute performs the list event_tags operation
 func (uc *ListEventTagsUseCase) Execute(ctx context.Context, req *eventtagpb.ListEventTagsRequest) (*eventtagpb.ListEventTagsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityEventTag, ports.ActionList); err != nil {
+		entityid.EventTag, entityid.ActionList); err != nil {
 		return nil, err
 	}
 
@@ -52,7 +53,7 @@ func (uc *ListEventTagsUseCase) Execute(ctx context.Context, req *eventtagpb.Lis
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityEventTag, ports.ActionList)
+	permission := entityid.Permission(entityid.EventTag, entityid.ActionList)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag.errors.authorization_failed", "Authorization failed for event_tag")

@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
 )
 
@@ -36,7 +37,7 @@ func NewListSupplierContractPriceSchedulesUseCase(
 // Execute performs the list schedules operation.
 func (uc *ListSupplierContractPriceSchedulesUseCase) Execute(ctx context.Context, req *scpspb.ListSupplierContractPriceSchedulesRequest) (*scpspb.ListSupplierContractPriceSchedulesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContractPriceSchedule, ports.ActionList); err != nil {
+		entitySupplierContractPriceSchedule, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	return uc.repositories.SupplierContractPriceSchedule.ListSupplierContractPriceSchedules(ctx, req)

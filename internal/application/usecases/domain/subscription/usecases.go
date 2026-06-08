@@ -15,6 +15,8 @@ import (
 	productPricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/product_price_plan"
 	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription"
 	subscriptionAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_attribute"
+	subscriptionSeatUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_seat"
+	subscriptionWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_workspace_user"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -22,6 +24,7 @@ import (
 	// Protobuf domain services for subscription repositories
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
@@ -36,6 +39,8 @@ import (
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
+	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
+	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 )
 
 // SubscriptionRepositories contains all subscription domain repositories
@@ -55,7 +60,11 @@ type SubscriptionRepositories struct {
 	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
-	Attribute             attributepb.AttributeDomainServiceServer
+	// Outsourcing-vertical seat + servicing membership
+	SubscriptionSeat          subscriptionseatpb.SubscriptionSeatDomainServiceServer
+	SubscriptionWorkspaceUser subscriptionworkspaceuserpb.SubscriptionWorkspaceUserDomainServiceServer
+	ClientWorkspaceUser       clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer // cross-domain composite-FK pre-check
+	Attribute                 attributepb.AttributeDomainServiceServer
 }
 
 // SubscriptionUseCases contains all subscription-related use cases.
@@ -80,6 +89,9 @@ type SubscriptionUseCases struct {
 	ProductPricePlan      *productPricePlanUseCases.UseCases
 	Subscription          *subscriptionUseCases.UseCases
 	SubscriptionAttribute *subscriptionAttributeUseCases.UseCases
+	// Outsourcing-vertical seat + servicing membership
+	SubscriptionSeat          *subscriptionSeatUseCases.UseCases
+	SubscriptionWorkspaceUser *subscriptionWorkspaceUserUseCases.UseCases
 }
 
 // NewUseCases creates all subscription use cases with proper constructor injection.
@@ -261,6 +273,36 @@ func NewUseCases(
 		},
 	)
 
+	// Outsourcing-vertical seat use cases (CRUD + SR-2 replace + set-status).
+	subscriptionSeatUC := subscriptionSeatUseCases.NewUseCases(
+		subscriptionSeatUseCases.SubscriptionSeatRepositories{
+			SubscriptionSeat: repos.SubscriptionSeat,
+			Subscription:     repos.Subscription,
+		},
+		subscriptionSeatUseCases.SubscriptionSeatServices{
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
+		},
+	)
+
+	// Outsourcing-vertical servicing-membership use cases (composite-FK pre-check
+	// against client_workspace_user; client_id stamped from the subscription).
+	subscriptionWorkspaceUserUC := subscriptionWorkspaceUserUseCases.NewUseCases(
+		subscriptionWorkspaceUserUseCases.SubscriptionWorkspaceUserRepositories{
+			SubscriptionWorkspaceUser: repos.SubscriptionWorkspaceUser,
+			Subscription:              repos.Subscription,
+			ClientWorkspaceUser:       repos.ClientWorkspaceUser,
+		},
+		subscriptionWorkspaceUserUseCases.SubscriptionWorkspaceUserServices{
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
+		},
+	)
+
 	// Phase 3 F7 closure — wrap the raw BillingEvent DomainServiceServer in
 	// a Layer-7 use case sub-aggregate. Constructor is nil-safe when the
 	// adapter isn't registered.
@@ -274,18 +316,20 @@ func NewUseCases(
 	)
 
 	return &SubscriptionUseCases{
-		Balance:               balanceUC,
-		BalanceAttribute:      balanceAttributeUC,
-		BillingEvent:          billingEventUC,
-		Invoice:               invoiceUC,
-		InvoiceAttribute:      invoiceAttributeUC,
-		Plan:                  planUC,
-		PlanAttribute:         planAttributeUC,
-		PlanSettings:          planSettingsUC,
-		PricePlan:             pricePlanUC,
-		PriceSchedule:         priceScheduleUC,
-		ProductPricePlan:      productPricePlanUC,
-		Subscription:          subscriptionUC,
-		SubscriptionAttribute: subscriptionAttributeUC,
+		Balance:                   balanceUC,
+		BalanceAttribute:          balanceAttributeUC,
+		BillingEvent:              billingEventUC,
+		Invoice:                   invoiceUC,
+		InvoiceAttribute:          invoiceAttributeUC,
+		Plan:                      planUC,
+		PlanAttribute:             planAttributeUC,
+		PlanSettings:              planSettingsUC,
+		PricePlan:                 pricePlanUC,
+		PriceSchedule:             priceScheduleUC,
+		ProductPricePlan:          productPricePlanUC,
+		Subscription:              subscriptionUC,
+		SubscriptionAttribute:     subscriptionAttributeUC,
+		SubscriptionSeat:          subscriptionSeatUC,
+		SubscriptionWorkspaceUser: subscriptionWorkspaceUserUC,
 	}
 }

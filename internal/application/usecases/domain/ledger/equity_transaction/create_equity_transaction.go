@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	equitytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/equity_transaction"
 )
@@ -56,7 +57,7 @@ func NewCreateEquityTransactionUseCase(
 // Execute performs the create equity transaction operation.
 func (uc *CreateEquityTransactionUseCase) Execute(ctx context.Context, req *equitytransactionpb.CreateEquityTransactionRequest) (*equitytransactionpb.CreateEquityTransactionResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityEquityTransaction, ports.ActionCreate); err != nil {
+		entityEquityTransaction, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

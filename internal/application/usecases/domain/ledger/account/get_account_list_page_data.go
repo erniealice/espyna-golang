@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
 )
@@ -45,7 +46,7 @@ func NewGetAccountListPageDataUseCase(
 func (uc *GetAccountListPageDataUseCase) Execute(ctx context.Context, req *accountpb.GetAccountListPageDataRequest) (*accountpb.GetAccountListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAccount, ports.ActionList); err != nil {
+		entityAccount, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

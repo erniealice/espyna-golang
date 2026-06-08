@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
@@ -50,7 +51,7 @@ func NewUpdateCollectionAttributeUseCase(
 func (uc *UpdateCollectionAttributeUseCase) Execute(ctx context.Context, req *collectionattributepb.UpdateCollectionAttributeRequest) (*collectionattributepb.UpdateCollectionAttributeResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityCollectionAttribute, ports.ActionUpdate); err != nil {
+		entityid.CollectionAttribute, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 
@@ -91,7 +92,7 @@ func (uc *UpdateCollectionAttributeUseCase) executeCore(ctx context.Context, req
 		return nil, errors.New(translatedError)
 	}
 
-	permission := ports.EntityPermission(ports.EntityCollectionAttribute, ports.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.CollectionAttribute, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_attribute.errors.authorization_failed", "Authorization failed for product attributes [DEFAULT]")

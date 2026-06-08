@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 )
@@ -60,7 +61,7 @@ func NewReadSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServi
 func (uc *ReadSupplierUseCase) Execute(ctx context.Context, req *supplierpb.ReadSupplierRequest) (*supplierpb.ReadSupplierResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier", ports.ActionRead); err != nil {
+		"supplier", entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

@@ -19,6 +19,8 @@ import (
 	infraProviders "github.com/erniealice/espyna-golang/internal/composition/providers/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/integration"
 	"github.com/erniealice/espyna-golang/internal/composition/routing"
+	dbifaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
+	txbridge "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/transactions"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	orchcontracts "github.com/erniealice/espyna-golang/internal/orchestration/contracts"
 	workflowregistry "github.com/erniealice/espyna-golang/internal/orchestration/workflow"
@@ -41,7 +43,7 @@ type Platform struct {
 	Logger         contracts.Service           // Logging service
 	Cache          contracts.Service           // Caching service
 	Translation    contracts.Service           // Translation/i18n service
-	Transaction    contracts.Service           // Transaction management service
+	Transaction    ports.Transactor            // Transaction port (real DB-backed, NoOp when no DB)
 	IDGen          contracts.Service           // ID generation service (UUID v7, etc.)
 	Email          ports.EmailProvider         // Email provider service (Gmail, SendGrid, etc.)
 	Payment        ports.PaymentProvider       // Payment provider service (AsiaPay, Stripe, etc.)
@@ -111,7 +113,11 @@ func NewDefaultPlatform() *Platform {
 		Logger:      NewMockService("mock-logger"),
 		Cache:       NewMockService("mock-cache"),
 		Translation: NewMockService("mock-translation"),
-		Transaction: NewMockService("mock-transaction"),
+		// Transaction is a real ports.Transactor (NOT a MockService). The NoOp
+		// fallback reports SupportsTransactions()==false so use cases take their
+		// executeCore (no-tx) branch — identical to the pre-wiring dormant
+		// behavior — until Initialize() replaces it with a DB-backed adapter.
+		Transaction: ports.NewNoOpTransactor(),
 		IDGen:       NewMockService("mock-idgen"), // Placeholder - actual ID service created by provider
 	}
 }
@@ -367,6 +373,45 @@ func (c *Container) Initialize() error {
 	} else if translationSvc != nil {
 		c.services.Translation = &translationServiceWrapper{svc: translationSvc}
 		fmt.Printf("✅ Translation provider initialized\n")
+	}
+
+	// Initialize the transaction port from the active DB adapter (provider-agnostic).
+	//
+	// This is the ONE Platform service NewDefaultPlatform leaves as a NoOp:
+	// the use-case `if Transactor != nil && Transactor.SupportsTransactions()`
+	// branches stay dormant until a real, DB-backed Transactor is wired here.
+	// We must run BEFORE InitializeAll (whose getServices casts services.Transaction
+	// to ports.Transactor at usecases.go) and before initializeWorkflowEngine
+	// (whose getServicesForInitializers does the same cast), so both casts see the
+	// real adapter.
+	//
+	// Access is provider-agnostic: GetDatabaseProvider() returns a *ProviderWrapper
+	// (contracts.Provider) that does NOT delegate GetTransactionManager — we must
+	// unwrap via its Provider() escape hatch to reach the concrete adapter
+	// (postgres / firestore / mock), all of which expose
+	// GetTransactionManager() dbifaces.TransactionManager. If anything is absent
+	// (no DB configured, adapter not connected, manager nil), we keep the NoOp
+	// fallback so boot never breaks — use cases simply run their no-tx branch.
+	fmt.Printf("🔁 Initializing transaction port...\n")
+	if dbProvider := c.providers.GetDatabaseProvider(); dbProvider != nil {
+		if w, ok := dbProvider.(interface{ Provider() any }); ok {
+			if tmProvider, ok := w.Provider().(interface {
+				GetTransactionManager() dbifaces.TransactionManager
+			}); ok {
+				if mgr := tmProvider.GetTransactionManager(); mgr != nil {
+					c.services.Transaction = txbridge.NewTransactionServiceAdapter(mgr)
+					fmt.Printf("✅ Transaction port wired from DB adapter (supports tx: %v)\n", c.services.Transaction.SupportsTransactions())
+				} else {
+					fmt.Printf("⚠️ DB adapter returned a nil transaction manager — keeping NoOp transaction port\n")
+				}
+			} else {
+				fmt.Printf("⚠️ DB adapter does not expose GetTransactionManager — keeping NoOp transaction port\n")
+			}
+		} else {
+			fmt.Printf("⚠️ DB provider is not unwrappable — keeping NoOp transaction port\n")
+		}
+	} else {
+		fmt.Printf("⚠️ No DB provider configured — keeping NoOp transaction port\n")
 	}
 
 	// Initialize use cases FIRST (before routing and orchestration)

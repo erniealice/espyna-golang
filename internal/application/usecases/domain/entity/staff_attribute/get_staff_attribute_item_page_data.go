@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
 )
@@ -63,7 +64,7 @@ func NewGetStaffAttributeItemPageDataUseCaseUngrouped(staffAttributeRepo staffat
 func (uc *GetStaffAttributeItemPageDataUseCase) Execute(ctx context.Context, req *staffattributepb.GetStaffAttributeItemPageDataRequest) (*staffattributepb.GetStaffAttributeItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityStaffAttribute, ports.ActionList); err != nil {
+		entityid.StaffAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

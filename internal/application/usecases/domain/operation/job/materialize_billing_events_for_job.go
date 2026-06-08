@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
@@ -90,7 +91,7 @@ func (uc *MaterializeBillingEventsForJobUseCase) Execute(
 	ctx context.Context, req MaterializeBillingEventsForJobRequest,
 ) (*MaterializeBillingEventsForJobResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"job", ports.ActionUpdate); err != nil {
+		"job", entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req.JobID == "" {

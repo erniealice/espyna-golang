@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
@@ -45,7 +46,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) Execute(
 ) (*workflow_templatepb.GetWorkflowTemplateItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow_template", ports.ActionList); err != nil {
+		"workflow_template", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

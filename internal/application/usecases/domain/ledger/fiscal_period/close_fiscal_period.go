@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	fiscalperiodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/fiscal_period"
 )
@@ -48,7 +49,7 @@ func NewCloseFiscalPeriodUseCase(
 func (uc *CloseFiscalPeriodUseCase) Execute(ctx context.Context, req *fiscalperiodpb.CloseFiscalPeriodRequest) (*fiscalperiodpb.CloseFiscalPeriodResponse, error) {
 	// Authorization check — closing requires update-level access
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityFiscalPeriod, ports.ActionUpdate); err != nil {
+		entityFiscalPeriod, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

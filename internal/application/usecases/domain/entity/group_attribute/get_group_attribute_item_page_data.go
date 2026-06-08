@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
 )
@@ -63,7 +64,7 @@ func NewGetGroupAttributeItemPageDataUseCaseUngrouped(groupAttributeRepo groupat
 func (uc *GetGroupAttributeItemPageDataUseCase) Execute(ctx context.Context, req *groupattributepb.GetGroupAttributeItemPageDataRequest) (*groupattributepb.GetGroupAttributeItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityGroupAttribute, ports.ActionList); err != nil {
+		entityid.GroupAttribute, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

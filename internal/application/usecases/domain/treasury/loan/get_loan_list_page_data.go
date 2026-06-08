@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
 )
@@ -43,7 +44,7 @@ func NewGetLoanListPageDataUseCase(
 // Execute performs the get loan list page data operation.
 func (uc *GetLoanListPageDataUseCase) Execute(ctx context.Context, req *loanpb.GetLoanListPageDataRequest) (*loanpb.GetLoanListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityLoan, ports.ActionList); err != nil {
+		entityLoan, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

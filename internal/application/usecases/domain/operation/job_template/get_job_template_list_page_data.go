@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 )
@@ -44,7 +45,7 @@ func NewGetJobTemplateListPageDataUseCase(
 func (uc *GetJobTemplateListPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobTemplateListPageDataRequest) (*pb.GetJobTemplateListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"job_template", ports.ActionList); err != nil {
+		"job_template", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

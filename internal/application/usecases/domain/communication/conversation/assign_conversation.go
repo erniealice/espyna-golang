@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -45,7 +46,7 @@ func NewAssignConversationUseCase(repos AssignConversationRepositories, svcs Ass
 func (uc *AssignConversationUseCase) Execute(ctx context.Context, req *conversationpb.UpdateConversationRequest) (*conversationpb.UpdateConversationResponse, error) {
 	// Verb-fold: conversation:assign -> conversation:update.
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityConversation, ports.ActionUpdate); err != nil {
+		entityid.Conversation, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

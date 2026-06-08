@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 )
@@ -49,7 +50,7 @@ func NewGetPayrollRemittanceListPageDataUseCase(
 // Execute performs the get payroll remittance list page data operation.
 func (uc *GetPayrollRemittanceListPageDataUseCase) Execute(ctx context.Context, req *payrollremittancepb.GetPayrollRemittanceListPageDataRequest) (*payrollremittancepb.GetPayrollRemittanceListPageDataResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPayrollRemittance, ports.ActionList); err != nil {
+		entityPayrollRemittance, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

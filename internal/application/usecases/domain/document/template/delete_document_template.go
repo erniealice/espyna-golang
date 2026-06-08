@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 )
@@ -42,7 +43,7 @@ func NewDeleteDocumentTemplateUseCase(
 // Execute performs the delete document template operation
 func (uc *DeleteDocumentTemplateUseCase) Execute(ctx context.Context, req *documenttemplatepb.DeleteDocumentTemplateRequest) (*documenttemplatepb.DeleteDocumentTemplateResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDocumentTemplate, ports.ActionDelete); err != nil {
+		entityDocumentTemplate, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

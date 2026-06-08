@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 )
@@ -42,7 +43,7 @@ func NewListDocumentTemplatesUseCase(
 // Execute performs the list document templates operation
 func (uc *ListDocumentTemplatesUseCase) Execute(ctx context.Context, req *documenttemplatepb.ListDocumentTemplatesRequest) (*documenttemplatepb.ListDocumentTemplatesResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDocumentTemplate, ports.ActionList); err != nil {
+		entityDocumentTemplate, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

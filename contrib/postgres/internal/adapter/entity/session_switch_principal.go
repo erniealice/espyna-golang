@@ -138,6 +138,42 @@ func (r *PostgresSessionRepository) SwitchPrincipal(
 		newActingAsSupplierID string
 	)
 	switch tgt.GetType() {
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT:
+		// Direct client (Q-PORTAL-1 #2 fail-open fix, 2026-06-07):
+		// principal_id IS the client_portal_grant.id for a direct client
+		// (the grant row means "user_id IS this client" — see
+		// docs/wiki/articles/principal-switcher.md). The proto Principal
+		// carries NO client_id (ActingAsTargets is populated only for
+		// delegates), so we MUST resolve the underlying client_id from the
+		// authoritative grant row and stamp it into acting_as_client_id —
+		// otherwise the session lands with acting_as_client_id = NULL and the
+		// client-facing row gate (WHERE client_id = acting_as_client_id) has
+		// nothing to scope on, silently opening a cross-client IDOR. The
+		// resolver locks (FOR UPDATE) + filters active=true and user_id, and
+		// fails CLOSED (error → deferred rollback, no empty-acting-as write)
+		// if the grant is revoked/missing — same semantics as the delegate
+		// "binding revoked or not in workspace" path.
+		newActingAsClientID, err = resolveDirectActingAsID(
+			ctx, tx,
+			"client_portal_grant", "client_id",
+			tgt.GetPrincipalId(), req.GetUserId(), tgt.GetType(),
+		)
+		if err != nil {
+			return nil, err
+		}
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER:
+		// Direct supplier — symmetric twin of the direct-client branch above
+		// (the missing supplier twin / messaging G11 / R-2). principal_id IS
+		// the supplier_portal_grant.id; resolve + stamp supplier_id into
+		// acting_as_supplier_id, fail closed when the grant is gone.
+		newActingAsSupplierID, err = resolveDirectActingAsID(
+			ctx, tx,
+			"supplier_portal_grant", "supplier_id",
+			tgt.GetPrincipalId(), req.GetUserId(), tgt.GetType(),
+		)
+		if err != nil {
+			return nil, err
+		}
 	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE:
 		if req.GetActingAsClientId() != "" {
 			// A2-followup round-3 (2026-05-24): when an explicit
@@ -616,6 +652,75 @@ func lockTargetBinding(
 		return fmt.Errorf("session adapter: SwitchPrincipal: binding lock query: %w", err)
 	}
 	return nil
+}
+
+// resolveDirectActingAsID resolves the underlying party id (client_id /
+// supplier_id) for a DIRECT (non-delegate) client or supplier principal and
+// locks the grant row for the duration of the rotation transaction.
+//
+// Why this exists (Q-PORTAL-1 #2 / messaging G11 / R-2 fail-open fix): the
+// proto Principal message carries only {Type, PrincipalId, WorkspaceId,
+// DisplayName, ActingAsTargets}; for a direct client/supplier PrincipalId is
+// the *_portal_grant.id and ActingAsTargets is empty (it's populated only for
+// delegates). The underlying client_id/supplier_id needed to scope the
+// client-/supplier-facing row gate therefore is NOT on the wire and must be
+// read from the authoritative grant row here. Stamping it into
+// acting_as_client_id / acting_as_supplier_id is what closes the cross-party
+// IDOR (queries filter `WHERE party_id = session.acting_as_party_id`).
+//
+// Fail-closed contract (mirrors lockTargetBinding's ErrNoRows path so the
+// use-case translateSwitchPrincipalError maps it to
+// auth.switch_principal.binding_revoked):
+//   - grant id must exist AND belong to req.user_id AND be active=true;
+//   - on miss → returns ("", error containing "binding revoked or not in
+//     workspace") so the SwitchPrincipal tx rolls back via its deferred
+//     Rollback() and NO empty-acting-as session row is ever written;
+//   - on a NULL/empty party id (data-integrity defect) → also fails closed
+//     rather than stamping an empty acting-as.
+//
+// The FOR UPDATE here also serves the binding-TOCTOU defense for direct
+// principals (red-team A-4 / verify H-5) — it runs inside the rotation tx,
+// before any session write, so an admin revoking the grant mid-flight aborts
+// the rotation. (lockTargetBinding additionally re-locks the same direct grant
+// on the switch path; the redundant lock is harmless and the resolve must run
+// on BOTH the login-bootstrap and switch paths, hence it lives here.)
+//
+// Column whitelist: table/idCol are NEVER request-derived — they are fixed
+// literals chosen by the caller's switch on principal type, so the string
+// interpolation into the SQL carries no injection surface.
+func resolveDirectActingAsID(
+	ctx context.Context,
+	tx *sql.Tx,
+	table, idCol string,
+	grantID, userID string,
+	pt principaltypepb.PrincipalType,
+) (string, error) {
+	if grantID == "" {
+		return "", fmt.Errorf("session adapter: SwitchPrincipal: binding revoked or not in workspace (type=%s principal_id=)",
+			principalTypeAuditLabel(pt))
+	}
+	var partyID sql.NullString
+	err := tx.QueryRowContext(ctx, `
+		SELECT `+idCol+` FROM `+table+`
+		WHERE id = $1 AND user_id = $2 AND active = true
+		LIMIT 1
+		FOR UPDATE
+	`, grantID, userID).Scan(&partyID)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("session adapter: SwitchPrincipal: binding revoked or not in workspace (type=%s principal_id=%s)",
+			principalTypeAuditLabel(pt), grantID)
+	}
+	if err != nil {
+		return "", fmt.Errorf("session adapter: SwitchPrincipal: binding lock query: %w", err)
+	}
+	if !partyID.Valid || partyID.String == "" {
+		// Fail closed: an active grant with a NULL/empty party id is a
+		// data-integrity defect; stamping an empty acting-as would reopen the
+		// row gate it is meant to close.
+		return "", fmt.Errorf("session adapter: SwitchPrincipal: binding revoked or not in workspace (type=%s principal_id=%s has empty %s)",
+			principalTypeAuditLabel(pt), grantID, idCol)
+	}
+	return partyID.String, nil
 }
 
 // buildDelegateLockSQL returns the SELECT...FOR UPDATE query string AND the

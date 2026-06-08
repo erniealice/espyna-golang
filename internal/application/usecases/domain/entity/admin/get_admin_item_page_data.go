@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
 
@@ -45,7 +46,7 @@ func (uc *GetAdminItemPageDataUseCase) Execute(
 ) (*adminpb.GetAdminItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityAdmin, ports.ActionList); err != nil {
+		entityid.Admin, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

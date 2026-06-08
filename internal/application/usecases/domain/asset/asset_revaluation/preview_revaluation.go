@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
@@ -73,7 +73,7 @@ func (uc *PreviewRevaluationUseCase) Execute(
 	pbReq *revaluation_pb.PreviewRevaluationUseCaseRequest,
 ) (*revaluation_pb.PreviewRevaluationUseCaseResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetRevaluation, ports.ActionRead); err != nil {
+		entityAssetRevaluation, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

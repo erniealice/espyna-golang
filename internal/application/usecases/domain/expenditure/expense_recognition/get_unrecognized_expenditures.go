@@ -5,6 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 )
 
@@ -37,7 +38,7 @@ func NewGetUnrecognizedExpendituresUseCase(
 // Execute performs the get-unrecognized-expenditures operation.
 func (uc *GetUnrecognizedExpendituresUseCase) Execute(ctx context.Context, req *expenserecognitionpb.GetUnrecognizedExpendituresRequest) (*expenserecognitionpb.GetUnrecognizedExpendituresResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, ports.ActionList); err != nil {
+		entityExpenseRecognition, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	return uc.repositories.ExpenseRecognition.GetUnrecognizedExpenditures(ctx, req)

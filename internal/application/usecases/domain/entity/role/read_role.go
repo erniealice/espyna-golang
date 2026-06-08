@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 )
@@ -60,7 +61,7 @@ func NewReadRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *ReadR
 func (uc *ReadRoleUseCase) Execute(ctx context.Context, req *rolepb.ReadRoleRequest) (*rolepb.ReadRoleResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityRole, ports.ActionRead); err != nil {
+		entityid.Role, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

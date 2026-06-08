@@ -8,6 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	linepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line"
 )
@@ -106,7 +107,7 @@ func NewCreateLineUseCase(repositories CreateLineRepositories, services CreateLi
 }
 
 func (uc *CreateLineUseCase) Execute(ctx context.Context, req *linepb.CreateLineRequest) (*linepb.CreateLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionCreate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -156,7 +157,7 @@ func NewReadLineUseCase(repositories ReadLineRepositories, services ReadLineServ
 }
 
 func (uc *ReadLineUseCase) Execute(ctx context.Context, req *linepb.ReadLineRequest) (*linepb.ReadLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionRead); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -196,7 +197,7 @@ func NewUpdateLineUseCase(repositories UpdateLineRepositories, services UpdateLi
 }
 
 func (uc *UpdateLineUseCase) Execute(ctx context.Context, req *linepb.UpdateLineRequest) (*linepb.UpdateLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionUpdate); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -249,7 +250,7 @@ func NewDeleteLineUseCase(repositories DeleteLineRepositories, services DeleteLi
 }
 
 func (uc *DeleteLineUseCase) Execute(ctx context.Context, req *linepb.DeleteLineRequest) (*linepb.DeleteLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionDelete); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -282,7 +283,7 @@ func NewListLinesUseCase(repositories ListLinesRepositories, services ListLinesS
 }
 
 func (uc *ListLinesUseCase) Execute(ctx context.Context, req *linepb.ListLinesRequest) (*linepb.ListLinesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, ports.EntityLine, ports.ActionList); err != nil {
+	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

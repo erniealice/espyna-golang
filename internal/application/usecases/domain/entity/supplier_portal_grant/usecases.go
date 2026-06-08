@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	supplierportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_portal_grant"
 )
 
@@ -53,7 +54,7 @@ type CreateSupplierPortalGrantUseCase struct {
 
 func (uc *CreateSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.CreateSupplierPortalGrantRequest) (*supplierportalgrantpb.CreateSupplierPortalGrantResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierPortalGrant, ports.ActionCreate); err != nil {
+		entitySupplierPortalGrant, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -77,7 +78,7 @@ type ReadSupplierPortalGrantUseCase struct {
 
 func (uc *ReadSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.ReadSupplierPortalGrantRequest) (*supplierportalgrantpb.ReadSupplierPortalGrantResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierPortalGrant, ports.ActionRead); err != nil {
+		entitySupplierPortalGrant, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadSupplierPortalGrant(ctx, req)
@@ -91,7 +92,7 @@ type UpdateSupplierPortalGrantUseCase struct {
 
 func (uc *UpdateSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.UpdateSupplierPortalGrantRequest) (*supplierportalgrantpb.UpdateSupplierPortalGrantResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierPortalGrant, ports.ActionUpdate); err != nil {
+		entitySupplierPortalGrant, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -110,7 +111,7 @@ type DeleteSupplierPortalGrantUseCase struct {
 
 func (uc *DeleteSupplierPortalGrantUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.DeleteSupplierPortalGrantRequest) (*supplierportalgrantpb.DeleteSupplierPortalGrantResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierPortalGrant, ports.ActionDelete); err != nil {
+		entitySupplierPortalGrant, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteSupplierPortalGrant(ctx, req)
@@ -124,7 +125,7 @@ type ListSupplierPortalGrantsUseCase struct {
 
 func (uc *ListSupplierPortalGrantsUseCase) Execute(ctx context.Context, req *supplierportalgrantpb.ListSupplierPortalGrantsRequest) (*supplierportalgrantpb.ListSupplierPortalGrantsResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierPortalGrant, ports.ActionRead); err != nil {
+		entitySupplierPortalGrant, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListSupplierPortalGrants(ctx, req)

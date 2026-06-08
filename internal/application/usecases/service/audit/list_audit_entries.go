@@ -16,6 +16,7 @@ import (
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	auditquerypb "github.com/erniealice/esqyma/pkg/schema/v1/service/audit"
 )
 
@@ -66,7 +67,7 @@ func (uc *ListAuditEntriesUseCase) Execute(
 		uc.services.Authorizer,
 		uc.services.Translator,
 		"audit_trail",
-		ports.ActionList,
+		entityid.ActionList,
 	); err != nil {
 		return nil, err
 	}

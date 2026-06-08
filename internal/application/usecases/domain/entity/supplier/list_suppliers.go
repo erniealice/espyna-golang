@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 )
@@ -59,7 +60,7 @@ func NewListSuppliersUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServ
 func (uc *ListSuppliersUseCase) Execute(ctx context.Context, req *supplierpb.ListSuppliersRequest) (*supplierpb.ListSuppliersResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier", ports.ActionList); err != nil {
+		"supplier", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

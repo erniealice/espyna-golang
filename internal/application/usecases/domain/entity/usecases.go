@@ -7,6 +7,7 @@ import (
 	clientAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_attribute"
 	clientCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_category"
 	clientPortalGrantUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_portal_grant"
+	clientWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/client_workspace_user"
 	delegateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/delegate"
 	delegateAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/delegate_attribute"
 	delegateClientUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/delegate_client"
@@ -66,6 +67,8 @@ type EntityUseCases struct {
 	Workspace           *workspaceUseCases.UseCases
 	WorkspaceUser       *workspaceUserUseCases.UseCases
 	WorkspaceUserRole   *workspaceUserRoleUseCases.UseCases
+	// Outsourcing-vertical client account-team membership
+	ClientWorkspaceUser *clientWorkspaceUserUseCases.UseCases
 
 	// Dashboard use cases retired to service-driven layer:
 	//   - AdminDashboard → service.Dashboard.Admin (Wave B P1.C.1)

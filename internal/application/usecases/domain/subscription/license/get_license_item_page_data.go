@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
@@ -47,7 +48,7 @@ func (uc *GetLicenseItemPageDataUseCase) Execute(
 ) (*licensepb.GetLicenseItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityLicense, ports.ActionList); err != nil {
+		entityid.License, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

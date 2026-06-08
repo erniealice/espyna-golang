@@ -6,6 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 )
@@ -46,7 +47,7 @@ func (uc *ListByParentUseCase) Execute(
 	ctx context.Context, req *jobtemplaterelationpb.ListJobTemplateRelationsByParentRequest,
 ) (*jobtemplaterelationpb.ListJobTemplateRelationsByParentResponse, error) {
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"job_template_relation", ports.ActionList); err != nil {
+		"job_template_relation", entityid.ActionList); err != nil {
 		return nil, err
 	}
 	if req == nil {

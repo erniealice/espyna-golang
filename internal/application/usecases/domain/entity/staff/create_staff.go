@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 )
@@ -65,7 +66,7 @@ func NewCreateStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) 
 func (uc *CreateStaffUseCase) Execute(ctx context.Context, req *staffpb.CreateStaffRequest) (*staffpb.CreateStaffResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntityStaff, ports.ActionCreate); err != nil {
+		entityid.Staff, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

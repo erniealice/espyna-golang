@@ -17,6 +17,8 @@ import (
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
+	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
+	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 )
 
 // ConfigureSubscriptionDomain configures routes for the Subscription domain with use cases injected directly
@@ -574,6 +576,88 @@ func ConfigureSubscriptionDomain(subscriptionUseCases *subscriptionuc.Subscripti
 			Method:  "POST",
 			Path:    "/api/subscription/subscription-attribute/get-item-page-data",
 			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionAttribute.GetSubscriptionAttributeItemPageData, &subscriptionattributepb.GetSubscriptionAttributeItemPageDataRequest{}),
+		})
+	}
+
+	// Subscription Seat module routes (outsourcing vertical).
+	// CRUD + page-data go through generic proto handlers. The SR-2 lifecycle ops
+	// (replace, set-status) take Go-shaped (non-proto) requests and are invoked
+	// directly from the view/action layer via the use-case aggregate, so they are
+	// intentionally NOT exposed as generic JSON routes here.
+	if subscriptionUseCases.SubscriptionSeat != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-seat/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionSeat.CreateSubscriptionSeat, &subscriptionseatpb.CreateSubscriptionSeatRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-seat/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionSeat.ReadSubscriptionSeat, &subscriptionseatpb.ReadSubscriptionSeatRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-seat/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionSeat.UpdateSubscriptionSeat, &subscriptionseatpb.UpdateSubscriptionSeatRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-seat/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionSeat.DeleteSubscriptionSeat, &subscriptionseatpb.DeleteSubscriptionSeatRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-seat/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionSeat.ListSubscriptionSeats, &subscriptionseatpb.ListSubscriptionSeatsRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-seat/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionSeat.GetSubscriptionSeatListPageData, &subscriptionseatpb.GetSubscriptionSeatListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-seat/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionSeat.GetSubscriptionSeatItemPageData, &subscriptionseatpb.GetSubscriptionSeatItemPageDataRequest{}),
+		})
+	}
+
+	// Subscription Workspace User module routes (servicing membership).
+	if subscriptionUseCases.SubscriptionWorkspaceUser != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-workspace-user/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.CreateSubscriptionWorkspaceUser, &subscriptionworkspaceuserpb.CreateSubscriptionWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-workspace-user/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.ReadSubscriptionWorkspaceUser, &subscriptionworkspaceuserpb.ReadSubscriptionWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-workspace-user/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.UpdateSubscriptionWorkspaceUser, &subscriptionworkspaceuserpb.UpdateSubscriptionWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-workspace-user/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.DeleteSubscriptionWorkspaceUser, &subscriptionworkspaceuserpb.DeleteSubscriptionWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-workspace-user/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.ListSubscriptionWorkspaceUsers, &subscriptionworkspaceuserpb.ListSubscriptionWorkspaceUsersRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-workspace-user/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.GetSubscriptionWorkspaceUserListPageData, &subscriptionworkspaceuserpb.GetSubscriptionWorkspaceUserListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-workspace-user/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.GetSubscriptionWorkspaceUserItemPageData, &subscriptionworkspaceuserpb.GetSubscriptionWorkspaceUserItemPageDataRequest{}),
 		})
 	}
 

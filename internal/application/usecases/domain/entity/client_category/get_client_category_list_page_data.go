@@ -7,6 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
@@ -60,7 +61,7 @@ func NewGetClientCategoryListPageDataUseCaseUngrouped(clientCategoryRepo clientc
 func (uc *GetClientCategoryListPageDataUseCase) Execute(ctx context.Context, req *clientcategorypb.GetClientCategoryListPageDataRequest) (*clientcategorypb.GetClientCategoryListPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"client_category", ports.ActionList); err != nil {
+		"client_category", entityid.ActionList); err != nil {
 		return nil, err
 	}
 

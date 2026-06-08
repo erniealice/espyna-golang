@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
@@ -122,7 +123,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 		req.SpawnJobs = pbReq.GetSpawnJobs()
 	}
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		ports.EntitySubscription, ports.ActionUpdate); err != nil {
+		entityid.Subscription, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

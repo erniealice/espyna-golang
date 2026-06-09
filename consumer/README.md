@@ -15,7 +15,7 @@ consumer/register.go (always compiled)
     → blank-imports mock/noop adapters → their init() self-registers
     |
 consumer/register_{category}_{adapter}.go (compiled only when build tag is set)
-    → blank-imports real adapters → their init() self-registers
+    → blank-imports real adapters (from contrib/ or secondary/) → their init() self-registers
     |
     v
 At runtime, CONFIG_*_PROVIDER env vars select which registered adapter to use
@@ -39,15 +39,18 @@ as fallbacks.
 
 Thin substitution-driven wrappers that expose internal provider functionality
 to consumer apps. Each file provides a `NewXxxAdapterFromContainer(container)`
-constructor. Final inventory post-2026-05-18:
+constructor. Inventory post-2026-05-18 + planned additions:
 
-| File | Adapter | Key Methods |
-|------|---------|-------------|
-| `adapter_auth.go` | AuthAdapter | VerifyToken, CreateCustomToken |
-| `adapter_database.go` | DatabaseAdapter | Create, Read, Update, Delete, List, Query |
-| `adapter_email.go` | EmailAdapter | SendEmail, SendSimpleEmail, SendHTMLEmail |
-| `adapter_server.go` | ServerAdapter | Start, RegisterRoute, RegisterMiddleware |
-| `adapter_storage.go` | StorageAdapter | Upload, Download, Delete, GetSignedURL |
+| File | Adapter | Key Methods | Status |
+|------|---------|-------------|--------|
+| `adapter_auth.go` | AuthAdapter | VerifyToken, CreateCustomToken | Live |
+| `adapter_database.go` | DatabaseAdapter | Create, Read, Update, Delete, List, Query | Live |
+| `adapter_email.go` | EmailAdapter | SendEmail, SendSimpleEmail, SendHTMLEmail | Live |
+| `adapter_server.go` | ServerAdapter | Start, RegisterRoute, RegisterMiddleware | Live |
+| `adapter_storage.go` | StorageAdapter | Upload, Download, Delete, GetSignedURL | Live |
+| `adapter_email.go` (EmailRouter) | EmailRouter | Route across plural providers | Planned (N3 P3) |
+| `adapter_auth.go` (AuthRouter) | AuthRouter | Route login/callback across providers | Planned (E1 P1) |
+| `adapter_storage.go` (StorageRouter) | StorageRouter | Route ops by repository provider | Planned (E3 P1) |
 
 ### Admission policy (Q6, locked 2026-05-18)
 
@@ -59,31 +62,20 @@ A new `consumer/adapter_*.go` file is admitted only if ONE of these tests holds:
 
 The PR description must cite which test is satisfied for every new file.
 
-### Deletions in 20260518-hexagonal-strict-adherence Phase 1.D
+### Previously deleted adapter facades
 
-Eight `consumer/adapter_*.go` files were removed:
+Eight `consumer/adapter_*.go` files were removed in 2026-05-18:
 
-| File | Reason | Replacement |
-|------|--------|-------------|
-| `adapter_treasury_advances.go` | USE_CASE_WRAPPER (wraps usecases, not a port) | Callers go through `uc.Treasury.Collection.X` / `uc.Treasury.Disbursement.X` directly. |
-| `adapter_session.go` | USE_CASE_WRAPPER (wraps `usecases/auth`) | Service-admin middleware calls `uc.Auth.X.Execute` directly via `consumer/auth_aliases.go` type aliases. |
-| `adapter_audit.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/audit/list_audit_entries.go` use case (Q7 service-driven domain category); audit decorator logic absorbed into `internal/composition/core/container.go` (`applyRegisteredOperationsDecorators`). The `composition/audit/` directory is DELETED (20260521-composition-reshape). |
-| `adapter_ledger.go` | Tier 2 (δ) visibility-bridge | Ledger reporting fully decomposed into `Service.Reporting.<group>` (P1.E.1-5 landed 20260521); the `*ledgerReporting` wrapper struct is DELETED and its logic inlined into `apps/service-admin/internal/composition/container.go` (Q-SDM-LEDGER-RETIRE-PYEZA). |
-| `adapter_permission_query.go` | Tier 2 (δ) visibility-bridge | New `usecases/service/security/get_user_permission_codes.go` use case (Q7 service-driven domain — `proto/v1/service/security/permission_query.proto`); permission query wiring lives in `internal/composition/core/initializers/service/security.go`. The `composition/security/` sibling directory is DELETED (20260521-composition-reshape). Removed in 20260520-service-domain-migration. |
-| `adapter_fulfillment.go` | Tier 3 — 0 callers | Underlying port + impls under `internal/application/ports/integration/` stay. Re-promote when a real caller arrives. |
-| `adapter_id.go` | Tier 3 — 0 callers | Same. The ID service is still wired via DI from composition; this facade was unused. |
-| `adapter_payment.go` | Tier 3 — 0 callers | Same. Payment registration still works via `register_payment_*.go` build-tag shims. |
-| `adapter_scheduler.go` | Tier 3 — 0 callers | Same. |
-
-### `consumer/auth_aliases.go` (non-adapter visibility-bridge — DELETED)
-
-This file was deleted in `20260521-composition-reshape` (Q-CR8 Option B). The
-three Go type aliases it carried (`AuthenticateSessionRequest`,
-`IssueSessionRequest`, `InvalidateSessionRequest`) are retired in favor of the
-proto-shaped messages at `proto/v1/service/auth/session.proto`. Auth wiring
-now lives entirely in `internal/composition/core/initializers/service/auth.go`
-(fused entity-layer + service-layer construction in a single `initServiceAuth`
-function). Apps access auth use cases via `consumer.UseCases.Service.Auth.*`.
+| File | Reason | Re-promotion status |
+|------|--------|---------------------|
+| `adapter_fulfillment.go` | Tier 3 — 0 callers | **Re-promote when N5 (fulfillment build-out) lands** — integration use cases will be the caller |
+| `adapter_payment.go` | Tier 3 — 0 callers | **Re-promote when E2 (multi-provider payments) lands** — webhook route dispatch will be the caller |
+| `adapter_scheduler.go` | Tier 3 — 0 callers | Re-promote when needed |
+| `adapter_id.go` | Tier 3 — 0 callers | Not needed — ID wired via DI only |
+| `adapter_treasury_advances.go` | USE_CASE_WRAPPER | Not re-promoting — callers go through `uc.Treasury.*` directly |
+| `adapter_session.go` | USE_CASE_WRAPPER | Not re-promoting — service-admin calls `uc.Auth.*` directly |
+| `adapter_audit.go` | Tier 2 visibility-bridge | Not re-promoting — audit via service use case |
+| `adapter_ledger.go` | Tier 2 visibility-bridge | Not re-promoting — reporting via service use cases |
 
 ### Registration Files
 
@@ -102,134 +94,152 @@ These have zero external dependencies and add negligible binary size.
 Each real adapter gets its own file with a matching `//go:build` tag.
 The adapter is only compiled into the binary when the tag is present.
 
-| File | Build Tag | Adapter | External Deps |
-|------|-----------|---------|---------------|
-| **HTTP Servers (pick one)** ||||
-| `register_server_gin.go` | `gin` | Gin HTTP server | gin-gonic/gin |
-| `register_server_fiber.go` | `fiber` | Fiber v2 | gofiber/fiber/v2 |
-| `register_server_fiberv3.go` | `fiber_v3` | Fiber v3 | gofiber/fiber/v3 |
-| `register_server_vanilla.go` | `vanilla` | net/http server | None (stdlib) |
-| **Database (pick one)** ||||
-| `register_database_firestore.go` | `firestore` | Google Firestore | cloud.google.com/go/firestore |
-| `register_database_postgres.go` | `postgres` | PostgreSQL | github.com/lib/pq |
-| **Auth (pick one)** ||||
-| `register_auth_firebase.go` | `firebase` | Firebase Auth | firebase.google.com/go |
-| `register_auth_jwt.go` | `jwt_auth` | JWT auth | (minimal) |
-| **Email (pick one)** ||||
-| `register_email_gmail.go` | `google && gmail` | Gmail API | Google API client |
-| `register_email_microsoft.go` | `microsoft && microsoftgraph` | MS Graph email | MS Graph SDK |
-| **Payment (can combine)** ||||
-| `register_payment_asiapay.go` | `asiapay` | AsiaPay | None (net/http) |
-| `register_payment_maya.go` | `maya` | Maya | None (net/http) |
-| `register_payment_paypal.go` | `paypal` | PayPal | None (net/http) |
-| **Scheduler (pick one)** ||||
-| `register_scheduler_calendly.go` | `calendly` | Calendly | None (net/http) |
-| **Storage (pick one)** ||||
-| `register_storage_gcs.go` | `google && gcs` | Google Cloud Storage | cloud.google.com/go/storage |
-| `register_storage_s3.go` | `aws && s3` | AWS S3 | AWS SDK v2 |
-| `register_storage_azure.go` | `azure && azureblob` | Azure Blob | Azure SDK |
-| **Tabular (pick one)** ||||
-| `register_tabular_googlesheets.go` | `google && googlesheets` | Google Sheets | Google Sheets API |
-| **Translation** ||||
-| `register_translation_lyngua.go` | `lyngua` | Lyngua | leapfor.xyz/lyngua |
+> **Canonical naming (in-flight 2026-06-09):** every build tag, registry key,
+> `Name()` return, and `CONFIG_*_PROVIDER` value uses ONE canonical token per
+> provider. No aliases. See [provider-system wiki](../../docs/wiki/articles/provider-system.md).
+
+| File | Build Tag | Adapter | Location | External Deps |
+|------|-----------|---------|----------|---------------|
+| **HTTP Servers (pick one)** |||||
+| `register_server_http.go` | `http` | stdlib net/http | `contrib/http` | None (stdlib) |
+| `register_server_gin.go` | `gin` | Gin HTTP server | `contrib/gin` | gin-gonic/gin |
+| `register_server_fiber.go` | `fiber` | Fiber v2/v3 | `contrib/fiber` | gofiber/fiber |
+| **Database (pick one)** |||||
+| `register_database_postgres.go` | `postgresql` | PostgreSQL | `contrib/postgres` | github.com/lib/pq |
+| `register_database_firestore.go` | `firestore` | Firestore | `contrib/google` | cloud.google.com/go/firestore |
+| **Auth (pick one or combine)** |||||
+| `register_auth_firebase.go` | `firebase_auth` | Firebase Auth | `contrib/google` | firebase.google.com/go |
+| **Email (pick one or combine)** |||||
+| `register_email_google.go` | `google_email` | Gmail API | `contrib/google` | Google API client |
+| `register_email_microsoft.go` | `microsoft_email` | MS Graph email | `contrib/microsoft` | MS Graph SDK |
+| **Payment (can combine)** |||||
+| `register_payment_asiapay.go` | `asiapay` | AsiaPay | `contrib/asiapay` | None (net/http) |
+| `register_payment_maya.go` | `maya` | Maya | `contrib/maya` | None (net/http) |
+| `register_payment_paypal.go` | `paypal` | PayPal | `contrib/paypal` | None (net/http) |
+| **Scheduler (can combine)** |||||
+| `register_scheduler_calendly.go` | `calendly` | Calendly | `contrib/calendly` | None (net/http) |
+| `register_scheduler_google_calendar.go` | `google_calendar` | Google Calendar | `contrib/google` | Google Calendar API |
+| **Fulfillment (can combine)** |||||
+| `register_fulfillment_lalamove.go` | `lalamove` | Lalamove | `contrib/lalamove` | None (net/http) |
+| `register_fulfillment_grabexpress.go` | `grabexpress` | GrabExpress | `contrib/grabexpress` | None (net/http) |
+| **Storage (pick one or combine)** |||||
+| `register_storage_gcp.go` | `gcp_storage` | Google Cloud Storage | `contrib/google` | cloud.google.com/go/storage |
+| `register_storage_aws.go` | `aws_storage` | AWS S3 | `contrib/aws` | AWS SDK v2 |
+| `register_storage_azure.go` | `azure_storage` | Azure Blob | `contrib/azure` | Azure SDK |
+| `register_storage_sharepoint.go` | `sharepoint_storage` | SharePoint | `contrib/microsoft` | MS Graph SDK |
+| **Tabular** |||||
+| `register_tabular_google_sheets.go` | `google_sheets` | Google Sheets | `contrib/google` | Google Sheets API |
+| **ID** |||||
+| `register_id_uuidv7.go` | `google_uuidv7` | UUIDv7 (Google) | `contrib/google` | github.com/google/uuid |
 
 ## Build Tag Examples
 
 ```bash
 # Minimal (development) — mocks only, smallest binary
-go build -tags "mock_db,mock_auth,mock_email,mock_payment,mock_storage,vanilla" ./...
+go build -tags "http,mock_db,mock_auth,mock_storage,mock_email" ./cmd/server
 
-# Staging — real DB, mock services
-go build -tags "firestore,mock_auth,mock_email,mock_payment,mock_storage,gin,google" ./...
+# Standard dev with real DB
+go build -tags "http,postgresql,mock_auth,mock_email" ./cmd/server
 
-# Production: PH stack
-go build -tags "firestore,firebase,gmail,maya,asiapay,calendly,gin,google,googlesheets" ./...
+# Production GCP stack
+go build -tags "http,postgresql,firebase_auth,gcp_storage,google_uuidv7,google_email,asiapay,calendly" ./cmd/server
 
-# Production: US stack
-go build -tags "postgres,jwt_auth,gmail,paypal,gin,google,googlesheets,aws,s3" ./...
+# Production with multiple payment gateways
+go build -tags "http,postgresql,firebase_auth,gcp_storage,google_uuidv7,google_email,maya,asiapay,paypal" ./cmd/server
 ```
 
 ## Adding a New Adapter
 
-Follow this recipe when you need to add a new adapter (e.g., Google Calendar
-for the scheduler category).
+Follow this recipe when adding a new adapter.
+
+### Step 0: Decide placement
+
+| Adapter type | Location | Module |
+|-------------|----------|--------|
+| Vendor API (Lalamove, Calendly, etc.) | `contrib/{vendor}/internal/adapter/` | New `contrib/{vendor}/go.mod` |
+| Vendor API, vendor already in contrib/ (Gmail → Google) | `contrib/{vendor}/internal/{type}/{adapter}/` | Existing `contrib/{vendor}/go.mod` |
+| Mock / noop / stdlib-only | `secondary/{type}/{adapter}/` | Main espyna module |
 
 ### Step 1: Create the adapter package
 
+**For `contrib/` (new module):**
 ```
-internal/infrastructure/adapters/secondary/scheduler/googlecalendar/
-    adapter.go
-    types.go
-    config.go
-```
-
-**CRITICAL: Every `.go` file MUST have the build tag.**
-
-```go
-//go:build googlecalendar
-
-package googlecalendar
+contrib/myprovider/
+    go.mod                          ← separate Go module
+    register.go                     ← empty package decl (always compiles)
+    register_myprovider.go          ← //go:build myprovider
+    internal/adapter/
+        adapter.go                  ← //go:build myprovider — the implementation
+        stub.go                     ← empty package decl (no tag, so import resolves)
 ```
 
-If even one file is missing the tag, its dependencies will be pulled into
-ALL binaries regardless of build tags.
+**For `contrib/` (existing module, e.g., contrib/google):**
+```
+contrib/google/
+    register_myprovider.go          ← //go:build myprovider (NEW)
+    internal/{type}/myprovider/
+        adapter.go                  ← //go:build myprovider — the implementation (NEW)
+        stub.go                     ← empty package decl (NEW)
+```
+
+**For `secondary/` (mock/noop):**
+```
+internal/infrastructure/adapters/secondary/{type}/{adapter}/
+    adapter.go                      ← the implementation
+    stub.go                         ← //go:build !{real_tag} if mutual exclusion needed
+```
 
 ### Step 2: Implement self-registration
 
-In `adapter.go`, add an `init()` function that registers with the global
-factory registry:
+Use ONE canonical token everywhere:
 
 ```go
+//go:build myprovider
+
+package myprovider
+
 func init() {
-    registry.RegisterSchedulerProvider("googlecalendar", newFactory, transformConfig)
-    registry.RegisterSchedulerBuildFromEnv("googlecalendar", buildFromEnv)
+    registry.Register{Type}Provider("{canonical_token}", newFactory, transformConfig)
+    registry.Register{Type}BuildFromEnv("{canonical_token}", buildFromEnv)
+}
+
+func (p *MyAdapter) Name() string {
+    return "{canonical_token}"  // SAME token as registry key
 }
 ```
 
-The three things to register:
-1. **Factory function** — creates an uninitialized adapter instance
-2. **Config transformer** — converts raw config map to typed config
-3. **BuildFromEnv function** — creates a fully-configured adapter from env vars
+### Step 3: Create the consumer register file
 
-### Step 3: Create the register file
-
-Create `consumer/register_scheduler_googlecalendar.go`:
+Create `consumer/register_{category}_{adapter}.go`:
 
 ```go
-//go:build googlecalendar
+//go:build myprovider
 
 package consumer
 
-import _ "leapfor.xyz/espyna/internal/infrastructure/adapters/secondary/scheduler/googlecalendar"
+import _ "github.com/erniealice/espyna-golang/contrib/myprovider"
 ```
 
-That's it — 3 lines. The file name follows the convention: `register_{category}_{adapter}.go`.
+### Step 4: Add to audit-tags.sh
 
-### Step 4: Update this README
+Add a mode in `apps/service-admin/scripts/audit-tags.sh` that verifies your
+adapter compiles in and competing adapters do not.
 
-Add the new adapter to the build tag table above.
+### Step 5: Update this README + wiki
 
-### Step 5: Use it
-
-```bash
-go build -tags "googlecalendar,firestore,gin,google" ./...
-```
-
-```env
-CONFIG_SCHEDULER_PROVIDER=googlecalendar
-```
+Add the new adapter to the build-tag table above and update
+[provider-system wiki article](../../docs/wiki/articles/provider-system.md).
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Consumer App (bfit-subs-golang-v2, be-master, etc.)        │
+│  Consumer App (service-admin, etc.)                          │
 │                                                             │
-│  import "leapfor.xyz/espyna/consumer"                       │
+│  import "espyna/consumer"                                    │
 │                                                             │
 │  container := consumer.NewContainerFromEnv()                │
 │  container.Initialize()                                     │
-│  db := consumer.NewDatabaseAdapterFromContainer(container)  │
 └─────────────┬───────────────────────────────────────────────┘
               │ imports
               v
@@ -237,27 +247,33 @@ CONFIG_SCHEDULER_PROVIDER=googlecalendar
 │  consumer/ package                                          │
 │                                                             │
 │  consumer.go ──── API surface (Container, UseCases, etc.)   │
-│  adapter_*.go ─── Thin wrappers over internal providers     │
+│  adapter_*.go ─── Thin wrappers / routers over providers    │
 │  register.go ──── Blank imports for mocks (always compiled) │
 │  register_{cat}_{name}.go ── Blank imports gated by tags    │
 │       │                                                     │
 │       │ blank imports trigger init()                        │
 │       v                                                     │
-│  internal/infrastructure/adapters/                          │
+│  TWO adapter locations:                                     │
+│                                                             │
+│  internal/infrastructure/adapters/secondary/                │
+│       └── mock, noop, pure-stdlib adapters                  │
+│                                                             │
+│  contrib/{vendor}/internal/{type}/{adapter}/                │
+│       └── vendor SDK adapters (separate go.mod per vendor)  │
+│           shared code in contrib/{vendor}/internal/common/  │
 │       │                                                     │
 │       │ each adapter's init() calls:                        │
 │       v                                                     │
 │  internal/infrastructure/registry/                          │
-│       │  FactoryRegistry[T, C] — generic type-safe map      │
-│       │  RegisterXxxProvider("name", factory, config)        │
-│       │  BuildXxxProviderFromEnv("name") → provider         │
+│       FactoryRegistry[T, C] — generic type-safe map         │
+│       Register{Type}BuildFromEnv("{token}", BuildFromEnv)   │
+│       Build{Type}ProviderFromEnv("{token}") → provider      │
 │       │                                                     │
-│       │ at runtime, composition layer reads env vars:        │
+│       │ at runtime, composition reads env vars:             │
 │       v                                                     │
-│  internal/composition/providers/infrastructure/             │
-│       CONFIG_DATABASE_PROVIDER=firestore                    │
-│       → registry.BuildDatabaseProviderFromEnv("firestore")  │
-│       → returns configured Firestore adapter                │
+│  internal/composition/providers/{infrastructure,integration}│
+│       CONFIG_*_PROVIDER → registry.Build*FromEnv(token)     │
+│       → returns the configured adapter                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -265,41 +281,34 @@ CONFIG_SCHEDULER_PROVIDER=googlecalendar
 
 ### Why are there separate register files instead of one big file?
 
-**Binary safety.** If `register.go` imports a Firestore adapter package,
-Go will enter that directory even when you build without `-tags firestore`.
-If any `.go` file in that directory lacks a build tag, its dependencies get
-pulled in — silently adding megabytes to your binary.
-
-By giving each adapter its own build-tagged register file, Go never even
+**Binary safety.** Each adapter's register file is build-tagged. Go never
 enters the adapter directory unless you opt in via the build tag.
 
 ### Why do mock adapters stay in register.go (always compiled)?
 
-Mock adapters have zero external dependencies. Even if their source files
-have build tags (like `mock_db`), the blank import is harmless — Go enters
-the directory, finds no compilable files, and moves on. No binary impact.
+Mock adapters have zero external dependencies and negligible binary impact.
 
-### Can I compile multiple payment adapters?
+### Can I compile multiple payment/fulfillment adapters?
 
-Yes. Payment adapters can coexist. Build with `-tags "maya,asiapay,paypal"`
-and all three register. The `CONFIG_PAYMENT_PROVIDER` env var picks which
-one is active at runtime.
+Yes. Plural provider types (payment, scheduler, fulfillment) support
+simultaneous adapters. Build with multiple tags and set `CONFIG_*_PROVIDER`
+to a comma-separated list.
 
 ### Can I compile multiple HTTP servers?
 
-No. HTTP server adapters use mutual exclusion tags (e.g., fiber's tag
-includes `!gin && !fiber_v3`). Pick exactly one.
+No. HTTP server adapters use mutual exclusion (audit-tags.sh enforces it).
 
 ### What env vars control adapter selection?
 
-| Variable | Values | Default |
-|----------|--------|---------|
-| `CONFIG_DATABASE_PROVIDER` | mock_db, postgres, firestore | mock_db |
-| `CONFIG_AUTH_PROVIDER` | mock_auth, firebase_auth | mock_auth |
-| `CONFIG_EMAIL_PROVIDER` | mock_email, gmail, microsoft | mock_email |
-| `CONFIG_PAYMENT_PROVIDER` | mock_payment, asiapay, maya, paypal | mock_payment |
-| `CONFIG_SCHEDULER_PROVIDER` | mock, calendly | mock |
-| `CONFIG_STORAGE_PROVIDER` | mock_storage, local, gcs, s3, azure | mock_storage |
-| `CONFIG_ID_PROVIDER` | noop, google_uuidv7 | noop |
-| `CONFIG_TABULAR_PROVIDER` | mock, googlesheets | mock |
-| `CONFIG_TRANSLATION_PROVIDER` | noop, file, mock, lyngua | noop |
+| Variable | Canonical Tokens | Default |
+|----------|-----------------|---------|
+| `CONFIG_DATABASE_PROVIDER` | `postgresql`, `firestore`, `mock_db` | `mock_db` |
+| `CONFIG_AUTH_PROVIDER` | `password`, `firebase`, `mock` | `mock` |
+| `CONFIG_EMAIL_PROVIDER` | `google_email`, `microsoft_email`, `mock_email` | `mock_email` |
+| `CONFIG_PAYMENT_PROVIDER` | `maya`, `asiapay`, `paypal`, `xero`, `mock_payment` | `mock_payment` |
+| `CONFIG_SCHEDULER_PROVIDER` | `calendly`, `google_calendar`, `mock_scheduler` | `mock_scheduler` |
+| `CONFIG_FULFILLMENT_PROVIDER` | `lalamove`, `grabexpress`, `mock_fulfillment` | `mock_fulfillment` |
+| `CONFIG_STORAGE_PROVIDER` | `gcp_storage`, `aws_storage`, `azure_storage`, `local_storage`, `mock_storage` | `mock_storage` |
+| `CONFIG_ID_PROVIDER` | `google_uuidv7`, `noop` | `noop` |
+| `CONFIG_SERVER_PROVIDER` | `http`, `gin`, `fiber`, `grpc` | `http` |
+| `CONFIG_TABULAR_PROVIDER` | `google_sheets`, `mock_tabular` | `mock_tabular` |

@@ -79,7 +79,7 @@ func (uc *UpdateInventoryTransactionUseCase) executeCore(ctx context.Context, re
 		return nil, errors.New(translatedError)
 	}
 
-	permission := entityid.Permission(entityid.InventoryTransaction, entityid.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.InventoryTransaction, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "inventory_transaction.errors.authorization_failed", "Authorization failed for inventory transactions [DEFAULT]")

@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
 	"github.com/erniealice/espyna-golang/internal/application/ports/security"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // =============================================================================
@@ -208,8 +209,7 @@ var NewAuthorizationError = internal.NewAuthorizationError
 
 // Permission utility functions
 var (
-	EntityPermission    = security.EntityPermission
-	WorkspacePermission = security.WorkspacePermission
+	EntityPermission = entityid.EntityPermission
 )
 
 // Authorization error constructors
@@ -245,109 +245,98 @@ const (
 
 // Permission action constants
 const (
-	ActionCreate = security.ActionCreate
-	ActionRead   = security.ActionRead
-	ActionUpdate = security.ActionUpdate
-	ActionDelete = security.ActionDelete
-	ActionList   = security.ActionList
-	ActionManage = security.ActionManage
+	ActionCreate = entityid.ActionCreate
+	ActionRead   = entityid.ActionRead
+	ActionUpdate = entityid.ActionUpdate
+	ActionDelete = entityid.ActionDelete
+	ActionList   = entityid.ActionList
+	ActionManage = entityid.ActionManage
 )
 
 // Entity constants
 const (
 	// Entity Domain
-	EntityAdmin             = security.EntityAdmin
-	EntityClient            = security.EntityClient
-	EntityClientAttribute   = security.EntityClientAttribute
-	EntityDelegate          = security.EntityDelegate
-	EntityDelegateAttribute = security.EntityDelegateAttribute
-	EntityDelegateClient    = security.EntityDelegateClient
-	EntityGroup             = security.EntityGroup
-	EntityGroupAttribute    = security.EntityGroupAttribute
-	EntityLocation          = security.EntityLocation
-	EntityLocationAttribute = security.EntityLocationAttribute
-	EntityManager           = security.EntityManager
-	EntityPermissions       = security.EntityPermissions
-	EntityRole              = security.EntityRole
-	EntityRolePermission    = security.EntityRolePermission
-	EntityStaff             = security.EntityStaff
-	EntityStaffAttribute    = security.EntityStaffAttribute
-	EntityUser              = security.EntityUser
-	EntityWorkspace         = security.EntityWorkspace
-	EntityWorkspaceUser     = security.EntityWorkspaceUser
-	EntityWorkspaceUserRole = security.EntityWorkspaceUserRole
+	EntityAdmin             = entityid.Admin
+	EntityClient            = entityid.Client
+	EntityClientAttribute   = entityid.ClientAttribute
+	EntityDelegate          = entityid.Delegate
+	EntityDelegateAttribute = entityid.DelegateAttribute
+	EntityDelegateClient    = entityid.DelegateClient
+	EntityGroup             = entityid.Group
+	EntityGroupAttribute    = entityid.GroupAttribute
+	EntityLocation          = entityid.Location
+	EntityLocationAttribute = entityid.LocationAttribute
+	EntityRole              = entityid.Role
+	EntityRolePermission    = entityid.RolePermission
+	EntityStaff             = entityid.Staff
+	EntityStaffAttribute    = entityid.StaffAttribute
+	EntityUser              = entityid.User
+	EntityWorkspace         = entityid.Workspace
+	EntityWorkspaceUser     = entityid.WorkspaceUser
+	EntityWorkspaceUserRole = entityid.WorkspaceUserRole
 
 	// Event Domain
-	EntityEvent          = security.EntityEvent
-	EntityEventAttribute = security.EntityEventAttribute
-	EntityEventClient    = security.EntityEventClient
-	EntityEventProduct   = security.EntityEventProduct
+	EntityEvent          = entityid.Event
+	EntityEventAttribute = entityid.EventAttribute
+	EntityEventClient    = entityid.EventClient
+	EntityEventProduct   = entityid.EventProduct
 
 	// Framework Domain
-	EntityFramework = security.EntityFramework
-	EntityObjective = security.EntityObjective
-	EntityTask      = security.EntityTask
 
 	// Expenditure Domain
-	EntityExpenditure          = security.EntityExpenditure
-	EntityExpenditureAttribute = security.EntityExpenditureAttribute
-	EntityExpenditureLineItem  = security.EntityExpenditureLineItem
-	EntityExpenditureCategory  = security.EntityExpenditureCategory
+	EntityExpenditure          = entityid.Expenditure
+	EntityExpenditureAttribute = entityid.ExpenditureAttribute
+	EntityExpenditureLineItem  = entityid.ExpenditureLineItem
+	EntityExpenditureCategory  = entityid.ExpenditureCategory
 
 	// Inventory Domain
-	EntityInventoryItem          = security.EntityInventoryItem
-	EntityInventorySerial        = security.EntityInventorySerial
-	EntityInventoryTransaction   = security.EntityInventoryTransaction
-	EntityInventoryAttribute     = security.EntityInventoryAttribute
-	EntityInventoryDepreciation  = security.EntityInventoryDepreciation
-	EntityInventorySerialHistory = security.EntityInventorySerialHistory
+	EntityInventoryItem          = entityid.InventoryItem
+	EntityInventorySerial        = entityid.InventorySerial
+	EntityInventoryTransaction   = entityid.InventoryTransaction
+	EntityInventoryAttribute     = entityid.InventoryAttribute
+	EntityInventoryDepreciation  = entityid.InventoryDepreciation
+	EntityInventorySerialHistory = entityid.InventorySerialHistory
 
 	// Product Domain
-	EntityCollection           = security.EntityCollection
-	EntityCollectionAttribute  = security.EntityCollectionAttribute
-	EntityCollectionPlan       = security.EntityCollectionPlan
-	EntityPriceList            = security.EntityPriceList
-	EntityPriceProduct         = security.EntityPriceProduct
-	EntityProduct              = security.EntityProduct
-	EntityProductAttribute     = security.EntityProductAttribute
-	EntityLine                 = security.EntityLine
-	EntityProductLine          = security.EntityProductLine
-	EntityProductOption        = security.EntityProductOption
-	EntityProductOptionValue   = security.EntityProductOptionValue
-	EntityProductPlan          = security.EntityProductPlan
-	EntityProductVariant       = security.EntityProductVariant
-	EntityProductVariantImage  = security.EntityProductVariantImage
-	EntityProductVariantOption = security.EntityProductVariantOption
-	EntityResource             = security.EntityResource
+	EntityCollection           = entityid.Collection
+	EntityCollectionAttribute  = entityid.CollectionAttribute
+	EntityCollectionPlan       = entityid.CollectionPlan
+	EntityPriceList            = entityid.PriceList
+	EntityPriceProduct         = entityid.PriceProduct
+	EntityProduct              = entityid.Product
+	EntityProductAttribute     = entityid.ProductAttribute
+	EntityLine                 = entityid.Line
+	EntityProductLine          = entityid.ProductLine
+	EntityProductOption        = entityid.ProductOption
+	EntityProductOptionValue   = entityid.ProductOptionValue
+	EntityProductPlan          = entityid.ProductPlan
+	EntityProductVariant       = entityid.ProductVariant
+	EntityProductVariantImage  = entityid.ProductVariantImage
+	EntityProductVariantOption = entityid.ProductVariantOption
+	EntityResource             = entityid.Resource
 
 	// Record Domain
-	EntityRecord = security.EntityRecord
 
 	// Subscription Domain
-	EntityBalance               = security.EntityBalance
-	EntityBalanceAttribute      = security.EntityBalanceAttribute
-	EntityInvoice               = security.EntityInvoice
-	EntityInvoiceAttribute      = security.EntityInvoiceAttribute
-	EntityLicense               = security.EntityLicense
-	EntityLicenseHistory        = security.EntityLicenseHistory
-	EntityPlan                  = security.EntityPlan
-	EntityPlanAttribute         = security.EntityPlanAttribute
-	EntityPlanSettings          = security.EntityPlanSettings
-	EntityPricePlan             = security.EntityPricePlan
-	EntitySubscription          = security.EntitySubscription
-	EntitySubscriptionAttribute = security.EntitySubscriptionAttribute
+	EntityBalance               = entityid.Balance
+	EntityBalanceAttribute      = entityid.BalanceAttribute
+	EntityInvoice               = entityid.Invoice
+	EntityInvoiceAttribute      = entityid.InvoiceAttribute
+	EntityLicense               = entityid.License
+	EntityLicenseHistory        = entityid.LicenseHistory
+	EntityPlan                  = entityid.Plan
+	EntityPlanAttribute         = entityid.PlanAttribute
+	EntityPlanSettings          = entityid.PlanSettings
+	EntityPricePlan             = entityid.PricePlan
+	EntitySubscription          = entityid.Subscription
+	EntitySubscriptionAttribute = entityid.SubscriptionAttribute
 
 	// Asset Domain
-	EntityAsset                = security.EntityAsset
-	EntityAssetCategory        = security.EntityAssetCategory
-	EntityAssetAttribute       = security.EntityAssetAttribute
-	EntityAssetLocation        = security.EntityAssetLocation
-	EntityDepreciationSchedule = security.EntityDepreciationSchedule
-	EntityAssetTransaction     = security.EntityAssetTransaction
-	EntityAssetDisposal        = security.EntityAssetDisposal
-	EntityAssetRevaluation     = security.EntityAssetRevaluation
-	EntityAssetMaintenance     = security.EntityAssetMaintenance
-	EntityAssetComponent       = security.EntityAssetComponent
+	EntityAsset                = entityid.Asset
+	EntityAssetCategory        = entityid.AssetCategory
+	EntityDepreciationSchedule = entityid.DepreciationSchedule
+	EntityAssetTransaction     = entityid.AssetTransaction
+	EntityAssetRevaluation     = entityid.AssetRevaluation
 )
 
 // Ensure sub-package imports are used (prevents "imported and not used" errors

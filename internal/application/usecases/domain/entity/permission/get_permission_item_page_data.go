@@ -61,7 +61,7 @@ func NewGetPermissionItemPageDataUseCaseUngrouped(permissionRepo permissionpb.Pe
 func (uc *GetPermissionItemPageDataUseCase) Execute(ctx context.Context, req *permissionpb.GetPermissionItemPageDataRequest) (*permissionpb.GetPermissionItemPageDataResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Permissions, entityid.ActionList); err != nil {
+		entityid.Permission, entityid.ActionList); err != nil {
 		return nil, err
 	}
 

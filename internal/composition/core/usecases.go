@@ -60,7 +60,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
-	servicetax "github.com/erniealice/espyna-golang/internal/application/usecases/service/tax"
 
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription"
 	subscriptionUseCase "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription"

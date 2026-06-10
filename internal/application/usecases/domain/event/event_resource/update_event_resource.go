@@ -82,7 +82,7 @@ func (uc *UpdateEventResourceUseCase) Execute(ctx context.Context, req *eventres
 		return nil, errors.New(translatedError)
 	}
 
-	permission := entityid.Permission(entityid.EventResource, entityid.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.EventResource, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_resource.errors.authorization_failed", "Authorization failed for event resource")

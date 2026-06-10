@@ -88,7 +88,7 @@ func (uc *DeletePriceProductUseCase) executeCore(ctx context.Context, req *price
 		return nil, errors.New(translatedError)
 	}
 
-	permission := entityid.Permission(entityid.PriceProduct, entityid.ActionDelete)
+	permission := entityid.EntityPermission(entityid.PriceProduct, entityid.ActionDelete)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_product.errors.authorization_failed", "Authorization failed for price products [DEFAULT]")

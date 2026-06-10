@@ -64,7 +64,7 @@ func NewCreatePermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionD
 func (uc *CreatePermissionUseCase) Execute(ctx context.Context, req *permissionpb.CreatePermissionRequest) (*permissionpb.CreatePermissionResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Permissions, entityid.ActionCreate); err != nil {
+		entityid.Permission, entityid.ActionCreate); err != nil {
 		return nil, err
 	}
 

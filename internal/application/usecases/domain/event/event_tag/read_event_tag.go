@@ -65,7 +65,7 @@ func (uc *ReadEventTagUseCase) Execute(ctx context.Context, req *eventtagpb.Read
 		return nil, errors.New(translatedError)
 	}
 
-	permission := entityid.Permission(entityid.EventTag, entityid.ActionRead)
+	permission := entityid.EntityPermission(entityid.EventTag, entityid.ActionRead)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag.errors.authorization_failed", "Authorization failed for event_tag")

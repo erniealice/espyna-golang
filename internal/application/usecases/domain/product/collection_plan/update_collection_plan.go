@@ -62,7 +62,7 @@ func (uc *UpdateCollectionPlanUseCase) Execute(ctx context.Context, req *collect
 		return nil, errors.New(translatedError)
 	}
 
-	permission := entityid.Permission(entityid.CollectionPlan, entityid.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.CollectionPlan, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection_plan.errors.authorization_failed", "Authorization failed for collection plans [DEFAULT]")

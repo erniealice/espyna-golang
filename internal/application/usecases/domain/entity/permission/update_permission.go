@@ -62,7 +62,7 @@ func NewUpdatePermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionD
 func (uc *UpdatePermissionUseCase) Execute(ctx context.Context, req *permissionpb.UpdatePermissionRequest) (*permissionpb.UpdatePermissionResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Permissions, entityid.ActionUpdate); err != nil {
+		entityid.Permission, entityid.ActionUpdate); err != nil {
 		return nil, err
 	}
 

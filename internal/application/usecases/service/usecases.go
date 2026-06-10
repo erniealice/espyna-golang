@@ -30,7 +30,6 @@
 package service
 
 import (
-	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/audit"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"

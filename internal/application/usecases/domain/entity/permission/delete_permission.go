@@ -61,7 +61,7 @@ func NewDeletePermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionD
 func (uc *DeletePermissionUseCase) Execute(ctx context.Context, req *permissionpb.DeletePermissionRequest) (*permissionpb.DeletePermissionResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Permissions, entityid.ActionDelete); err != nil {
+		entityid.Permission, entityid.ActionDelete); err != nil {
 		return nil, err
 	}
 

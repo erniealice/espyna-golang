@@ -53,7 +53,7 @@ func (uc *GetEventTagListPageDataUseCase) Execute(ctx context.Context, req *even
 		return nil, errors.New(translatedError)
 	}
 
-	permission := entityid.Permission(entityid.EventTag, entityid.ActionList)
+	permission := entityid.EntityPermission(entityid.EventTag, entityid.ActionList)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "event_tag.errors.authorization_failed", "Authorization failed for event_tag")

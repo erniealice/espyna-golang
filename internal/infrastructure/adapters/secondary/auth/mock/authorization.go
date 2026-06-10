@@ -243,11 +243,6 @@ func NewDenyAllAuth() *MockAuthorizationService {
 func NewRecordTestAuth() *MockAuthorizationService {
 	return NewMockAuthorizationService(true).
 		AllowPermissions(
-			ports.EntityPermission(ports.EntityRecord, ports.ActionCreate),
-			ports.EntityPermission(ports.EntityRecord, ports.ActionRead),
-			ports.EntityPermission(ports.EntityRecord, ports.ActionUpdate),
-			ports.EntityPermission(ports.EntityRecord, ports.ActionDelete),
-			ports.EntityPermission(ports.EntityRecord, ports.ActionList),
 		).
 		SetDefaults(
 			[]string{"record-user", "test-user"},

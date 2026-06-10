@@ -15,10 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/service"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
 	svcusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service"
-	servicetax "github.com/erniealice/espyna-golang/internal/application/usecases/service/tax"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
 
@@ -63,7 +60,7 @@ func InitializeAll(
 ) (*svcusecases.ServiceUseCases, error) {
 	auditUC := initServiceAudit(db, authSvc, i18nSvc)
 	securityUC := initServiceSecurity(db, i18nSvc)
-	authUC := initServiceAuth(entityRepos, authSvc, i18nSvc, txSvc, idSvc)
+	authUC := initServiceAuth(entityRepos, txSvc, i18nSvc, idSvc)
 	dashboardUC := initServiceDashboard(db, authSvc, i18nSvc, entityRepos, ledgerRepos, payrollRepos, treasuryRepos, expenditureRepos, operationRepos, productRepos, fulfillmentRepos, scheduleEntityDash)
 	reportingUC := initServiceReporting(db, authSvc, i18nSvc, ledgerReportingSvc)
 	// Performance Evaluation (20260604 v1) service-layer orchestration.

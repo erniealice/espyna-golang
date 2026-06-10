@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	svcusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -22,7 +21,6 @@ import (
 // the prior wrapper layer guaranteed.
 func initServiceAuth(
 	entityRepos *domain.EntityRepositories,
-	deps *svcusecases.Deps,
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
@@ -46,9 +44,6 @@ func initServiceAuth(
 		Translator:    i18nSvc,
 		IDGenerator:   idSvc,
 		SessionExpiry: sessionExpiryFromEnv(),
-	}
-	if deps != nil && deps.Translator != nil {
-		services.Translator = deps.Translator
 	}
 	return serviceauth.NewUseCases(repos, services)
 }

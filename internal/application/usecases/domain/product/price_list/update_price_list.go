@@ -88,7 +88,7 @@ func (uc *UpdatePriceListUseCase) executeCore(ctx context.Context, req *pricelis
 		return nil, errors.New(translatedError)
 	}
 
-	permission := entityid.Permission(entityid.PriceList, entityid.ActionUpdate)
+	permission := entityid.EntityPermission(entityid.PriceList, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_list.errors.authorization_failed", "Authorization failed for price lists [DEFAULT]")

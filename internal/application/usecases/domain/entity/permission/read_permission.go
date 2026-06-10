@@ -61,7 +61,7 @@ func NewReadPermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionDom
 func (uc *ReadPermissionUseCase) Execute(ctx context.Context, req *permissionpb.ReadPermissionRequest) (*permissionpb.ReadPermissionResponse, error) {
 	// Authorization check
 	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Permissions, entityid.ActionRead); err != nil {
+		entityid.Permission, entityid.ActionRead); err != nil {
 		return nil, err
 	}
 

@@ -187,6 +187,34 @@ var (
 )
 
 // =============================================================================
+// Scheduler Provider Registry
+// =============================================================================
+// (Integration provider. Re-exported here so contrib/ scheduler adapters —
+// e.g. contrib/calendly — can self-register without importing internal/.
+// Added 2026-06-10 per E5 contrib relocation: the public registry previously
+// re-exported email + tabular but omitted scheduler/payment/fulfillment.
+// registry/integration/ namespacing tracked as an N9 follow-up.)
+
+type SchedulerConfigTransformer = internal.SchedulerConfigTransformer
+
+var (
+	RegisterSchedulerProvider        = internal.RegisterSchedulerProvider
+	RegisterSchedulerProviderFactory = internal.RegisterSchedulerProviderFactory
+	GetSchedulerProviderFactory      = internal.GetSchedulerProviderFactory
+
+	RegisterSchedulerConfigTransformer = internal.RegisterSchedulerConfigTransformer
+	GetSchedulerConfigTransformer      = internal.GetSchedulerConfigTransformer
+	TransformSchedulerConfig           = internal.TransformSchedulerConfig
+
+	RegisterSchedulerBuildFromEnv      = internal.RegisterSchedulerBuildFromEnv
+	GetSchedulerBuildFromEnv           = internal.GetSchedulerBuildFromEnv
+	BuildSchedulerProviderFromEnv      = internal.BuildSchedulerProviderFromEnv
+	ListAvailableSchedulerBuildFromEnv = internal.ListAvailableSchedulerBuildFromEnv
+
+	ListAvailableSchedulerProviderFactories = internal.ListAvailableSchedulerProviderFactories
+)
+
+// =============================================================================
 // Tabular Provider Registry
 // =============================================================================
 

@@ -1,6 +1,4 @@
-//go:build calendly
-
-package calendly
+package adapter
 
 // CalendlyWebhookPayload represents the incoming Calendly webhook structure
 type CalendlyWebhookPayload struct {

@@ -1,6 +1,4 @@
-//go:build calendly
-
-package calendly
+package adapter
 
 import (
 	"bytes"
@@ -14,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/ports"
+	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	schedulerpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/scheduler"
 	"google.golang.org/protobuf/types/known/timestamppb"

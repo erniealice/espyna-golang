@@ -1,6 +1,6 @@
 //go:build microsoft || microsoft_email
 
-package microsoft
+package common
 
 import (
 	"context"

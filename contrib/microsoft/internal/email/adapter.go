@@ -1,6 +1,6 @@
 //go:build (microsoft && microsoftgraph) || microsoft_email
 
-package microsoft
+package email
 
 import (
 	"bytes"
@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
-	microsoftclient "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/common/microsoft"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	microsoftclient "github.com/erniealice/espyna-golang/contrib/microsoft/internal/common"
+	"github.com/erniealice/espyna-golang/ports"
+	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
 )

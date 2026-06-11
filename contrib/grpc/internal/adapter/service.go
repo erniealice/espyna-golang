@@ -1,6 +1,6 @@
 //go:build grpc_vanilla
 
-package vanilla
+package adapter
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/erniealice/espyna-golang/internal/composition/core"
-	"github.com/erniealice/espyna-golang/internal/composition/routing"
-	"github.com/erniealice/espyna-golang/internal/composition/routing/customization"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/grpc/interceptors"
+	"github.com/erniealice/espyna-golang/composition/core"
+	"github.com/erniealice/espyna-golang/composition/routing"
+	"github.com/erniealice/espyna-golang/composition/routing/customization"
+	"github.com/erniealice/espyna-golang/contrib/grpc/internal/interceptors"
 )
 
 // EspynaService is a dynamic gRPC service that maps gRPC methods to HTTP routes

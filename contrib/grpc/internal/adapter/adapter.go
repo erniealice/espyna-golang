@@ -1,6 +1,6 @@
 //go:build grpc_vanilla
 
-package vanilla
+package adapter
 
 import (
 	"context"
@@ -12,10 +12,10 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/composition/core"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/grpc/interceptors"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/composition/core"
+	"github.com/erniealice/espyna-golang/contrib/grpc/internal/interceptors"
+	"github.com/erniealice/espyna-golang/ports"
+	"github.com/erniealice/espyna-golang/registry"
 )
 
 // =============================================================================

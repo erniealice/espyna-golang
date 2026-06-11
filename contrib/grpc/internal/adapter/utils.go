@@ -1,6 +1,6 @@
 //go:build grpc_vanilla
 
-package vanilla
+package adapter
 
 import (
 	"fmt"

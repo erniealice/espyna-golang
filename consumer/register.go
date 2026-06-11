@@ -20,9 +20,8 @@ import (
 	// --- Email (mock) ---
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/email/mock"
 
-	// --- ID (noop + uuidv7 — both have stub.go, zero-cost) ---
+	// --- ID (noop only; uuidv7 relocated to contrib/google, registered via register_id_uuidv7.go under -tags google_uuidv7) ---
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/id/noop"
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/id/uuidv7"
 
 	// --- Payment (mock) ---
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/payment/mock"

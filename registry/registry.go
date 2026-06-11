@@ -241,6 +241,32 @@ var (
 )
 
 // =============================================================================
+// ID Provider Registry
+// =============================================================================
+// (Re-exported so contrib/ ID adapters — e.g. contrib/google (uuidv7) — can
+// self-register without importing internal/. Added 2026-06-11 per E5 P7 relocation.)
+
+type IDProviderConfig = internal.IDProviderConfig
+type IDConfigTransformer = internal.IDConfigTransformer
+
+var (
+	RegisterIDProvider        = internal.RegisterIDProvider
+	RegisterIDProviderFactory = internal.RegisterIDProviderFactory
+	GetIDProviderFactory      = internal.GetIDProviderFactory
+
+	RegisterIDConfigTransformer = internal.RegisterIDConfigTransformer
+	GetIDConfigTransformer      = internal.GetIDConfigTransformer
+	TransformIDConfig           = internal.TransformIDConfig
+
+	RegisterIDBuildFromEnv      = internal.RegisterIDBuildFromEnv
+	GetIDBuildFromEnv           = internal.GetIDBuildFromEnv
+	BuildIDProviderFromEnv      = internal.BuildIDProviderFromEnv
+	ListAvailableIDBuildFromEnv = internal.ListAvailableIDBuildFromEnv
+
+	ListAvailableIDProviderFactories = internal.ListAvailableIDProviderFactories
+)
+
+// =============================================================================
 // Tabular Provider Registry
 // =============================================================================
 

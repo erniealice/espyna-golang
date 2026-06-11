@@ -215,6 +215,32 @@ var (
 )
 
 // =============================================================================
+// Payment Provider Registry
+// =============================================================================
+// (Integration provider. Re-exported here so contrib/ payment adapters —
+// e.g. contrib/maya, contrib/asiapay, contrib/paypal — can self-register
+// without importing internal/. Added 2026-06-11 per E5 P1 contrib relocation.)
+
+type PaymentConfigTransformer = internal.PaymentConfigTransformer
+
+var (
+	RegisterPaymentProvider        = internal.RegisterPaymentProvider
+	RegisterPaymentProviderFactory = internal.RegisterPaymentProviderFactory
+	GetPaymentProviderFactory      = internal.GetPaymentProviderFactory
+
+	RegisterPaymentConfigTransformer = internal.RegisterPaymentConfigTransformer
+	GetPaymentConfigTransformer      = internal.GetPaymentConfigTransformer
+	TransformPaymentConfig           = internal.TransformPaymentConfig
+
+	RegisterPaymentBuildFromEnv      = internal.RegisterPaymentBuildFromEnv
+	GetPaymentBuildFromEnv           = internal.GetPaymentBuildFromEnv
+	BuildPaymentProviderFromEnv      = internal.BuildPaymentProviderFromEnv
+	ListAvailablePaymentBuildFromEnv = internal.ListAvailablePaymentBuildFromEnv
+
+	ListAvailablePaymentProviderFactories = internal.ListAvailablePaymentProviderFactories
+)
+
+// =============================================================================
 // Tabular Provider Registry
 // =============================================================================
 

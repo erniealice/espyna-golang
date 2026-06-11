@@ -1,6 +1,4 @@
-//go:build asiapay
-
-package asiapay
+package adapter
 
 import (
 	"context"
@@ -15,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/ports"
+	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 	"google.golang.org/protobuf/types/known/timestamppb"

@@ -27,6 +27,7 @@ import (
 	groupUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/group"
 	groupAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/group_attribute"
 	locationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location"
+	locationAreaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_area"
 	locationAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_attribute"
 	permissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/permission"
 	roleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role"
@@ -174,6 +175,13 @@ func InitializeEntity(
 		result.Location = locationUseCases.NewUseCases(
 			locationUseCases.LocationRepositories{Location: repos.Location},
 			locationUseCases.LocationServices(svc()),
+		)
+	}
+
+	if repos.LocationArea != nil {
+		result.LocationArea = locationAreaUseCases.NewUseCases(
+			locationAreaUseCases.LocationAreaRepositories{LocationArea: repos.LocationArea},
+			locationAreaUseCases.LocationAreaServices(svc()),
 		)
 	}
 

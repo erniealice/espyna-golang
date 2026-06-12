@@ -18,6 +18,7 @@ func InitializeTreasury(
 		treasury.TreasuryRepositories{
 			// Existing treasury repositories
 			Collection:           repos.Collection,
+			CollectionMethod:     repos.CollectionMethod,
 			Disbursement:         repos.Disbursement,
 			DisbursementSchedule: repos.DisbursementSchedule,
 

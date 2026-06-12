@@ -2,6 +2,7 @@ package treasury
 
 import (
 	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection"
+	collectionMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method"
 	disbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement"
 	disbursementscheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_schedule"
 	pettyCashUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/petty_cash"
@@ -12,6 +13,7 @@ import (
 
 	// Protobuf domain services for treasury repositories
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
+	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 	disbursementschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_schedule"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
@@ -38,6 +40,7 @@ import (
 type TreasuryRepositories struct {
 	// Existing treasury repositories
 	Collection           collectionpb.CollectionDomainServiceServer
+	CollectionMethod     collectionmethodpb.CollectionMethodDomainServiceServer
 	Disbursement         disbursementpb.DisbursementDomainServiceServer
 	DisbursementSchedule disbursementschedulepb.DisbursementScheduleDomainServiceServer
 
@@ -75,6 +78,7 @@ type TreasuryRepositories struct {
 // side ListAdvancesForDashboard use cases (F5).
 type TreasuryUseCases struct {
 	Collection             *collectionUseCases.UseCases
+	CollectionMethod       *collectionMethodUseCases.UseCases
 	Disbursement           *disbursementUseCases.UseCases
 	DisbursementSchedule   *disbursementscheduleUseCases.UseCases
 	SecurityDeposit        *securityDepositUseCases.UseCases
@@ -108,6 +112,21 @@ func NewUseCases(
 			IDGenerator: idService,
 		},
 	)
+
+	var collectionMethodUC *collectionMethodUseCases.UseCases
+	if repos.CollectionMethod != nil {
+		collectionMethodUC = collectionMethodUseCases.NewUseCases(
+			collectionMethodUseCases.CollectionMethodRepositories{
+				CollectionMethod: repos.CollectionMethod,
+			},
+			collectionMethodUseCases.CollectionMethodServices{
+				Authorizer:  authSvc,
+				Transactor:  txSvc,
+				Translator:  i18nSvc,
+				IDGenerator: idService,
+			},
+		)
+	}
 
 	disbursementUC := disbursementUseCases.NewUseCases(
 		disbursementUseCases.DisbursementRepositories{
@@ -351,6 +370,7 @@ func NewUseCases(
 
 	return &TreasuryUseCases{
 		Collection:             collectionUC,
+		CollectionMethod:       collectionMethodUC,
 		Disbursement:           disbursementUC,
 		DisbursementSchedule:   disbursementScheduleUC,
 		SecurityDeposit:        securityDepositUC,

@@ -292,6 +292,11 @@ const (
 	PettyCashReplenishment = "petty_cash_replenishment"
 )
 
+// Treasury domain — Collection Methods (extends existing Treasury)
+const (
+	CollectionMethod = "collection_method"
+)
+
 // Expenditure domain — Prepayments (extends existing Expenditure)
 const (
 	Prepayment = "prepayment"
@@ -425,6 +430,7 @@ var TreasuryEntities = []string{
 	CollectionSchedule, DisbursementSchedule,
 	Loan, LoanPayment, SecurityDeposit,
 	PettyCashFund, PettyCashVoucher, PettyCashReplenishment,
+	CollectionMethod,
 	WithholdingCertificate,
 	// Advance-cash-events (20260517) — MILESTONE junction tables
 	CollectionBillingEvent,

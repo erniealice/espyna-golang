@@ -7,6 +7,7 @@ import (
 	revenueAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/revenue_attribute"
 	revenueCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/revenue_category"
 	revenueLineItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/revenue_line_item"
+	revenuePaymentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/revenue_payment"
 	revenueTaxLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/revenue_tax_line"
 
 	// Application ports
@@ -25,6 +26,7 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	revenuepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
 	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 
@@ -51,6 +53,7 @@ import (
 type RevenueRepositories struct {
 	Revenue          revenuepb.RevenueDomainServiceServer
 	RevenueLineItem  revenuelineitempb.RevenueLineItemDomainServiceServer
+	RevenuePayment   revenuepaymentpb.RevenuePaymentDomainServiceServer
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
 	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
@@ -91,6 +94,7 @@ type RevenueRepositories struct {
 type RevenueUseCases struct {
 	Revenue          *revenueUseCases.UseCases
 	RevenueLineItem  *revenueLineItemUseCases.UseCases
+	RevenuePayment   *revenuePaymentUseCases.UseCases
 	RevenueCategory  *revenueCategoryUseCases.UseCases
 	RevenueAttribute *revenueAttributeUseCases.UseCases
 	DeferredRevenue  *deferredRevenueUseCases.UseCases
@@ -158,6 +162,18 @@ func NewUseCases(
 		},
 	)
 
+	revenuePaymentUC := revenuePaymentUseCases.NewUseCases(
+		revenuePaymentUseCases.RevenuePaymentRepositories{
+			RevenuePayment: repos.RevenuePayment,
+		},
+		revenuePaymentUseCases.RevenuePaymentServices{
+			Authorizer:  authSvc,
+			Transactor:  txSvc,
+			Translator:  i18nSvc,
+			IDGenerator: idService,
+		},
+	)
+
 	revenueCategoryUC := revenueCategoryUseCases.NewUseCases(
 		revenueCategoryUseCases.RevenueCategoryRepositories{
 			RevenueCategory: repos.RevenueCategory,
@@ -207,6 +223,7 @@ func NewUseCases(
 	return &RevenueUseCases{
 		Revenue:          revenueUC,
 		RevenueLineItem:  revenueLineItemUC,
+		RevenuePayment:   revenuePaymentUC,
 		RevenueCategory:  revenueCategoryUC,
 		RevenueAttribute: revenueAttributeUC,
 		DeferredRevenue:  deferredRevenueUC,

@@ -18,6 +18,7 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
+	revenuepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
 	revenuerunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_run"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 
@@ -47,6 +48,7 @@ import (
 type RevenueRepositories struct {
 	Revenue          revenuepb.RevenueDomainServiceServer
 	RevenueLineItem  revenuelineitempb.RevenueLineItemDomainServiceServer
+	RevenuePayment   revenuepaymentpb.RevenuePaymentDomainServiceServer
 	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
 	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
 	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
@@ -116,6 +118,9 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	}
 	if r := tryCreate(entityid.RevenueLineItem); r != nil {
 		repos.RevenueLineItem = r.(revenuelineitempb.RevenueLineItemDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RevenuePayment); r != nil {
+		repos.RevenuePayment = r.(revenuepaymentpb.RevenuePaymentDomainServiceServer)
 	}
 	if r := tryCreate(entityid.RevenueCategory); r != nil {
 		repos.RevenueCategory = r.(revenuecategorypb.RevenueCategoryDomainServiceServer)

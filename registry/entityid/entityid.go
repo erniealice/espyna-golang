@@ -139,6 +139,7 @@ const (
 	RevenueRun        = "revenue_run"
 	RevenueRunAttempt = "revenue_run_attempt"
 	RevenueTaxLine    = "revenue_tax_line"
+	RevenuePayment    = "revenue_payment"
 )
 
 // Expenditure domain
@@ -389,7 +390,7 @@ var ProductEntities = []string{
 }
 
 // RevenueEntities lists all entity IDs in the Revenue domain.
-var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue, RevenueRun, RevenueRunAttempt, RevenueTaxLine}
+var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue, RevenueRun, RevenueRunAttempt, RevenueTaxLine, RevenuePayment}
 
 // ExpenditureEntities lists all entity IDs in the Expenditure domain.
 var ExpenditureEntities = []string{

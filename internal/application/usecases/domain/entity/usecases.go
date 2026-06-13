@@ -15,6 +15,7 @@ import (
 	groupUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/group"
 	groupAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/group_attribute"
 	locationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location"
+	locationAreaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_area"
 	locationAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_attribute"
 	permissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/permission"
 	roleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role"
@@ -52,6 +53,7 @@ type EntityUseCases struct {
 	Group               *groupUseCases.UseCases
 	GroupAttribute      *groupAttributeUseCases.UseCases
 	Location            *locationUseCases.UseCases
+	LocationArea        *locationAreaUseCases.UseCases
 	LocationAttribute   *locationAttributeUseCases.UseCases
 	Permission          *permissionUseCases.UseCases
 	Role                *roleUseCases.UseCases

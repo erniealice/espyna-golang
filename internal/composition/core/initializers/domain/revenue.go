@@ -20,6 +20,7 @@ func InitializeRevenue(
 		revenue.RevenueRepositories{
 			Revenue:          repos.Revenue,
 			RevenueLineItem:  repos.RevenueLineItem,
+			RevenuePayment:   repos.RevenuePayment,
 			RevenueCategory:  repos.RevenueCategory,
 			RevenueAttribute: repos.RevenueAttribute,
 			DeferredRevenue:  repos.DeferredRevenue,

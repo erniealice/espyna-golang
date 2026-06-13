@@ -6,13 +6,25 @@
 // adapter may stuff or read raw context values directly. It is a Layer-3 leaf
 // (see hexagonal-rules.md §5) sitting beneath the use case layer.
 //
+// # Internal-reads bridge (N9 Phase 1)
+//
+// As of the N9 P1 migration, every reader helper first checks for the typed
+// RequestIdentity struct (stored by shared/identity.WithRequestIdentity). If
+// the struct is present, the field is read directly from it — fail-CLOSED: a
+// missing struct on a middleware-protected route is a programming error. If the
+// struct is NOT present, the helpers fall back to the legacy per-key context
+// values for backward compatibility during the transition period (P1a migrates
+// the writers). This dual-read ensures the ~988 importer files keep compiling
+// and working correctly regardless of whether the write side has been migrated.
+//
 // Charter — this package MUST NOT import:
 //   - proto entity types (esqyma/...)
 //   - DB drivers or adapter packages
 //   - anything under internal/application/usecases/...
 //
 // Depends only on the Go standard library plus internal/application/ports
-// (for the Translator handle carried on the context).
+// (for the Translator handle carried on the context), plus shared/identity
+// (for the RequestIdentity struct — a dependency-free public leaf).
 //
 // Consumers (keep in sync):
 //   - The full use case layer: usecases/domain/<X>/** and usecases/service/<X>/**
@@ -31,6 +43,8 @@ package context
 
 import (
 	"context"
+
+	"github.com/erniealice/espyna-golang/shared/identity"
 )
 
 // contextKey is unexported — forces usage through helpers (hexagonal: application layer owns keys)
@@ -44,6 +58,10 @@ const (
 )
 
 // --- Writers ---
+//
+// These legacy writers remain for backward compatibility. After N9 P1a
+// migrates the write side, middleware will call identity.WithRequestIdentity
+// instead, and these individual writers will be dead code (deletable).
 
 func WithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, keyUserID, userID)
@@ -76,8 +94,17 @@ func WithSessionIdentity(ctx context.Context, userID, workspaceID, workspaceUser
 }
 
 // --- Readers ---
+//
+// Bridge pattern (N9 P1): check the RequestIdentity struct first. If present,
+// read from the struct (fail-CLOSED). If absent, fall back to legacy per-key
+// context values (backward compat during the P1a transition).
 
 func ExtractUserIDFromContext(ctx context.Context) string {
+	// Bridge: prefer the typed RequestIdentity struct
+	if id, ok := identity.FromContext(ctx); ok {
+		return id.UserID
+	}
+	// Legacy fallback: per-key context values
 	if v, ok := ctx.Value(keyUserID).(string); ok && v != "" {
 		return v
 	}
@@ -92,6 +119,9 @@ func ExtractUserIDFromContext(ctx context.Context) string {
 }
 
 func ExtractWorkspaceIDFromContext(ctx context.Context) string {
+	if id, ok := identity.FromContext(ctx); ok {
+		return id.WorkspaceID
+	}
 	if v, ok := ctx.Value(keyWorkspaceID).(string); ok && v != "" {
 		return v
 	}
@@ -99,6 +129,9 @@ func ExtractWorkspaceIDFromContext(ctx context.Context) string {
 }
 
 func ExtractWorkspaceUserIDFromContext(ctx context.Context) string {
+	if id, ok := identity.FromContext(ctx); ok {
+		return id.WorkspaceUserID
+	}
 	if v, ok := ctx.Value(keyWorkspaceUserID).(string); ok && v != "" {
 		return v
 	}
@@ -106,6 +139,9 @@ func ExtractWorkspaceUserIDFromContext(ctx context.Context) string {
 }
 
 func ExtractEmailFromContext(ctx context.Context) string {
+	if id, ok := identity.FromContext(ctx); ok {
+		return id.Email
+	}
 	if v, ok := ctx.Value(keyEmail).(string); ok && v != "" {
 		return v
 	}

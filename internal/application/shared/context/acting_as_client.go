@@ -1,6 +1,10 @@
 package context
 
-import "context"
+import (
+	"context"
+
+	"github.com/erniealice/espyna-golang/shared/identity"
+)
 
 // keyActingAsClientID is the context key under which the session's acting-as
 // client scope is stored. For a client-portal principal this is the client_id
@@ -13,13 +17,21 @@ import "context"
 const keyActingAsClientID contextKey = "acting_as_client_id"
 
 // WithActingAsClientID stores the acting-as client scope on the context.
+// Legacy writer — after N9 P1a, middleware calls identity.WithRequestIdentity
+// instead and this becomes dead code.
 func WithActingAsClientID(ctx context.Context, clientID string) context.Context {
 	return context.WithValue(ctx, keyActingAsClientID, clientID)
 }
 
 // GetActingAsClientIDFromContext returns the acting-as client scope, or "" when
 // the caller is staff (workspace-wide) or no scope was set.
+//
+// Bridge (N9 P1): reads from the RequestIdentity struct first, falling back to
+// the legacy per-key context value during the P1a transition.
 func GetActingAsClientIDFromContext(ctx context.Context) string {
+	if id, ok := identity.FromContext(ctx); ok {
+		return id.ActingAsClientID
+	}
 	if v, ok := ctx.Value(keyActingAsClientID).(string); ok {
 		return v
 	}

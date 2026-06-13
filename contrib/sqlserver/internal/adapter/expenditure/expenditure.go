@@ -13,7 +13,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -266,7 +266,7 @@ func (r *SQLServerExpenditureRepository) GetExpenditureListPageData(
 
 	offsetIdx := nextIdx
 	limitIdx := nextIdx + 1
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
 	queryArgs = append(queryArgs, offset, limit)

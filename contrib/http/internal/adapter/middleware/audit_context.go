@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	infraports "github.com/erniealice/espyna-golang/ports"
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 )
 
 // AuditContextMiddleware extracts actor metadata from the request and stores it
@@ -18,9 +18,11 @@ import (
 func AuditContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Actor ID from auth context (set by authentication middleware at line ~74)
-		actorID := contextutil.ExtractUserIDFromContext(r.Context())
-		actorType := "user"
-		if actorID == "" {
+		var actorID, actorType string
+		if id, ok := identity.FromContext(r.Context()); ok && id.UserID != "" {
+			actorID = id.UserID
+			actorType = "user"
+		} else {
 			actorID = "system"
 			actorType = "system"
 		}

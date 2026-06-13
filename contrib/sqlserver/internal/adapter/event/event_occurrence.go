@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -110,7 +110,7 @@ func (r *SQLServerEventOccurrenceRepository) GetEventOccurrenceListPageData(
 		return nil, fmt.Errorf("request required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -295,7 +295,7 @@ func (r *SQLServerEventOccurrenceRepository) GetEventOccurrenceItemPageData(
 		return nil, fmt.Errorf("event occurrence ID required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT TOP 1

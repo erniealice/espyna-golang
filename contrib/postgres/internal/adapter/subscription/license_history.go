@@ -14,7 +14,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
@@ -225,7 +225,7 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 	// Workspace isolation: this method bypasses the WorkspaceAwareOperations
 	// decorator (raw SQL via db.GetDB()), so we extract workspace_id from context
 	// and filter explicitly. Empty wsID = service-to-service call → no scoping (A1).
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// Build the CTE query.
 	// A1: scope to the caller's workspace. license_history has no workspace_id

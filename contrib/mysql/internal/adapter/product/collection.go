@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -213,7 +213,7 @@ var collectionSortableSQLCols = []string{
 // CRITICAL: Always filters by workspace_id for multi-tenancy.
 func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Context, req *collectionpb.GetCollectionListPageDataRequest) (*collectionpb.GetCollectionListPageDataResponse, error) {
 	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Extract pagination parameters with defaults.
 	limit := int32(20)

@@ -7,7 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	topref "github.com/erniealice/espyna-golang/reference"
 	"github.com/lib/pq"
 )
@@ -28,7 +28,7 @@ func NewChecker(db *sql.DB) *Checker {
 }
 
 func (c *Checker) GetLocationInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT DISTINCT ref_id FROM (
 			SELECT location_id AS ref_id FROM revenue WHERE location_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
@@ -61,13 +61,13 @@ func (c *Checker) GetCategoryInUseIDs(ctx context.Context, ids []string) (map[st
 
 // GetClientInUseIDs checks if clients are referenced in revenue or other client-linked records.
 func (c *Checker) GetClientInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `SELECT DISTINCT client_id FROM revenue WHERE client_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
 
 func (c *Checker) GetProductInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	// Model D: product_plan.product_id is now a catalog-level reference that
 	// must block deletes. Without it, a product that's only in a catalog (not
 	// yet invoiced, priced, or stocked) could be deleted out from under its
@@ -89,7 +89,7 @@ func (c *Checker) GetProductInUseIDs(ctx context.Context, ids []string) (map[str
 // inventory stock, recorded revenue lines, variant-option pivots, or catalog
 // product_plan rows. Covers the full Model D surface.
 func (c *Checker) GetProductVariantInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT DISTINCT ref_id FROM (
 			SELECT product_variant_id AS ref_id FROM inventory_item WHERE product_variant_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
@@ -213,7 +213,7 @@ func (c *Checker) GetAssetCategoryInUseIDs(ctx context.Context, ids []string) (m
 // are counted (NULL workspace_id rows are excluded, consistent with Phase 1
 // tenancy rules — they would not match any non-NULL workspace predicate).
 func (c *Checker) GetAssetInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT DISTINCT asset_id AS ref_id
 		FROM asset_transaction
@@ -223,7 +223,7 @@ func (c *Checker) GetAssetInUseIDs(ctx context.Context, ids []string) (map[strin
 }
 
 func (c *Checker) GetPaymentTermInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT DISTINCT ref_id FROM (
 			SELECT payment_term_id AS ref_id FROM client WHERE payment_term_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)
@@ -248,7 +248,7 @@ func (c *Checker) GetLineInUseIDs(ctx context.Context, ids []string) (map[string
 }
 
 func (c *Checker) GetLocationAreaInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `SELECT DISTINCT location_area_id AS ref_id FROM location WHERE location_area_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)`
 	return queryInUseIDsWithWorkspace(ctx, c.db, query, ids, workspaceID)
 }
@@ -256,7 +256,7 @@ func (c *Checker) GetLocationAreaInUseIDs(ctx context.Context, ids []string) (ma
 // GetEventTagInUseIDs blocks deletion of an event_tag when any active
 // event_tag_assignment row references it. Workspace-scoped via the join table.
 func (c *Checker) GetEventTagInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT DISTINCT event_tag_id AS ref_id
 		FROM event_tag_assignment
@@ -291,7 +291,7 @@ func (c *Checker) GetSubscriptionInUseIDs(ctx context.Context, ids []string) (ma
 
 // GetSupplierInUseIDs checks if suppliers are referenced by expenditures or fulfillments.
 func (c *Checker) GetSupplierInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT DISTINCT ref_id FROM (
 			SELECT supplier_id AS ref_id FROM expenditure WHERE supplier_id = ANY($1) AND active = true AND ($2::text IS NULL OR workspace_id = $2)

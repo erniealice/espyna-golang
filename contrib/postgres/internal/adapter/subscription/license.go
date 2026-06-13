@@ -14,7 +14,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -274,7 +274,7 @@ func (r *PostgresLicenseRepository) GetLicenseListPageData(ctx context.Context, 
 	// Workspace isolation: this method bypasses the WorkspaceAwareOperations
 	// decorator (raw SQL via db.GetDB()), so we extract workspace_id from
 	// context and filter explicitly. Empty wsID = service-to-service call (A1).
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// Build the CTE query.
 	// A10: COUNT(*) OVER () replaces the prior `total_count` CTE + CROSS JOIN,

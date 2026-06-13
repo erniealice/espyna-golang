@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
@@ -214,7 +214,7 @@ func (r *SQLServerJobActivityRepository) ListJobActivities(ctx context.Context, 
 //   - Pagination: LIMIT n OFFSET m → ORDER BY … OFFSET @pM ROWS FETCH NEXT @pN ROWS ONLY.
 //   - COUNT(*) OVER() window function is retained — SQL Server 2017+ supports it.
 func (r *SQLServerJobActivityRepository) GetJobActivityListPageData(ctx context.Context, req *pb.GetJobActivityListPageDataRequest) (*pb.GetJobActivityListPageDataResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	limit := int32(50)
 	offset := int32(0)
@@ -732,7 +732,7 @@ func (r *SQLServerJobActivityRepository) ReverseActivity(ctx context.Context, re
 		"currency":       orig.Currency,
 		"description":    fmt.Sprintf("REVERSAL of %s", orig.Id),
 		"reversal_of_id": orig.Id,
-		"workspace_id":   consumer.GetWorkspaceIDFromContext(ctx),
+		"workspace_id":   identity.Must(ctx).WorkspaceID,
 		"active":         true,
 	}
 

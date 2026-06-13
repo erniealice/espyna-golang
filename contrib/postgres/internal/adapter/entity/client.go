@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -413,7 +413,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Default pagination values.
 	limit := int32(50)

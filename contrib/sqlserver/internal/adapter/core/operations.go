@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/model"
 	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
@@ -1573,7 +1573,7 @@ func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) sqlexec.DBEx
 // ── Helper methods ───────────────────────────────────────────────────────────
 
 func (w *WorkspaceAwareOperations) getWorkspaceID(ctx context.Context) string {
-	return consumer.GetWorkspaceIDFromContext(ctx)
+	return identity.Must(ctx).WorkspaceID
 }
 
 // tableHasWorkspaceColumn reports whether tableName has a workspace_id column.

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -621,7 +621,7 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageDa
 		return nil, fmt.Errorf("get inventory movements list page data request is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	dateFrom := req.GetDateFrom()
 	dateTo := req.GetDateTo()

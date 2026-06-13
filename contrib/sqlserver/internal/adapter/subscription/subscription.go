@@ -27,7 +27,7 @@ import (
 	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -318,7 +318,7 @@ func (r *SQLServerSubscriptionRepository) GetSubscriptionListPageData(ctx contex
 		return nil, fmt.Errorf("invalid sort column %q for subscription list (allowed SQL cols: %v)", sortField, subscriptionSortableSQLCols)
 	}
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	activeVal := 1
 	if !activeFilter {
@@ -575,7 +575,7 @@ func (r *SQLServerSubscriptionRepository) GetSubscriptionItemPageData(ctx contex
 		return nil, fmt.Errorf("subscription ID is required")
 	}
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT TOP 1
@@ -741,7 +741,7 @@ func (r *SQLServerSubscriptionRepository) GetSubscriptionItemPageData(ctx contex
 //   - COUNT(*)::int → CAST(COUNT(*) AS INT).
 //   - workspace_id guard preserved.
 func (r *SQLServerSubscriptionRepository) CountActiveByClientIds(ctx context.Context, req *subscriptionpb.CountActiveByClientIdsRequest) (*subscriptionpb.CountActiveByClientIdsResponse, error) {
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 
 	clientIDs := req.GetClientIds()

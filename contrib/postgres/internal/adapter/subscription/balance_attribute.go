@@ -13,7 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -244,7 +244,7 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeListPageData(ctx
 	// the joined subscription's workspace_id. The explicit ba.* column list keeps
 	// the enriched projection (and therefore the scan order) unchanged. Empty wsID
 	// = service-to-service call → no scoping.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (SELECT ba.id, ba.balance_id, ba.attribute_id, ba.value, ba.active, ba.date_created, ba.date_modified FROM balance_attribute ba LEFT JOIN balance b ON ba.balance_id = b.id LEFT JOIN subscription s ON b.subscription_id = s.id WHERE ba.active = true AND ($4::text = '' OR s.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR ba.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {

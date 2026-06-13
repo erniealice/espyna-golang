@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	pgaudit "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/audit"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -221,7 +221,7 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 	}
 
 	// A1: workspace predicate.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	limit := int32(50)
 	offset := int32(0)
@@ -620,7 +620,7 @@ func (r *PostgresJobActivityRepository) SubmitForApproval(ctx context.Context, r
 	// predicate a caller could transition another tenant's activity. Empty wsID =
 	// service-to-service call → no scoping. The id-not-found path already maps a
 	// no-match row to a not-found error (effective ownership check).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		UPDATE %s SET approval_status = 'ACTIVITY_APPROVAL_STATUS_SUBMITTED', date_modified = NOW()
@@ -685,7 +685,7 @@ func (r *PostgresJobActivityRepository) ApproveActivity(ctx context.Context, req
 	// predicate a caller could transition another tenant's activity. Empty wsID =
 	// service-to-service call → no scoping. The id-not-found path already maps a
 	// no-match row to a not-found error (effective ownership check).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		UPDATE %s SET approval_status = 'ACTIVITY_APPROVAL_STATUS_APPROVED', date_modified = NOW()
@@ -749,7 +749,7 @@ func (r *PostgresJobActivityRepository) RejectActivity(ctx context.Context, req 
 	// predicate a caller could transition another tenant's activity. Empty wsID =
 	// service-to-service call → no scoping. The id-not-found path already maps a
 	// no-match row to a not-found error (effective ownership check).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		UPDATE %s SET approval_status = 'ACTIVITY_APPROVAL_STATUS_REJECTED', date_modified = NOW()
@@ -813,7 +813,7 @@ func (r *PostgresJobActivityRepository) PostActivity(ctx context.Context, req *p
 	// predicate a caller could post another tenant's activity. Empty wsID =
 	// service-to-service call → no scoping. The id-not-found path already maps a
 	// no-match row to a not-found error (effective ownership check).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		UPDATE %s SET
@@ -883,7 +883,7 @@ func (r *PostgresJobActivityRepository) ReverseActivity(ctx context.Context, req
 	// predicate a caller could reverse another tenant's activity. Empty wsID =
 	// service-to-service call → no scoping. The id-not-found path already maps a
 	// no-match row to a not-found error (effective ownership check).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		UPDATE %s SET

@@ -18,33 +18,27 @@ import (
 //   - "aws_storage"     → AWS S3 provider (build tag: aws_storage)
 //   - "azure_storage"   → Azure Blob Storage provider (build tag: azure_storage)
 //   - "local_storage"   → Local filesystem storage provider (build tag: local_storage)
-//   - "mock_storage", "mock", or "" → Mock storage provider (default)
+//   - "mock_storage"    → Mock storage provider
 //
-// Legacy literals are normalized to the authoritative name so existing dev/test
-// configs keep booting after the registry-key rename:
-//   - "local"       → "local_storage"
-//   - "gcp_storage" → "gcs"
-//   - "s3"          → "aws_storage"
-//   - "azure", "azure_blob" → "azure_storage"
+// No aliases — the canonical token must be used verbatim. Unknown or empty values
+// produce an error directing the user to the canonical token.
 func CreateStorageProvider() (contracts.Provider, error) {
 	providerName := strings.ToLower(os.Getenv("CONFIG_STORAGE_PROVIDER"))
 
-	// Normalize provider names: defaults + legacy-literal aliases.
+	// Reject retired aliases with a clear migration message.
 	switch providerName {
-	case "mock", "":
-		providerName = "mock_storage"
+	case "mock":
+		return nil, fmt.Errorf("storage provider 'mock' is retired - use CONFIG_STORAGE_PROVIDER=mock_storage")
 	case "local":
-		// Legacy dev literal — registry now keys this provider as "local_storage".
-		providerName = "local_storage"
+		return nil, fmt.Errorf("storage provider 'local' is retired - use CONFIG_STORAGE_PROVIDER=local_storage")
 	case "gcp_storage":
-		// Legacy literal — registry now keys this provider as "gcs".
-		providerName = "gcs"
+		return nil, fmt.Errorf("storage provider 'gcp_storage' is retired - use CONFIG_STORAGE_PROVIDER=gcs")
 	case "s3":
-		// Legacy literal — registry now keys this provider as "aws_storage".
-		providerName = "aws_storage"
+		return nil, fmt.Errorf("storage provider 's3' is retired - use CONFIG_STORAGE_PROVIDER=aws_storage")
 	case "azure", "azure_blob":
-		// Legacy literal — registry now keys this provider as "azure_storage".
-		providerName = "azure_storage"
+		return nil, fmt.Errorf("storage provider '%s' is retired - use CONFIG_STORAGE_PROVIDER=azure_storage", providerName)
+	case "":
+		return nil, fmt.Errorf("CONFIG_STORAGE_PROVIDER is empty - set it explicitly (mock_storage, local_storage, gcs, aws_storage, azure_storage)")
 	}
 
 	// Let the provider build and configure itself from environment

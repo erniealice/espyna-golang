@@ -13,7 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	planattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -242,7 +242,7 @@ func (r *PostgresPlanAttributeRepository) GetPlanAttributeListPageData(ctx conte
 	// carry workspace_id), so the predicate scopes on the joined plan's
 	// workspace_id. The explicit pa.* column list keeps the scan unaffected by
 	// the join. Empty wsID = service-to-service call → no scoping.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (SELECT pa.id, pa.plan_id, pa.attribute_id, pa.value, pa.active, pa.date_created, pa.date_modified FROM plan_attribute pa LEFT JOIN plan p ON pa.plan_id = p.id WHERE pa.active = true AND ($4::text = '' OR p.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR pa.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {

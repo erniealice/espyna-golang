@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -179,7 +179,7 @@ func (r *SQLServerInventoryMovementRepository) GetInventoryMovementListPageData(
 		return nil, fmt.Errorf("request is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Validate sort column against whitelist (A2 guard).
 	orderByClause, err := sqlserverCore.BuildOrderBy(inventoryMovementSortableSQLColsSS, req.GetSort(), "date_created DESC")

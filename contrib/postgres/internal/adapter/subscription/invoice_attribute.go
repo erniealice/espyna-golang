@@ -13,7 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -244,7 +244,7 @@ func (r *PostgresInvoiceAttributeRepository) GetInvoiceAttributeListPageData(ctx
 	// the joined subscription's workspace_id. The explicit ia.* column list keeps
 	// the enriched projection (and therefore the scan order) unchanged. Empty wsID
 	// = service-to-service call → no scoping.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (SELECT ia.id, ia.invoice_id, ia.attribute_id, ia.value, ia.active, ia.date_created, ia.date_modified FROM invoice_attribute ia LEFT JOIN invoice i ON ia.invoice_id = i.id LEFT JOIN subscription s ON i.subscription_id = s.id WHERE ia.active = true AND ($4::text = '' OR s.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR ia.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {

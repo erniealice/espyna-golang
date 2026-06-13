@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/erniealice/espyna-golang/ports"
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 )
 
 // AuthorizationInterceptor provides authorization interceptor for gRPC requests
@@ -192,7 +192,7 @@ func (i *AuthorizationInterceptor) RequireWorkspaceRole(ctx context.Context, rol
 
 // GetWorkspaceFromContext extracts workspace ID from the context
 func GetWorkspaceFromContext(ctx context.Context) string {
-	return contextutil.ExtractWorkspaceIDFromContext(ctx)
+	return identity.Must(ctx).WorkspaceID
 }
 
 // hasAnyRole checks if user has any of the required roles

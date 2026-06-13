@@ -26,13 +26,13 @@ import (
 
 func init() {
 	registry.RegisterTabularProvider(
-		"googlesheets",
+		"google_sheets",
 		func() integration.TabularSourceProvider {
 			return NewGoogleSheetsProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterTabularBuildFromEnv("googlesheets", buildFromEnv)
+	registry.RegisterTabularBuildFromEnv("google_sheets", buildFromEnv)
 }
 
 // buildFromEnv creates and initializes a Google Sheets provider from environment variables
@@ -61,7 +61,7 @@ func buildFromEnv() (integration.TabularSourceProvider, error) {
 	}
 
 	config := &tabularpb.TabularProviderConfig{
-		ProviderId:     "googlesheets",
+		ProviderId:     "google_sheets",
 		ProviderType:   tabularpb.TabularProviderType_TABULAR_PROVIDER_TYPE_GOOGLE_SHEETS,
 		Enabled:        true,
 		TimeoutSeconds: int32(timeout),
@@ -80,7 +80,7 @@ func buildFromEnv() (integration.TabularSourceProvider, error) {
 // transformConfig transforms raw config map to TabularProviderConfig
 func transformConfig(rawConfig map[string]any) (*tabularpb.TabularProviderConfig, error) {
 	config := &tabularpb.TabularProviderConfig{
-		ProviderId:   "googlesheets",
+		ProviderId:   "google_sheets",
 		ProviderType: tabularpb.TabularProviderType_TABULAR_PROVIDER_TYPE_GOOGLE_SHEETS,
 		Enabled:      true,
 	}
@@ -138,7 +138,7 @@ type GoogleSheetsProvider struct {
 func NewGoogleSheetsProvider() *GoogleSheetsProvider {
 	return &GoogleSheetsProvider{
 		timeout: 30 * time.Second,
-		logger:  slog.Default().With("provider", "googlesheets"),
+		logger:  slog.Default().With("provider", "google_sheets"),
 	}
 }
 
@@ -148,7 +148,7 @@ func NewGoogleSheetsProvider() *GoogleSheetsProvider {
 
 // Name returns the unique identifier of this provider
 func (p *GoogleSheetsProvider) Name() string {
-	return "googlesheets"
+	return "google_sheets"
 }
 
 // Initialize sets up the Google Sheets provider with the given configuration
@@ -1139,7 +1139,7 @@ func (p *GoogleSheetsProvider) CheckHealth(ctx context.Context, req *tabularpb.C
 					IsHealthy: false,
 					Message:   err.Error(),
 					Details: map[string]string{
-						"provider": "googlesheets",
+						"provider": "google_sheets",
 						"status":   "error",
 					},
 				},
@@ -1154,7 +1154,7 @@ func (p *GoogleSheetsProvider) CheckHealth(ctx context.Context, req *tabularpb.C
 				IsHealthy: true,
 				Message:   "Google Sheets tabular provider is healthy",
 				Details: map[string]string{
-					"provider": "googlesheets",
+					"provider": "google_sheets",
 					"status":   "operational",
 				},
 			},
@@ -1170,7 +1170,7 @@ func (p *GoogleSheetsProvider) GetCapabilitiesInfo(ctx context.Context, req *tab
 		Success: true,
 		Data: []*tabularpb.ProviderCapabilities{
 			{
-				ProviderId:           "googlesheets",
+				ProviderId:           "google_sheets",
 				ProviderType:         tabularpb.TabularProviderType_TABULAR_PROVIDER_TYPE_GOOGLE_SHEETS,
 				Capabilities:         capabilities,
 				MaxRecordsPerRequest: 10000,                   // Google Sheets API limit

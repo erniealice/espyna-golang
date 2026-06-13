@@ -12,12 +12,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -251,7 +250,7 @@ func (r *SQLServerCollectionRepository) GetCollectionListPageData(
 		return nil, fmt.Errorf("get collection list page data request is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -534,7 +533,7 @@ func (r *SQLServerCollectionRepository) GetCollectionItemPageData(
 		return nil, fmt.Errorf("collection ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// SQL Server: TOP 1 instead of LIMIT 1; @p1/@p2 instead of $1/$2.
 	query := `
@@ -792,7 +791,7 @@ func (r *SQLServerCollectionRepository) ListByClient(ctx context.Context, req *c
 		return nil, fmt.Errorf("client_id is required")
 	}
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx,

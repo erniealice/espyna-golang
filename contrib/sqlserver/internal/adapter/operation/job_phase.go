@@ -13,7 +13,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -230,7 +230,7 @@ func (r *SQLServerJobPhaseRepository) GetJobPhaseListPageData(
 		return nil, fmt.Errorf("get job phase list page data request is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -414,7 +414,7 @@ func (r *SQLServerJobPhaseRepository) GetJobPhaseItemPageData(
 		return nil, fmt.Errorf("job phase ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT

@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -287,7 +287,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 	// workspace_id column (verified against the baseline schema; the item method
 	// already scopes jt.workspace_id). Empty wsID = service-to-service call → no
 	// scoping. $5 carries the workspace_id.
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		WITH enriched AS (
@@ -428,7 +428,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateItemPageData(
 	// directly on jt.workspace_id. Without this a caller could fetch another
 	// tenant's job template by ID. Empty wsID = service-to-service call → no
 	// scoping. wsID is appended as $2.
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT
 			jt.id,

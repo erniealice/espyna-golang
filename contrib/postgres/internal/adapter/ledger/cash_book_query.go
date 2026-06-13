@@ -5,7 +5,7 @@ package ledger
 import (
 	"context"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 )
 
@@ -17,7 +17,7 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 	ctx context.Context,
 	req *reportpb.CashBookReportRequest,
 ) (*reportpb.CashBookReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	limit := int32(200)
 	if req.Limit != nil && req.GetLimit() > 0 {
@@ -85,7 +85,7 @@ func (a *LedgerReportingAdapter) GetSimplePayablesAgingReport(
 	ctx context.Context,
 	req *reportpb.PayablesAgingReportRequest,
 ) (*reportpb.PayablesAgingReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		WITH outstanding AS (

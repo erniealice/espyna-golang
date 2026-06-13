@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -274,7 +274,7 @@ func (r *MySQLPriceScheduleRepository) GetPriceScheduleListPageData(ctx context.
 	// A1: price_schedule has its own workspace_id column; scope directly.
 	// Dialect: $N → ?, ILIKE → LIKE, active = true → active = 1,
 	// WHERE workspace_id = ? added (postgres gold was missing this — added here per brief).
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE active = 1 AND (? = '' OR workspace_id = ?) AND (? IS NULL OR ? = '' OR name LIKE ? OR description LIKE ?) ` + orderBy + ` LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, query, wsID, wsID, searchPattern, searchPattern, searchPattern, searchPattern, limit, offset)
 	if err != nil {

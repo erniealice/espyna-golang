@@ -183,6 +183,7 @@ func (s *EspynaService) registerService(server *grpc.Server, fullName string, de
 	// Create service description
 	serviceDesc := grpc.ServiceDesc{
 		ServiceName: fullName,
+		HandlerType: (*EspynaService)(nil),
 		Methods:     methods,
 		Streams:     streams,
 		Metadata:    "espyna.proto",

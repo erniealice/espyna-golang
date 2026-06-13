@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -231,7 +231,7 @@ func (r *PostgresEventTagRepository) GetEventTagListPageData(
 		return nil, fmt.Errorf("request required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -394,7 +394,7 @@ func (r *PostgresEventTagRepository) GetEventTagItemPageData(
 		return nil, fmt.Errorf("event tag ID required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT

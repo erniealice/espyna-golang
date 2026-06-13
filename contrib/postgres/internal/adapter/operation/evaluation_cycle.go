@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -189,7 +189,7 @@ func (r *PostgresEvaluationCycleRepository) GetEvaluationCycleListPageData(ctx c
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort for evaluation cycle list: %w", err)
 	}
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT ` + evaluationCycleSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE active = true
@@ -219,7 +219,7 @@ func (r *PostgresEvaluationCycleRepository) GetEvaluationCycleItemPageData(ctx c
 	if req == nil || req.EvaluationCycleId == "" {
 		return nil, fmt.Errorf("evaluation cycle ID required")
 	}
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT ` + evaluationCycleSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`

@@ -10,7 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/erniealice/espyna-golang/ports"
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
@@ -79,10 +79,12 @@ func (m *AuthenticationMiddleware) RequireAuth() fiber.Handler {
 		}
 
 		// Add user information to the request user context. Mirrors the vanilla
-		// adapter which writes uid via contextutil.WithUserID plus email/identity/
-		// expires onto the request context.
-		ctx := contextutil.WithUserID(c.UserContext(), resp.Identity.Id)
-		ctx = contextWithValue(ctx, ctxKeyEmail, resp.Identity.Email)
+		// adapter which writes uid via identity.WithRequestIdentity plus
+		// email/identity/expires onto the request context.
+		ctx := identity.WithRequestIdentity(c.UserContext(), &identity.RequestIdentity{
+			UserID: resp.Identity.Id,
+			Email:  resp.Identity.Email,
+		})
 		ctx = contextWithValue(ctx, ctxKeyIdentity, resp.Identity)
 		if resp.Token != nil && resp.Token.ExpiresAt != nil {
 			ctx = contextWithValue(ctx, ctxKeyExpires, resp.Token.ExpiresAt.AsTime().Unix())

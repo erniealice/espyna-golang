@@ -9,7 +9,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -32,7 +32,7 @@ func (r *MySQLProductRepository) CountByStatusAndKind(
 ) (map[string]int64, error) {
 	// Fall back to context workspace_id if not provided directly.
 	if workspaceID == "" {
-		workspaceID = consumer.GetWorkspaceIDFromContext(ctx)
+		workspaceID = identity.Must(ctx).WorkspaceID
 	}
 
 	// Consolidated CASE-based aggregate CTE (A5 dashboard pattern, one round-trip).
@@ -90,7 +90,7 @@ func (r *MySQLProductRepository) CountByLine(
 	kind string,
 ) (map[string]int64, error) {
 	if workspaceID == "" {
-		workspaceID = consumer.GetWorkspaceIDFromContext(ctx)
+		workspaceID = identity.Must(ctx).WorkspaceID
 	}
 
 	const query = `
@@ -149,7 +149,7 @@ func (r *MySQLProductRepository) RecentlyListed(
 	limit int32,
 ) ([]*productpb.Product, error) {
 	if workspaceID == "" {
-		workspaceID = consumer.GetWorkspaceIDFromContext(ctx)
+		workspaceID = identity.Must(ctx).WorkspaceID
 	}
 	if limit <= 0 {
 		limit = 5

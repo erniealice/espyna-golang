@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -207,7 +207,7 @@ func (r *MySQLForexRateRepository) SupersedePrior(ctx context.Context, priorID s
 		 WHERE id = ?
 		   AND workspace_id = ?
 		   AND status = 2`,
-		effectiveTo, priorID, consumer.GetWorkspaceIDFromContext(ctx),
+		effectiveTo, priorID, identity.Must(ctx).WorkspaceID,
 	)
 	if err != nil {
 		return fmt.Errorf("SupersedePrior update: %w", err)

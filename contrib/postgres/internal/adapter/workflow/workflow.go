@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -230,7 +230,7 @@ func (r *PostgresWorkflowRepository) GetWorkflowListPageData(
 		return nil, fmt.Errorf("request required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -400,7 +400,7 @@ func (r *PostgresWorkflowRepository) GetWorkflowItemPageData(
 		return nil, fmt.Errorf("workflow ID required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT

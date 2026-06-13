@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/erniealice/espyna-golang/ports"
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
@@ -79,8 +79,10 @@ func (i *AuthenticationInterceptor) UnaryInterceptor() grpc.UnaryServerIntercept
 		}
 
 		// Add user information to context
-		ctx = contextutil.WithUserID(ctx, resp.Identity.Id)
-		ctx = context.WithValue(ctx, "email", resp.Identity.Email)
+		ctx = identity.WithRequestIdentity(ctx, &identity.RequestIdentity{
+			UserID: resp.Identity.Id,
+			Email:  resp.Identity.Email,
+		})
 		ctx = context.WithValue(ctx, "identity", resp.Identity)
 		if resp.Token != nil && resp.Token.ExpiresAt != nil {
 			ctx = context.WithValue(ctx, "expires", resp.Token.ExpiresAt.AsTime().Unix())
@@ -142,16 +144,11 @@ func (i *AuthenticationInterceptor) isAuthorizedAPIKey(ctx context.Context) bool
 
 // GetUserFromContext extracts user information from context
 func GetUserFromContext(ctx context.Context) (uid string, email string, ok bool) {
-	uid = contextutil.ExtractUserIDFromContext(ctx)
-	emailVal := ctx.Value("email")
-
-	if uid == "" {
+	id, found := identity.FromContext(ctx)
+	if !found || id.UserID == "" {
 		return "", "", false
 	}
-
-	email, emailOk := emailVal.(string)
-
-	return uid, email, emailOk
+	return id.UserID, id.Email, true
 }
 
 // GetIdentityFromContext extracts the full identity from context
@@ -161,6 +158,6 @@ func GetIdentityFromContext(ctx context.Context) (*authpb.Identity, bool) {
 		return nil, false
 	}
 
-	identity, ok := identityVal.(*authpb.Identity)
-	return identity, ok
+	authID, ok := identityVal.(*authpb.Identity)
+	return authID, ok
 }

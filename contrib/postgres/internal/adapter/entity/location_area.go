@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -254,7 +254,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 		return nil, err
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		WITH enriched AS (
@@ -379,7 +379,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaItemPageData(
 		return nil, fmt.Errorf("location area ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT

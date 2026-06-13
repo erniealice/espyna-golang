@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -240,7 +240,7 @@ func (r *SQLServerLocationRepository) GetLocationListPageData(
 		}
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Build filter/search WHERE clauses; @p1 is reserved for workspace_id, start at @p2.
 	searchFields := []string{"l.name", "l.address"}
@@ -425,7 +425,7 @@ func (r *SQLServerLocationRepository) GetLocationItemPageData(
 		return nil, fmt.Errorf("location ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT

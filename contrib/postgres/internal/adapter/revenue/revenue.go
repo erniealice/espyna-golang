@@ -15,7 +15,7 @@ import (
 	"github.com/lib/pq"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -329,7 +329,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Default pagination values
 	limit := int32(50)
@@ -581,7 +581,7 @@ func (r *PostgresRevenueRepository) GetRevenueItemPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// 20260517 advance-cash-events: expose `advance_collection_id` so the
 	// detail page can render the back-edge to the TreasuryCollection that

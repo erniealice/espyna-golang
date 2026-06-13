@@ -13,7 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -467,7 +467,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 	// Workspace isolation: this method bypasses the WorkspaceAwareOperations
 	// decorator (raw SQL via db.GetDB()), so we extract workspace_id from
 	// context and filter explicitly. Empty wsID = service-to-service call.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// Execute query
 	rows, err := db.GetDB().QueryContext(ctx, query,
@@ -703,7 +703,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		pricePlanJSON []byte
 	)
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	err := db.GetDB().QueryRowContext(ctx, query, req.SubscriptionId, wsID).Scan(
 		&id,
 		&name,
@@ -792,7 +792,7 @@ func (r *PostgresSubscriptionRepository) CountActiveByClientIds(ctx context.Cont
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	var (
 		rows *sql.Rows

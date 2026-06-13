@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	infraports "github.com/erniealice/espyna-golang/ports"
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 )
 
 // AuditContext populates infraports.AuditContext on every request with ActorID,
@@ -19,10 +19,12 @@ import (
 func AuditContext() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Actor ID from auth context (set by authentication middleware via
-		// contextutil.WithUserID on c.UserContext()).
-		actorID := contextutil.ExtractUserIDFromContext(c.UserContext())
-		actorType := "user"
-		if actorID == "" {
+		// identity.WithRequestIdentity on c.UserContext()).
+		var actorID, actorType string
+		if id, ok := identity.FromContext(c.UserContext()); ok && id.UserID != "" {
+			actorID = id.UserID
+			actorType = "user"
+		} else {
 			actorID = "system"
 			actorType = "system"
 		}

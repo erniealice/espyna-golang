@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -362,7 +362,7 @@ func (r *SQLServerSupplierRepository) GetSupplierListPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Default pagination values.
 	limit := int32(50)
@@ -622,7 +622,7 @@ func (r *SQLServerSupplierRepository) GetSupplierItemPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// CTE Query — single round-trip with enriched user data and supplier fields.
 	//

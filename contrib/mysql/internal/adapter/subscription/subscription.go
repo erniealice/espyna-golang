@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -302,7 +302,7 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionListPageData(ctx context.Co
 		return nil, fmt.Errorf("invalid sort column %q for subscription list (allowed SQL cols: %v)", sortField, subscriptionSortableSQLCols)
 	}
 
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// Dialect: $N → ?, ILIKE → LIKE, "user" → `user`, active = true → active = 1,
 	// CROSS JOIN total_count → COUNT(*) OVER (), jsonb_build_object → JSON_OBJECT,
@@ -554,7 +554,7 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionItemPageData(ctx context.Co
 		return nil, fmt.Errorf("subscription ID is required")
 	}
 
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// Dialect changes vs postgres:
 	//   - $1,$2 → ? (positional)
@@ -725,7 +725,7 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionItemPageData(ctx context.Co
 // CountActiveByClientIds counts active subscriptions grouped by client ID.
 // Dialect: pq.Array → manual IN clause with ? placeholders.
 func (r *MySQLSubscriptionRepository) CountActiveByClientIds(ctx context.Context, req *subscriptionpb.CountActiveByClientIdsRequest) (*subscriptionpb.CountActiveByClientIdsResponse, error) {
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 
 	var (

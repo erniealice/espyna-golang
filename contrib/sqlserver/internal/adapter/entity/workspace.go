@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -461,7 +461,7 @@ func (r *SQLServerWorkspaceRepository) GetWorkspaceItemPageData(
 func (r *SQLServerWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *workspacepb.SwitchWorkspaceRequest) (*workspacepb.SwitchWorkspaceResponse, error) {
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 
-	userID := consumer.GetUserIDFromContext(ctx)
+	userID := identity.Must(ctx).UserID
 	if userID == "" {
 		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "unauthorized"}}, nil
 	}
@@ -526,7 +526,7 @@ func (r *SQLServerWorkspaceRepository) ListUserWorkspaces(ctx context.Context, r
 	}
 	defer rows.Close()
 
-	currentWsID := consumer.GetWorkspaceIDFromContext(ctx)
+	currentWsID := identity.Must(ctx).WorkspaceID
 	var workspaces []*workspacepb.UserWorkspace
 	for rows.Next() {
 		var ws workspacepb.UserWorkspace

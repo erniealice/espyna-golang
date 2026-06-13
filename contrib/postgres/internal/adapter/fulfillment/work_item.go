@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -174,7 +174,7 @@ func (r *PostgresFulfillmentRepository) DeleteFulfillment(ctx context.Context, r
 	// GetFulfillmentListPageData/GetFulfillmentItemPageData/TransitionStatus all
 	// scope f.workspace_id). Empty wsID = service-to-service call → no scoping
 	// (the empty-string bypass is preserved). $2 is the workspace_id arg.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query := `UPDATE fulfillment SET active = false, date_modified = NOW() WHERE id = $1 AND ($2 = '' OR workspace_id = $2)`
 	_, err := r.db.ExecContext(ctx, query, req.Id, workspaceID)
 	if err != nil {
@@ -246,7 +246,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -477,7 +477,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Fetch main fulfillment record with supplier name and revenue reference
 	query := `
@@ -806,7 +806,7 @@ func (r *PostgresFulfillmentRepository) TransitionStatus(
 	// not-found otherwise, so the locked row is known-active here. The
 	// workspace_id guard replaces the prior (tenant-less) active=true WHERE
 	// predicate with a true multi-tenant guard.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	setClause := `status = $1, date_modified = NOW()`
 	setArgs := []any{toStatus}

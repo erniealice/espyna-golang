@@ -1,4 +1,4 @@
-//go:build google && googlesheets
+//go:build google && google_sheets
 
 // Package integration provides HTTP routing configuration for integration use cases.
 //

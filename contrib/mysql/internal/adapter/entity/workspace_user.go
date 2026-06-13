@@ -15,7 +15,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -182,7 +182,7 @@ func (r *MySQLWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Context, r
 		ORDER BY wu.date_created DESC
 	`
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, wsID, wsID)
 	if err != nil {
@@ -615,7 +615,7 @@ func (r *MySQLWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserId, wsID, wsID)
 

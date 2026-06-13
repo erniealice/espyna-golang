@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -264,7 +264,7 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard).
 	// Bare column names (no table alias) because ORDER BY applies to the

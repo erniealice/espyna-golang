@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -106,7 +106,7 @@ func (r *SQLServerAccountRepository) ReadAccount(ctx context.Context, req *accou
 		return nil, fmt.Errorf("database connection is not available")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// SQL Server: @p1/@p2 placeholders; no ::text cast; TOP 1 instead of LIMIT 1.
 	query := `
@@ -265,7 +265,7 @@ func (r *SQLServerAccountRepository) GetAccountListPageData(ctx context.Context,
 		}
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	orderByClause, err := sqlserverCore.BuildOrderBy(accountSortableSQLCols, req.GetSort(), "code ASC")
 	if err != nil {
@@ -395,7 +395,7 @@ func (r *SQLServerAccountRepository) GetAccountItemPageData(ctx context.Context,
 		return nil, fmt.Errorf("account ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT TOP 1

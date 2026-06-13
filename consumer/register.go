@@ -26,13 +26,11 @@ import (
 	// --- Payment (mock) ---
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/payment/mock"
 
-	// --- Scheduler (mock) ---
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/scheduler/mock"
+	// --- Scheduler (mock) → register_scheduler_mock.go under -tags mock_scheduler ---
 
 	// --- Storage (mock + local) ---
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/local"
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/storage/mock"
 
-	// --- Tabular (mock — no build tag, always compiles) ---
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/tabular/mock"
+	// --- Tabular (mock) → register_tabular_mock.go under -tags mock_tabular ---
 )

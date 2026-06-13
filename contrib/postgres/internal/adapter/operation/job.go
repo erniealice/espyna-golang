@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
@@ -244,7 +244,7 @@ func (r *PostgresJobRepository) GetJobListPageData(
 	}
 
 	// A1: Extract workspace_id from context — required for multi-tenancy.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -512,7 +512,7 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 	// A1: scope to the caller's workspace. job carries its own workspace_id
 	// (verified against the baseline schema; the list method scopes j.workspace_id
 	// identically). Empty wsID = service-to-service call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT
@@ -711,7 +711,7 @@ func (r *PostgresJobRepository) GetJobsByClient(
 	// which is not unique across tenants — without the predicate a caller could
 	// resolve another tenant's jobs for the same client. Empty wsID =
 	// service-to-service call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		SELECT id, date_created, date_modified, active, name,
@@ -757,7 +757,7 @@ func (r *PostgresJobRepository) GetJobsByOrigin(
 	// origin_type/origin_id, which are not unique across tenants — without the
 	// predicate a caller could resolve another tenant's jobs for the same origin.
 	// Empty wsID = service-to-service call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		SELECT id, date_created, date_modified, active, name,
@@ -805,7 +805,7 @@ func (r *PostgresJobRepository) UpdateJobStatus(
 	// a caller could transition another tenant's job. Empty wsID =
 	// service-to-service call → no scoping. The id-not-found path already maps a
 	// no-match row to a not-found error (effective ownership check).
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := fmt.Sprintf(`
 		UPDATE %s SET status = $1, date_modified = NOW()

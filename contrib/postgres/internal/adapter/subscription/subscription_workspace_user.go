@@ -13,7 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -244,7 +244,7 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) GetSubscriptionWorkspaceUs
 		return nil, fmt.Errorf("invalid sort for subscription workspace user list: %w", err)
 	}
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, subscription_id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
 		FROM subscription_workspace_user
 		WHERE active = true
@@ -273,7 +273,7 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) GetSubscriptionWorkspaceUs
 	}
 	// Tenancy: scope on the junction's own workspace_id (IDOR defense — mirror the
 	// list query). Empty wsID = service-to-service call → no scoping.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, subscription_id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
 		FROM subscription_workspace_user WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
 	row := r.db.QueryRowContext(ctx, query, req.SubscriptionWorkspaceUserId, wsID)
@@ -330,7 +330,7 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) IsActiveServicer(ctx conte
 	if r.db == nil || principalID == "" || subscriptionID == "" {
 		return false, nil
 	}
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	const q = `SELECT EXISTS (
 		SELECT 1
 		FROM subscription_workspace_user swu

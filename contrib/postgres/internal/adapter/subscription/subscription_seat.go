@@ -14,7 +14,7 @@ import (
 	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -245,7 +245,7 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 
 	// subscription_seat carries its own workspace_id column; scope directly on it.
 	// Empty wsID = service-to-service call → no scoping.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, subscription_id, staff_id, client_id, workspace_id, product_plan_id, product_variant_id, contracted_amount, contracted_currency, role_title, seniority, date_start, date_end, status, review_cadence_value, review_cadence_unit, position, replaces_id, work_request_id, active, date_created, date_modified
 		FROM subscription_seat
 		WHERE active = true
@@ -275,7 +275,7 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatItemPageData(ctx
 	// Tenancy: scope on the seat's own workspace_id (IDOR defense — mirror the
 	// list query at GetSubscriptionSeatListPageData and GetSubscriptionItemPageData).
 	// Empty wsID = service-to-service call → no scoping.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, subscription_id, staff_id, client_id, workspace_id, product_plan_id, product_variant_id, contracted_amount, contracted_currency, role_title, seniority, date_start, date_end, status, review_cadence_value, review_cadence_unit, position, replaces_id, work_request_id, active, date_created, date_modified
 		FROM subscription_seat WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
 	row := r.db.QueryRowContext(ctx, query, req.SubscriptionSeatId, wsID)
@@ -317,7 +317,7 @@ func (r *PostgresSubscriptionSeatRepository) LockSubscriptionSeatForUpdate(ctx c
 	if !ok {
 		return nil, fmt.Errorf("subscription_seat adapter: dbOps does not provide a transaction-aware executor")
 	}
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, subscription_id, staff_id, client_id, workspace_id, product_plan_id, product_variant_id, contracted_amount, contracted_currency, role_title, seniority, date_start, date_end, status, review_cadence_value, review_cadence_unit, position, replaces_id, work_request_id, active, date_created, date_modified
 		FROM subscription_seat WHERE id = $1 AND ($2::text = '' OR workspace_id = $2::text) FOR UPDATE`
 	row := exec.GetExecutor(ctx).QueryRowContext(ctx, query, id, wsID)

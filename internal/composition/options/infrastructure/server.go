@@ -102,20 +102,24 @@ func createVanillaConfigFromEnv() VanillaServerConfig {
 // SERVER FRAMEWORK OPTIONS
 // =============================================================================
 
-// WithServerFromEnv dynamically selects server framework based on CONFIG_SERVER_FRAMEWORK
+// WithServerFromEnv dynamically selects server framework based on CONFIG_SERVER_PROVIDER
 func WithServerFromEnv() ContainerOption {
 	return func(c Container) error {
-		framework := strings.ToLower(GetEnv("CONFIG_SERVER_FRAMEWORK", "vanilla"))
+		framework := strings.ToLower(GetEnv("CONFIG_SERVER_PROVIDER", ""))
 
 		switch framework {
+		case "http":
+			return WithVanillaServer(createVanillaConfigFromEnv())(c)
 		case "gin":
 			return WithGinServer(createGinConfigFromEnv())(c)
-		case "fiber":
+		case "fiber", "fiber_v3":
 			return WithFiberServer(createFiberConfigFromEnv())(c)
-		case "vanilla", "":
-			return WithVanillaServer(createVanillaConfigFromEnv())(c)
+		case "vanilla":
+			return fmt.Errorf("server provider 'vanilla' is retired - use CONFIG_SERVER_PROVIDER=http")
+		case "":
+			return fmt.Errorf("CONFIG_SERVER_PROVIDER is empty - set it explicitly (http, gin, fiber, fiber_v3, grpc)")
 		default:
-			return fmt.Errorf("unsupported server framework: %s", framework)
+			return fmt.Errorf("unsupported server provider: %s (canonical: http, gin, fiber, fiber_v3, grpc)", framework)
 		}
 	}
 }

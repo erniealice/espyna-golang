@@ -15,7 +15,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
@@ -298,7 +298,7 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 		LIMIT $2 OFFSET $3;
 	`, orderByClause)
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
@@ -432,7 +432,7 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 		LIMIT 1;
 	`
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.PermissionId, wsID)
 

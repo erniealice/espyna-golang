@@ -13,12 +13,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -228,7 +227,7 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(
 		return nil, fmt.Errorf("get collection list page data request is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -430,7 +429,7 @@ func (r *MySQLCollectionRepository) GetCollectionItemPageData(
 		return nil, fmt.Errorf("collection ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Args: collectionId, workspaceID — same order as postgres.
 	const query = `
@@ -671,7 +670,7 @@ func (r *MySQLCollectionRepository) ListByClient(ctx context.Context, req *colle
 	if req.GetClientId() == "" {
 		return nil, fmt.Errorf("client_id is required")
 	}
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// Dialect: ? placeholders; no ::text cast; LIKE not ILIKE.
 	const query = `

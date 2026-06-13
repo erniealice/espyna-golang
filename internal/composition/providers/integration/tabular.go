@@ -13,18 +13,24 @@ import (
 // The provider reads its own environment variables - composition layer is provider-agnostic.
 //
 // Uses CONFIG_TABULAR_PROVIDER environment variable to select which provider to use:
-//   - "googlesheets" or "google_sheets" -> Google Sheets provider
+//   - "google_sheets" -> Google Sheets provider
 //   - "csv" -> CSV file provider
-//   - "mock_tabular", "mock", or "" -> Mock tabular provider (default)
+//   - "mock_tabular" -> Mock tabular provider
+//
+// No aliases — the canonical token must be used verbatim. Unknown or empty values
+// produce an error directing the user to the canonical token.
 func CreateTabularProvider() (integration.TabularSourceProvider, error) {
 	providerName := strings.ToLower(os.Getenv("CONFIG_TABULAR_PROVIDER"))
 
-	// Normalize provider names
+	// Reject retired aliases with a clear migration message.
 	switch providerName {
-	case "google_sheets":
-		providerName = "googlesheets"
-	case "mock", "":
-		providerName = "mock_tabular"
+	case "googlesheets":
+		return nil, fmt.Errorf("tabular provider 'googlesheets' is retired - use CONFIG_TABULAR_PROVIDER=google_sheets")
+	case "mock":
+		return nil, fmt.Errorf("tabular provider 'mock' is retired - use CONFIG_TABULAR_PROVIDER=mock_tabular")
+	case "":
+		// Tabular is optional — not configured means skip.
+		return nil, nil
 	}
 
 	// Check if provider is registered

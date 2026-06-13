@@ -15,14 +15,20 @@ import (
 // Uses CONFIG_SCHEDULER_PROVIDER environment variable to select which provider to use:
 //   - "calendly" → Calendly scheduling service
 //   - "google_calendar" → Google Calendar
-//   - "mock_scheduler", "mock", or "" → Mock scheduler provider (default)
+//   - "mock_scheduler" → Mock scheduler provider
+//
+// No aliases — the canonical token must be used verbatim. Unknown or empty values
+// produce an error directing the user to the canonical token.
 func CreateSchedulerProvider() (ports.SchedulerProvider, error) {
 	providerName := strings.ToLower(os.Getenv("CONFIG_SCHEDULER_PROVIDER"))
 
-	// Normalize provider names
+	// Reject retired aliases with a clear migration message.
 	switch providerName {
-	case "mock", "":
-		providerName = "mock_scheduler"
+	case "mock":
+		return nil, fmt.Errorf("scheduler provider 'mock' is retired - use CONFIG_SCHEDULER_PROVIDER=mock_scheduler")
+	case "":
+		// Scheduler is optional — not configured means skip.
+		return nil, nil
 	}
 
 	// Let the provider build and configure itself from environment
@@ -40,8 +46,9 @@ func CreateSchedulerProvider() (ports.SchedulerProvider, error) {
 // Returns a map keyed by provider name.
 func CreateSchedulerProviders() (map[string]ports.SchedulerProvider, error) {
 	raw := strings.ToLower(strings.TrimSpace(os.Getenv("CONFIG_SCHEDULER_PROVIDER")))
-	if raw == "" || raw == "mock" {
-		raw = "mock_scheduler"
+	if raw == "" {
+		// Scheduler is optional — not configured means skip.
+		return nil, nil
 	}
 
 	names := strings.Split(raw, ",")
@@ -53,7 +60,7 @@ func CreateSchedulerProviders() (map[string]ports.SchedulerProvider, error) {
 			continue
 		}
 		if name == "mock" {
-			name = "mock_scheduler"
+			return nil, fmt.Errorf("scheduler provider 'mock' is retired - use mock_scheduler")
 		}
 
 		provider, err := registry.BuildSchedulerProviderFromEnv(name)

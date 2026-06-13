@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -261,7 +261,7 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaListPageData(
 	// workspace_id column (verified against the baseline schema; the item method
 	// and ListByScope in this same file already scope oc.workspace_id). Empty wsID
 	// = service-to-service call → no scoping. $4 carries the workspace_id.
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		WITH enriched AS (
@@ -402,7 +402,7 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaItemPageData(
 	// carries its own workspace_id column (verified baseline; ListByScope in this
 	// same file scopes oc.workspace_id). Empty wsID = service-to-service call → no
 	// scoping. $2 carries the workspace_id.
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT

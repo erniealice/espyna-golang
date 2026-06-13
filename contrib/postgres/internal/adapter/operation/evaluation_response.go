@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -187,7 +187,7 @@ func (r *PostgresEvaluationResponseRepository) GetEvaluationResponseListPageData
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort for evaluation response list: %w", err)
 	}
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT ` + evaluationResponseSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE active = true AND ($3::text = '' OR workspace_id = $3::text) ` + orderBy + ` LIMIT $1 OFFSET $2;`
@@ -215,7 +215,7 @@ func (r *PostgresEvaluationResponseRepository) GetEvaluationResponseItemPageData
 	if req == nil || req.EvaluationResponseId == "" {
 		return nil, fmt.Errorf("evaluation response ID required")
 	}
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT ` + evaluationResponseSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`

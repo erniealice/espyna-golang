@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -250,7 +250,7 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 		LIMIT $3 OFFSET $4;
 	`
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query procurement_request list page data: %w", err)
@@ -385,7 +385,7 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestItemPageData
 	// A1: scope to the caller's workspace. procurement_request carries its own
 	// workspace_id (verified against the baseline schema; the list method scopes
 	// pr.workspace_id identically). Empty wsID = service-to-service call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	row := r.db.QueryRowContext(ctx, query, req.GetProcurementRequestId(), workspaceID)
 
 	var (
@@ -467,7 +467,7 @@ func (r *PostgresProcurementRequestRepository) SubmitProcurementRequest(ctx cont
 	// carries its own workspace_id (verified against the baseline schema) —
 	// without the predicate a caller could transition another tenant's request.
 	// Empty wsID = service-to-service call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE procurement_request SET status = $1, date_modified = NOW() WHERE id = $2 AND active = true AND ($3 = '' OR workspace_id = $3)`,
 		newStatus, req.GetProcurementRequestId(), workspaceID,
@@ -493,7 +493,7 @@ func (r *PostgresProcurementRequestRepository) ApproveProcurementRequest(ctx con
 	// without the predicate a caller could approve another tenant's request.
 	// Empty wsID = service-to-service call → no scoping. SET occupies $1..$4,
 	// id is $5, so the workspace predicate takes $6.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE procurement_request
 		 SET status = $1, approved_by = $2, approved_at = $3, approved_at_string = $4, date_modified = NOW()
@@ -517,7 +517,7 @@ func (r *PostgresProcurementRequestRepository) RejectProcurementRequest(ctx cont
 	// without the predicate a caller could reject another tenant's request.
 	// Empty wsID = service-to-service call → no scoping. SET occupies $1/$2,
 	// id is $3, so the workspace predicate takes $4.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE procurement_request
 		 SET status = $1, rejection_reason = $2, date_modified = NOW()

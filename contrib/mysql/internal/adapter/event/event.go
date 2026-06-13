@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/operations"
@@ -289,7 +289,7 @@ func (r *MySQLEventRepository) GetEventListPageData(
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "event", eventSortableSQLCols)
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Dialect: ILIKE → LIKE, $N → ?, active = true → active = 1
 	query := fmt.Sprintf(`
@@ -442,7 +442,7 @@ func (r *MySQLEventRepository) GetEventItemPageData(
 		return nil, fmt.Errorf("event ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Dialect: $1 → ?, $2 → ?, active = true → active = 1
 	query := `

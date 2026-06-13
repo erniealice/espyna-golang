@@ -11,7 +11,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -246,7 +246,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Build search condition
 	searchPattern := ""
@@ -478,7 +478,7 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// CTE Query - Single round-trip with enriched role_permission data
 	query := `

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/ports"
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 )
 
 // AuthorizationMiddleware provides authorization middleware for vanilla HTTP requests
@@ -189,7 +189,7 @@ func (m *AuthorizationMiddleware) RequireWorkspaceRole(role string) func(http.Ha
 
 // GetWorkspaceFromContext extracts workspace ID from the request context
 func GetWorkspaceFromContext(ctx context.Context) string {
-	return contextutil.ExtractWorkspaceIDFromContext(ctx)
+	return identity.Must(ctx).WorkspaceID
 }
 
 // extractWorkspaceFromPath attempts to extract workspace ID from URL path

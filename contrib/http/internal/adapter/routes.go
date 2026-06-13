@@ -12,7 +12,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/composition/contracts"
 	"github.com/erniealice/espyna-golang/composition/routing"
-	contextutil "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -137,7 +137,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 			fmt.Printf("🎯 [HANDLER EXEC] Executing route handler...\n")
 
 			// Add mock user context for testing (since we're using mock_auth)
-			ctx := contextutil.WithUserID(r.Context(), "mock-user-12345")
+			ctx := identity.WithRequestIdentity(r.Context(), &identity.RequestIdentity{UserID: "mock-user-12345"})
 			fmt.Printf("🔐 [AUTH] Added mock user context: mock-user-12345\n")
 
 			response, err := route.Handler.Execute(ctx, protobufRequest)

@@ -1,4 +1,4 @@
-//go:build !calendly
+//go:build mock_scheduler
 
 package mock
 

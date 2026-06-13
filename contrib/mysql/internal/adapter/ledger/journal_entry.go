@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -231,7 +231,7 @@ func (r *MySQLJournalEntryRepository) GetJournalEntryListPageData(ctx context.Co
 		return nil, fmt.Errorf("database connection not available")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	limit := int32(100)
 	offset := int32(0)
@@ -453,7 +453,7 @@ func (r *MySQLJournalEntryRepository) PostJournalEntry(ctx context.Context, req 
 		return nil, fmt.Errorf("database connection not available")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	postedAt := time.Now().UTC()
 	postedBy := req.PostedBy
 

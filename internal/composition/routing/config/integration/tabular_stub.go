@@ -1,4 +1,4 @@
-//go:build !google || !googlesheets
+//go:build !google || !google_sheets
 
 package integration
 
@@ -11,7 +11,7 @@ import (
 // Ensure ports is used (for interface compatibility)
 var _ ports.TabularSourceProvider = nil
 
-// ConfigureTabularIntegration stub for when googlesheets build tag is not present
+// ConfigureTabularIntegration stub for when google_sheets build tag is not present
 func ConfigureTabularIntegration(
 	_ ports.TabularSourceProvider,
 	_ *integrationuc.IntegrationUseCases,

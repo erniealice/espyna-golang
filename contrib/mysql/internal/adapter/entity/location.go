@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -251,7 +251,7 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 		}
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Build filter/search WHERE clauses.
 	// First arg is workspaceID (passed twice for the IS NULL / = '' check); filter builder starts at idx 2.
@@ -440,7 +440,7 @@ func (r *MySQLLocationRepository) GetLocationItemPageData(
 		return nil, fmt.Errorf("location ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Dialect: $1 → ? (locationId); $2::text IS NULL OR l.workspace_id = $2 → two ? bindings for workspaceID.
 	query := `

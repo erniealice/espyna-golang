@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -214,7 +214,7 @@ func (r *SQLServerJournalEntryRepository) GetJournalEntryListPageData(ctx contex
 		}
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	orderByClause, err := sqlserverCore.BuildOrderBy(journalEntrySortableSQLCols, req.GetSort(), "entry_date DESC")
 	if err != nil {

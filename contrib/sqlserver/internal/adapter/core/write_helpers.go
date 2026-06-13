@@ -37,7 +37,7 @@ import (
 //	setArgs    — the args bound to the placeholders in setClause, in order.
 //	id         — the row primary key.
 //	workspaceID— the tenant guard; pass the value from
-//	             consumer.GetWorkspaceIDFromContext(ctx).
+//	             identity.Must(ctx).WorkspaceID.
 //
 // The id and workspaceID placeholders are appended AFTER setArgs, so the final
 // query is: UPDATE <table> SET <setClause> WHERE id = @pN AND workspace_id = @pN+1.

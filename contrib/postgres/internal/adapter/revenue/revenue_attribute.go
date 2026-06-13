@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -255,7 +255,7 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 	// has no workspace_id column of its own (verified baseline) — tenancy is inherited
 	// through its revenue FK, so the predicate scopes on the LEFT-JOINed revenue's
 	// workspace_id (rv). Empty wsID = service-to-service call → no scoping. $4 carries it.
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		WITH enriched AS (
@@ -385,7 +385,7 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeItemPageData(
 	// A1 (CRITICAL): scope to the caller's workspace. revenue_attribute inherits
 	// tenancy through its revenue FK (no own workspace_id) — scope on the LEFT-JOINed
 	// revenue's workspace_id (rv). Empty wsID = service-to-service call → no scoping.
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		WITH enriched AS (

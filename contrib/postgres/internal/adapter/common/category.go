@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -224,7 +224,7 @@ func (r *PostgresCategoryRepository) ListCategories(ctx context.Context, req *ca
 // This is intentionally NOT part of the CategoryDomainServiceServer interface — ListCategories
 // is for dropdowns and always filters active=true. This method is for management UIs.
 func (r *PostgresCategoryRepository) GetCategoryListPageData(ctx context.Context) ([]*categorypb.Category, error) {
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	var db *sql.DB
 	if pgOps, ok := r.dbOps.(interface{ GetDB() *sql.DB }); ok {

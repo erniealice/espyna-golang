@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -292,7 +292,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		LIMIT $3 OFFSET $4;
 	`
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query revenue line item list page data: %w", err)
@@ -467,7 +467,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 	// same way), so scope directly. Without this a caller could fetch another
 	// tenant's line item by ID. Empty wsID = service-to-service call → no
 	// scoping. wsID is appended as $2.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	row := r.db.QueryRowContext(ctx, query, req.RevenueLineItemId, workspaceID)
 
 	var (

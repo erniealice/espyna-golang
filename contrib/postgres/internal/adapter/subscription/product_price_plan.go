@@ -13,7 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -278,7 +278,7 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 	// Wrapped in an enriched CTE projecting exactly the columns the scan reads, so
 	// the BuildOrderBy fragment (an unqualified, quoted column) resolves against
 	// the CTE output unambiguously and the scan order stays identical.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (
 			SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
 			FROM product_price_plan ppp

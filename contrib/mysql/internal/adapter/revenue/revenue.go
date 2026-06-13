@@ -24,7 +24,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -252,7 +252,7 @@ func (r *MySQLRevenueRepository) GetRevenueListPageData(
 		return nil, fmt.Errorf("get revenue list page data request is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	limit := int32(50)
 	offset := int32(0)
@@ -504,7 +504,7 @@ func (r *MySQLRevenueRepository) GetRevenueItemPageData(
 		return nil, fmt.Errorf("revenue ID is required")
 	}
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// 20260517 advance-cash-events: expose advance_collection_id.
 	// Dialect: $1/$2 → ?; active = true → active = 1.

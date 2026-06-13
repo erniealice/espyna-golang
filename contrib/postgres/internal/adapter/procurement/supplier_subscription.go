@@ -12,7 +12,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
@@ -295,7 +295,7 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	rows, err := db.GetDB().QueryContext(ctx, query,
 		searchQuery,      // $1
 		limit,            // $2
@@ -435,7 +435,7 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionItemPage
 		costPlanJSON  []byte
 	)
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	err := db.GetDB().QueryRowContext(ctx, query, req.SupplierSubscriptionId, wsID).Scan(
 		&id, &name, &supplierID, &costPlanID, &code,
 		&dateTimeStart, &dateTimeEnd, &active,
@@ -493,7 +493,7 @@ func (r *PostgresSupplierSubscriptionRepository) CountActiveBySupplierIds(ctx co
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	var (
 		rows *sql.Rows
 		err  error

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -243,7 +243,7 @@ func (r *MySQLSubscriptionAttributeRepository) GetSubscriptionAttributeListPageD
 	// Dialect: COUNT(*) OVER () replaces counted-CTE + CROSS JOIN (MySQL 8.0+),
 	// $N → ?, ILIKE → LIKE, active = true → active = 1,
 	// WHERE workspace_id added (postgres gold was missing this — added here per brief).
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (
 		SELECT sa.id, sa.subscription_id, sa.attribute_id, sa.value, sa.active, sa.date_created, sa.date_modified
 		FROM subscription_attribute sa

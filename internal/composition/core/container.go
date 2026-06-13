@@ -158,7 +158,7 @@ func NewContainer() *Container {
 //   - CONFIG_AUTH_PROVIDER: mock_auth, firebase_auth (default: mock_auth)
 //   - CONFIG_ID_PROVIDER: noop, google_uuidv7 (default: noop)
 //   - CONFIG_STORAGE_PROVIDER: mock_storage, local, gcs (default: mock_storage)
-//   - CONFIG_EMAIL_PROVIDER: mock_email, gmail, microsoft (default: mock_email)
+//   - CONFIG_EMAIL_PROVIDER: mock_email, google_email, microsoft_email (default: mock_email)
 //   - CONFIG_PAYMENT_PROVIDER: mock_payment, asiapay, stripe (default: mock_payment)
 //   - CONFIG_WORKFLOW_ENGINE_MODE: eager, late, lazy (default: late)
 //
@@ -280,7 +280,7 @@ func (c *Container) Initialize() error {
 	// Initialize email provider from environment
 	fmt.Printf("📧 Initializing email provider...\n")
 	if provider, err := integration.CreateEmailProvider(); err != nil {
-		fmt.Printf("⚠️ Failed to initialize email provider: %v\n", err)
+		return fmt.Errorf("failed to initialize email provider: %w", err)
 	} else if provider != nil {
 		c.services.Email = provider
 		fmt.Printf("✅ Email provider initialized: %s\n", provider.Name())

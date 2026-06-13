@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -238,7 +238,7 @@ func (r *PostgresEventAttendeeRepository) GetEventAttendeeListPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Build search condition
 	searchPattern := ""
@@ -427,7 +427,7 @@ func (r *PostgresEventAttendeeRepository) GetEventAttendeeItemPageData(
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Simple query for single event attendee item
 	query := `

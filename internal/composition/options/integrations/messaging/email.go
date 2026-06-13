@@ -119,17 +119,25 @@ func createMicrosoftConfigFromEnv() MicrosoftConfig {
 // WithEmailFromEnv dynamically selects email provider based on CONFIG_EMAIL_PROVIDER
 func WithEmailFromEnv() ContainerOption {
 	return func(c Container) error {
-		emailProvider := strings.ToLower(getEnv("CONFIG_EMAIL_PROVIDER", "mock"))
+		emailProvider := strings.ToLower(getEnv("CONFIG_EMAIL_PROVIDER", ""))
 
 		switch emailProvider {
-		case "gmail":
+		case "google_email":
 			return WithGmail(createGmailConfigFromEnv())(c)
-		case "microsoft":
+		case "microsoft_email":
 			return WithMicrosoft(createMicrosoftConfigFromEnv())(c)
-		case "mock", "":
+		case "mock_email":
 			return WithMockEmail()(c)
+		case "gmail":
+			return fmt.Errorf("email provider 'gmail' is retired - use CONFIG_EMAIL_PROVIDER=google_email")
+		case "microsoft":
+			return fmt.Errorf("email provider 'microsoft' is retired - use CONFIG_EMAIL_PROVIDER=microsoft_email")
+		case "mock":
+			return fmt.Errorf("email provider 'mock' is retired - use CONFIG_EMAIL_PROVIDER=mock_email")
+		case "":
+			return fmt.Errorf("CONFIG_EMAIL_PROVIDER is empty - set it explicitly (mock_email, google_email, microsoft_email)")
 		default:
-			return fmt.Errorf("unsupported email provider: %s", emailProvider)
+			return fmt.Errorf("unsupported email provider: %s (canonical: mock_email, google_email, microsoft_email)", emailProvider)
 		}
 	}
 }

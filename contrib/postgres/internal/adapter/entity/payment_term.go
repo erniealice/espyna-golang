@@ -13,7 +13,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -115,7 +115,7 @@ func (r *PostgresPaymentTermRepository) ReadPaymentTerm(ctx context.Context, req
 		  AND ($2::text = '' OR workspace_id = $2::text)
 	`
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.Data.Id, wsID)
 
@@ -311,7 +311,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 	// the WorkspaceAwareOperations decorator, so we extract the workspace_id from
 	// context and filter explicitly. Empty workspace_id (service-to-service call)
 	// disables the filter — same convention as the decorator.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// CTE Query - flat table, no JOINs needed
 	// entity_scope filter: show only client-scoped and shared (both) payment terms
@@ -476,7 +476,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermItemPageData(
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.PaymentTermId, wsID)
 

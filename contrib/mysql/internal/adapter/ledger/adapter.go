@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	clientstmtpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/client_statement"
 	expreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/expenditure_report"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
@@ -76,7 +76,7 @@ func (a *LedgerReportingAdapter) GetGrossProfitReport(
 	ctx context.Context,
 	req *reportpb.GrossProfitReportRequest,
 ) (*reportpb.GrossProfitReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildGrossProfitQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -127,7 +127,7 @@ func (a *LedgerReportingAdapter) GetRevenueReport(
 	ctx context.Context,
 	req *revreportpb.RevenueReportRequest,
 ) (*revreportpb.RevenueReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildRevenueReportQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -172,7 +172,7 @@ func (a *LedgerReportingAdapter) GetExpenditureReport(
 	ctx context.Context,
 	req *expreportpb.ExpenditureReportRequest,
 ) (*expreportpb.ExpenditureReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildExpenditureReportQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -217,7 +217,7 @@ func (a *LedgerReportingAdapter) GetDisbursementReport(
 	ctx context.Context,
 	req *disbreportpb.DisbursementReportRequest,
 ) (*disbreportpb.DisbursementReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildDisbursementReportQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -259,7 +259,7 @@ func (a *LedgerReportingAdapter) GetDisbursementReport(
 // GetReceivablesAgingReport executes a CTE-based SQL query to compute outstanding
 // receivables bucketed into 5 aging bands (current, 1-30, 31-60, 61-90, >90 days).
 func (a *LedgerReportingAdapter) GetReceivablesAgingReport(ctx context.Context, req *agingpb.ReceivablesAgingRequest) (*agingpb.ReceivablesAgingResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildReceivablesAgingQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -286,7 +286,7 @@ func (a *LedgerReportingAdapter) GetReceivablesAgingReport(ctx context.Context, 
 // GetPayablesAgingReport executes a CTE-based SQL query to compute outstanding
 // payables bucketed into 5 aging bands (current, 1-30, 31-60, 61-90, >90 days).
 func (a *LedgerReportingAdapter) GetPayablesAgingReport(ctx context.Context, req *payagingpb.PayablesAgingRequest) (*payagingpb.PayablesAgingResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildPayablesAgingQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -313,7 +313,7 @@ func (a *LedgerReportingAdapter) GetPayablesAgingReport(ctx context.Context, req
 // GetCollectionSummaryReport executes a two-dimensional pivot SQL query to compute
 // collection totals grouped by two orthogonal dimensions.
 func (a *LedgerReportingAdapter) GetCollectionSummaryReport(ctx context.Context, req *collsumpb.CollectionSummaryRequest) (*collsumpb.CollectionSummaryResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildCollectionSummaryQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -357,7 +357,7 @@ func (a *LedgerReportingAdapter) GetClientStatement(
 	ctx context.Context,
 	req *clientstmtpb.ClientStatementRequest,
 ) (*clientstmtpb.ClientStatementResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildClientStatementQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -393,7 +393,7 @@ func (a *LedgerReportingAdapter) GetSupplierStatement(
 	ctx context.Context,
 	req *suppstmtpb.SupplierStatementRequest,
 ) (*suppstmtpb.SupplierStatementResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, args := buildSupplierStatementQuery(a.tableConfig, req, workspaceID)
 
 	rows, err := a.db.QueryContext(ctx, query, args...)
@@ -439,7 +439,7 @@ func (a *LedgerReportingAdapter) GetSupplierStatement(
 // GetSupplierBalances returns a map of supplier_id → outstanding centavo balance
 // for all suppliers that have a non-zero outstanding balance.
 func (a *LedgerReportingAdapter) GetSupplierBalances(ctx context.Context) (map[string]int64, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, _ := buildSupplierBalancesQuery(a.tableConfig)
 	rows, err := a.db.QueryContext(ctx, query, nilIfEmpty(workspaceID))
 	if err != nil {
@@ -462,7 +462,7 @@ func (a *LedgerReportingAdapter) GetSupplierBalances(ctx context.Context) (map[s
 // GetClientBalances returns a map of client_id → outstanding centavo balance
 // for all clients that have a non-zero outstanding balance.
 func (a *LedgerReportingAdapter) GetClientBalances(ctx context.Context) (map[string]int64, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	query, _ := buildClientBalancesQuery(a.tableConfig)
 	rows, err := a.db.QueryContext(ctx, query, nilIfEmpty(workspaceID))
 	if err != nil {
@@ -489,7 +489,7 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 	ctx context.Context,
 	req *reportpb.CashBookReportRequest,
 ) (*reportpb.CashBookReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	limit := int32(200)
 	if req.Limit != nil && req.GetLimit() > 0 {
@@ -567,7 +567,7 @@ func (a *LedgerReportingAdapter) GetSimplePayablesAgingReport(
 	ctx context.Context,
 	req *reportpb.PayablesAgingReportRequest,
 ) (*reportpb.PayablesAgingReportResponse, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		WITH outstanding AS (
@@ -638,7 +638,7 @@ func (a *LedgerReportingAdapter) GetSimplePayablesAgingReport(
 
 // ListRevenue returns revenue records, optionally filtered by date range.
 func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context, start, end *time.Time) ([]map[string]any, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Dialect: $N → ?; no pg casts needed — MySQL driver handles time.Time natively.
 	query := `SELECT id, reference_number, status, total_amount, currency,
@@ -680,7 +680,7 @@ func (a *LedgerReportingAdapter) ListRevenue(ctx context.Context, start, end *ti
 
 // ListExpenses returns expenditure records of type "expense", optionally filtered by date range.
 func (a *LedgerReportingAdapter) ListExpenses(ctx context.Context, start, end *time.Time) ([]map[string]any, error) {
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	table := a.tableConfig.Expenditure
 	if table == "" {

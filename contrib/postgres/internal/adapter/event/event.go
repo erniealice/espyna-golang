@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/operations"
@@ -250,7 +250,7 @@ func (r *PostgresEventRepository) GetEventListPageData(
 	}
 
 	// A1: Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
 	if req.Search != nil && req.Search.Query != "" {
@@ -444,7 +444,7 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 	// of the 5 global tables, so scope directly. Without this predicate a caller
 	// could fetch another tenant's event by ID. Empty wsID = service-to-service
 	// call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		SELECT

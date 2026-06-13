@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -266,7 +266,7 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 		LIMIT $3 OFFSET $4;
 	`
 
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query supplier_contract list page data: %w", err)
@@ -412,7 +412,7 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractItemPageData(
 	// method already scopes sc.workspace_id). Without this predicate a caller
 	// could fetch another tenant's contract by ID. Empty wsID = service-to-service
 	// call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	row := r.db.QueryRowContext(ctx, query, req.GetSupplierContractId(), workspaceID)
 
 	var (
@@ -513,7 +513,7 @@ func (r *PostgresSupplierContractRepository) ApproveSupplierContract(ctx context
 	// supplier_contract owns workspace_id (verified against the baseline schema).
 	// Without this predicate a caller could approve another tenant's contract by
 	// ID. Empty wsID = service-to-service call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE supplier_contract
 		 SET status = $1, approved_by = $2, approved_at = $3, approved_at_string = $4, date_modified = NOW()
@@ -538,7 +538,7 @@ func (r *PostgresSupplierContractRepository) TerminateSupplierContract(ctx conte
 	// supplier_contract owns workspace_id (verified against the baseline schema).
 	// Without this predicate a caller could terminate another tenant's contract by
 	// ID. Empty wsID = service-to-service call → no scoping.
-	workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE supplier_contract
 		 SET status = $1, rejection_reason = $2, date_modified = NOW()

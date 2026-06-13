@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -245,8 +245,8 @@ func (r *PostgresEvaluationRepository) GetEvaluationListPageData(ctx context.Con
 		return nil, fmt.Errorf("invalid sort for evaluation list: %w", err)
 	}
 
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
-	actingClient := consumer.GetActingAsClientIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
+	actingClient := identity.Must(ctx).ActingAsClientID
 
 	// $5 = acting_as_client_id. When set, scope client_id AND fail-closed on
 	// internal_only visibility. When empty (staff), no client/visibility gate.
@@ -284,8 +284,8 @@ func (r *PostgresEvaluationRepository) GetEvaluationItemPageData(ctx context.Con
 	if req == nil || req.EvaluationId == "" {
 		return nil, fmt.Errorf("evaluation ID required")
 	}
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
-	actingClient := consumer.GetActingAsClientIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
+	actingClient := identity.Must(ctx).ActingAsClientID
 	query := `SELECT ` + evaluationSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE id = $1 AND active = true
@@ -312,7 +312,7 @@ func (r *PostgresEvaluationRepository) GetLatestEvaluationScore(ctx context.Cont
 	if len(staffIDs) == 0 {
 		return out, nil
 	}
-	wsID := consumer.GetWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	// DISTINCT ON (subject_staff_id) keeps the first row per staff after the
 	// deterministic ORDER BY — i.e. the latest scored evaluation.
 	query := `SELECT DISTINCT ON (subject_staff_id) subject_staff_id, overall_score

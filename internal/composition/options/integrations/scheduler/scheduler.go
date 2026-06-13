@@ -105,17 +105,21 @@ func createGoogleCalendarConfigFromEnv() GoogleCalendarConfig {
 // WithSchedulerFromEnv dynamically selects scheduler provider based on CONFIG_SCHEDULER_PROVIDER
 func WithSchedulerFromEnv() ContainerOption {
 	return func(c Container) error {
-		schedulerProvider := strings.ToLower(getEnv("CONFIG_SCHEDULER_PROVIDER", "mock"))
+		schedulerProvider := strings.ToLower(getEnv("CONFIG_SCHEDULER_PROVIDER", ""))
 
 		switch schedulerProvider {
 		case "calendly":
 			return WithCalendly(createCalendlyConfigFromEnv())(c)
 		case "google_calendar":
 			return WithGoogleCalendar(createGoogleCalendarConfigFromEnv())(c)
-		case "mock", "mock_scheduler", "":
+		case "mock_scheduler":
 			return WithMockScheduler()(c)
+		case "mock":
+			return fmt.Errorf("scheduler provider 'mock' is retired - use CONFIG_SCHEDULER_PROVIDER=mock_scheduler")
+		case "":
+			return fmt.Errorf("CONFIG_SCHEDULER_PROVIDER is empty - set it explicitly (mock_scheduler, calendly, google_calendar)")
 		default:
-			return fmt.Errorf("unsupported scheduler provider: %s", schedulerProvider)
+			return fmt.Errorf("unsupported scheduler provider: %s (canonical: mock_scheduler, calendly, google_calendar)", schedulerProvider)
 		}
 	}
 }

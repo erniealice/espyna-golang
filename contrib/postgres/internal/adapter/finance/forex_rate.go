@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -212,7 +212,7 @@ func (r *PostgresForexRateRepository) SupersedePrior(ctx context.Context, priorI
 // workspaceIDFromCtx extracts the workspace ID from the context for inline SQL
 // workspace predicates. Mirrors the same pattern used in operation/job.go.
 func (r *PostgresForexRateRepository) workspaceIDFromCtx(ctx context.Context) string {
-	return consumer.GetWorkspaceIDFromContext(ctx)
+	return identity.Must(ctx).WorkspaceID
 }
 
 var _ ForexRateQueries = (*PostgresForexRateRepository)(nil)

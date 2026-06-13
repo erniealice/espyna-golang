@@ -12,7 +12,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
@@ -227,7 +227,7 @@ func (r *SQLServerForexRateRepository) SupersedePrior(ctx context.Context, prior
 
 // workspaceIDFromCtx extracts the workspace ID from the context.
 func (r *SQLServerForexRateRepository) workspaceIDFromCtx(ctx context.Context) string {
-	return consumer.GetWorkspaceIDFromContext(ctx)
+	return identity.Must(ctx).WorkspaceID
 }
 
 var _ ForexRateQueries = (*SQLServerForexRateRepository)(nil)

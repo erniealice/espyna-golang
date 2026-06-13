@@ -12,7 +12,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -285,7 +285,7 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 	// schema) — tenancy is inherited through its subscription FK, so the predicate
 	// scopes on the joined subscription's workspace_id (s is LEFT JOINed above).
 	// Empty wsID = service-to-service call → no scoping. $1 is reserved for it.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	var args []interface{}
 	argCounter := 1
 	query += fmt.Sprintf(" AND ($%d::text = '' OR s.workspace_id = $%d::text)", argCounter, argCounter)
@@ -691,7 +691,7 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 		userActive       sql.NullBool
 	)
 
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	err := db.GetDB().QueryRowContext(ctx, query, req.InvoiceId, wsID).Scan(
 		&id, &invoiceNumber, &amount, &dateCreated, &dateModified, &active, &subscriptionID,
 		&subID, &subName, &subPlanID, &subClientID, &subDateStart, &subDateEnd, &subDateCreated, &subDateModified, &subActive,

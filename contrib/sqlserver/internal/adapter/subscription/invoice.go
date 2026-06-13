@@ -12,7 +12,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -207,7 +207,7 @@ func (r *SQLServerInvoiceRepository) GetInvoiceListPageData(ctx context.Context,
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 
 	// workspace_id guard — ADDED (was missing in postgres version per task brief).
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	// Build the base CTE query.
 	// SQL Server differences:
@@ -604,7 +604,7 @@ func (r *SQLServerInvoiceRepository) GetInvoiceItemPageData(ctx context.Context,
 	}
 
 	// workspace_id guard — ADDED (was missing in postgres version per task brief).
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 
 	query := `
 		WITH invoice_data AS (

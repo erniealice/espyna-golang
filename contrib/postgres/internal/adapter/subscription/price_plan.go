@@ -14,7 +14,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
-	espynactx "github.com/erniealice/espyna-golang/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -291,7 +291,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 	// columns (qualified pp.*) so the BuildOrderBy fragment — which emits an
 	// unqualified, quoted column — resolves unambiguously against the CTE output
 	// and the scan order stays identical. Empty wsID = service-to-service call.
-	wsID := espynactx.ExtractWorkspaceIDFromContext(ctx)
+	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (SELECT pp.id, pp.plan_id, pp.billing_amount, pp.billing_currency, pp.name, pp.description, pp.active, pp.date_created, pp.date_modified, pp.price_schedule_id, pp.billing_kind, pp.amount_basis, pp.billing_cycle_value, pp.billing_cycle_unit, pp.default_term_value, pp.default_term_unit FROM price_plan pp LEFT JOIN plan pl ON pp.plan_id = pl.id WHERE pp.active = true AND ($4::text = '' OR pl.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR pp.plan_id ILIKE $1 OR pp.billing_currency ILIKE $1)) SELECT * FROM enriched ` + orderBy + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {

@@ -1,7 +1,7 @@
-//go:build calendly
+//go:build !mock_scheduler
 
 package mock
 
-// This file is a placeholder when the calendly build tag is enabled.
-// The actual mock adapter is in adapter.go with the !calendly build constraint.
-// When calendly is enabled, the real Calendly adapter is used instead.
+// Stub — when mock_scheduler tag is absent, this file provides the package
+// declaration so Go tooling can resolve the package. The real adapter lives
+// in adapter.go (gated by //go:build mock_scheduler).

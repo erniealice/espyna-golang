@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/consumer"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
@@ -497,7 +497,7 @@ func (r *PostgresWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 
 	// 1. Validate: get user_id from context
-	userID := consumer.GetUserIDFromContext(ctx)
+	userID := identity.Must(ctx).UserID
 	if userID == "" {
 		return &workspacepb.SwitchWorkspaceResponse{Success: false, Error: &commonpb.Error{Message: "unauthorized"}}, nil
 	}
@@ -561,7 +561,7 @@ func (r *PostgresWorkspaceRepository) ListUserWorkspaces(ctx context.Context, re
 	}
 	defer rows.Close()
 
-	currentWsID := consumer.GetWorkspaceIDFromContext(ctx)
+	currentWsID := identity.Must(ctx).WorkspaceID
 	var workspaces []*workspacepb.UserWorkspace
 	for rows.Next() {
 		var ws workspacepb.UserWorkspace

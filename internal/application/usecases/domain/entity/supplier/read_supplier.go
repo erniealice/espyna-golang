@@ -52,7 +52,8 @@ func NewReadSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServi
 	services := ReadSupplierServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewReadSupplierUseCase(repositories, services)

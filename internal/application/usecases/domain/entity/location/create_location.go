@@ -56,7 +56,8 @@ func NewCreateLocationUseCaseUngrouped(locationRepo locationpb.LocationDomainSer
 	services := CreateLocationServices{
 		Authorizer:  nil,
 		Transactor:  ports.NewNoOpTransactor(),
-		Translator:  ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 

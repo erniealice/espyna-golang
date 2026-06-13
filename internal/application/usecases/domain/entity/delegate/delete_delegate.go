@@ -52,7 +52,8 @@ func NewDeleteDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 	services := DeleteDelegateServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteDelegateUseCase(repositories, services)

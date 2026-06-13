@@ -54,7 +54,8 @@ func NewDeleteGroupAttributeUseCaseUngrouped(groupAttributeRepo groupattributepb
 	services := DeleteGroupAttributeServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteGroupAttributeUseCase(repositories, services)

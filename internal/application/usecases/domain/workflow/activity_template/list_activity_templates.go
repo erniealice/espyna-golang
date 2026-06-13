@@ -53,7 +53,8 @@ func NewListActivityTemplatesUseCaseUngrouped(activityTemplateRepo activityTempl
 	services := ListActivityTemplatesServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListActivityTemplatesUseCase(repositories, services)

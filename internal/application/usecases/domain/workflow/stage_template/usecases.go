@@ -135,7 +135,8 @@ func NewUseCasesUngrouped(stageTemplateRepo stageTemplatepb.StageTemplateDomainS
 	services := StageTemplateServices{
 		Authorizer:  nil, // Will be injected later by container
 		Transactor:  ports.NewNoOpTransactor(),
-		Translator:  ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 

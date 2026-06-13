@@ -54,7 +54,8 @@ func NewUpdateGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) 
 	services := UpdateGroupServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewUpdateGroupUseCase(repositories, services)

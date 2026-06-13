@@ -58,7 +58,8 @@ func NewUpdateActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTemp
 	services := UpdateActivityTemplateServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewUpdateActivityTemplateUseCase(repositories, services)

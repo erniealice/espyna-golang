@@ -52,7 +52,8 @@ func NewListWorkspacesUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomain
 	services := ListWorkspacesServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListWorkspacesUseCase(repositories, services)

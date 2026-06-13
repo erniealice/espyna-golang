@@ -53,7 +53,8 @@ func NewListGroupsUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) *
 	services := ListGroupsServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListGroupsUseCase(repositories, services)

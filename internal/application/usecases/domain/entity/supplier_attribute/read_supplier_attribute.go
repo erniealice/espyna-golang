@@ -51,7 +51,8 @@ func NewReadSupplierAttributeUseCaseUngrouped(supplierAttributeRepo supplierattr
 	services := ReadSupplierAttributeServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewReadSupplierAttributeUseCase(repositories, services)

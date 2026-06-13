@@ -62,7 +62,8 @@ func NewGetClientByEmailUseCaseUngrouped(clientRepo clientpb.ClientDomainService
 	services := GetClientByEmailServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewGetClientByEmailUseCase(repositories, services)

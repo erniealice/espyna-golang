@@ -55,7 +55,8 @@ func NewUpdateDelegateUseCaseUngrouped(delegateRepo delegatepb.DelegateDomainSer
 	services := UpdateDelegateServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewUpdateDelegateUseCase(repositories, services)

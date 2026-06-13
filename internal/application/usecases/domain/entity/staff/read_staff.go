@@ -53,7 +53,8 @@ func NewReadStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) *R
 	services := ReadStaffServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewReadStaffUseCase(repositories, services)

@@ -53,7 +53,8 @@ func NewListActivitiesUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 	services := ListActivitiesServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListActivitiesUseCase(repositories, services)

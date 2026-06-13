@@ -54,7 +54,8 @@ func NewListClientAttributesUseCaseUngrouped(clientAttributeRepo clientattribute
 	services := ListClientAttributesServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListClientAttributesUseCase(repositories, services)

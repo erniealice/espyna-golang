@@ -53,7 +53,8 @@ func NewGetRoleItemPageDataUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceSer
 	services := GetRoleItemPageDataServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewGetRoleItemPageDataUseCase(repositories, services)

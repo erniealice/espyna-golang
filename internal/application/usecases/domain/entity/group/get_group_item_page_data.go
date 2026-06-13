@@ -55,7 +55,8 @@ func NewGetGroupItemPageDataUseCaseUngrouped(groupRepo grouppb.GroupDomainServic
 	services := GetGroupItemPageDataServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewGetGroupItemPageDataUseCase(repositories, services)

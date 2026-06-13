@@ -67,7 +67,8 @@ func NewCreateDelegateClientUseCaseUngrouped(
 	services := CreateDelegateClientServices{
 		Authorizer:  authorizationService,
 		Transactor:  ports.NewNoOpTransactor(),
-		Translator:  ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 

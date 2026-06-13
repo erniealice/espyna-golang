@@ -52,7 +52,8 @@ func NewDeleteStaffUseCaseUngrouped(staffRepo staffpb.StaffDomainServiceServer) 
 	services := DeleteStaffServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteStaffUseCase(repositories, services)

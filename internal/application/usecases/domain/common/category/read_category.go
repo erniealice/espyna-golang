@@ -48,7 +48,8 @@ func NewReadCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainServi
 
 	services := ReadCategoryServices{
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewReadCategoryUseCase(repositories, services)

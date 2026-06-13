@@ -53,7 +53,8 @@ func NewCreateCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 
 	services := CreateCategoryServices{
 		Transactor:  ports.NewNoOpTransactor(),
-		Translator:  ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 		IDGenerator: ports.NewNoOpIDGenerator(),
 	}
 

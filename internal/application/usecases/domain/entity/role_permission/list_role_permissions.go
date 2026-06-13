@@ -62,7 +62,8 @@ func NewListRolePermissionsUseCaseUngrouped(
 	services := ListRolePermissionsServices{
 		Authorizer: authorizationService,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListRolePermissionsUseCase(repositories, services)

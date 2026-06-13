@@ -60,7 +60,8 @@ func NewUpdateEventClientUseCaseUngrouped(eventClientRepo eventclientpb.EventCli
 	services := UpdateEventClientServices{
 		Authorizer: nil, // Will be injected later if needed
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return &UpdateEventClientUseCase{

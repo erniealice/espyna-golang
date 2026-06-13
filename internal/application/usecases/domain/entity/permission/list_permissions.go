@@ -53,7 +53,8 @@ func NewListPermissionsUseCaseUngrouped(permissionRepo permissionpb.PermissionDo
 	services := ListPermissionsServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListPermissionsUseCase(repositories, services)

@@ -53,7 +53,8 @@ func NewDeleteRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *Del
 	services := DeleteRoleServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteRoleUseCase(repositories, services)

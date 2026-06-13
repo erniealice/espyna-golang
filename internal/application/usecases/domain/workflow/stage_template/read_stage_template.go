@@ -54,7 +54,8 @@ func NewReadStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.Stag
 	services := ReadStageTemplateServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewReadStageTemplateUseCase(repositories, services)

@@ -52,7 +52,8 @@ func NewDeletePaymentTermUseCaseUngrouped(paymentTermRepo paymenttermpb.PaymentT
 	services := DeletePaymentTermServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeletePaymentTermUseCase(repositories, services)

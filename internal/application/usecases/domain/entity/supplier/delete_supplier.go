@@ -52,7 +52,8 @@ func NewDeleteSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainSer
 	services := DeleteSupplierServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteSupplierUseCase(repositories, services)

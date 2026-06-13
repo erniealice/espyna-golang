@@ -53,7 +53,8 @@ func NewReadRoleUseCaseUngrouped(roleRepo rolepb.RoleDomainServiceServer) *ReadR
 	services := ReadRoleServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewReadRoleUseCase(repositories, services)

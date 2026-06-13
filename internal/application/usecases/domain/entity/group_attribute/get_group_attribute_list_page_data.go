@@ -55,7 +55,8 @@ func NewGetGroupAttributeListPageDataUseCaseUngrouped(groupAttributeRepo groupat
 	services := GetGroupAttributeListPageDataServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewGetGroupAttributeListPageDataUseCase(repositories, services)

@@ -66,7 +66,8 @@ func NewUpdateDelegateClientUseCaseUngrouped(
 	services := UpdateDelegateClientServices{
 		Authorizer: authorizationService,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewUpdateDelegateClientUseCase(repositories, services)

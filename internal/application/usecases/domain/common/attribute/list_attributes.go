@@ -50,7 +50,8 @@ func NewListAttributesUseCaseUngrouped(attributeRepo attributepb.AttributeDomain
 
 	services := ListAttributesServices{
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListAttributesUseCase(repositories, services)

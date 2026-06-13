@@ -55,7 +55,8 @@ func NewGetStaffAttributeListPageDataUseCaseUngrouped(staffAttributeRepo staffat
 	services := GetStaffAttributeListPageDataServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewGetStaffAttributeListPageDataUseCase(repositories, services)

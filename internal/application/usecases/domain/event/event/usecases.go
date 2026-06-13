@@ -119,7 +119,8 @@ func NewUseCasesUngrouped(eventRepo eventpb.EventDomainServiceServer, transactio
 	services := EventServices{
 		Authorizer: nil, // Will be injected later by container
 		Transactor: transactionService,
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewUseCases(repositories, services, transactionService)

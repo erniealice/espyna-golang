@@ -54,7 +54,8 @@ func NewUpdateWorkspaceUseCaseUngrouped(workspaceRepo workspacepb.WorkspaceDomai
 	services := UpdateWorkspaceServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewUpdateWorkspaceUseCase(repositories, services)

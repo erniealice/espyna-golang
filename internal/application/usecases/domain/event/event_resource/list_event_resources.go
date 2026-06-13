@@ -54,7 +54,8 @@ func NewListEventResourcesUseCaseUngrouped(eventResourceRepo eventresourcepb.Eve
 	services := ListEventResourcesServices{
 		Authorizer: nil, // Will be injected later if needed
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return &ListEventResourcesUseCase{

@@ -48,7 +48,8 @@ func NewDeleteCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 
 	services := DeleteCategoryServices{
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteCategoryUseCase(repositories, services)

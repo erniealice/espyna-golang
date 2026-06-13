@@ -56,7 +56,8 @@ func NewListWorkflowTemplatesUseCaseUngrouped(workflowTemplateRepo workflow_temp
 	services := ListWorkflowTemplatesServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListWorkflowTemplatesUseCase(repositories, services)

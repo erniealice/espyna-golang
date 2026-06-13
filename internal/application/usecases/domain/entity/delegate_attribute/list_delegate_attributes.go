@@ -54,7 +54,8 @@ func NewListDelegateAttributesUseCaseUngrouped(delegateAttributeRepo delegateatt
 	services := ListDelegateAttributesServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewListDelegateAttributesUseCase(repositories, services)

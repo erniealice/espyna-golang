@@ -53,7 +53,8 @@ func NewDeleteClientUseCaseUngrouped(clientRepo clientpb.ClientDomainServiceServ
 	services := DeleteClientServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteClientUseCase(repositories, services)

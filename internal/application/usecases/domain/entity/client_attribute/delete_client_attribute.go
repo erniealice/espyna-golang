@@ -54,7 +54,8 @@ func NewDeleteClientAttributeUseCaseUngrouped(clientAttributeRepo clientattribut
 	services := DeleteClientAttributeServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewDeleteClientAttributeUseCase(repositories, services)

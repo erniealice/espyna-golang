@@ -55,7 +55,8 @@ func NewGetRolePermissionItemPageDataUseCaseUngrouped(rolePermissionRepo roleper
 	services := GetRolePermissionItemPageDataServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewGetRolePermissionItemPageDataUseCase(repositories, services)

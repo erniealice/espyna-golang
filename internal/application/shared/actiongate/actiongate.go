@@ -63,8 +63,12 @@ func NewActionGatekeeper(authorizer Authorizer, translator Translator) *ActionGa
 // Returns nil if authorized, or an error if denied/missing.
 // Fail-closed: nil authorizer → deny.
 func (g *ActionGatekeeper) Check(ctx context.Context, req *CheckActionRequest) error {
-	if g == nil || g.authorizer == nil {
-		log.Println("WARNING: ActionGatekeeper or Authorizer is nil — denying by default")
+	if g == nil {
+		log.Println("WARNING: ActionGatekeeper is nil — denying by default")
+		return errors.New("authorization denied: action gatekeeper not configured")
+	}
+	if g.authorizer == nil {
+		log.Println("WARNING: Authorizer is nil — denying by default")
 		return errors.New(g.translate(ctx, "common.errors.authorization_failed", "Authorization not configured"))
 	}
 

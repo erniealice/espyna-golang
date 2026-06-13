@@ -49,7 +49,8 @@ func NewUpdateCategoryUseCaseUngrouped(categoryRepo categorypb.CategoryDomainSer
 
 	services := UpdateCategoryServices{
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewUpdateCategoryUseCase(repositories, services)

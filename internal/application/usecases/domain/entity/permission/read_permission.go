@@ -53,7 +53,8 @@ func NewReadPermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionDom
 	services := ReadPermissionServices{
 		Authorizer: nil,
 		Transactor: ports.NewNoOpTransactor(),
-		Translator: ports.NewNoOpTranslator(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
 
 	return NewReadPermissionUseCase(repositories, services)

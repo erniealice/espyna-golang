@@ -1155,11 +1155,11 @@ func (uci *UseCaseInitializer) getServices(container *Container) (
 	if authSvc == nil {
 		if allowAllFallbackPermitted() {
 			authSvc = mockAuth.NewAllowAllAuth()
-			fmt.Printf("🔓 AllowAll authorization (dev/mock build — CONFIG_AUTH_PROVIDER=mock_auth)\n")
+			fmt.Printf("🔓 AllowAll authorization (dev/mock build — CONFIG_AUTH_PROVIDER=mock)\n")
 		} else {
 			return nil, nil, nil, nil, fmt.Errorf(
 				"refusing to boot: no RBAC Authorizer available (PermissionQuery unregistered or no *sql.DB) " +
-					"and AllowAll fallback is forbidden for non-dev builds (set CONFIG_AUTH_PROVIDER=mock_auth for dev/mock)")
+					"and AllowAll fallback is forbidden for non-dev builds (set CONFIG_AUTH_PROVIDER=mock for dev/mock)")
 		}
 	}
 
@@ -1234,8 +1234,8 @@ func (uci *UseCaseInitializer) resolvePermissionQuery() securityports.Permission
 // allowAllFallbackPermitted reports whether selecting the AllowAll authorization
 // service is permitted (Q-AWS2 = C boot-fail guard, w0-design.md §2.7). It
 // returns true ONLY when the build is provably dev/mock — keyed on the same
-// CONFIG_AUTH_PROVIDER == "mock_auth" signal the app already discriminates on at
-// apps/service-admin/internal/composition/container.go:236,1496, so the dev/prod
+// CONFIG_AUTH_PROVIDER == "mock" signal the app already discriminates on at
+// apps/service-admin/internal/composition/container.go, so the dev/prod
 // boundary stays consistent.
 //
 // When this returns false and no RBAC Authorizer could be built, getServices
@@ -1244,7 +1244,7 @@ func (uci *UseCaseInitializer) resolvePermissionQuery() securityports.Permission
 // flip of AllowAllAuthService to //go:build mock_auth is deferred to audit
 // Wave-0.1 (OD-5 / R4) after the NewAllowAllAuth-caller audit.
 func allowAllFallbackPermitted() bool {
-	return os.Getenv("CONFIG_AUTH_PROVIDER") == "mock_auth"
+	return os.Getenv("CONFIG_AUTH_PROVIDER") == "mock"
 }
 
 // initializeIntegrationUseCases initializes integration use cases (email, payment, scheduler providers)

@@ -13,26 +13,29 @@ import (
 // The provider reads its own environment variables - composition layer is provider-agnostic.
 //
 // Uses CONFIG_AUTH_PROVIDER environment variable to select which provider to use:
-//   - "firebase_auth" or "firebase" → Firebase Auth provider
-//   - "jwt_auth" or "jwt" → JWT Auth provider
-//   - "mock_auth", "mock", "noop", or "" → Mock Auth provider (default)
+//   - "password" → Password/session auth provider
+//   - "mock"     → Mock auth provider (dev/test)
+//   - "firebase" → Firebase Auth provider
+//
+// Retired aliases (db_auth, mock_auth, noop, jwt, etc.) return an error
+// directing the operator to the canonical token.
 func CreateAuthProvider() (contracts.Provider, error) {
 	providerName := strings.ToLower(os.Getenv("CONFIG_AUTH_PROVIDER"))
 
-	// Normalize provider names
+	// Canonical tokens only — no alias normalization.
 	switch providerName {
-	case "firebase_auth":
-		providerName = "firebase"
-	case "jwt_auth":
-		providerName = "jwt"
-	case "db_auth", "password_auth":
-		// db_auth is the legacy name for the password/session adapter that
-		// used to hardcode PostgreSQL. The refactored adapter works with any
-		// DatabaseOperation, so it's renamed "password" — keeping the old
-		// name as an alias avoids breaking existing .env files.
+	case "password", "mock", "firebase":
+		// accepted as-is
+	case "db_auth":
+		// One-release deprecation: map to "password" with a warning.
+		fmt.Fprintf(os.Stderr, "DEPRECATED: CONFIG_AUTH_PROVIDER=db_auth is retired — use 'password' instead\n")
 		providerName = "password"
-	case "mock_auth", "noop", "":
-		providerName = "mock"
+	case "password_auth", "firebase_auth", "mock_auth", "noop", "jwt", "jwt_auth":
+		return nil, fmt.Errorf("CONFIG_AUTH_PROVIDER=%q is retired; use one of: password, mock, firebase", providerName)
+	case "":
+		return nil, fmt.Errorf("CONFIG_AUTH_PROVIDER is empty; set one of: password, mock, firebase")
+	default:
+		// Future providers (oidc, etc.) pass through to the registry.
 	}
 
 	// Let the provider build and configure itself from environment

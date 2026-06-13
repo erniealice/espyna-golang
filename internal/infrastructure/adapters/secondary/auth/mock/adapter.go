@@ -1,4 +1,4 @@
-//go:build mock_db || mock_auth
+//go:build mock_auth
 
 package mock
 

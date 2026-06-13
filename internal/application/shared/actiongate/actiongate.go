@@ -61,11 +61,20 @@ func NewActionGatekeeper(authorizer Authorizer, translator Translator) *ActionGa
 
 // Check verifies that the acting principal holds the given permission.
 // Returns nil if authorized, or an error if denied/missing.
-// Fail-closed: nil authorizer → deny.
+// Fail-closed: nil gatekeeper, nil authorizer, nil request, or empty
+// Entity/Action all deny.
 func (g *ActionGatekeeper) Check(ctx context.Context, req *CheckActionRequest) error {
 	if g == nil {
 		log.Println("WARNING: ActionGatekeeper is nil — denying by default")
 		return errors.New("authorization denied: action gatekeeper not configured")
+	}
+	if req == nil {
+		log.Println("WARNING: CheckActionRequest is nil — denying by default")
+		return errors.New("authorization denied: nil action request")
+	}
+	if req.Entity == "" || req.Action == "" {
+		log.Printf("WARNING: CheckActionRequest has empty Entity=%q or Action=%q — denying", req.Entity, req.Action)
+		return errors.New("authorization denied: entity and action are required")
 	}
 	if g.authorizer == nil {
 		log.Println("WARNING: Authorizer is nil — denying by default")

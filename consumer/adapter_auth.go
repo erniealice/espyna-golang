@@ -17,7 +17,7 @@ import (
 type authProviderOperations = ports.AuthProvider
 
 // databaseAuthOperations defines the extended operations available with the
-// password (legacy alias: db_auth) provider.
+// password provider.
 type databaseAuthOperations interface {
 	Register(ctx context.Context, email, password, firstName, lastName, mobileNumber string) (string, error)
 	Login(ctx context.Context, email, password string) (string, *authpb.Identity, error)
@@ -39,7 +39,7 @@ type authServiceOperations = ports.AuthService
 Provides direct access to authentication operations without requiring
 the full use cases/provider initialization chain.
 
-This adapter works with ANY auth provider (Firebase, JWT, Mock)
+This adapter works with ANY auth provider (Firebase, Password, Mock)
 based on your CONFIG_AUTH_PROVIDER environment variable.
 
 Usage:
@@ -134,7 +134,7 @@ func (a *AuthAdapter) GetService() authServiceOperations {
 	return a.service
 }
 
-// Name returns the name of the underlying auth provider (e.g., "firebase", "jwt", "mock")
+// Name returns the name of the underlying auth provider (e.g., "firebase", "password", "mock")
 func (a *AuthAdapter) Name() string {
 	if a.provider == nil {
 		return ""
@@ -245,7 +245,7 @@ func (a *AuthAdapter) ValidateAndExtractToken(ctx context.Context, token string)
 // --- Database Auth Methods ---
 
 // Register creates a new user account with the given credentials.
-// Only supported by db_auth provider. Returns ErrNotSupported for other providers.
+// Only supported by password provider. Returns ErrNotSupported for other providers.
 func (a *AuthAdapter) Register(ctx context.Context, email, password, firstName, lastName, mobileNumber string) (string, error) {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {
@@ -255,7 +255,7 @@ func (a *AuthAdapter) Register(ctx context.Context, email, password, firstName, 
 }
 
 // Login authenticates a user with email/password and returns a session token + identity.
-// Only supported by db_auth provider.
+// Only supported by password provider.
 func (a *AuthAdapter) Login(ctx context.Context, email, password string) (string, *authpb.Identity, error) {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {
@@ -265,7 +265,7 @@ func (a *AuthAdapter) Login(ctx context.Context, email, password string) (string
 }
 
 // RequestPasswordReset generates a reset token for the given email.
-// Returns the raw token (caller sends it via email). Only supported by db_auth provider.
+// Returns the raw token (caller sends it via email). Only supported by password provider.
 func (a *AuthAdapter) RequestPasswordReset(ctx context.Context, email string) (string, error) {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {
@@ -275,7 +275,7 @@ func (a *AuthAdapter) RequestPasswordReset(ctx context.Context, email string) (s
 }
 
 // ExecutePasswordReset validates a reset token and sets a new password.
-// Only supported by db_auth provider.
+// Only supported by password provider.
 func (a *AuthAdapter) ExecutePasswordReset(ctx context.Context, token, newPassword string) error {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {
@@ -285,7 +285,7 @@ func (a *AuthAdapter) ExecutePasswordReset(ctx context.Context, token, newPasswo
 }
 
 // CreateSession creates a new session for the given user.
-// Only supported by db_auth provider.
+// Only supported by password provider.
 func (a *AuthAdapter) CreateSession(ctx context.Context, userID string) (string, error) {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {
@@ -295,7 +295,7 @@ func (a *AuthAdapter) CreateSession(ctx context.Context, userID string) (string,
 }
 
 // ValidateSession checks if a session token is valid and returns the user ID.
-// Only supported by db_auth provider.
+// Only supported by password provider.
 func (a *AuthAdapter) ValidateSession(ctx context.Context, token string) (string, error) {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {
@@ -305,7 +305,7 @@ func (a *AuthAdapter) ValidateSession(ctx context.Context, token string) (string
 }
 
 // InvalidateSession marks a session as inactive.
-// Only supported by db_auth provider.
+// Only supported by password provider.
 func (a *AuthAdapter) InvalidateSession(ctx context.Context, token string) error {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {
@@ -329,7 +329,7 @@ func (a *AuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, n
 }
 
 // GetSessionWorkspaceContext returns the workspace_user_id and workspace_id stored on the session.
-// Only supported by db_auth provider. Returns empty strings for other providers.
+// Only supported by password provider. Returns empty strings for other providers.
 func (a *AuthAdapter) GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string) {
 	dbAuth, ok := a.provider.(databaseAuthOperations)
 	if !ok {

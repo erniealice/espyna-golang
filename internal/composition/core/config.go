@@ -36,12 +36,11 @@ FIRESTORE_DATABASE=                       Firestore database name (optional)
 🔐 AUTHENTICATION PROVIDERS:
 ═══════════════════════════════════════════════════════════════════════════
 
-CONFIG_AUTH_PROVIDER=mock_auth            (default) Mock authentication for development
-CONFIG_AUTH_PROVIDER=firebase_auth        Firebase Authentication
+CONFIG_AUTH_PROVIDER=mock                 (default) Mock authentication for development
 CONFIG_AUTH_PROVIDER=password             Password + session auth (any DB backend via DatabaseOperation)
-CONFIG_AUTH_PROVIDER=db_auth              [legacy alias for "password"]
+CONFIG_AUTH_PROVIDER=firebase             Firebase Authentication
 
-🔥 FIREBASE AUTH (firebase_auth):
+🔥 FIREBASE AUTH (firebase):
 FIREBASE_AUTH_PROJECT_ID=your-project-id      Google Cloud project ID (required)
 FIREBASE_AUTH_CREDENTIALS_PATH=/path/to/creds.json Service account credentials file path
 FIREBASE_AUTH_TENANT_ID=                     Firebase Auth tenant ID (optional)
@@ -88,7 +87,7 @@ Example entities: CLIENT, MANAGER, SUBSCRIPTION, PAYMENT, PRODUCT, etc.
 
 # Development with mock providers:
 export CONFIG_DATABASE_PROVIDER=mock_db
-export CONFIG_AUTH_PROVIDER=mock_auth
+export CONFIG_AUTH_PROVIDER=mock
 export BUSINESS_TYPE=education
 
 # Production with PostgreSQL and Firebase Auth:

@@ -1,4 +1,4 @@
-//go:build noop || mock_auth || mock_db
+//go:build mock_auth
 
 package noop
 

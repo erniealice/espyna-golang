@@ -80,7 +80,6 @@ registry/
 ├── email.go         # Email provider factories
 ├── payment.go       # Payment provider factories
 ├── id.go            # ID service factories + IDProviderConfig
-├── translation.go   # Translation service factories + TranslationProviderConfig
 └── convenience.go   # ListAllAvailable*() helpers
 ```
 
@@ -129,13 +128,13 @@ Runtime instance management:
 - `HealthCheck()` - checks all enabled providers
 - `Close()` - graceful shutdown of all providers
 
-### Provider Files (auth.go, storage.go, email.go, payment.go, id.go, translation.go)
+### Provider Files (auth.go, storage.go, email.go, payment.go, id.go)
 Each contains:
 - Global registry instance (`var authRegistry = NewFactoryRegistry[...]`)
 - Public registration functions (`RegisterAuthProviderFactory`)
 - Public retrieval functions (`GetAuthProviderFactory`, `BuildAuthProviderFromEnv`)
 
-## Provider Types (7 Total)
+## Provider Types (6 Total)
 
 | Provider | Config Type | Example Implementations |
 |----------|-------------|-------------------------|
@@ -145,7 +144,6 @@ Each contains:
 | email | `*emailpb.EmailProviderConfig` | gmail, microsoft, mock |
 | payment | `*paymentpb.PaymentProviderConfig` | maya, asiapay, mock |
 | id | `*IDProviderConfig` | uuidv7, noop |
-| translation | `*TranslationProviderConfig` | file, lyngua, noop, mock |
 
 ## Usage Patterns
 

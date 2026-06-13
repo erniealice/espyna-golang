@@ -35,7 +35,7 @@ func SetupTestEnvironment(providerName string) {
 	}
 
 	// Set common test environment variables
-	os.Setenv("CONFIG_AUTH_PROVIDER", "mock_auth")
+	os.Setenv("CONFIG_AUTH_PROVIDER", "mock")
 	os.Setenv("CONFIG_STORAGE_PROVIDER", "mock_storage")
 }
 

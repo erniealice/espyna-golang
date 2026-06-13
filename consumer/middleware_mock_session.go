@@ -197,7 +197,7 @@ func (m *MockSessionMiddleware) injectIdentity(ctx context.Context, id *MockSess
 // CreateWorkspaceUser) enforce authcheck. We therefore inject the test
 // identity into the bootstrap context so authcheck resolves the current
 // user as the superadmin seed — who, in the RBAC seed data, holds every
-// permission. Dev-mode only; never reachable outside CONFIG_AUTH_PROVIDER=mock_auth.
+// permission. Dev-mode only; never reachable outside CONFIG_AUTH_PROVIDER=mock.
 func (m *MockSessionMiddleware) bootstrapSession(ctx context.Context) (string, error) {
 	if m.useCases == nil || m.useCases.Service == nil || m.useCases.Service.Auth == nil {
 		return "", fmt.Errorf("mock session middleware: service-driven auth use cases not wired")
@@ -234,7 +234,7 @@ func (m *MockSessionMiddleware) bootstrapSession(ctx context.Context) (string, e
 
 // ensureUser creates the dev test user if it doesn't already exist, routing
 // through ReadUser -> CreateUser. Each call enforces its own authcheck; in
-// mock_auth mode that check is a no-op.
+// mock mode that check is a no-op.
 func (m *MockSessionMiddleware) ensureUser(ctx context.Context) error {
 	if m.useCases == nil || m.useCases.Entity == nil || m.useCases.Entity.User == nil {
 		return fmt.Errorf("user use cases unavailable")

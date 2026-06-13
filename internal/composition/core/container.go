@@ -155,7 +155,7 @@ func NewContainer() *Container {
 //
 // Environment variables (provider selection):
 //   - CONFIG_DATABASE_PROVIDER: mock_db, postgres, firestore (default: mock_db)
-//   - CONFIG_AUTH_PROVIDER: mock_auth, firebase_auth (default: mock_auth)
+//   - CONFIG_AUTH_PROVIDER: mock, password, firebase (default: mock)
 //   - CONFIG_ID_PROVIDER: noop, google_uuidv7 (default: noop)
 //   - CONFIG_STORAGE_PROVIDER: mock_storage, local, gcs (default: mock_storage)
 //   - CONFIG_EMAIL_PROVIDER: mock_email, google_email, microsoft_email (default: mock_email)
@@ -170,7 +170,7 @@ func NewContainerFromEnv() (*Container, error) {
 	// Log which providers are configured (providers self-configure from env)
 	fmt.Printf("📦 Creating container from environment...\n")
 	fmt.Printf("   Database:  %s\n", strings.ToLower(getEnv("CONFIG_DATABASE_PROVIDER", "mock_db")))
-	fmt.Printf("   Auth:      %s\n", strings.ToLower(getEnv("CONFIG_AUTH_PROVIDER", "mock_auth")))
+	fmt.Printf("   Auth:      %s\n", strings.ToLower(getEnv("CONFIG_AUTH_PROVIDER", "mock")))
 	fmt.Printf("   ID:        %s\n", strings.ToLower(getEnv("CONFIG_ID_PROVIDER", "noop")))
 	fmt.Printf("   Storage:   %s\n", strings.ToLower(getEnv("CONFIG_STORAGE_PROVIDER", "mock_storage")))
 	fmt.Printf("   Email:     %s\n", strings.ToLower(getEnv("CONFIG_EMAIL_PROVIDER", "mock_email")))

@@ -5,8 +5,6 @@ package mock
 import (
 	"context"
 	"fmt"
-
-	"github.com/erniealice/espyna-golang/internal/application/ports"
 )
 
 // MockAuthorizationService provides a configurable mock for testing authorization scenarios

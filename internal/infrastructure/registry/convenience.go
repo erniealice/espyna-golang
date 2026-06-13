@@ -13,7 +13,6 @@ func ListAllAvailableFactories() map[string][]string {
 		"email":       ListAvailableEmailProviderFactories(),
 		"payment":     ListAvailablePaymentProviderFactories(),
 		"id":          ListAvailableIDProviderFactories(),
-		"translation": ListAvailableTranslationProviderFactories(),
 	}
 }
 
@@ -26,6 +25,5 @@ func ListAllAvailableBuildFromEnv() map[string][]string {
 		"email":       ListAvailableEmailBuildFromEnv(),
 		"payment":     ListAvailablePaymentBuildFromEnv(),
 		"id":          ListAvailableIDBuildFromEnv(),
-		"translation": ListAvailableTranslationBuildFromEnv(),
 	}
 }

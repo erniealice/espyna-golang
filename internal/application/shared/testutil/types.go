@@ -9,7 +9,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
 	mockDb "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/mock"
-	mockTranslation "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/mock"
 )
 
 // StandardServices provides the complete set of services needed for testing
@@ -38,7 +37,7 @@ func CreateStandardServices(supportsTransaction, shouldAuthorize bool) StandardS
 	return StandardServices{
 		Authorizer:  authService,
 		Transactor:  mockDb.NewMockTransactionService(supportsTransaction),
-		Translator:  mockTranslation.NewMockTranslationService(),
+		Translator:  ports.NewNoOpTranslator(),
 		IDGenerator: ports.NewNoOpIDGenerator(), // Use NoOp for test consistency without additional build tags
 	}
 }

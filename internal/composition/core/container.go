@@ -16,7 +16,6 @@ import (
 	infraopts "github.com/erniealice/espyna-golang/internal/composition/options/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/composition/providers"
 	repodomain "github.com/erniealice/espyna-golang/internal/composition/providers/domain"
-	infraProviders "github.com/erniealice/espyna-golang/internal/composition/providers/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/integration"
 	"github.com/erniealice/espyna-golang/internal/composition/routing"
 	dbifaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
@@ -42,7 +41,6 @@ type Platform struct {
 	Metrics        contracts.Service           // Metrics and monitoring service
 	Logger         contracts.Service           // Logging service
 	Cache          contracts.Service           // Caching service
-	Translation    contracts.Service           // Translation/i18n service
 	Transaction    ports.Transactor            // Transaction port (real DB-backed, NoOp when no DB)
 	IDGen          contracts.Service           // ID generation service (UUID v7, etc.)
 	Email          ports.EmailProvider         // Email provider service (Gmail, SendGrid, etc.)
@@ -83,27 +81,6 @@ func (m *MockService) Health(ctx context.Context) error {
 	return nil
 }
 
-// translationServiceWrapper wraps ports.Translator to implement contracts.Service
-type translationServiceWrapper struct {
-	svc ports.Translator
-}
-
-func (w *translationServiceWrapper) Name() string {
-	return "translation"
-}
-
-func (w *translationServiceWrapper) Start(ctx context.Context) error {
-	return nil
-}
-
-func (w *translationServiceWrapper) Stop(ctx context.Context) error {
-	return nil
-}
-
-func (w *translationServiceWrapper) Health(ctx context.Context) error {
-	return nil
-}
-
 // NewDefaultPlatform creates a Platform struct with mock defaults
 func NewDefaultPlatform() *Platform {
 	return &Platform{
@@ -112,7 +89,6 @@ func NewDefaultPlatform() *Platform {
 		Metrics:     NewMockService("mock-metrics"),
 		Logger:      NewMockService("mock-logger"),
 		Cache:       NewMockService("mock-cache"),
-		Translation: NewMockService("mock-translation"),
 		// Transaction is a real ports.Transactor (NOT a MockService). The NoOp
 		// fallback reports SupportsTransactions()==false so use cases take their
 		// executeCore (no-tx) branch — identical to the pre-wiring dormant
@@ -366,15 +342,6 @@ func (c *Container) Initialize() error {
 		fmt.Printf("✅ Tabular provider initialized: %s\n", provider.Name())
 	}
 
-	// Initialize translation provider from environment (default: lyngua)
-	fmt.Printf("🌐 Initializing translation provider...\n")
-	if translationSvc, err := infraProviders.CreateTranslationService(); err != nil {
-		fmt.Printf("⚠️ Failed to initialize translation provider: %v\n", err)
-	} else if translationSvc != nil {
-		c.services.Translation = &translationServiceWrapper{svc: translationSvc}
-		fmt.Printf("✅ Translation provider initialized\n")
-	}
-
 	// Initialize the transaction port from the active DB adapter (provider-agnostic).
 	//
 	// This is the ONE Platform service NewDefaultPlatform leaves as a NoOp:
@@ -552,12 +519,11 @@ func (c *Container) getServicesForInitializers() (
 
 	txSvc, _ = c.services.Transaction.(ports.Transactor)
 
-	// Extract Translator from wrapper or direct assignment
-	if wrapper, ok := c.services.Translation.(*translationServiceWrapper); ok {
-		i18nSvc = wrapper.svc
-	} else {
-		i18nSvc, _ = c.services.Translation.(ports.Translator)
-	}
+	// P6 (E5): translation provider system retired. Use the port-level NoOp
+	// translator directly. Track 1 (authcheck error-message translation) has
+	// always run noop in production; Track 2 (lyngua label loading) is wired
+	// directly in service-admin composition and does not flow through this path.
+	i18nSvc = ports.NewNoOpTranslator()
 
 	return authSvc, txSvc, i18nSvc, idSvc, nil
 }

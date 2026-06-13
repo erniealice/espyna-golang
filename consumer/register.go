@@ -35,9 +35,4 @@ import (
 
 	// --- Tabular (mock — no build tag, always compiles) ---
 	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/tabular/mock"
-
-	// --- Translation (noop + file + mock — all have stubs) ---
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/file"
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/mock"
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/translation/noop"
 )

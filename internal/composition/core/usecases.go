@@ -1165,12 +1165,9 @@ func (uci *UseCaseInitializer) getServices(container *Container) (
 
 	txSvc, _ = container.services.Transaction.(ports.Transactor)
 
-	// Extract Translator from wrapper or direct assignment
-	if wrapper, ok := container.services.Translation.(*translationServiceWrapper); ok {
-		i18nSvc = wrapper.svc
-	} else {
-		i18nSvc, _ = container.services.Translation.(ports.Translator)
-	}
+	// P6 (E5): translation provider system retired. Use the port-level NoOp
+	// translator directly — the provider machinery has been deleted.
+	i18nSvc = ports.NewNoOpTranslator()
 
 	return authSvc, txSvc, i18nSvc, idSvc, nil
 }

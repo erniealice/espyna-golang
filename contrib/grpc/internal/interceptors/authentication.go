@@ -78,11 +78,15 @@ func (i *AuthenticationInterceptor) UnaryInterceptor() grpc.UnaryServerIntercept
 			return nil, status.Error(codes.Unauthenticated, resp.ErrorMessage)
 		}
 
-		// Add user information to context
-		ctx = identity.WithRequestIdentity(ctx, &identity.RequestIdentity{
-			UserID: resp.Identity.Id,
-			Email:  resp.Identity.Email,
-		})
+		// Add user information to context.
+		//
+		// SECURITY: Do NOT write identity.RequestIdentity here. This JWT-based
+		// auth interceptor only knows UserID/Email — it has no workspace context.
+		// Writing a RequestIdentity with empty WorkspaceID would cause
+		// identity.Must(ctx).WorkspaceID to return "" instead of panicking,
+		// which disables tenant filtering on fail-open SQL predicates.
+		// The session middleware resolves the full identity and writes
+		// RequestIdentity with workspace context populated.
 		ctx = context.WithValue(ctx, "identity", resp.Identity)
 		if resp.Token != nil && resp.Token.ExpiresAt != nil {
 			ctx = context.WithValue(ctx, "expires", resp.Token.ExpiresAt.AsTime().Unix())

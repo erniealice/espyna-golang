@@ -35,6 +35,7 @@ func NewListRevenueUseCase(
 	r reporter,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *ListRevenueUseCase {
 	if i18nSvc == nil {
 		i18nSvc = ports.NewNoOpTranslator()
@@ -43,6 +44,7 @@ func NewListRevenueUseCase(
 		reporter:             r,
 		authorizationService: authSvc,
 		translationService:   i18nSvc,
+		actionGatekeeper:     actionGate,
 	}
 }
 

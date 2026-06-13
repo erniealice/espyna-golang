@@ -27,6 +27,7 @@ func NewGetClientStatementUseCase(
 	r reporter,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *GetClientStatementUseCase {
 	if i18nSvc == nil {
 		i18nSvc = ports.NewNoOpTranslator()
@@ -35,6 +36,7 @@ func NewGetClientStatementUseCase(
 		reporter:             r,
 		authorizationService: authSvc,
 		translationService:   i18nSvc,
+		actionGatekeeper:     actionGate,
 	}
 }
 

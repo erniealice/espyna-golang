@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	sharedidentity "github.com/erniealice/espyna-golang/shared/identity"
 )
 
 // SessionContextKey is the context key type for session data.
@@ -109,6 +111,13 @@ func (m *SessionMiddleware) Handler(next http.Handler) http.Handler {
 		// denial, and NOT a carry-over from any prior binding.
 		ctx := WithSessionIdentity(r.Context(), identity.UserID, identity.WorkspaceID, identity.WorkspaceUserID, "")
 		ctx = context.WithValue(ctx, ContextKeySessionToken, token)
+
+		// Stamp the session token onto the RequestIdentity struct that
+		// WithSessionIdentity just stored. The struct is stored by pointer,
+		// so mutating the retrieved pointer updates the context value in place.
+		if rid, ok := sharedidentity.FromContext(ctx); ok {
+			rid.SessionToken = token
+		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

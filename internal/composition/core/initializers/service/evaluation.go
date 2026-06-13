@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/shared/resourcegate"
 	performanceuc "github.com/erniealice/espyna-golang/internal/application/usecases/service/performance"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
@@ -19,6 +20,7 @@ func initServicePerformance(
 	operationRepos *domain.OperationRepositories,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *performanceuc.UseCase {
 	if operationRepos == nil {
 		return nil
@@ -51,6 +53,7 @@ func initServicePerformance(
 		performanceuc.Services{
 			Authorizer:         authSvc,
 			Translator:         i18nSvc,
+			ActionGatekeeper:   actionGate,
 			ResourceGatekeeper: resourcegate.NewResourceGatekeeper(authSvc, clientScope, subScope),
 		},
 	)

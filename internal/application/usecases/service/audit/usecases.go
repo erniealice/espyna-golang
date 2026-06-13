@@ -32,8 +32,9 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 		ListAuditEntries: NewListAuditEntriesUseCase(
 			ListAuditEntriesRepositories{AuditService: repositories.AuditService},
 			ListAuditEntriesServices{
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

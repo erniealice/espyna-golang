@@ -80,6 +80,7 @@ func WithEmail(ctx context.Context, email string) context.Context {
 }
 
 func WithSessionIdentity(ctx context.Context, userID, workspaceID, workspaceUserID, email string) context.Context {
+	// Legacy per-key writers (backward compat during N9 P1a transition).
 	ctx = WithUserID(ctx, userID)
 	if workspaceID != "" {
 		ctx = WithWorkspaceID(ctx, workspaceID)
@@ -90,18 +91,37 @@ func WithSessionIdentity(ctx context.Context, userID, workspaceID, workspaceUser
 	if email != "" {
 		ctx = WithEmail(ctx, email)
 	}
+
+	// Typed RequestIdentity writer (N9 P1a bridge fix). Migrated adapters
+	// call identity.Must(ctx) which only checks this typed key — without it,
+	// normal session-backed CRUD paths panic. The session middleware has the
+	// full identity (user + workspace + email), so this is the correct place
+	// to store the struct atomically.
+	ctx = identity.WithRequestIdentity(ctx, &identity.RequestIdentity{
+		UserID:          userID,
+		WorkspaceID:     workspaceID,
+		WorkspaceUserID: workspaceUserID,
+		Email:           email,
+	})
+
 	return ctx
 }
 
 // --- Readers ---
 //
-// Bridge pattern (N9 P1): check the RequestIdentity struct first. If present,
-// read from the struct (fail-CLOSED). If absent, fall back to legacy per-key
-// context values (backward compat during the P1a transition).
+// Bridge pattern (N9 P1): check the RequestIdentity struct first. If present
+// AND the field is non-empty, read from the struct. If the struct is absent or
+// the specific field is empty, fall back to legacy per-key context values.
+// This per-field fallback handles mixed contexts where different writers
+// populate different fields — e.g. gRPC auth sets UserID/Email on the struct
+// while the metadata interceptor writes workspace via raw context key.
 
 func ExtractUserIDFromContext(ctx context.Context) string {
-	// Bridge: prefer the typed RequestIdentity struct
-	if id, ok := identity.FromContext(ctx); ok {
+	// Bridge: prefer the typed RequestIdentity struct, but fall through to
+	// legacy keys per-field when the struct field is empty. This handles
+	// mixed contexts (e.g. gRPC auth sets UserID on the struct but a
+	// separate interceptor writes workspace via raw key).
+	if id, ok := identity.FromContext(ctx); ok && id.UserID != "" {
 		return id.UserID
 	}
 	// Legacy fallback: per-key context values
@@ -119,17 +139,21 @@ func ExtractUserIDFromContext(ctx context.Context) string {
 }
 
 func ExtractWorkspaceIDFromContext(ctx context.Context) string {
-	if id, ok := identity.FromContext(ctx); ok {
+	if id, ok := identity.FromContext(ctx); ok && id.WorkspaceID != "" {
 		return id.WorkspaceID
 	}
 	if v, ok := ctx.Value(keyWorkspaceID).(string); ok && v != "" {
+		return v
+	}
+	// Backward compat: legacy plain string key (gRPC interceptor writes this)
+	if v, ok := ctx.Value("workspace_id").(string); ok && v != "" {
 		return v
 	}
 	return ""
 }
 
 func ExtractWorkspaceUserIDFromContext(ctx context.Context) string {
-	if id, ok := identity.FromContext(ctx); ok {
+	if id, ok := identity.FromContext(ctx); ok && id.WorkspaceUserID != "" {
 		return id.WorkspaceUserID
 	}
 	if v, ok := ctx.Value(keyWorkspaceUserID).(string); ok && v != "" {
@@ -139,7 +163,7 @@ func ExtractWorkspaceUserIDFromContext(ctx context.Context) string {
 }
 
 func ExtractEmailFromContext(ctx context.Context) string {
-	if id, ok := identity.FromContext(ctx); ok {
+	if id, ok := identity.FromContext(ctx); ok && id.Email != "" {
 		return id.Email
 	}
 	if v, ok := ctx.Value(keyEmail).(string); ok && v != "" {

@@ -10,7 +10,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/erniealice/espyna-golang/ports"
-	"github.com/erniealice/espyna-golang/shared/identity"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 )
 
@@ -78,14 +77,16 @@ func (m *AuthenticationMiddleware) RequireAuth() fiber.Handler {
 			})
 		}
 
-		// Add user information to the request user context. Mirrors the vanilla
-		// adapter which writes uid via identity.WithRequestIdentity plus
-		// email/identity/expires onto the request context.
-		ctx := identity.WithRequestIdentity(c.UserContext(), &identity.RequestIdentity{
-			UserID: resp.Identity.Id,
-			Email:  resp.Identity.Email,
-		})
-		ctx = contextWithValue(ctx, ctxKeyIdentity, resp.Identity)
+		// Add user information to the request user context.
+		//
+		// SECURITY: Do NOT write identity.RequestIdentity here. This JWT-based
+		// auth middleware only knows UserID/Email — it has no workspace context.
+		// Writing a RequestIdentity with empty WorkspaceID would cause
+		// identity.Must(ctx).WorkspaceID to return "" instead of panicking,
+		// which disables tenant filtering on fail-open SQL predicates.
+		// The session middleware resolves the full identity and writes
+		// RequestIdentity with workspace context populated.
+		ctx := contextWithValue(c.UserContext(), ctxKeyIdentity, resp.Identity)
 		if resp.Token != nil && resp.Token.ExpiresAt != nil {
 			ctx = contextWithValue(ctx, ctxKeyExpires, resp.Token.ExpiresAt.AsTime().Unix())
 		}

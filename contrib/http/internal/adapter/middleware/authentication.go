@@ -71,12 +71,20 @@ func (m *AuthenticationMiddleware) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		// Add user information to request context
-		ctx := identity.WithRequestIdentity(r.Context(), &identity.RequestIdentity{
-			UserID: resp.Identity.Id,
-			Email:  resp.Identity.Email,
-		})
-		ctx = context.WithValue(ctx, "identity", resp.Identity)
+		// Add user information to request context.
+		//
+		// SECURITY: Do NOT write identity.RequestIdentity here. This JWT-based
+		// auth middleware only knows UserID/Email — it has no workspace context.
+		// Writing a RequestIdentity with empty WorkspaceID would cause
+		// identity.Must(ctx).WorkspaceID to return "" instead of panicking,
+		// which in turn disables tenant filtering on queries that use
+		// fail-open predicates like ($1 IS NULL OR $1 = '' OR ...).
+		//
+		// The session middleware (consumer.SessionMiddleware) resolves the full
+		// identity (user + workspace + workspace_user) from the session store
+		// and is the correct place to write RequestIdentity. JWT-based paths
+		// that need workspace context must resolve it before storing identity.
+		ctx := context.WithValue(r.Context(), "identity", resp.Identity)
 		if resp.Token != nil && resp.Token.ExpiresAt != nil {
 			ctx = context.WithValue(ctx, "expires", resp.Token.ExpiresAt.AsTime().Unix())
 		}

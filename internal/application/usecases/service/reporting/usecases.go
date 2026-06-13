@@ -212,29 +212,34 @@ func NewReportingUseCases(deps *Deps) *ReportingUseCases {
 	}
 	return &ReportingUseCases{
 		ARAging: ar_aging.NewUseCases(&ar_aging.Deps{
-			Reporter:   deps.ARAgingReporter,
-			Authorizer: deps.Authorizer,
-			Translator: deps.Translator,
+			Reporter:         deps.ARAgingReporter,
+			Authorizer:       deps.Authorizer,
+			Translator:       deps.Translator,
+			ActionGatekeeper: deps.ActionGatekeeper,
 		}),
 		APAging: ap_aging.NewUseCases(&ap_aging.Deps{
-			Reporter:   deps.APAgingReporter,
-			Authorizer: deps.Authorizer,
-			Translator: deps.Translator,
+			Reporter:         deps.APAgingReporter,
+			Authorizer:       deps.Authorizer,
+			Translator:       deps.Translator,
+			ActionGatekeeper: deps.ActionGatekeeper,
 		}),
 		GrossCashFlow: gross_cashflow.NewUseCases(&gross_cashflow.Deps{
-			Reporter:   deps.GrossCashFlowReporter,
-			Authorizer: deps.Authorizer,
-			Translator: deps.Translator,
+			Reporter:         deps.GrossCashFlowReporter,
+			Authorizer:       deps.Authorizer,
+			Translator:       deps.Translator,
+			ActionGatekeeper: deps.ActionGatekeeper,
 		}),
 		Statements: statements.NewUseCases(&statements.Deps{
-			Reporter:   deps.StatementsReporter,
-			Authorizer: deps.Authorizer,
-			Translator: deps.Translator,
+			Reporter:         deps.StatementsReporter,
+			Authorizer:       deps.Authorizer,
+			Translator:       deps.Translator,
+			ActionGatekeeper: deps.ActionGatekeeper,
 		}),
 		DomainSpecific: domain_specific.NewUseCases(&domain_specific.Deps{
-			Reporter:   deps.DomainSpecificReporter,
-			Authorizer: deps.Authorizer,
-			Translator: deps.Translator,
+			Reporter:         deps.DomainSpecificReporter,
+			Authorizer:       deps.Authorizer,
+			Translator:       deps.Translator,
+			ActionGatekeeper: deps.ActionGatekeeper,
 		}),
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	sharedidentity "github.com/erniealice/espyna-golang/shared/identity"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
@@ -187,6 +188,14 @@ func (m *MockSessionMiddleware) injectIdentity(ctx context.Context, id *MockSess
 	ctx = WithSessionIdentity(ctx, id.UserID, wsID, wsUserID, id.Email)
 	ctx = context.WithValue(ctx, ContextKeyUserID, id.UserID)
 	ctx = context.WithValue(ctx, ContextKeySessionToken, id.Token)
+
+	// Stamp the session token onto the RequestIdentity that
+	// WithSessionIdentity just stored. The struct is stored by pointer,
+	// so mutating the retrieved pointer updates the context value in place.
+	if rid, ok := sharedidentity.FromContext(ctx); ok {
+		rid.SessionToken = id.Token
+	}
+
 	return ctx
 }
 

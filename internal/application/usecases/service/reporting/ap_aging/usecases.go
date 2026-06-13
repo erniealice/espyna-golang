@@ -159,11 +159,13 @@ func NewUseCases(deps *Deps) *UseCases {
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		GetSimplePayablesAgingReport: NewGetSimplePayablesAgingReportUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 	}
 }

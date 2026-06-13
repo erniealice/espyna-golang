@@ -37,6 +37,7 @@ func NewGetSimplePayablesAgingReportUseCase(
 	r reporter,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *GetSimplePayablesAgingReportUseCase {
 	if i18nSvc == nil {
 		i18nSvc = ports.NewNoOpTranslator()
@@ -45,6 +46,7 @@ func NewGetSimplePayablesAgingReportUseCase(
 		reporter:             r,
 		authorizationService: authSvc,
 		translationService:   i18nSvc,
+		actionGatekeeper:     actionGate,
 	}
 }
 

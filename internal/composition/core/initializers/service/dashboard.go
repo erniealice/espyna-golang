@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	dashboardusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
 	admindash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
@@ -29,6 +30,7 @@ func initServiceDashboard(
 	db *sql.DB,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
+	actionGate *actiongate.ActionGatekeeper,
 	entityRepos *domain.EntityRepositories,
 	ledgerRepos *domain.LedgerRepositories,
 	payrollRepos *domain.PayrollRepositories,
@@ -43,6 +45,7 @@ func initServiceDashboard(
 		DB:                      db,
 		Authorizer:              authSvc,
 		Translator:              i18nSvc,
+		ActionGatekeeper:        actionGate,
 		ScheduleEntityDashboard: scheduleEntityDash,
 	}
 

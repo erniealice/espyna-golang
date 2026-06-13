@@ -13,6 +13,7 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
 	svcusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service"
@@ -46,6 +47,7 @@ func InitializeAll(
 	i18nSvc ports.Translator,
 	txSvc ports.Transactor,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 	entityRepos *domain.EntityRepositories,
 	ledgerRepos *domain.LedgerRepositories,
 	payrollRepos *domain.PayrollRepositories,
@@ -58,13 +60,13 @@ func InitializeAll(
 	ledgerReportingSvc any,
 	entityComputeTaxes *compute_taxes_for_revenue.ComputeTaxesForRevenueUseCase,
 ) (*svcusecases.ServiceUseCases, error) {
-	auditUC := initServiceAudit(db, authSvc, i18nSvc)
+	auditUC := initServiceAudit(db, authSvc, i18nSvc, actionGate)
 	securityUC := initServiceSecurity(db, i18nSvc)
 	authUC := initServiceAuth(entityRepos, txSvc, i18nSvc, idSvc)
-	dashboardUC := initServiceDashboard(db, authSvc, i18nSvc, entityRepos, ledgerRepos, payrollRepos, treasuryRepos, expenditureRepos, operationRepos, productRepos, fulfillmentRepos, scheduleEntityDash)
-	reportingUC := initServiceReporting(db, authSvc, i18nSvc, ledgerReportingSvc)
+	dashboardUC := initServiceDashboard(db, authSvc, i18nSvc, actionGate, entityRepos, ledgerRepos, payrollRepos, treasuryRepos, expenditureRepos, operationRepos, productRepos, fulfillmentRepos, scheduleEntityDash)
+	reportingUC := initServiceReporting(db, authSvc, i18nSvc, actionGate, ledgerReportingSvc)
 	// Performance Evaluation (20260604 v1) service-layer orchestration.
-	performanceUC := initServicePerformance(operationRepos, authSvc, i18nSvc)
+	performanceUC := initServicePerformance(operationRepos, authSvc, i18nSvc, actionGate)
 	// Tax compute (Plan 2 / Q-SDM-TAX 20260520) — wraps entity-layer use case.
 	taxUC := initServiceTax(entityComputeTaxes)
 	// Amortization (20260604 v1) — pure computation service.

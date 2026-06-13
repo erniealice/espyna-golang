@@ -158,26 +158,31 @@ func NewUseCases(deps *Deps) *UseCases {
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		GetExpenditureReport: NewGetExpenditureReportUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		GetDisbursementReport: NewGetDisbursementReportUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		ListRevenue: NewListRevenueUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		ListExpenses: NewListExpensesUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 	}
 }

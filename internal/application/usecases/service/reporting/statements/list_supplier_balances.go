@@ -31,6 +31,7 @@ func NewListSupplierBalancesUseCase(
 	r reporter,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *ListSupplierBalancesUseCase {
 	if i18nSvc == nil {
 		i18nSvc = ports.NewNoOpTranslator()
@@ -39,6 +40,7 @@ func NewListSupplierBalancesUseCase(
 		reporter:             r,
 		authorizationService: authSvc,
 		translationService:   i18nSvc,
+		actionGatekeeper:     actionGate,
 	}
 }
 

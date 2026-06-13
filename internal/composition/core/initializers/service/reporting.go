@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	reportingusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting"
 )
 
@@ -28,12 +29,14 @@ func initServiceReporting(
 	db *sql.DB,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
+	actionGate *actiongate.ActionGatekeeper,
 	ledgerReportingSvc any,
 ) *reportingusecases.ReportingUseCases {
 	reportingDeps := &reportingusecases.Deps{
 		DB:                     db,
 		Authorizer:             authSvc,
 		Translator:             i18nSvc,
+		ActionGatekeeper:       actionGate,
 		ARAgingReporter:        ledgerReportingSvc,
 		APAgingReporter:        ledgerReportingSvc,
 		GrossCashFlowReporter:  ledgerReportingSvc,

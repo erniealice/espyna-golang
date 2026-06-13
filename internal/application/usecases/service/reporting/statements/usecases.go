@@ -145,21 +145,25 @@ func NewUseCases(deps *Deps) *UseCases {
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		GetSupplierStatement: NewGetSupplierStatementUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		ListClientBalances: NewListClientBalancesUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		ListSupplierBalances: NewListSupplierBalancesUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 	}
 }

@@ -4,19 +4,21 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	auditusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/audit"
 	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // initServiceAudit wires the service-layer Audit sub-aggregate.
-func initServiceAudit(db *sql.DB, authSvc ports.Authorizer, i18nSvc ports.Translator) *auditusecases.UseCases {
+func initServiceAudit(db *sql.DB, authSvc ports.Authorizer, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper) *auditusecases.UseCases {
 	auditSvc := auditServiceFromDB(db)
 	return auditusecases.NewUseCases(
 		auditusecases.Repositories{AuditService: auditSvc},
 		auditusecases.Services{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 }

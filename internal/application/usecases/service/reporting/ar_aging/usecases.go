@@ -175,11 +175,13 @@ func NewUseCases(deps *Deps) *UseCases {
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		GetCollectionSummaryReport: NewGetCollectionSummaryReportUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 	}
 }

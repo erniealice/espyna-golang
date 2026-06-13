@@ -120,11 +120,13 @@ func NewUseCases(deps *Deps) *UseCases {
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 		GetCashBookReport: NewGetCashBookReportUseCase(
 			r,
 			deps.Authorizer,
 			deps.Translator,
+			deps.ActionGatekeeper,
 		),
 	}
 }

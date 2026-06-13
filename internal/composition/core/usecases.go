@@ -1495,7 +1495,7 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, e
 	// pattern (see ar_aging.SetReporter in service/reporting/ar_aging/).
 	var ledgerReportingSvcForARAging any = nil
 
-	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging, entityComputeTaxes)
+	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, actiongate.NewActionGatekeeper(authSvc, i18nSvc), entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging, entityComputeTaxes)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize service-driven use cases: %v\n", err)
 		return &service.ServiceUseCases{}, err

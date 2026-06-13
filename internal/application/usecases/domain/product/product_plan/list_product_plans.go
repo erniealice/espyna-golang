@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
@@ -31,8 +31,10 @@ func NewListProductPlansUseCase(
 // Execute performs the list product plans operation
 func (uc *ListProductPlansUseCase) Execute(ctx context.Context, req *productplanpb.ListProductPlansRequest) (*productplanpb.ListProductPlansResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ProductPlan, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ProductPlan,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

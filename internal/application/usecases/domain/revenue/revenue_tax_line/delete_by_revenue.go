@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
@@ -21,6 +21,7 @@ type DeleteByRevenueRepositories struct {
 type DeleteByRevenueServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteByRevenueRevenueTaxLineUseCase deletes all revenue_tax_line rows for a revenue.
@@ -40,8 +41,10 @@ func NewDeleteByRevenueRevenueTaxLineUseCase(
 
 // Execute deletes all revenue_tax_line rows for the given revenue.
 func (uc *DeleteByRevenueRevenueTaxLineUseCase) Execute(ctx context.Context, revenueID string) error {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueTaxLine, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenueTaxLine,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return err
 	}
 	if revenueID == "" {

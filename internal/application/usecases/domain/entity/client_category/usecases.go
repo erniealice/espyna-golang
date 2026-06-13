@@ -2,6 +2,7 @@ package client_category
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 )
 
@@ -15,6 +16,7 @@ type ClientCategoryServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -39,6 +41,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -47,6 +50,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateClientCategoryRepositories(repositories)
@@ -54,6 +58,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -62,6 +67,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListClientCategoriesRepositories(repositories)
@@ -69,6 +75,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getListPageDataRepos := GetClientCategoryListPageDataRepositories{
@@ -77,6 +84,7 @@ func NewUseCases(
 	getListPageDataServices := GetClientCategoryListPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getItemPageDataRepos := GetClientCategoryItemPageDataRepositories{
@@ -85,6 +93,7 @@ func NewUseCases(
 	getItemPageDataServices := GetClientCategoryItemPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

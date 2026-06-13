@@ -2,6 +2,7 @@ package eventrecurrence
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	eventrecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 )
 
@@ -15,6 +16,7 @@ type EventRecurrenceServices struct {
 	Authorizer  ports.Authorizer // Current: RBAC and permissions
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -41,6 +43,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  transactionService,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -49,6 +52,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: transactionService,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateEventRecurrenceRepositories(repositories)
@@ -56,6 +60,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: transactionService,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteEventRecurrenceRepositories(repositories)
@@ -63,6 +68,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: transactionService,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListEventRecurrencesRepositories(repositories)
@@ -70,6 +76,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: transactionService,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listPageDataRepos := GetEventRecurrenceListPageDataRepositories{
@@ -78,6 +85,7 @@ func NewUseCases(
 	listPageDataServices := GetEventRecurrenceListPageDataServices{
 		Transactor: transactionService,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	itemPageDataRepos := GetEventRecurrenceItemPageDataRepositories{
@@ -86,6 +94,7 @@ func NewUseCases(
 	itemPageDataServices := GetEventRecurrenceItemPageDataServices{
 		Transactor: transactionService,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

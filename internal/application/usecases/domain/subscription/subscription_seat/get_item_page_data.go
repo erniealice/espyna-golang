@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 )
@@ -23,6 +23,7 @@ type GetSubscriptionSeatItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetSubscriptionSeatItemPageDataUseCase handles the business logic for getting subscription seat item page data
@@ -44,8 +45,10 @@ func NewGetSubscriptionSeatItemPageDataUseCase(
 
 // Execute performs the get subscription seat item page data operation
 func (uc *GetSubscriptionSeatItemPageDataUseCase) Execute(ctx context.Context, req *subscriptionseatpb.GetSubscriptionSeatItemPageDataRequest) (*subscriptionseatpb.GetSubscriptionSeatItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionSeat, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionSeat,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

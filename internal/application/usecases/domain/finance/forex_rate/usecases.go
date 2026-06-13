@@ -2,6 +2,7 @@ package forex_rate
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	forexratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/finance/forex_rate"
 )
 
@@ -16,6 +17,7 @@ type ForexRateRepositories struct {
 type ForexRateServices struct {
 	Authorizer  ports.Authorizer
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -35,6 +37,7 @@ func NewUseCases(repositories ForexRateRepositories, services ForexRateServices)
 			ReadForexRateServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListForexRates: NewListForexRatesUseCase(
@@ -42,6 +45,7 @@ func NewUseCases(repositories ForexRateRepositories, services ForexRateServices)
 			ListForexRatesServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		RecordOperatorRate: NewRecordOperatorRateUseCase(
@@ -49,6 +53,7 @@ func NewUseCases(repositories ForexRateRepositories, services ForexRateServices)
 			RecordOperatorRateServices{
 				Authorizer:  services.Authorizer,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),

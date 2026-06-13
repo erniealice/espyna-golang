@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
@@ -22,6 +22,7 @@ type GetCollectionMethodListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetCollectionMethodListPageDataUseCase handles the business logic for getting collection method list page data with pagination, filtering, sorting, and search
@@ -44,8 +45,10 @@ func NewGetCollectionMethodListPageDataUseCase(
 // Execute performs the get collection method list page data operation
 func (uc *GetCollectionMethodListPageDataUseCase) Execute(ctx context.Context, req *collectionmethodpb.GetCollectionMethodListPageDataRequest) (*collectionmethodpb.GetCollectionMethodListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CollectionMethod, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CollectionMethod,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
@@ -22,6 +22,7 @@ type FindApplicablePriceListServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // FindApplicablePriceListUseCase handles the business logic for finding the
@@ -48,8 +49,10 @@ func (uc *FindApplicablePriceListUseCase) Execute(
 	req *pricelistpb.FindApplicablePriceListRequest,
 ) (*pricelistpb.FindApplicablePriceListResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.PriceList, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.PriceList,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package balance_attribute
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
@@ -30,6 +31,7 @@ type BalanceAttributeServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 

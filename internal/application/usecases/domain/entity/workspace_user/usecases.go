@@ -2,6 +2,7 @@ package workspace_user
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -30,6 +31,7 @@ type WorkspaceUserServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -44,6 +46,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -52,6 +55,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateWorkspaceUserRepositories(repositories)
@@ -59,6 +63,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteWorkspaceUserRepositories(repositories)
@@ -66,6 +71,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListWorkspaceUsersRepositories(repositories)
@@ -73,6 +79,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listPageDataRepos := GetWorkspaceUserListPageDataRepositories{
@@ -82,6 +89,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	itemPageDataRepos := GetWorkspaceUserItemPageDataRepositories{
@@ -91,6 +99,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

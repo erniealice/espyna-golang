@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -21,6 +22,7 @@ type CreateCategoryRepositories struct {
 type CreateCategoryServices struct {
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 

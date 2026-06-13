@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
 )
@@ -21,6 +21,7 @@ type GetInvoiceAttributeListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetInvoiceAttributeListPageDataUseCase handles the business logic for getting invoice attribute list page data
@@ -43,8 +44,10 @@ func NewGetInvoiceAttributeListPageDataUseCase(
 // Execute performs the get invoice attribute list page data operation
 func (uc *GetInvoiceAttributeListPageDataUseCase) Execute(ctx context.Context, req *invoiceattributepb.GetInvoiceAttributeListPageDataRequest) (*invoiceattributepb.GetInvoiceAttributeListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.InvoiceAttribute, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.InvoiceAttribute,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

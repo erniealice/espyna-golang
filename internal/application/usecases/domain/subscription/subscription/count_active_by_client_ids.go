@@ -5,7 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -20,6 +20,7 @@ type CountActiveByClientIdsRepositories struct {
 type CountActiveByClientIdsServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // CountActiveByClientIdsUseCase counts active subscriptions grouped by client ID.
@@ -41,8 +42,10 @@ func NewCountActiveByClientIdsUseCase(
 
 // Execute performs an authorization check then delegates to the repository.
 func (uc *CountActiveByClientIdsUseCase) Execute(ctx context.Context, req *subscriptionpb.CountActiveByClientIdsRequest) (*subscriptionpb.CountActiveByClientIdsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Subscription, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Subscription,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repositories.Subscription.CountActiveByClientIds(ctx, req)

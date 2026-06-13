@@ -7,7 +7,7 @@ import (
 	"regexp"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
@@ -23,6 +23,7 @@ type DeleteActivityTemplateServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteActivityTemplateUseCase handles the business logic for deleting activity templates
@@ -61,8 +62,10 @@ func NewDeleteActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTemp
 // Execute performs the delete activity template operation
 func (uc *DeleteActivityTemplateUseCase) Execute(ctx context.Context, req *activityTemplatepb.DeleteActivityTemplateRequest) (*activityTemplatepb.DeleteActivityTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity_template", entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "activity_template",
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

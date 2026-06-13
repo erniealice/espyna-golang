@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
@@ -28,6 +28,7 @@ type UpdateCollectionPlanServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateCollectionPlanUseCase handles the business logic for updating collection plans
@@ -50,8 +51,10 @@ func NewUpdateCollectionPlanUseCase(
 // Execute performs the update collection plan operation
 func (uc *UpdateCollectionPlanUseCase) Execute(ctx context.Context, req *collectionplanpb.UpdateCollectionPlanRequest) (*collectionplanpb.UpdateCollectionPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CollectionPlan, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CollectionPlan,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -18,6 +19,7 @@ type DeleteCategoryRepositories struct {
 type DeleteCategoryServices struct {
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteCategoryUseCase handles the business logic for deleting categories

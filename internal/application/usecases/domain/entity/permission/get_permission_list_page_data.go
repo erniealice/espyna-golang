@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
@@ -21,6 +21,7 @@ type GetPermissionListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetPermissionListPageDataUseCase handles the business logic for getting permission list page data
@@ -60,8 +61,10 @@ func NewGetPermissionListPageDataUseCaseUngrouped(permissionRepo permissionpb.Pe
 // Execute performs the get permission list page data operation
 func (uc *GetPermissionListPageDataUseCase) Execute(ctx context.Context, req *permissionpb.GetPermissionListPageDataRequest) (*permissionpb.GetPermissionListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Permission, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Permission,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

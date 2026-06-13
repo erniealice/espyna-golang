@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
@@ -25,6 +25,7 @@ type ListEventProductsServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListEventProductsUseCase handles the business logic for listing event product associations
@@ -69,8 +70,10 @@ func NewListEventProductsUseCaseUngrouped(eventProductRepo eventproductpb.EventP
 // Execute performs the list event products operation
 func (uc *ListEventProductsUseCase) Execute(ctx context.Context, req *eventproductpb.ListEventProductsRequest) (*eventproductpb.ListEventProductsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.EventProduct, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.EventProduct,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

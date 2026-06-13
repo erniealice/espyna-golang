@@ -9,7 +9,7 @@ import (
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
@@ -24,6 +24,7 @@ type UpdateClientWorkspaceUserServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateClientWorkspaceUserUseCase handles the business logic for updating client workspace users
@@ -49,8 +50,10 @@ func NewUpdateClientWorkspaceUserUseCase(
 // active row for the same client may already be is_owner=true (transactional
 // check; DB partial-unique is the backstop).
 func (uc *UpdateClientWorkspaceUserUseCase) Execute(ctx context.Context, req *clientworkspaceuserpb.UpdateClientWorkspaceUserRequest) (*clientworkspaceuserpb.UpdateClientWorkspaceUserResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ClientWorkspaceUser, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ClientWorkspaceUser,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

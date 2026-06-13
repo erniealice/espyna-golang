@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_attribute"
@@ -24,6 +24,7 @@ type GetClientAttributeItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetClientAttributeItemPageDataUseCase handles the business logic for getting client attribute item page data
@@ -63,8 +64,10 @@ func NewGetClientAttributeItemPageDataUseCaseUngrouped(clientAttributeRepo clien
 // Execute performs the get client attribute item page data operation
 func (uc *GetClientAttributeItemPageDataUseCase) Execute(ctx context.Context, req *clientattributepb.GetClientAttributeItemPageDataRequest) (*clientattributepb.GetClientAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ClientAttribute, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ClientAttribute,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

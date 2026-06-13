@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
@@ -23,6 +23,7 @@ type UpdateRevenueAttributeServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateRevenueAttributeUseCase handles the business logic for updating revenue attributes
@@ -44,8 +45,10 @@ func NewUpdateRevenueAttributeUseCase(
 
 // Execute performs the update revenue attribute operation
 func (uc *UpdateRevenueAttributeUseCase) Execute(ctx context.Context, req *pb.UpdateRevenueAttributeRequest) (*pb.UpdateRevenueAttributeResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueAttribute, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenueAttribute,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

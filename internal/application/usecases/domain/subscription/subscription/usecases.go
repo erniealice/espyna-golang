@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
@@ -34,6 +35,7 @@ type SubscriptionServices struct {
 	Authorizer              ports.Authorizer
 	Transactor              ports.Transactor
 	Translator              ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator             ports.IDGenerator // Only for CreateSubscription
 	JobTemplateInstantiator JobTemplateInstantiator
 }

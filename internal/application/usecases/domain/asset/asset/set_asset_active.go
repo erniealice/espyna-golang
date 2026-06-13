@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
@@ -22,6 +22,7 @@ type SetAssetActiveServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // SetAssetActiveUseCase handles toggling the active flag on an asset.
@@ -47,8 +48,10 @@ func NewSetAssetActiveUseCase(
 
 func (uc *SetAssetActiveUseCase) Execute(ctx context.Context, req *assetpb.SetAssetActiveRequest) (*assetpb.SetAssetActiveResponse, error) {
 	// Authorization check — toggling active is semantically an Update action.
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAsset, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAsset,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

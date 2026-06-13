@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
 	payrolldashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/payroll"
@@ -69,6 +70,7 @@ type GetPayrollDashboardRepositories struct {
 // pilot at `service/dashboard/admin/`).
 type GetPayrollDashboardServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetPayrollDashboardUseCase composes the two payroll aggregates

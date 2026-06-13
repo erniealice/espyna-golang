@@ -2,6 +2,7 @@ package delegate
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 )
 
@@ -15,6 +16,7 @@ type DelegateServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -40,6 +42,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -48,6 +51,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateDelegateRepositories(repositories)
@@ -55,6 +59,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteDelegateRepositories(repositories)
@@ -62,6 +67,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListDelegatesRepositories(repositories)
@@ -69,6 +75,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getListPageDataRepos := GetDelegateListPageDataRepositories(repositories)
@@ -76,6 +83,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getItemPageDataRepos := GetDelegateItemPageDataRepositories(repositories)
@@ -83,6 +91,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

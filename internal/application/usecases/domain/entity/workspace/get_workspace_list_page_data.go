@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -21,6 +21,7 @@ type GetWorkspaceListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetWorkspaceListPageDataUseCase handles the business logic for getting workspace list page data
@@ -46,8 +47,10 @@ func (uc *GetWorkspaceListPageDataUseCase) Execute(
 	req *workspacepb.GetWorkspaceListPageDataRequest,
 ) (*workspacepb.GetWorkspaceListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Workspace, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Workspace,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

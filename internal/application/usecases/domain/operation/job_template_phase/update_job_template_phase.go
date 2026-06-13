@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
@@ -20,6 +20,7 @@ type UpdateJobTemplatePhaseServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateJobTemplatePhaseUseCase handles the business logic for updating job template phases
@@ -42,8 +43,10 @@ func NewUpdateJobTemplatePhaseUseCase(
 // Execute performs the update job template phase operation
 func (uc *UpdateJobTemplatePhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobTemplatePhaseRequest) (*pb.UpdateJobTemplatePhaseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.JobTemplatePhase, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.JobTemplatePhase,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

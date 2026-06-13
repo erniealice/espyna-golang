@@ -2,6 +2,7 @@ package product_plan
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
@@ -19,6 +20,7 @@ type ProductPlanServices struct {
 	Authorizer  ports.Authorizer // Current: RBAC and permissions
 	Transactor  ports.Transactor // Current: Database transactions
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -32,6 +34,7 @@ type ReadProductPlanServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteProductPlanRepositories groups all repository dependencies
@@ -44,6 +47,7 @@ type DeleteProductPlanServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListProductPlansRepositories groups all repository dependencies
@@ -56,6 +60,7 @@ type ListProductPlansServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases contains all product plan-related use cases

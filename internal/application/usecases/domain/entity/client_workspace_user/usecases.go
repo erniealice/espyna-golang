@@ -2,6 +2,7 @@ package client_workspace_user
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 )
@@ -26,6 +27,7 @@ type ClientWorkspaceUserServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -44,6 +46,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -53,6 +56,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateClientWorkspaceUser: NewUpdateClientWorkspaceUserUseCase(
@@ -61,6 +65,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteClientWorkspaceUser: NewDeleteClientWorkspaceUserUseCase(
@@ -69,6 +74,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListClientWorkspaceUsers: NewListClientWorkspaceUsersUseCase(
@@ -77,6 +83,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

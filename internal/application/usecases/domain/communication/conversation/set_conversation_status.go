@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
@@ -27,6 +27,7 @@ type SetConversationStatusServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // SetConversationStatusUseCase transitions a conversation between lifecycle
@@ -69,8 +70,10 @@ var allowedTransitions = map[conversationpb.ConversationStatus]map[conversationp
 // Execute performs the set conversation status operation.
 func (uc *SetConversationStatusUseCase) Execute(ctx context.Context, req *conversationpb.UpdateConversationRequest) (*conversationpb.UpdateConversationResponse, error) {
 	// Verb-fold: conversation:transition -> conversation:update.
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Conversation, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Conversation,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

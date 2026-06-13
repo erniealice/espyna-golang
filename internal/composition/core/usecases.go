@@ -30,6 +30,7 @@ import (
 
 	// Application ports (for service interfaces)
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 
 	// Infrastructure adapters for mock services
@@ -381,7 +382,8 @@ func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	entityUseCases, err := domain.InitializeEntity(repos, authSvc, txSvc, i18nSvc, idSvc)
+	entityUseCases, err := domain.InitializeEntity(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize entity use cases: %v\n", err)
 		return nil, err

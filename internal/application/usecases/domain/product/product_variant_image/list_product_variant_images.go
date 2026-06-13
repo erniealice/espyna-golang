@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
@@ -22,6 +22,7 @@ type ListProductVariantImagesServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListProductVariantImagesUseCase handles the business logic for listing product variant images
@@ -44,8 +45,10 @@ func NewListProductVariantImagesUseCase(
 // Execute performs the list product variant images operation
 func (uc *ListProductVariantImagesUseCase) Execute(ctx context.Context, req *productvariantimagepb.ListProductVariantImagesRequest) (*productvariantimagepb.ListProductVariantImagesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ProductVariantImage, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ProductVariantImage,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

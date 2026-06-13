@@ -7,6 +7,7 @@ package job_template_relation
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 )
 
@@ -19,6 +20,7 @@ type JobTemplateRelationRepositories struct {
 type JobTemplateRelationServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases contains all job-template-relation use cases.

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	serviceamortization "github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
 	"github.com/erniealice/espyna-golang/registry/entityid"
@@ -40,6 +40,7 @@ type AmortizeAdvanceDisbursementServices struct {
 	Authorizer   ports.Authorizer
 	Transactor   ports.Transactor
 	Translator   ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator  ports.IDGenerator
 	// Amortization is the service-driven amortization schedule wrapper.
 	// When non-nil, ComputeNextDueTranche calls go through the proto-typed
@@ -72,12 +73,16 @@ func (uc *AmortizeAdvanceDisbursementUseCase) Execute(
 	if req == nil {
 		req = &disbursementpb.AmortizeAdvanceDisbursementRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTreasuryDisbursement, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityTreasuryDisbursement,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"expense_recognition", entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "expense_recognition",
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryDisbursementId()) == "" {

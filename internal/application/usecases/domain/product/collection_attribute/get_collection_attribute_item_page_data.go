@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	collectionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_attribute"
@@ -21,6 +21,7 @@ type GetCollectionAttributeItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetCollectionAttributeItemPageDataUseCase handles the business logic for getting product attribute item page data
@@ -46,8 +47,10 @@ func (uc *GetCollectionAttributeItemPageDataUseCase) Execute(
 	req *collectionattributepb.GetCollectionAttributeItemPageDataRequest,
 ) (*collectionattributepb.GetCollectionAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CollectionAttribute, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CollectionAttribute,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

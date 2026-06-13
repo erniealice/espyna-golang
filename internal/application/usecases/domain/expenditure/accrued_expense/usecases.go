@@ -2,6 +2,7 @@ package accruedexpense
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 )
 
@@ -16,6 +17,7 @@ type AccruedExpenseServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -44,6 +46,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -52,6 +55,7 @@ func NewUseCases(
 			ReadAccruedExpenseServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateAccruedExpense: NewUpdateAccruedExpenseUseCase(
@@ -59,6 +63,7 @@ func NewUseCases(
 			UpdateAccruedExpenseServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteAccruedExpense: NewDeleteAccruedExpenseUseCase(
@@ -66,6 +71,7 @@ func NewUseCases(
 			DeleteAccruedExpenseServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListAccruedExpenses: NewListAccruedExpensesUseCase(
@@ -73,6 +79,7 @@ func NewUseCases(
 			ListAccruedExpensesServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		AccrueFromContract: NewAccrueFromContractUseCase(
@@ -81,6 +88,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -90,6 +98,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		// SPS Wave 2 Opus: SettleAccrual lives in settle_accrual.go.
@@ -102,6 +111,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),

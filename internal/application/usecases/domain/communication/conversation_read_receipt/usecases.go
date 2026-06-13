@@ -2,6 +2,7 @@ package conversation_read_receipt
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 	conversationPostpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation_post"
 	conversationReadReceiptpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation_read_receipt"
@@ -19,6 +20,7 @@ type ConversationReadReceiptServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -44,6 +46,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  transactionService,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -55,6 +58,7 @@ func NewUseCases(
 			},
 			ComputeConversationUnreadServices{
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

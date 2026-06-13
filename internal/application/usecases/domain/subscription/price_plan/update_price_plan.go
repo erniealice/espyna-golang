@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -33,6 +33,7 @@ type UpdatePricePlanServices struct {
 	Authorizer       ports.Authorizer // Current: RBAC and permissions
 	Transactor       ports.Transactor // Current: Database transactions
 	Translator       ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	ReferenceChecker ports.ReferenceChecker // §3.5 — N>1 active subscription confirm gate
 	IDGenerator      ports.IDGenerator      // 2026-04-28 — needed for client-scope schedule auto-create
 }
@@ -57,8 +58,10 @@ func NewUpdatePricePlanUseCase(
 // Execute performs the update price_plan operation
 func (uc *UpdatePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.UpdatePricePlanRequest) (*priceplanpb.UpdatePricePlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.PricePlan, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.PricePlan,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

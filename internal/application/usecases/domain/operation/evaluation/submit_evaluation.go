@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	evaluationscore "github.com/erniealice/espyna-golang/internal/application/shared/evaluation_score"
@@ -35,6 +35,7 @@ type SubmitEvaluationServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // SubmitEvaluationUseCase moves a DRAFT evaluation to SUBMITTED (Q-EVAL-SNAPSHOT-1).
@@ -56,8 +57,10 @@ func NewSubmitEvaluationUseCase(repositories SubmitEvaluationRepositories, servi
 }
 
 func (uc *SubmitEvaluationUseCase) Execute(ctx context.Context, req *SubmitEvaluationRequest) (*evaluationpb.UpdateEvaluationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Evaluation, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Evaluation,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.EvaluationID == "" {

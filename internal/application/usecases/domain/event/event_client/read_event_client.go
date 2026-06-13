@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -25,6 +25,7 @@ type ReadEventClientServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadEventClientUseCase handles the business logic for reading event client associations
@@ -71,8 +72,10 @@ func NewReadEventClientUseCaseUngrouped(
 // Execute performs the read event client operation
 func (uc *ReadEventClientUseCase) Execute(ctx context.Context, req *eventclientpb.ReadEventClientRequest) (*eventclientpb.ReadEventClientResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.EventClient, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.EventClient,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

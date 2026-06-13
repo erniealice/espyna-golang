@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 )
@@ -21,6 +21,7 @@ type ReadPlanServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadPlanUseCase handles the business logic for reading plans
@@ -43,8 +44,10 @@ func NewReadPlanUseCase(
 // Execute performs the read plan operation
 func (uc *ReadPlanUseCase) Execute(ctx context.Context, req *planpb.ReadPlanRequest) (*planpb.ReadPlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Plan, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Plan,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

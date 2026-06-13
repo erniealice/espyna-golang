@@ -7,7 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -22,6 +22,7 @@ type GetProductPricePlanListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetProductPricePlanListPageDataUseCase handles the business logic for getting product price plan list page data
@@ -48,8 +49,10 @@ func (uc *GetProductPricePlanListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *productpriceplanpb.GetProductPricePlanListPageDataRequest,
 ) (*productpriceplanpb.GetProductPricePlanListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.PricePlan, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.PricePlan,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

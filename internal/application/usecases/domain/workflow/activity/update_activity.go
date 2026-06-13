@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
@@ -24,6 +24,7 @@ type UpdateActivityServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateActivityUseCase handles the business logic for updating activities
@@ -62,8 +63,10 @@ func NewUpdateActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 // Execute performs the update activity operation
 func (uc *UpdateActivityUseCase) Execute(ctx context.Context, req *activitypb.UpdateActivityRequest) (*activitypb.UpdateActivityResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity", entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "activity",
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

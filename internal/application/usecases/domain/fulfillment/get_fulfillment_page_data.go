@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
@@ -19,6 +19,7 @@ type GetFulfillmentItemPageDataRepositories struct {
 type GetFulfillmentItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type GetFulfillmentItemPageDataUseCase struct {
 	repositories GetFulfillmentItemPageDataRepositories
@@ -32,7 +33,7 @@ type GetFulfillmentItemPageDataUseCase struct {
 // response's AllowedEvents field so the view can render available action buttons
 // without importing the state machine directly.
 func (uc *GetFulfillmentItemPageDataUseCase) Execute(ctx context.Context, req *pb.GetFulfillmentItemPageDataRequest) (*pb.GetFulfillmentItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "fulfillment", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "fulfillment", Action: entityid.ActionRead}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Id == "" {

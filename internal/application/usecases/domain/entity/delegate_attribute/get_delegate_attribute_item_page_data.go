@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
@@ -24,6 +24,7 @@ type GetDelegateAttributeItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetDelegateAttributeItemPageDataUseCase handles the business logic for getting delegate attribute item page data
@@ -63,8 +64,10 @@ func NewGetDelegateAttributeItemPageDataUseCaseUngrouped(delegateAttributeRepo d
 // Execute performs the get delegate attribute item page data operation
 func (uc *GetDelegateAttributeItemPageDataUseCase) Execute(ctx context.Context, req *delegateattributepb.GetDelegateAttributeItemPageDataRequest) (*delegateattributepb.GetDelegateAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.DelegateAttribute, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.DelegateAttribute,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

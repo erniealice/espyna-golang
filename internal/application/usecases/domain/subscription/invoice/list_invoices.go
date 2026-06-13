@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	invoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice"
 )
@@ -21,6 +21,7 @@ type ListInvoicesServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator // Current: Text translation and localization
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListInvoicesUseCase handles the business logic for listing invoices
@@ -43,8 +44,10 @@ func NewListInvoicesUseCase(
 // Execute performs the list invoices operation
 func (uc *ListInvoicesUseCase) Execute(ctx context.Context, req *invoicepb.ListInvoicesRequest) (*invoicepb.ListInvoicesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Invoice, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Invoice,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

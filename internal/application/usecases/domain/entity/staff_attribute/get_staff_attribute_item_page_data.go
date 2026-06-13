@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
@@ -24,6 +24,7 @@ type GetStaffAttributeItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetStaffAttributeItemPageDataUseCase handles the business logic for getting staff attribute item page data
@@ -63,8 +64,10 @@ func NewGetStaffAttributeItemPageDataUseCaseUngrouped(staffAttributeRepo staffat
 // Execute performs the get staff attribute item page data operation
 func (uc *GetStaffAttributeItemPageDataUseCase) Execute(ctx context.Context, req *staffattributepb.GetStaffAttributeItemPageDataRequest) (*staffattributepb.GetStaffAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.StaffAttribute, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.StaffAttribute,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

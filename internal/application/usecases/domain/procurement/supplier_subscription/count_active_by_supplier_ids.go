@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	suppliersubscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_subscription"
 )
@@ -20,6 +20,7 @@ type CountActiveBySupplierIdsRepositories struct {
 type CountActiveBySupplierIdsServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // CountActiveBySupplierIdsUseCase counts active supplier subscriptions grouped by supplier ID.
@@ -41,8 +42,10 @@ func NewCountActiveBySupplierIdsUseCase(
 
 // Execute performs an authorization check then delegates to the repository.
 func (uc *CountActiveBySupplierIdsUseCase) Execute(ctx context.Context, req *suppliersubscriptionpb.CountActiveBySupplierIdsRequest) (*suppliersubscriptionpb.CountActiveBySupplierIdsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SupplierSubscription, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SupplierSubscription,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repositories.SupplierSubscription.CountActiveBySupplierIds(ctx, req)

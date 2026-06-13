@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
@@ -21,6 +21,7 @@ type GetProcurementRequestItemPageDataRepositories struct {
 type GetProcurementRequestItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetProcurementRequestItemPageDataUseCase fetches a single procurement request detail.
@@ -39,8 +40,10 @@ func NewGetProcurementRequestItemPageDataUseCase(
 
 // Execute performs the get procurement request item page data operation.
 func (uc *GetProcurementRequestItemPageDataUseCase) Execute(ctx context.Context, req *procurementrequestpb.GetProcurementRequestItemPageDataRequest) (*procurementrequestpb.GetProcurementRequestItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityProcurementRequest, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityProcurementRequest,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetProcurementRequestId() == "" {

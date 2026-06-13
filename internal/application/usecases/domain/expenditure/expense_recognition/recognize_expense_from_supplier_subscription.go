@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
@@ -79,6 +79,7 @@ type RecognizeExpenseFromSupplierSubscriptionServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -122,12 +123,16 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) Execute(
 	ctx context.Context,
 	input RecognizeExpenseFromSupplierSubscriptionInput,
 ) (*RecognizeExpenseFromSupplierSubscriptionOutput, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityExpenseRecognition,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier_subscription", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "supplier_subscription",
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(input.SupplierSubscriptionID) == "" {

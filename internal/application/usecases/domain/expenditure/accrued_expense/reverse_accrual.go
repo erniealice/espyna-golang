@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
@@ -23,6 +23,7 @@ type ReverseAccrualServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReverseAccrualUseCase flips an accrual to status=REVERSED. Guards against
@@ -43,8 +44,10 @@ func NewReverseAccrualUseCase(
 
 // Execute performs the reverse-accrual operation.
 func (uc *ReverseAccrualUseCase) Execute(ctx context.Context, req *accruedexpensepb.ReverseAccrualRequest) (*accruedexpensepb.ReverseAccrualResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAccruedExpense, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAccruedExpense,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetAccruedExpenseId() == "" {

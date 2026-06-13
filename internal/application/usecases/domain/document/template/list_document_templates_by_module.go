@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -22,6 +22,7 @@ type ListDocumentTemplatesByModuleServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListDocumentTemplatesByModuleUseCase handles listing document templates filtered by module_key
@@ -43,8 +44,10 @@ func NewListDocumentTemplatesByModuleUseCase(
 
 // Execute lists document templates belonging to a specific module (e.g. "revenue")
 func (uc *ListDocumentTemplatesByModuleUseCase) Execute(ctx context.Context, moduleKey string) (*documenttemplatepb.ListDocumentTemplatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDocumentTemplate, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityDocumentTemplate,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

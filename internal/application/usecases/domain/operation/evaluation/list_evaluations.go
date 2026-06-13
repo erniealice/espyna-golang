@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
 )
@@ -19,6 +19,7 @@ type ListEvaluationsServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListEvaluationsUseCase lists evaluations. The IDOR workspace_id + client_id +
@@ -36,8 +37,10 @@ func NewListEvaluationsUseCase(repositories ListEvaluationsRepositories, service
 }
 
 func (uc *ListEvaluationsUseCase) Execute(ctx context.Context, req *evaluationpb.ListEvaluationsRequest) (*evaluationpb.ListEvaluationsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Evaluation, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Evaluation,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repositories.Evaluation.ListEvaluations(ctx, req)
@@ -54,8 +57,10 @@ func NewGetEvaluationListPageDataUseCase(repositories ListEvaluationsRepositorie
 }
 
 func (uc *GetEvaluationListPageDataUseCase) Execute(ctx context.Context, req *evaluationpb.GetEvaluationListPageDataRequest) (*evaluationpb.GetEvaluationListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Evaluation, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Evaluation,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repositories.Evaluation.GetEvaluationListPageData(ctx, req)
@@ -72,8 +77,10 @@ func NewGetEvaluationItemPageDataUseCase(repositories ListEvaluationsRepositorie
 }
 
 func (uc *GetEvaluationItemPageDataUseCase) Execute(ctx context.Context, req *evaluationpb.GetEvaluationItemPageDataRequest) (*evaluationpb.GetEvaluationItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Evaluation, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Evaluation,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repositories.Evaluation.GetEvaluationItemPageData(ctx, req)

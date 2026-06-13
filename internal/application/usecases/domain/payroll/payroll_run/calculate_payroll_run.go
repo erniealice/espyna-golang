@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/services/payroll"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -20,6 +20,7 @@ type CalculatePayrollRunUseCase struct {
 	orchestrator         *payroll.Orchestrator
 	authorizationService ports.Authorizer
 	translationService   ports.Translator
+	actionGatekeeper  *actiongate.ActionGatekeeper
 	transactionService   ports.Transactor
 }
 
@@ -41,8 +42,10 @@ func NewCalculatePayrollRunUseCase(
 // Execute performs the calculation. The PayrollRun must already exist and have
 // PayCycles generated for it (use GeneratePayCycles first).
 func (uc *CalculatePayrollRunUseCase) Execute(ctx context.Context, req *payrollrunpb.CalculatePayrollRunRequest) (*payrollrunpb.CalculatePayrollRunResponse, error) {
-	if err := authcheck.Check(ctx, uc.authorizationService, uc.translationService,
-		entityPayrollRun, entityid.ActionUpdate); err != nil {
+	if err := uc.actionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityPayrollRun,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.PayrollRunId == "" {
@@ -83,6 +86,7 @@ type GeneratePayCyclesUseCase struct {
 	orchestrator         *payroll.Orchestrator
 	authorizationService ports.Authorizer
 	translationService   ports.Translator
+	actionGatekeeper  *actiongate.ActionGatekeeper
 }
 
 // NewGeneratePayCyclesUseCase wires the use case.
@@ -100,8 +104,10 @@ func NewGeneratePayCyclesUseCase(
 
 // Execute generates pay cycles for the run.
 func (uc *GeneratePayCyclesUseCase) Execute(ctx context.Context, req *payrollrunpb.GeneratePayCyclesRequest) (*payrollrunpb.GeneratePayCyclesResponse, error) {
-	if err := authcheck.Check(ctx, uc.authorizationService, uc.translationService,
-		entityPayrollRun, entityid.ActionUpdate); err != nil {
+	if err := uc.actionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityPayrollRun,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.PayrollRunId == "" {

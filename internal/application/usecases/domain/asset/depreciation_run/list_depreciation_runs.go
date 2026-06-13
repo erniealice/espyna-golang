@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	deprunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation_run"
@@ -19,6 +19,7 @@ type ListDepreciationRunsRepositories struct {
 type ListDepreciationRunsServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListDepreciationRunsUseCase lists depreciation run history rows.
@@ -43,8 +44,10 @@ func (uc *ListDepreciationRunsUseCase) Execute(
 	ctx context.Context,
 	req *deprunpb.ListDepreciationRunsRequest,
 ) (*deprunpb.ListDepreciationRunsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetDepreciationRun, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAssetDepreciationRun,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	if uc.repositories.DepreciationRun == nil {

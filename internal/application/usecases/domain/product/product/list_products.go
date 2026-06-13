@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
@@ -22,6 +22,7 @@ type ListProductsServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListProductsUseCase handles the business logic for listing products
@@ -44,8 +45,10 @@ func NewListProductsUseCase(
 // Execute performs the list products operation
 func (uc *ListProductsUseCase) Execute(ctx context.Context, req *productpb.ListProductsRequest) (*productpb.ListProductsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Product, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Product,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

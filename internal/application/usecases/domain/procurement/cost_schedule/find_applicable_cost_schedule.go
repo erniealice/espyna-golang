@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	costschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_schedule"
@@ -20,6 +20,7 @@ type FindApplicableCostScheduleServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 type FindApplicableCostScheduleUseCase struct {
@@ -35,8 +36,10 @@ func NewFindApplicableCostScheduleUseCase(
 }
 
 func (uc *FindApplicableCostScheduleUseCase) Execute(ctx context.Context, req *costschedulepb.FindApplicableCostScheduleRequest) (*costschedulepb.FindApplicableCostScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CostSchedule, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CostSchedule,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil {

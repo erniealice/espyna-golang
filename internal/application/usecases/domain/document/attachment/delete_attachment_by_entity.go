@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
@@ -21,6 +21,7 @@ type DeleteAttachmentByEntityServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteAttachmentByEntityUseCase deletes an attachment by ID but only after
@@ -51,8 +52,10 @@ func NewDeleteAttachmentByEntityUseCase(
 // row, then deletes. Any mismatch short-circuits to a not-found response without
 // performing the delete.
 func (uc *DeleteAttachmentByEntityUseCase) Execute(ctx context.Context, id, moduleKey, foreignKey string) (*attachmentpb.DeleteAttachmentResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAttachment, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAttachment,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

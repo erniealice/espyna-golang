@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
@@ -27,6 +27,7 @@ type UpdateActivityTemplateServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateActivityTemplateUseCase handles the business logic for updating activity templates
@@ -66,8 +67,10 @@ func NewUpdateActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTemp
 // Execute performs the update activity template operation
 func (uc *UpdateActivityTemplateUseCase) Execute(ctx context.Context, req *activityTemplatepb.UpdateActivityTemplateRequest) (*activityTemplatepb.UpdateActivityTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity_template", entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "activity_template",
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

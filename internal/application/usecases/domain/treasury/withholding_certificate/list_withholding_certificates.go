@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	withholdingcertificatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/withholding_certificate"
@@ -20,6 +20,7 @@ type ListWithholdingCertificatesRepositories struct {
 type ListWithholdingCertificatesServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListWithholdingCertificatesUseCase handles listing withholding certificates.
@@ -35,8 +36,10 @@ func NewListWithholdingCertificatesUseCase(repositories ListWithholdingCertifica
 
 // Execute performs the list withholding_certificates operation.
 func (uc *ListWithholdingCertificatesUseCase) Execute(ctx context.Context, req *withholdingcertificatepb.ListWithholdingCertificatesRequest) (*withholdingcertificatepb.ListWithholdingCertificatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityWithholdingCertificate, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityWithholdingCertificate,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil {

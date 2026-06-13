@@ -2,6 +2,7 @@ package plan
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
@@ -33,6 +34,7 @@ type PlanServices struct {
 	Authorizer       ports.Authorizer // Current: RBAC and permissions
 	Transactor       ports.Transactor // Current: Database transactions
 	Translator       ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator      ports.IDGenerator      // Only for CreatePlan / CustomizePlanForClient
 	ReferenceChecker ports.ReferenceChecker // §3.1 — UpdatePlan client_id reassignment guard
 }

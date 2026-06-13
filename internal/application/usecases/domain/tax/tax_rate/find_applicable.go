@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_rate"
@@ -27,6 +27,7 @@ type FindApplicableTaxRateRepositories struct {
 type FindApplicableTaxRateServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // FindApplicableTaxRateRequest is the input for finding an applicable tax rate.
@@ -57,8 +58,10 @@ func NewFindApplicableTaxRateUseCase(
 
 // Execute returns the most applicable TaxRate for the given parameters.
 func (uc *FindApplicableTaxRateUseCase) Execute(ctx context.Context, req *FindApplicableTaxRateRequest) (*taxratepb.TaxRate, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRate, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityTaxRate,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil {

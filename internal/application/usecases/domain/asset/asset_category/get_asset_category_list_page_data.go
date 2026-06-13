@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
@@ -22,6 +22,7 @@ type GetAssetCategoryListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetAssetCategoryListPageDataUseCase handles the business logic for getting asset category list page data with pagination, filtering, sorting, and search
@@ -44,8 +45,10 @@ func NewGetAssetCategoryListPageDataUseCase(
 // Execute performs the get asset category list page data operation
 func (uc *GetAssetCategoryListPageDataUseCase) Execute(ctx context.Context, req *assetcategorypb.GetAssetCategoryListPageDataRequest) (*assetcategorypb.GetAssetCategoryListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetCategory, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAssetCategory,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

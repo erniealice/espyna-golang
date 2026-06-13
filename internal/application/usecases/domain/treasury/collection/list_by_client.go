@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
@@ -20,6 +20,7 @@ type ListByClientRepositories struct {
 type ListByClientServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListByClientUseCase lists collections for a given client.
@@ -41,8 +42,10 @@ func NewListByClientUseCase(
 
 // Execute performs an authorization check then delegates to the repository.
 func (uc *ListByClientUseCase) Execute(ctx context.Context, req *collectionpb.ListByClientRequest) (*collectionpb.ListByClientResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityCollection, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityCollection,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repositories.Collection.ListByClient(ctx, req)

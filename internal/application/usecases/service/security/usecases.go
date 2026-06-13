@@ -2,6 +2,7 @@ package security
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 )
 
@@ -20,6 +21,7 @@ type Repositories struct {
 // Services groups application services.
 type Services struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // NewUseCases wires every security service use case from shared

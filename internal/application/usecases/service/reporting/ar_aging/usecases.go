@@ -39,6 +39,7 @@ import (
 	collsumpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/collection_summary"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 )
 
 // reporter is the narrow port the AR aging use cases need from the
@@ -73,6 +74,7 @@ type Deps struct {
 	Reporter   any
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases aggregates every AR aging use case. Apps reach it via

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
@@ -22,6 +22,7 @@ type DeleteCollectionMethodServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteCollectionMethodUseCase handles the business logic for deleting collection methods
@@ -44,8 +45,10 @@ func NewDeleteCollectionMethodUseCase(
 // Execute performs the delete collection method operation
 func (uc *DeleteCollectionMethodUseCase) Execute(ctx context.Context, req *collectionmethodpb.DeleteCollectionMethodRequest) (*collectionmethodpb.DeleteCollectionMethodResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CollectionMethod, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CollectionMethod,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

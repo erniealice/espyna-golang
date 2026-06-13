@@ -9,7 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
@@ -62,6 +62,7 @@ type MaterializeJobsForSubscriptionServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 
 	// Optional. When set, the use case calls it for every spawned Job whose
@@ -122,8 +123,10 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 		req.SubscriptionId = pbReq.GetSubscriptionId()
 		req.SpawnJobs = pbReq.GetSpawnJobs()
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Subscription, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Subscription,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

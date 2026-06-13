@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	groupattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group_attribute"
@@ -24,6 +24,7 @@ type GetGroupAttributeItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetGroupAttributeItemPageDataUseCase handles the business logic for getting group attribute item page data
@@ -63,8 +64,10 @@ func NewGetGroupAttributeItemPageDataUseCaseUngrouped(groupAttributeRepo groupat
 // Execute performs the get group attribute item page data operation
 func (uc *GetGroupAttributeItemPageDataUseCase) Execute(ctx context.Context, req *groupattributepb.GetGroupAttributeItemPageDataRequest) (*groupattributepb.GetGroupAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.GroupAttribute, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.GroupAttribute,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

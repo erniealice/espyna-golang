@@ -34,6 +34,7 @@ package schedule
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 )
 
@@ -59,6 +60,7 @@ type Deps struct {
 	EntityDashboard *eventdashboard.GetScheduleDashboardPageDataUseCase
 	Authorizer      ports.Authorizer
 	Translator      ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // NewUseCases wires every schedule-dashboard service use case from grouped

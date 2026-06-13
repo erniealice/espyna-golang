@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -48,6 +49,7 @@ type ValidateSlugResponse struct {
 // ValidateSlugServices groups the use case's service dependencies.
 type ValidateSlugServices struct {
 	Translator    ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	ReservedSlugs ReservedSlugProvider
 }
 

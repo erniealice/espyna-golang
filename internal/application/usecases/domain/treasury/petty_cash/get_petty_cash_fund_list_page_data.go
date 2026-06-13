@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pettycashfundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_fund"
@@ -22,6 +22,7 @@ type GetPettyCashFundListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetPettyCashFundListPageDataUseCase handles fetching paginated, searchable petty cash fund list data
@@ -43,8 +44,10 @@ func NewGetPettyCashFundListPageDataUseCase(
 
 // Execute performs the get petty cash fund list page data operation
 func (uc *GetPettyCashFundListPageDataUseCase) Execute(ctx context.Context, req *pettycashfundpb.GetPettyCashFundListPageDataRequest) (*pettycashfundpb.GetPettyCashFundListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPettyCashFund, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityPettyCashFund,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

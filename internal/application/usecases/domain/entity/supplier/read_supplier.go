@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
@@ -22,6 +22,7 @@ type ReadSupplierServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadSupplierUseCase handles the business logic for reading a supplier
@@ -60,8 +61,10 @@ func NewReadSupplierUseCaseUngrouped(supplierRepo supplierpb.SupplierDomainServi
 // Execute performs the read supplier operation
 func (uc *ReadSupplierUseCase) Execute(ctx context.Context, req *supplierpb.ReadSupplierRequest) (*supplierpb.ReadSupplierResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "supplier",
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package staff_attribute
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 	staffattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff_attribute"
@@ -30,6 +31,7 @@ type StaffAttributeServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -44,6 +46,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -53,6 +56,7 @@ func NewUseCases(
 	readServices := ReadStaffAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateStaffAttributeRepositories{
@@ -63,6 +67,7 @@ func NewUseCases(
 	updateServices := UpdateStaffAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteStaffAttributeRepositories{
@@ -71,6 +76,7 @@ func NewUseCases(
 	deleteServices := DeleteStaffAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListStaffAttributesRepositories{
@@ -79,6 +85,7 @@ func NewUseCases(
 	listServices := ListStaffAttributesServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getListPageDataRepos := GetStaffAttributeListPageDataRepositories{
@@ -87,6 +94,7 @@ func NewUseCases(
 	getListPageDataServices := GetStaffAttributeListPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getItemPageDataRepos := GetStaffAttributeItemPageDataRepositories{
@@ -95,6 +103,7 @@ func NewUseCases(
 	getItemPageDataServices := GetStaffAttributeItemPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

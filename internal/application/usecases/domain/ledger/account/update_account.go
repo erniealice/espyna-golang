@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
@@ -24,6 +24,7 @@ type UpdateAccountServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateAccountUseCase handles the business logic for updating accounts
@@ -46,8 +47,10 @@ func NewUpdateAccountUseCase(
 // Execute performs the update account operation
 func (uc *UpdateAccountUseCase) Execute(ctx context.Context, req *accountpb.UpdateAccountRequest) (*accountpb.UpdateAccountResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAccount, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAccount,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

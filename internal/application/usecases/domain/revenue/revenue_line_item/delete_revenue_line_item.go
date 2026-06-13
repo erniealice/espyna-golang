@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
@@ -21,6 +21,7 @@ type DeleteRevenueLineItemServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteRevenueLineItemUseCase handles the business logic for deleting revenue line items
@@ -42,8 +43,10 @@ func NewDeleteRevenueLineItemUseCase(
 
 // Execute performs the delete revenue line item operation
 func (uc *DeleteRevenueLineItemUseCase) Execute(ctx context.Context, req *pb.DeleteRevenueLineItemRequest) (*pb.DeleteRevenueLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueLineItem, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenueLineItem,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

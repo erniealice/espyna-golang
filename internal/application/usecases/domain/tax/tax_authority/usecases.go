@@ -2,6 +2,7 @@ package tax_authority
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	taxauthoritypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_authority"
 )
 
@@ -16,6 +17,7 @@ type TaxAuthorityRepositories struct {
 type TaxAuthorityServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases contains all tax_authority use cases.

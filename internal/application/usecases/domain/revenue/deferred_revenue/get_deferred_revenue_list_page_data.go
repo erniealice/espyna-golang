@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
@@ -22,6 +22,7 @@ type GetDeferredRevenueListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetDeferredRevenueListPageDataUseCase handles fetching paginated, searchable deferred revenue list data
@@ -43,8 +44,10 @@ func NewGetDeferredRevenueListPageDataUseCase(
 
 // Execute performs the get deferred revenue list page data operation
 func (uc *GetDeferredRevenueListPageDataUseCase) Execute(ctx context.Context, req *deferredrevenuepb.GetDeferredRevenueListPageDataRequest) (*deferredrevenuepb.GetDeferredRevenueListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityDeferredRevenue, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityDeferredRevenue,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

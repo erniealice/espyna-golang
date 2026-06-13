@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
@@ -23,6 +23,7 @@ type UpdateRevenuePaymentServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateRevenuePaymentUseCase handles the business logic for updating revenue payments
@@ -45,8 +46,10 @@ func NewUpdateRevenuePaymentUseCase(
 // Execute performs the update revenue payment operation
 func (uc *UpdateRevenuePaymentUseCase) Execute(ctx context.Context, req *pb.UpdateRevenuePaymentRequest) (*pb.UpdateRevenuePaymentResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenuePayment, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenuePayment,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

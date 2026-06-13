@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	collectionmethodpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_method"
@@ -24,6 +24,7 @@ type CreateCollectionMethodServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -65,8 +66,10 @@ func NewCreateCollectionMethodUseCaseUngrouped(collectionMethodRepo collectionme
 // Execute performs the create collection method operation
 func (uc *CreateCollectionMethodUseCase) Execute(ctx context.Context, req *collectionmethodpb.CreateCollectionMethodRequest) (*collectionmethodpb.CreateCollectionMethodResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CollectionMethod, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CollectionMethod,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

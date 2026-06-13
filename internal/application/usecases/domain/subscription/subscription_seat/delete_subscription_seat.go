@@ -7,7 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 )
@@ -22,6 +22,7 @@ type DeleteSubscriptionSeatServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteSubscriptionSeatUseCase handles the business logic for deleting subscription seats (soft-delete)
@@ -43,8 +44,10 @@ func NewDeleteSubscriptionSeatUseCase(
 
 // Execute performs the delete subscription seat operation (soft-delete: active=false).
 func (uc *DeleteSubscriptionSeatUseCase) Execute(ctx context.Context, req *subscriptionseatpb.DeleteSubscriptionSeatRequest) (*subscriptionseatpb.DeleteSubscriptionSeatResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionSeat, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionSeat,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

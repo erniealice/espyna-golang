@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventorytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_transaction"
@@ -20,6 +20,7 @@ type GetInventoryMovementsListPageDataRepositories struct {
 type GetInventoryMovementsListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetInventoryMovementsListPageDataUseCase returns a JOIN-enriched movement list
@@ -46,8 +47,10 @@ func (uc *GetInventoryMovementsListPageDataUseCase) Execute(
 	ctx context.Context,
 	req *inventorytransactionpb.GetInventoryMovementsListPageDataRequest,
 ) (*inventorytransactionpb.GetInventoryMovementsListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.InventoryTransaction, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.InventoryTransaction,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

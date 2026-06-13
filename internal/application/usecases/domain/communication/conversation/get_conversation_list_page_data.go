@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
@@ -21,6 +21,7 @@ type GetConversationListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetConversationListPageDataUseCase handles conversation list page data.
@@ -36,8 +37,10 @@ func NewGetConversationListPageDataUseCase(repos GetConversationListPageDataRepo
 
 // Execute performs the get conversation list page data operation.
 func (uc *GetConversationListPageDataUseCase) Execute(ctx context.Context, req *conversationpb.GetConversationListPageDataRequest) (*conversationpb.GetConversationListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Conversation, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Conversation,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
@@ -23,6 +23,7 @@ type UpdateExpenditureLineItemServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateExpenditureLineItemUseCase handles the business logic for updating expenditure line items
@@ -44,8 +45,10 @@ func NewUpdateExpenditureLineItemUseCase(
 
 // Execute performs the update expenditure line item operation
 func (uc *UpdateExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb.UpdateExpenditureLineItemRequest) (*pb.UpdateExpenditureLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenditureLineItem, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityExpenditureLineItem,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

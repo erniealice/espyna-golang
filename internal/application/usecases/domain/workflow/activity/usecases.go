@@ -2,6 +2,7 @@ package activity
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
@@ -19,6 +20,7 @@ type ActivityServices struct {
 	Authorizer  ports.Authorizer // Current: RBAC and permissions
 	Transactor  ports.Transactor // Current: Database transactions
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator // Required for Create use case
 }
 

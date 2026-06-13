@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -22,6 +22,7 @@ type ReadSubscriptionWorkspaceUserServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadSubscriptionWorkspaceUserUseCase handles the business logic for reading subscription workspace users
@@ -43,8 +44,10 @@ func NewReadSubscriptionWorkspaceUserUseCase(
 
 // Execute performs the read subscription workspace user operation
 func (uc *ReadSubscriptionWorkspaceUserUseCase) Execute(ctx context.Context, req *subscriptionworkspaceuserpb.ReadSubscriptionWorkspaceUserRequest) (*subscriptionworkspaceuserpb.ReadSubscriptionWorkspaceUserResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionWorkspaceUser, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionWorkspaceUser,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

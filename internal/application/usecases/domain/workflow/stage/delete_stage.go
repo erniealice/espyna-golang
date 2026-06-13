@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	stagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage"
@@ -22,6 +22,7 @@ type DeleteStageServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteStageUseCase handles the business logic for deleting stages
@@ -60,8 +61,10 @@ func NewDeleteStageUseCaseUngrouped(stageRepo stagepb.StageDomainServiceServer) 
 // Execute performs the delete stage operation
 func (uc *DeleteStageUseCase) Execute(ctx context.Context, req *stagepb.DeleteStageRequest) (*stagepb.DeleteStageResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"stage", entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "stage",
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

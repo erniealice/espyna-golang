@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	forexratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/finance/forex_rate"
@@ -23,6 +23,7 @@ type FindMostRecentForexRateRepositories struct {
 type FindMostRecentForexRateServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // FindMostRecentForexRateRequest is the input for finding the most recent forex rate.
@@ -50,8 +51,10 @@ func NewFindMostRecentForexRateUseCase(
 
 // Execute returns the most recent ACTIVE forex_rate row for the given currency pair.
 func (uc *FindMostRecentForexRateUseCase) Execute(ctx context.Context, req *FindMostRecentForexRateRequest) (*forexratepb.ForexRate, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityForexRate, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityForexRate,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil {

@@ -2,6 +2,7 @@ package tax_registration_kind
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	taxregistrationkindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration_kind"
 )
 
@@ -16,6 +17,7 @@ type TaxRegistrationKindRepositories struct {
 type TaxRegistrationKindServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases contains all tax_registration_kind use cases.

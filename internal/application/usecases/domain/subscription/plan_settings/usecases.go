@@ -2,6 +2,7 @@ package plan_settings
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
@@ -18,6 +19,7 @@ type PlanSettingsServices struct {
 	Authorizer  ports.Authorizer // Current: RBAC and permissions
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator // Only for CreatePlanSettings
 }
 

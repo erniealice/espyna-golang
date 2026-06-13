@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	supplierattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_attribute"
@@ -22,6 +22,7 @@ type DeleteSupplierAttributeServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteSupplierAttributeUseCase handles the business logic for deleting supplier attributes
@@ -60,8 +61,10 @@ func NewDeleteSupplierAttributeUseCaseUngrouped(supplierAttributeRepo supplierat
 // Execute performs the delete supplier attribute operation
 func (uc *DeleteSupplierAttributeUseCase) Execute(ctx context.Context, req *supplierattributepb.DeleteSupplierAttributeRequest) (*supplierattributepb.DeleteSupplierAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier_attribute", entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "supplier_attribute",
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

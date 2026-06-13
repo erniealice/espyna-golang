@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
@@ -50,6 +50,7 @@ type RecognizeMilestoneAdvanceCollectionServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -91,12 +92,16 @@ func (uc *RecognizeMilestoneAdvanceCollectionUseCase) Execute(
 	if req == nil {
 		req = &collectionpb.RecognizeMilestoneAdvanceCollectionRequest{}
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTreasuryCollection, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityTreasuryCollection,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"revenue", entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "revenue",
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(req.GetTreasuryCollectionId()) == "" {

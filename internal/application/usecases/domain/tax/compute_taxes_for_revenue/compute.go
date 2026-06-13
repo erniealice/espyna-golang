@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
@@ -150,8 +150,10 @@ func (uc *ComputeTaxesForRevenueUseCase) Execute(
 	ctx context.Context,
 	req *ComputeTaxesRequest,
 ) (*ComputeTaxesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueTaxLine, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenueTaxLine,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

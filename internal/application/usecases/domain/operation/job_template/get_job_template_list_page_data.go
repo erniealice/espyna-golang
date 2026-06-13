@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
@@ -22,6 +22,7 @@ type GetJobTemplateListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetJobTemplateListPageDataUseCase handles the business logic for getting job template list page data
@@ -44,8 +45,10 @@ func NewGetJobTemplateListPageDataUseCase(
 // Execute performs the get job template list page data operation
 func (uc *GetJobTemplateListPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobTemplateListPageDataRequest) (*pb.GetJobTemplateListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"job_template", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "job_template",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

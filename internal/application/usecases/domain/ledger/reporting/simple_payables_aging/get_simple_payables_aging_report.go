@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 )
 
@@ -14,6 +14,7 @@ type GetSimplePayablesAgingReportUseCase struct {
 	reportingService     ports.LedgerReportingService
 	authorizationService ports.Authorizer
 	translationService   ports.Translator
+	actionGatekeeper  *actiongate.ActionGatekeeper
 }
 
 // NewGetSimplePayablesAgingReportUseCase creates a new use case with its reporting service dependency.
@@ -31,8 +32,10 @@ func (uc *GetSimplePayablesAgingReportUseCase) Execute(
 	req *reportpb.PayablesAgingReportRequest,
 ) (*reportpb.PayablesAgingReportResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.authorizationService, uc.translationService,
-		"reports", "view"); err != nil {
+	if err := uc.actionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "reports",
+		Action: "view",
+	}); err != nil {
 		return nil, err
 	}
 

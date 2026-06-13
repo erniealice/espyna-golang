@@ -7,7 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 )
@@ -22,6 +22,7 @@ type ReadLicenseServices struct {
 	Authorizer ports.Authorizer // RBAC and permissions
 	Transactor ports.Transactor // Database transactions
 	Translator ports.Translator // i18n error messages
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadLicenseUseCase handles the business logic for reading licenses
@@ -44,8 +45,10 @@ func NewReadLicenseUseCase(
 // Execute performs the read license operation
 func (uc *ReadLicenseUseCase) Execute(ctx context.Context, req *licensepb.ReadLicenseRequest) (*licensepb.ReadLicenseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.License, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.License,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

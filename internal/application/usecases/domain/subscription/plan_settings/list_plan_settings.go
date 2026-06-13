@@ -7,7 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 )
 
@@ -21,6 +21,7 @@ type ListPlanSettingsServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator // Current: Text translation and localization
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListPlanSettingsUseCase handles the business logic for listing plan_settings
@@ -43,8 +44,10 @@ func NewListPlanSettingsUseCase(
 // Execute performs the list plan_settings operation
 func (uc *ListPlanSettingsUseCase) Execute(ctx context.Context, req *plansettingspb.ListPlanSettingsRequest) (*plansettingspb.ListPlanSettingsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.PlanSettings, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.PlanSettings,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

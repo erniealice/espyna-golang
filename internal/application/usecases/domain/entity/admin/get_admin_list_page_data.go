@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	adminpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/admin"
 )
@@ -19,6 +19,7 @@ type GetAdminListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetAdminListPageDataUseCase handles getting paginated admin list data with search, filtering, and sorting
@@ -45,8 +46,10 @@ func (uc *GetAdminListPageDataUseCase) Execute(
 	req *adminpb.GetAdminListPageDataRequest,
 ) (*adminpb.GetAdminListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Admin, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Admin,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

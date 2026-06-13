@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	linepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line"
@@ -23,6 +23,7 @@ type LineServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -94,6 +95,7 @@ type CreateLineServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -107,7 +109,7 @@ func NewCreateLineUseCase(repositories CreateLineRepositories, services CreateLi
 }
 
 func (uc *CreateLineUseCase) Execute(ctx context.Context, req *linepb.CreateLineRequest) (*linepb.CreateLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Line, Action: entityid.ActionCreate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -145,6 +147,7 @@ type ReadLineServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 type ReadLineUseCase struct {
@@ -157,7 +160,7 @@ func NewReadLineUseCase(repositories ReadLineRepositories, services ReadLineServ
 }
 
 func (uc *ReadLineUseCase) Execute(ctx context.Context, req *linepb.ReadLineRequest) (*linepb.ReadLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Line, Action: entityid.ActionRead}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -185,6 +188,7 @@ type UpdateLineServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 type UpdateLineUseCase struct {
@@ -197,7 +201,7 @@ func NewUpdateLineUseCase(repositories UpdateLineRepositories, services UpdateLi
 }
 
 func (uc *UpdateLineUseCase) Execute(ctx context.Context, req *linepb.UpdateLineRequest) (*linepb.UpdateLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Line, Action: entityid.ActionUpdate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -238,6 +242,7 @@ type DeleteLineServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 type DeleteLineUseCase struct {
@@ -250,7 +255,7 @@ func NewDeleteLineUseCase(repositories DeleteLineRepositories, services DeleteLi
 }
 
 func (uc *DeleteLineUseCase) Execute(ctx context.Context, req *linepb.DeleteLineRequest) (*linepb.DeleteLineResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Line, Action: entityid.ActionDelete}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -271,6 +276,7 @@ type ListLinesServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 type ListLinesUseCase struct {
@@ -283,7 +289,7 @@ func NewListLinesUseCase(repositories ListLinesRepositories, services ListLinesS
 }
 
 func (uc *ListLinesUseCase) Execute(ctx context.Context, req *linepb.ListLinesRequest) (*linepb.ListLinesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, entityid.Line, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Line, Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	if req == nil {

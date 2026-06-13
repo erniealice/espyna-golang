@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
@@ -21,6 +21,7 @@ type DeleteAttributeServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteAttributeUseCase handles the business logic for deleting attributes
@@ -59,8 +60,10 @@ func NewDeleteAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomai
 // Execute performs the delete attribute operation
 func (uc *DeleteAttributeUseCase) Execute(ctx context.Context, req *attributepb.DeleteAttributeRequest) (*attributepb.DeleteAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"attribute", entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "attribute",
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

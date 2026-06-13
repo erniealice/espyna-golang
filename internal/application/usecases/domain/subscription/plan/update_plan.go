@@ -10,7 +10,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -27,6 +27,7 @@ type UpdatePlanServices struct {
 	Authorizer       ports.Authorizer // Current: RBAC and permissions
 	Transactor       ports.Transactor // Current: Database transactions
 	Translator       ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	ReferenceChecker ports.ReferenceChecker // Plan §3.1 — client_id reassignment guard
 }
 
@@ -50,8 +51,10 @@ func NewUpdatePlanUseCase(
 // Execute performs the update plan operation
 func (uc *UpdatePlanUseCase) Execute(ctx context.Context, req *planpb.UpdatePlanRequest) (*planpb.UpdatePlanResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Plan, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Plan,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

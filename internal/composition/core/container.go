@@ -47,7 +47,8 @@ type Platform struct {
 	Payment        ports.PaymentProvider       // Payment provider service (AsiaPay, Stripe, etc.)
 	Scheduler      ports.SchedulerProvider     // Scheduler provider service (Calendly, etc.)
 	Tabular        ports.TabularSourceProvider // Tabular data provider (Google Sheets, etc.)
-	WorkflowEngine ports.WorkflowEngineService // Orchestration engine service
+	WorkflowEngine        ports.WorkflowEngineService        // Orchestration engine service
+	WorkflowAssigneeQuery ports.WorkflowAssigneeQueryService // Engine identity bridge (read-only)
 
 	// Multi-provider registries — all configured providers are active simultaneously.
 	// Legacy single fields above are set to the first provider for backwards compat.
@@ -455,6 +456,8 @@ func (c *Container) initializeWorkflowEngine() error {
 			return err
 		}
 		c.services.WorkflowEngine = engineUC
+		// Wire the engine identity bridge (Q-EIB-BRIDGE) if a DB connection is available.
+		c.wireAssigneeQuery(engineUC)
 		fmt.Printf("✅ Workflow Engine initialized\n")
 
 	case orchcontracts.ModeLazy:
@@ -472,6 +475,8 @@ func (c *Container) initializeWorkflowEngine() error {
 				return err
 			}
 			c.services.WorkflowEngine = engineUC
+			// Wire the engine identity bridge (Q-EIB-BRIDGE) if a DB connection is available.
+			c.wireAssigneeQuery(engineUC)
 			fmt.Printf("✅ Workflow Engine initialized (lazily)\n")
 			return nil
 		}
@@ -817,6 +822,72 @@ func (c *Container) GetWorkflowEngine() ports.WorkflowEngineService {
 // GetWorkflowEngineService is an alias for GetWorkflowEngine for routing compatibility
 func (c *Container) GetWorkflowEngineService() ports.WorkflowEngineService {
 	return c.GetWorkflowEngine()
+}
+
+// GetWorkflowAssigneeQueryService returns the engine identity bridge service.
+// Returns nil if the bridge has not been wired (e.g. no DB connection or
+// workflow engine not initialized).
+func (c *Container) GetWorkflowAssigneeQueryService() ports.WorkflowAssigneeQueryService {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.services.WorkflowAssigneeQuery
+}
+
+// wireAssigneeQuery resolves the registered AssigneeQueryRepository factory
+// from the registry and wires it into the engine use cases so it can serve
+// WorkflowAssigneeQueryService.
+//
+// This is best-effort — if no factory is registered (e.g. mock DB, firestore),
+// or the DB connection is unavailable, the bridge is silently skipped. The
+// engine remains functional; only the assignee query surface is absent.
+func (c *Container) wireAssigneeQuery(engineSvc ports.WorkflowEngineService) {
+	// Resolve the factory from the registry (registered by the postgres adapter
+	// in its init() via registry.RegisterAssigneeQueryFactory).
+	factory, ok := registry.GetAssigneeQueryFactory()
+	if !ok || factory == nil {
+		return
+	}
+
+	// Get the DB connection from the provider.
+	dbProvider := c.providers.GetDatabaseProvider()
+	if dbProvider == nil {
+		return
+	}
+	connHolder, ok := dbProvider.(interface{ GetConnection() any })
+	if !ok {
+		return
+	}
+	conn := connHolder.GetConnection()
+	if conn == nil {
+		return
+	}
+
+	// Create the adapter via the factory.
+	repoAny := factory(conn)
+	if repoAny == nil {
+		return
+	}
+
+	// Type-assert to access SetAssigneeQueryRepository on the concrete engine.
+	// The setter takes `any` so that this structural assertion works without
+	// importing the engine package.
+	type assigneeWirer interface {
+		SetAssigneeQueryRepository(repo any)
+	}
+
+	wirer, ok := engineSvc.(assigneeWirer)
+	if !ok {
+		fmt.Printf("⚠️ Engine does not support assignee query wiring — skipping identity bridge\n")
+		return
+	}
+
+	wirer.SetAssigneeQueryRepository(repoAny)
+
+	// Also store on Platform so consumers can access it directly.
+	if querySvc, ok := engineSvc.(ports.WorkflowAssigneeQueryService); ok {
+		c.services.WorkflowAssigneeQuery = querySvc
+	}
+	fmt.Printf("✅ Engine identity bridge wired (WorkflowAssigneeQueryService)\n")
 }
 
 // GetConfig returns the container configuration (implements infraopts.Container interface)

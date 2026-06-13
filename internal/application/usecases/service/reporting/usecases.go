@@ -54,6 +54,7 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting/ap_aging"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting/ar_aging"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting/domain_specific"
@@ -78,6 +79,7 @@ type Deps struct {
 	DB         *sql.DB
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 
 	// ARAgingReporter carries the raw postgres LedgerReportingAdapter as
 	// `any`. The unexported `ar_aging.reporter` interface is the structural

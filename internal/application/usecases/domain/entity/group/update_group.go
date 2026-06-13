@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	grouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/group"
@@ -23,6 +23,7 @@ type UpdateGroupServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateGroupUseCase handles the business logic for updating groups
@@ -61,8 +62,10 @@ func NewUpdateGroupUseCaseUngrouped(groupRepo grouppb.GroupDomainServiceServer) 
 
 func (uc *UpdateGroupUseCase) Execute(ctx context.Context, req *grouppb.UpdateGroupRequest) (*grouppb.UpdateGroupResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Group, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Group,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	clientportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_portal_grant"
 )
@@ -23,6 +23,7 @@ type ClientPortalGrantServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -53,8 +54,10 @@ type CreateClientPortalGrantUseCase struct {
 }
 
 func (uc *CreateClientPortalGrantUseCase) Execute(ctx context.Context, req *clientportalgrantpb.CreateClientPortalGrantRequest) (*clientportalgrantpb.CreateClientPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityClientPortalGrant, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityClientPortalGrant,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -77,8 +80,10 @@ type ReadClientPortalGrantUseCase struct {
 }
 
 func (uc *ReadClientPortalGrantUseCase) Execute(ctx context.Context, req *clientportalgrantpb.ReadClientPortalGrantRequest) (*clientportalgrantpb.ReadClientPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityClientPortalGrant, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityClientPortalGrant,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadClientPortalGrant(ctx, req)
@@ -91,8 +96,10 @@ type UpdateClientPortalGrantUseCase struct {
 }
 
 func (uc *UpdateClientPortalGrantUseCase) Execute(ctx context.Context, req *clientportalgrantpb.UpdateClientPortalGrantRequest) (*clientportalgrantpb.UpdateClientPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityClientPortalGrant, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityClientPortalGrant,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -110,8 +117,10 @@ type DeleteClientPortalGrantUseCase struct {
 }
 
 func (uc *DeleteClientPortalGrantUseCase) Execute(ctx context.Context, req *clientportalgrantpb.DeleteClientPortalGrantRequest) (*clientportalgrantpb.DeleteClientPortalGrantResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityClientPortalGrant, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityClientPortalGrant,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteClientPortalGrant(ctx, req)
@@ -124,8 +133,10 @@ type ListClientPortalGrantsUseCase struct {
 }
 
 func (uc *ListClientPortalGrantsUseCase) Execute(ctx context.Context, req *clientportalgrantpb.ListClientPortalGrantsRequest) (*clientportalgrantpb.ListClientPortalGrantsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityClientPortalGrant, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityClientPortalGrant,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListClientPortalGrants(ctx, req)

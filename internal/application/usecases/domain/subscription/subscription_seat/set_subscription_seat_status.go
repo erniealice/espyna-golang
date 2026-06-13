@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 )
@@ -31,6 +31,7 @@ type SetSubscriptionSeatStatusServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // SetSubscriptionSeatStatusUseCase enforces the SR-2 guarded status lifecycle.
@@ -61,8 +62,10 @@ func NewSetSubscriptionSeatStatusUseCase(
 
 // Execute performs a guarded status transition on a single seat.
 func (uc *SetSubscriptionSeatStatusUseCase) Execute(ctx context.Context, req *SetSubscriptionSeatStatusRequest) (*subscriptionseatpb.UpdateSubscriptionSeatResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionSeat, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionSeat,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

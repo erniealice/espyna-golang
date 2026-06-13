@@ -2,6 +2,7 @@ package audit
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 )
 
@@ -21,6 +22,7 @@ type Repositories struct {
 type Services struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // NewUseCases wires every audit service use case from shared

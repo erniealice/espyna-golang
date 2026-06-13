@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	supplierattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_attribute"
@@ -23,6 +23,7 @@ type GetSupplierAttributeItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetSupplierAttributeItemPageDataUseCase handles the business logic for getting supplier attribute item page data
@@ -61,8 +62,10 @@ func NewGetSupplierAttributeItemPageDataUseCaseUngrouped(supplierAttributeRepo s
 // Execute performs the get supplier attribute item page data operation
 func (uc *GetSupplierAttributeItemPageDataUseCase) Execute(ctx context.Context, req *supplierattributepb.GetSupplierAttributeItemPageDataRequest) (*supplierattributepb.GetSupplierAttributeItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier_attribute", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "supplier_attribute",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

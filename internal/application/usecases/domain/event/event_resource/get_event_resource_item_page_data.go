@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
@@ -23,6 +23,7 @@ type GetEventResourceItemPageDataServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetEventResourceItemPageDataUseCase handles the business logic for getting event resource item page data
@@ -45,8 +46,10 @@ func NewGetEventResourceItemPageDataUseCase(
 // Execute performs the get event resource item page data operation
 func (uc *GetEventResourceItemPageDataUseCase) Execute(ctx context.Context, req *eventresourcepb.GetEventResourceItemPageDataRequest) (*eventresourcepb.GetEventResourceItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.EventResource, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.EventResource,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

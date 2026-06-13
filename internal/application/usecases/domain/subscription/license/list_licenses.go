@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 )
@@ -21,6 +21,7 @@ type ListLicensesServices struct {
 	Authorizer ports.Authorizer // RBAC and permissions
 	Transactor ports.Transactor // Database transactions
 	Translator ports.Translator // i18n error messages
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListLicensesUseCase handles the business logic for listing licenses
@@ -43,8 +44,10 @@ func NewListLicensesUseCase(
 // Execute performs the list licenses operation
 func (uc *ListLicensesUseCase) Execute(ctx context.Context, req *licensepb.ListLicensesRequest) (*licensepb.ListLicensesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.License, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.License,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/license_history"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
@@ -25,6 +25,7 @@ type SuspendLicenseServices struct {
 	Authorizer ports.Authorizer // RBAC and permissions
 	Transactor ports.Transactor // Database transactions
 	Translator ports.Translator // i18n error messages
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // SuspendLicenseUseCase handles the business logic for suspending licenses
@@ -50,8 +51,10 @@ func NewSuspendLicenseUseCase(
 // Execute performs the suspend license operation
 func (uc *SuspendLicenseUseCase) Execute(ctx context.Context, req *licensepb.SuspendLicenseRequest) (*licensepb.SuspendLicenseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.License, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.License,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package suppliercontract
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 )
 
@@ -15,6 +16,7 @@ type SupplierContractServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -46,6 +48,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -55,6 +58,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateSupplierContract: NewUpdateSupplierContractUseCase(
@@ -63,6 +67,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteSupplierContract: NewDeleteSupplierContractUseCase(
@@ -71,6 +76,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListSupplierContracts: NewListSupplierContractsUseCase(
@@ -79,6 +85,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		GetSupplierContractListPageData: NewGetSupplierContractListPageDataUseCase(
@@ -87,6 +94,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		GetSupplierContractItemPageData: NewGetSupplierContractItemPageDataUseCase(
@@ -95,6 +103,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ApproveSupplierContract: NewApproveSupplierContractUseCase(
@@ -103,6 +112,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		TerminateSupplierContract: NewTerminateSupplierContractUseCase(
@@ -111,6 +121,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		RegisterRelease: NewRegisterReleaseUseCase(
@@ -118,6 +129,7 @@ func NewUseCases(
 			RegisterReleaseServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		RegisterBilling: NewRegisterBillingUseCase(
@@ -125,6 +137,7 @@ func NewUseCases(
 			RegisterBillingServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		RegisterCredit: NewRegisterCreditUseCase(
@@ -132,6 +145,7 @@ func NewUseCases(
 			RegisterCreditServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_cycle_member"
@@ -26,6 +26,7 @@ type Services struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -58,7 +59,7 @@ type CreateUseCase struct {
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, req *pb.CreateEvaluationCycleMemberRequest) (*pb.CreateEvaluationCycleMemberResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycleMember, entityid.ActionCreate); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycleMember, Action: entityid.ActionCreate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -81,7 +82,7 @@ type ReadUseCase struct {
 }
 
 func (uc *ReadUseCase) Execute(ctx context.Context, req *pb.ReadEvaluationCycleMemberRequest) (*pb.ReadEvaluationCycleMemberResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycleMember, entityid.ActionRead); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycleMember, Action: entityid.ActionRead}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -96,7 +97,7 @@ type UpdateUseCase struct {
 }
 
 func (uc *UpdateUseCase) Execute(ctx context.Context, req *pb.UpdateEvaluationCycleMemberRequest) (*pb.UpdateEvaluationCycleMemberResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycleMember, entityid.ActionUpdate); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycleMember, Action: entityid.ActionUpdate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -111,7 +112,7 @@ type DeleteUseCase struct {
 }
 
 func (uc *DeleteUseCase) Execute(ctx context.Context, req *pb.DeleteEvaluationCycleMemberRequest) (*pb.DeleteEvaluationCycleMemberResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycleMember, entityid.ActionDelete); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycleMember, Action: entityid.ActionDelete}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -126,7 +127,7 @@ type ListUseCase struct {
 }
 
 func (uc *ListUseCase) Execute(ctx context.Context, req *pb.ListEvaluationCycleMembersRequest) (*pb.ListEvaluationCycleMembersResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycleMember, entityid.ActionList); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycleMember, Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	return uc.r.EvaluationCycleMember.ListEvaluationCycleMembers(ctx, req)
@@ -138,7 +139,7 @@ type GetListPageDataUseCase struct {
 }
 
 func (uc *GetListPageDataUseCase) Execute(ctx context.Context, req *pb.GetEvaluationCycleMemberListPageDataRequest) (*pb.GetEvaluationCycleMemberListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycleMember, entityid.ActionList); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycleMember, Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	return uc.r.EvaluationCycleMember.GetEvaluationCycleMemberListPageData(ctx, req)
@@ -150,7 +151,7 @@ type GetItemPageDataUseCase struct {
 }
 
 func (uc *GetItemPageDataUseCase) Execute(ctx context.Context, req *pb.GetEvaluationCycleMemberItemPageDataRequest) (*pb.GetEvaluationCycleMemberItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycleMember, entityid.ActionRead); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycleMember, Action: entityid.ActionRead}); err != nil {
 		return nil, err
 	}
 	return uc.r.EvaluationCycleMember.GetEvaluationCycleMemberItemPageData(ctx, req)

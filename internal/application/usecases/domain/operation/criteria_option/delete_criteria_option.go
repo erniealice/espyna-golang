@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
@@ -19,6 +19,7 @@ type DeleteCriteriaOptionServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteCriteriaOptionUseCase handles the business logic for deleting criteria options
@@ -41,8 +42,10 @@ func NewDeleteCriteriaOptionUseCase(
 // Execute performs the delete criteria option operation
 func (uc *DeleteCriteriaOptionUseCase) Execute(ctx context.Context, req *pb.DeleteCriteriaOptionRequest) (*pb.DeleteCriteriaOptionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CriteriaOption, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CriteriaOption,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

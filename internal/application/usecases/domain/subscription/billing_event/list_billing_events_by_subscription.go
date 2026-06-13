@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
@@ -20,6 +20,7 @@ type ListBillingEventsBySubscriptionRepositories struct {
 type ListBillingEventsBySubscriptionServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListBillingEventsBySubscriptionUseCase wraps the proto-domain ListBySubscription
@@ -46,8 +47,10 @@ func NewListBillingEventsBySubscriptionUseCase(
 func (uc *ListBillingEventsBySubscriptionUseCase) Execute(
 	ctx context.Context, req *billingeventpb.ListBillingEventsBySubscriptionRequest,
 ) (*billingeventpb.ListBillingEventsBySubscriptionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"billing_event", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "billing_event",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil {

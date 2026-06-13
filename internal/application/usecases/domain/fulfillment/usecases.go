@@ -2,6 +2,7 @@ package fulfillment
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
 
@@ -15,6 +16,7 @@ type Services struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -54,6 +56,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		},
@@ -62,6 +65,7 @@ func NewUseCases(
 			services: GetFulfillmentServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 		UpdateFulfillment: &UpdateFulfillmentUseCase{
@@ -69,6 +73,7 @@ func NewUseCases(
 			services: UpdateFulfillmentServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 		DeleteFulfillment: &DeleteFulfillmentUseCase{
@@ -76,6 +81,7 @@ func NewUseCases(
 			services: DeleteFulfillmentServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 		ListFulfillments: &ListFulfillmentsUseCase{
@@ -83,6 +89,7 @@ func NewUseCases(
 			services: ListFulfillmentsServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 		GetFulfillmentListPageData: &GetFulfillmentListPageDataUseCase{
@@ -90,6 +97,7 @@ func NewUseCases(
 			services: GetFulfillmentListPageDataServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 		GetFulfillmentItemPageData: &GetFulfillmentItemPageDataUseCase{
@@ -97,6 +105,7 @@ func NewUseCases(
 			services: GetFulfillmentItemPageDataServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 		TransitionStatus: &TransitionStatusUseCase{
@@ -105,6 +114,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 		ListStatusEvents: &ListStatusEventsUseCase{
@@ -112,6 +122,7 @@ func NewUseCases(
 			services: ListStatusEventsServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		},
 	}

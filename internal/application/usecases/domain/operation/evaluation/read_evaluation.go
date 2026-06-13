@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
@@ -21,6 +21,7 @@ type ReadEvaluationServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadEvaluationUseCase reads a single evaluation. The workspace_id + client_id +
@@ -36,8 +37,10 @@ func NewReadEvaluationUseCase(repositories ReadEvaluationRepositories, services 
 }
 
 func (uc *ReadEvaluationUseCase) Execute(ctx context.Context, req *evaluationpb.ReadEvaluationRequest) (*evaluationpb.ReadEvaluationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Evaluation, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Evaluation,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {

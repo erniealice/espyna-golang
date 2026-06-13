@@ -2,6 +2,7 @@ package expenserecognitionline
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	expenserecognitionlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_line"
 )
 
@@ -15,6 +16,7 @@ type ExpenseRecognitionLineServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -38,6 +40,7 @@ func NewUseCases(
 			CreateExpenseRecognitionLineServices{
 				Authorizer:  services.Authorizer,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -46,6 +49,7 @@ func NewUseCases(
 			ReadExpenseRecognitionLineServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateExpenseRecognitionLine: NewUpdateExpenseRecognitionLineUseCase(
@@ -53,6 +57,7 @@ func NewUseCases(
 			UpdateExpenseRecognitionLineServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteExpenseRecognitionLine: NewDeleteExpenseRecognitionLineUseCase(
@@ -60,6 +65,7 @@ func NewUseCases(
 			DeleteExpenseRecognitionLineServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListExpenseRecognitionLines: NewListExpenseRecognitionLinesUseCase(
@@ -67,6 +73,7 @@ func NewUseCases(
 			ListExpenseRecognitionLinesServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
@@ -26,6 +26,7 @@ type DeleteConversationServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteConversationUseCase handles soft-deleting a conversation.
@@ -41,8 +42,10 @@ func NewDeleteConversationUseCase(repos DeleteConversationRepositories, svcs Del
 
 // Execute performs the delete conversation operation.
 func (uc *DeleteConversationUseCase) Execute(ctx context.Context, req *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Conversation, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Conversation,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

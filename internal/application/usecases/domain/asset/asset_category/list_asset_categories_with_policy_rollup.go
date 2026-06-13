@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
@@ -39,6 +39,7 @@ type ListAssetCategoriesWithPolicyRollupServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListAssetCategoriesWithPolicyRollupUseCase handles listing categories with rollup counts.
@@ -69,8 +70,10 @@ func (uc *ListAssetCategoriesWithPolicyRollupUseCase) Execute(
 	_ *assetcategorypb.ListAssetCategoriesWithPolicyRollupRequest,
 ) (*assetcategorypb.ListAssetCategoriesWithPolicyRollupResponse, error) {
 	// Authorization check — same permission as list.
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetCategory, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAssetCategory,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 )
@@ -21,6 +21,7 @@ type ListSubscriptionSeatsServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListSubscriptionSeatsUseCase handles the business logic for listing subscription seats
@@ -43,8 +44,10 @@ func NewListSubscriptionSeatsUseCase(
 // Execute performs the list subscription seats operation. Filters by
 // subscription_id and client_id (the IDOR denorm) ride on req.Filters.
 func (uc *ListSubscriptionSeatsUseCase) Execute(ctx context.Context, req *subscriptionseatpb.ListSubscriptionSeatsRequest) (*subscriptionseatpb.ListSubscriptionSeatsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionSeat, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionSeat,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

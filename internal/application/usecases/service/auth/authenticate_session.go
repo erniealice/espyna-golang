@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -26,6 +27,7 @@ type AuthenticateSessionRepositories struct {
 // before it.
 type AuthenticateSessionServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // AuthenticateSessionUseCase resolves an opaque session token into the

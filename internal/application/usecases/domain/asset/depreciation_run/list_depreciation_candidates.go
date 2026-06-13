@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	depengine "github.com/erniealice/espyna-golang/internal/domain/asset/depreciation"
@@ -33,6 +33,7 @@ type ListDepreciationCandidatesRepositories struct {
 type ListDepreciationCandidatesServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListDepreciationCandidatesUseCase is the dry-run (no writes) engine.
@@ -59,8 +60,10 @@ func (uc *ListDepreciationCandidatesUseCase) Execute(
 	ctx context.Context,
 	req *deprunpb.ListDepreciationCandidatesRequest,
 ) (*deprunpb.ListDepreciationCandidatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetDepreciationRun, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAssetDepreciationRun,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

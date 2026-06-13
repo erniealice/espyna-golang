@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	locationareapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_area"
@@ -22,6 +22,7 @@ type DeleteLocationAreaServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteLocationAreaUseCase handles the business logic for deleting location areas
@@ -44,8 +45,10 @@ func NewDeleteLocationAreaUseCase(
 // Execute performs the delete location area operation
 func (uc *DeleteLocationAreaUseCase) Execute(ctx context.Context, req *locationareapb.DeleteLocationAreaRequest) (*locationareapb.DeleteLocationAreaResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.LocationArea, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.LocationArea,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

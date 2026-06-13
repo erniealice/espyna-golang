@@ -2,6 +2,7 @@ package revenuepayment
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
 )
 
@@ -24,6 +25,7 @@ type RevenuePaymentServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 

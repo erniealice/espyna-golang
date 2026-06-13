@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
@@ -20,6 +20,7 @@ type ListAttributesServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListAttributesUseCase handles the business logic for listing attributes
@@ -58,8 +59,10 @@ func NewListAttributesUseCaseUngrouped(attributeRepo attributepb.AttributeDomain
 // Execute performs the list attributes operation
 func (uc *ListAttributesUseCase) Execute(ctx context.Context, req *attributepb.ListAttributesRequest) (*attributepb.ListAttributesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"attribute", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "attribute",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

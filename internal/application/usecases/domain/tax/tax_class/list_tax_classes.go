@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxclasspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_class"
@@ -20,6 +20,7 @@ type ListTaxClassesRepositories struct {
 type ListTaxClassesServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListTaxClassesUseCase handles listing tax classes.
@@ -35,8 +36,10 @@ func NewListTaxClassesUseCase(repositories ListTaxClassesRepositories, services 
 
 // Execute performs the list tax_classes operation.
 func (uc *ListTaxClassesUseCase) Execute(ctx context.Context, req *taxclasspb.ListTaxClassesRequest) (*taxclasspb.ListTaxClassesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxClass, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityTaxClass,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil {

@@ -7,7 +7,7 @@ import (
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
@@ -22,6 +22,7 @@ type ReadClientWorkspaceUserServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadClientWorkspaceUserUseCase handles the business logic for reading client workspace users
@@ -43,8 +44,10 @@ func NewReadClientWorkspaceUserUseCase(
 
 // Execute performs the read client workspace user operation
 func (uc *ReadClientWorkspaceUserUseCase) Execute(ctx context.Context, req *clientworkspaceuserpb.ReadClientWorkspaceUserRequest) (*clientworkspaceuserpb.ReadClientWorkspaceUserResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ClientWorkspaceUser, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ClientWorkspaceUser,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

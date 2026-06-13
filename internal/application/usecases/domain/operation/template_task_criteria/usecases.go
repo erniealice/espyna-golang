@@ -2,6 +2,7 @@ package template_task_criteria
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
@@ -15,6 +16,7 @@ type TemplateTaskCriteriaServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 

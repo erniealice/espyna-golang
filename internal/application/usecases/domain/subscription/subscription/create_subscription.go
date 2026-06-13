@@ -12,7 +12,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -26,6 +26,7 @@ type CreateSubscriptionServices struct {
 	Authorizer              ports.Authorizer
 	Transactor              ports.Transactor
 	Translator              ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator             ports.IDGenerator
 	JobTemplateInstantiator JobTemplateInstantiator
 }
@@ -50,8 +51,10 @@ func NewCreateSubscriptionUseCase(
 // Execute performs the create subscription operation
 func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscriptionpb.CreateSubscriptionRequest) (*subscriptionpb.CreateSubscriptionResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Subscription, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Subscription,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

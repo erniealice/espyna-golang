@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 )
@@ -23,6 +23,7 @@ type CreateLicenseHistoryServices struct {
 	Authorizer  ports.Authorizer  // RBAC and permissions
 	Transactor  ports.Transactor  // Database transactions
 	Translator  ports.Translator  // i18n error messages
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator // UUID generation
 }
 
@@ -46,8 +47,10 @@ func NewCreateLicenseHistoryUseCase(
 // Execute performs the create license history operation
 func (uc *CreateLicenseHistoryUseCase) Execute(ctx context.Context, req *licensehistorypb.CreateLicenseHistoryRequest) (*licensehistorypb.CreateLicenseHistoryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.LicenseHistory, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.LicenseHistory,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

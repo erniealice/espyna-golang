@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
@@ -24,6 +24,7 @@ type JobTaskServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -121,6 +122,7 @@ type CreateJobTaskServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 type CreateJobTaskUseCase struct {
@@ -129,7 +131,7 @@ type CreateJobTaskUseCase struct {
 }
 
 func (uc *CreateJobTaskUseCase) Execute(ctx context.Context, req *pb.CreateJobTaskRequest) (*pb.CreateJobTaskResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionCreate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -180,6 +182,7 @@ type ReadJobTaskRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ReadJobTaskServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ReadJobTaskUseCase struct {
 	repositories ReadJobTaskRepositories
@@ -187,7 +190,7 @@ type ReadJobTaskUseCase struct {
 }
 
 func (uc *ReadJobTaskUseCase) Execute(ctx context.Context, req *pb.ReadJobTaskRequest) (*pb.ReadJobTaskResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionRead}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -206,6 +209,7 @@ type UpdateJobTaskRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type UpdateJobTaskServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type UpdateJobTaskUseCase struct {
 	repositories UpdateJobTaskRepositories
@@ -213,7 +217,7 @@ type UpdateJobTaskUseCase struct {
 }
 
 func (uc *UpdateJobTaskUseCase) Execute(ctx context.Context, req *pb.UpdateJobTaskRequest) (*pb.UpdateJobTaskResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionUpdate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -241,6 +245,7 @@ type DeleteJobTaskRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type DeleteJobTaskServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type DeleteJobTaskUseCase struct {
 	repositories DeleteJobTaskRepositories
@@ -248,7 +253,7 @@ type DeleteJobTaskUseCase struct {
 }
 
 func (uc *DeleteJobTaskUseCase) Execute(ctx context.Context, req *pb.DeleteJobTaskRequest) (*pb.DeleteJobTaskResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionDelete}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -267,6 +272,7 @@ type ListJobTasksRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ListJobTasksServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListJobTasksUseCase struct {
 	repositories ListJobTasksRepositories
@@ -274,7 +280,7 @@ type ListJobTasksUseCase struct {
 }
 
 func (uc *ListJobTasksUseCase) Execute(ctx context.Context, req *pb.ListJobTasksRequest) (*pb.ListJobTasksResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	if req == nil {
@@ -293,6 +299,7 @@ type GetJobTaskListPageDataRepositories struct{ JobTask pb.JobTaskDomainServiceS
 type GetJobTaskListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type GetJobTaskListPageDataUseCase struct {
 	repositories GetJobTaskListPageDataRepositories
@@ -300,7 +307,7 @@ type GetJobTaskListPageDataUseCase struct {
 }
 
 func (uc *GetJobTaskListPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobTaskListPageDataRequest) (*pb.GetJobTaskListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	if req == nil {
@@ -315,6 +322,7 @@ type GetJobTaskItemPageDataRepositories struct{ JobTask pb.JobTaskDomainServiceS
 type GetJobTaskItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type GetJobTaskItemPageDataUseCase struct {
 	repositories GetJobTaskItemPageDataRepositories
@@ -322,7 +330,7 @@ type GetJobTaskItemPageDataUseCase struct {
 }
 
 func (uc *GetJobTaskItemPageDataUseCase) Execute(ctx context.Context, req *pb.GetJobTaskItemPageDataRequest) (*pb.GetJobTaskItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionRead}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.JobTaskId == "" {
@@ -337,6 +345,7 @@ type ListByPhaseRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ListByPhaseServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListByPhaseUseCase struct {
 	repositories ListByPhaseRepositories
@@ -344,7 +353,7 @@ type ListByPhaseUseCase struct {
 }
 
 func (uc *ListByPhaseUseCase) Execute(ctx context.Context, req *pb.ListJobTasksByPhaseRequest) (*pb.ListJobTasksByPhaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.JobPhaseId == "" {
@@ -359,6 +368,7 @@ type ListByAssigneeRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ListByAssigneeServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListByAssigneeUseCase struct {
 	repositories ListByAssigneeRepositories
@@ -366,7 +376,7 @@ type ListByAssigneeUseCase struct {
 }
 
 func (uc *ListByAssigneeUseCase) Execute(ctx context.Context, req *pb.ListJobTasksByAssigneeRequest) (*pb.ListJobTasksByAssigneeResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator, "job_task", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: "job_task", Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.AssignedTo == "" {

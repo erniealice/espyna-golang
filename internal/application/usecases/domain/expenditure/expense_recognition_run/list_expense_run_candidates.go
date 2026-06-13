@@ -15,7 +15,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	amortizeschedule "github.com/erniealice/espyna-golang/internal/application/shared/amortize_schedule"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	serviceamortization "github.com/erniealice/espyna-golang/internal/application/usecases/service/amortization"
@@ -63,6 +63,7 @@ type ListExpenseRunCandidatesRepositories struct {
 type ListExpenseRunCandidatesServices struct {
 	Authorizer   ports.Authorizer
 	Translator   ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	// Amortization is the service-driven amortization schedule wrapper.
 	// Used by buildAdvanceCandidates to compute next-due tranches with
 	// proto-typed IO. Wired by the composition root via
@@ -101,12 +102,16 @@ func (uc *ListExpenseRunCandidatesUseCase) Execute(
 	ctx context.Context,
 	req *expenserecognitionrunpb.ListExpenseRunCandidatesRequest,
 ) (*expenserecognitionrunpb.ListExpenseRunCandidatesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenseRecognition, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityExpenseRecognition,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierSubscription, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entitySupplierSubscription,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

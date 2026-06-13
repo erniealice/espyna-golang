@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"google.golang.org/protobuf/proto"
@@ -65,6 +65,7 @@ type RecognizeRevenueFromSubscriptionServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 
 	// 2026-04-30 cyclic-subscription-jobs plan §5.2 — piggyback hook.
@@ -193,12 +194,16 @@ func (uc *RecognizeRevenueFromSubscriptionUseCase) Execute(
 	ctx context.Context,
 	req *revenuepb.CreateRevenueWithLineItemsRequest,
 ) (*revenuepb.CreateRevenueWithLineItemsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenue, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenue,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySubscription, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entitySubscription,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

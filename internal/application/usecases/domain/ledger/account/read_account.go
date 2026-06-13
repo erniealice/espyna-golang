@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
@@ -21,6 +21,7 @@ type ReadAccountServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadAccountUseCase handles the business logic for reading accounts
@@ -43,8 +44,10 @@ func NewReadAccountUseCase(
 // Execute performs the read account operation
 func (uc *ReadAccountUseCase) Execute(ctx context.Context, req *accountpb.ReadAccountRequest) (*accountpb.ReadAccountResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAccount, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAccount,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

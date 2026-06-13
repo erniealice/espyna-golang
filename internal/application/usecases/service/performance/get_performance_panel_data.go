@@ -14,7 +14,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/shared/resourcegate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
@@ -39,6 +39,7 @@ type Repositories struct {
 type Services struct {
 	Authorizer         ports.Authorizer
 	Translator         ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	ResourceGatekeeper *resourcegate.ResourceGatekeeper
 }
 
@@ -69,7 +70,7 @@ func NewUseCase(r Repositories, s Services) *UseCase {
 
 func (uc *UseCase) Execute(ctx context.Context, req *GetPerformancePanelDataRequest) (*PanelData, error) {
 	// Gate 1: can you DO evaluation:list?
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.Evaluation, entityid.ActionList); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Evaluation, Action: entityid.ActionList}); err != nil {
 		return nil, err
 	}
 	out := &PanelData{}

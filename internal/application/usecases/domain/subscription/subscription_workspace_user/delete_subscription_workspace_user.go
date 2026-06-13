@@ -9,7 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -23,6 +23,7 @@ type DeleteSubscriptionWorkspaceUserServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteSubscriptionWorkspaceUserUseCase handles the business logic for deleting subscription workspace users (soft-delete)
@@ -44,8 +45,10 @@ func NewDeleteSubscriptionWorkspaceUserUseCase(
 
 // Execute performs the delete subscription workspace user operation (soft-delete: active=false).
 func (uc *DeleteSubscriptionWorkspaceUserUseCase) Execute(ctx context.Context, req *subscriptionworkspaceuserpb.DeleteSubscriptionWorkspaceUserRequest) (*subscriptionworkspaceuserpb.DeleteSubscriptionWorkspaceUserResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionWorkspaceUser, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionWorkspaceUser,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

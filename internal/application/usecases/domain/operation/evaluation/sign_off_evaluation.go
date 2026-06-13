@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
@@ -33,6 +33,7 @@ type SignOffEvaluationServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // SignOffEvaluationUseCase moves SUBMITTED→SIGNED_OFF (Q-SIGNOFF-1). It stamps
@@ -51,8 +52,10 @@ func NewSignOffEvaluationUseCase(repositories SignOffEvaluationRepositories, ser
 }
 
 func (uc *SignOffEvaluationUseCase) Execute(ctx context.Context, req *SignOffEvaluationRequest) (*evaluationpb.UpdateEvaluationResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Evaluation, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Evaluation,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.EvaluationID == "" {

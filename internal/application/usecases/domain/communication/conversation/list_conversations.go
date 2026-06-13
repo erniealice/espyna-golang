@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -26,6 +26,7 @@ type ListConversationsServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListConversationsUseCase handles listing conversations with role-scoped IDOR filtering.
@@ -45,8 +46,10 @@ func NewListConversationsUseCase(repos ListConversationsRepositories, svcs ListC
 // client_id = acting_as_client_id; a staff caller is workspace-wide (the
 // WorkspaceAwareOperations layer applies the workspace predicate from context).
 func (uc *ListConversationsUseCase) Execute(ctx context.Context, req *conversationpb.ListConversationsRequest) (*conversationpb.ListConversationsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Conversation, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Conversation,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

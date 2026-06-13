@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	licensehistory "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/license_history"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -29,6 +29,7 @@ type AssignLicenseServices struct {
 	Authorizer ports.Authorizer // RBAC and permissions
 	Transactor ports.Transactor // Database transactions
 	Translator ports.Translator // i18n error messages
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // AssignLicenseUseCase handles the business logic for assigning licenses
@@ -54,8 +55,10 @@ func NewAssignLicenseUseCase(
 // Execute performs the assign license operation
 func (uc *AssignLicenseUseCase) Execute(ctx context.Context, req *licensepb.AssignLicenseRequest) (*licensepb.AssignLicenseResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.License, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.License,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

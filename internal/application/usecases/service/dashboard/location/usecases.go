@@ -26,6 +26,7 @@ package location
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 )
 
 // UseCases aggregates every service-driven location dashboard use case.
@@ -43,6 +44,7 @@ type Repositories struct {
 // Services groups application services.
 type Services struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // Deps groups the constructor inputs the umbrella initializer threads to the
@@ -54,6 +56,7 @@ type Deps struct {
 	Location     LocationDashboardRepository
 	LocationArea LocationAreaDashboardRepository
 	Translator   ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // NewUseCases wires every location-dashboard service use case from grouped

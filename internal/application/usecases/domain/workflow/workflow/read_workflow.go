@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
@@ -24,6 +24,7 @@ type ReadWorkflowServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadWorkflowUseCase handles the business logic for reading workflows
@@ -63,8 +64,10 @@ func NewReadWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainServi
 // Execute performs the read workflow operation
 func (uc *ReadWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.ReadWorkflowRequest) (*workflowpb.ReadWorkflowResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "workflow",
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
@@ -22,6 +22,7 @@ type ReadActivityServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadActivityUseCase handles the business logic for reading activities
@@ -60,8 +61,10 @@ func NewReadActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainServi
 // Execute performs the read activity operation
 func (uc *ReadActivityUseCase) Execute(ctx context.Context, req *activitypb.ReadActivityRequest) (*activitypb.ReadActivityResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "activity",
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

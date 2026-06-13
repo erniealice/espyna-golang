@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -22,6 +22,7 @@ type ListSubscriptionWorkspaceUsersServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListSubscriptionWorkspaceUsersUseCase handles the business logic for listing subscription workspace users
@@ -45,8 +46,10 @@ func NewListSubscriptionWorkspaceUsersUseCase(
 // subscription_id and by workspace_user_id (the "what do I service" query) ride
 // on req.Filters.
 func (uc *ListSubscriptionWorkspaceUsersUseCase) Execute(ctx context.Context, req *subscriptionworkspaceuserpb.ListSubscriptionWorkspaceUsersRequest) (*subscriptionworkspaceuserpb.ListSubscriptionWorkspaceUsersResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionWorkspaceUser, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionWorkspaceUser,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

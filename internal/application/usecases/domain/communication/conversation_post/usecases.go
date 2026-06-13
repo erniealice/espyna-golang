@@ -2,6 +2,7 @@ package conversation_post
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 	conversationPostpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation_post"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -20,6 +21,7 @@ type ConversationPostServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 	// Email is OPTIONAL: when non-nil, NotifyConversationPost sends an
 	// outbound "new message" email. Nil leaves notification a no-op (the
@@ -56,6 +58,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  transactionService,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 			notify,
@@ -69,6 +72,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: transactionService,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		NotifyConversationPost: notify,

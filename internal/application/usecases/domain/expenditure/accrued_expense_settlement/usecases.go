@@ -2,6 +2,7 @@ package accruedexpensesettlement
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 )
 
@@ -15,6 +16,7 @@ type AccruedExpenseSettlementServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -38,6 +40,7 @@ func NewUseCases(
 			CreateAccruedExpenseSettlementServices{
 				Authorizer:  services.Authorizer,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -46,6 +49,7 @@ func NewUseCases(
 			ReadAccruedExpenseSettlementServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateAccruedExpenseSettlement: NewUpdateAccruedExpenseSettlementUseCase(
@@ -53,6 +57,7 @@ func NewUseCases(
 			UpdateAccruedExpenseSettlementServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteAccruedExpenseSettlement: NewDeleteAccruedExpenseSettlementUseCase(
@@ -60,6 +65,7 @@ func NewUseCases(
 			DeleteAccruedExpenseSettlementServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListAccruedExpenseSettlements: NewListAccruedExpenseSettlementsUseCase(
@@ -67,6 +73,7 @@ func NewUseCases(
 			ListAccruedExpenseSettlementsServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

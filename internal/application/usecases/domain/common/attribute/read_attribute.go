@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
@@ -21,6 +21,7 @@ type ReadAttributeServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadAttributeUseCase handles the business logic for reading attributes
@@ -58,8 +59,10 @@ func NewReadAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomainS
 // Execute performs the read attribute operation
 func (uc *ReadAttributeUseCase) Execute(ctx context.Context, req *attributepb.ReadAttributeRequest) (*attributepb.ReadAttributeResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"attribute", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "attribute",
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

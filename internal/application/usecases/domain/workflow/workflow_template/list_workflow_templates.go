@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -24,6 +24,7 @@ type ListWorkflowTemplatesServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListWorkflowTemplatesUseCase handles the business logic for listing workflow templates
@@ -64,8 +65,10 @@ func NewListWorkflowTemplatesUseCaseUngrouped(workflowTemplateRepo workflow_temp
 // Execute performs the list workflow templates operation
 func (uc *ListWorkflowTemplatesUseCase) Execute(ctx context.Context, req *workflow_templatepb.ListWorkflowTemplatesRequest) (*workflow_templatepb.ListWorkflowTemplatesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow_template", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "workflow_template",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

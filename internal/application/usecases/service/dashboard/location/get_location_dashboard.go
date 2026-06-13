@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	locationdashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/location"
@@ -63,6 +64,7 @@ type GetLocationDashboardRepositories struct {
 // pattern at `service/dashboard/admin/get_admin_dashboard.go`).
 type GetLocationDashboardServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetLocationDashboardUseCase composes the location + location_area

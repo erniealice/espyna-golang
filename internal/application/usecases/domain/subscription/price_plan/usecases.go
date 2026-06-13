@@ -2,6 +2,7 @@ package price_plan
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -25,6 +26,7 @@ type PricePlanServices struct {
 	Authorizer       ports.Authorizer // Current: RBAC and permissions
 	Transactor       ports.Transactor // Current: Database transactions
 	Translator       ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator      ports.IDGenerator      // Only for CreatePricePlan
 	ReferenceChecker ports.ReferenceChecker // §3.5 — UpdatePricePlan multi-engagement confirm gate
 }

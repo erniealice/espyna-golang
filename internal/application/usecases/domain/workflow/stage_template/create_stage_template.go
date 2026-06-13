@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
@@ -26,6 +26,7 @@ type CreateStageTemplateServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -67,8 +68,10 @@ func NewCreateStageTemplateUseCaseUngrouped(stageTemplateRepo stageTemplatepb.St
 // Execute performs the create stage template operation
 func (uc *CreateStageTemplateUseCase) Execute(ctx context.Context, req *stageTemplatepb.CreateStageTemplateRequest) (*stageTemplatepb.CreateStageTemplateResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"stage_template", entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "stage_template",
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 	conversationPostpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation_post"
 	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
@@ -17,6 +18,7 @@ type NotifyConversationPostRepositories struct {
 // NotifyConversationPostServices groups service dependencies.
 type NotifyConversationPostServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	Email      ports.EmailProvider // OPTIONAL — nil makes this a no-op
 }
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
@@ -23,6 +23,7 @@ type ListSubscriptionsByPricePlanServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListSubscriptionsByPricePlanUseCase resolves every subscription whose
@@ -48,8 +49,10 @@ func (uc *ListSubscriptionsByPricePlanUseCase) Execute(
 	ctx context.Context,
 	req *subscriptionpb.ListSubscriptionsByPricePlanRequest,
 ) (*subscriptionpb.ListSubscriptionsByPricePlanResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Subscription, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Subscription,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

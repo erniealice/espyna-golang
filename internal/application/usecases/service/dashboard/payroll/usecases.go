@@ -32,6 +32,7 @@ package payroll
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 )
 
 // UseCases aggregates every service-driven payroll dashboard use case.
@@ -52,6 +53,7 @@ type Deps struct {
 	PayrollRun        PayrollRunDashboardRepository
 	PayrollRemittance PayrollRemittanceDashboardRepository
 	Translator        ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // NewUseCases wires every payroll-dashboard service use case from grouped

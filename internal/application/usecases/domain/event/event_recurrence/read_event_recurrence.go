@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	eventrecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
@@ -21,6 +21,7 @@ type ReadEventRecurrenceServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadEventRecurrenceUseCase handles the business logic for reading a single event recurrence
@@ -63,8 +64,10 @@ func NewReadEventRecurrenceUseCaseUngrouped(eventRecurrenceRepo eventrecurrencep
 // Execute performs the read event recurrence operation
 func (uc *ReadEventRecurrenceUseCase) Execute(ctx context.Context, req *eventrecurrencepb.ReadEventRecurrenceRequest) (*eventrecurrencepb.ReadEventRecurrenceResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"event_recurrence", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "event_recurrence",
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

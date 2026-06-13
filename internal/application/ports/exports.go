@@ -208,9 +208,16 @@ type (
 
 // Workflow types
 type (
-	WorkflowEngineService = domain.WorkflowEngineService
-	ActivityExecutor      = domain.ActivityExecutor
-	ExecutorRegistry      = domain.ExecutorRegistry
+	WorkflowEngineService          = domain.WorkflowEngineService
+	WorkflowAssigneeQueryService   = domain.WorkflowAssigneeQueryService
+	ActivityExecutor               = domain.ActivityExecutor
+	ExecutorRegistry               = domain.ExecutorRegistry
+)
+
+// Workflow request/response types
+type (
+	ListPendingActivitiesForAssigneeRequest  = domain.ListPendingActivitiesForAssigneeRequest
+	ListPendingActivitiesForAssigneeResponse = domain.ListPendingActivitiesForAssigneeResponse
 )
 
 // Translation types

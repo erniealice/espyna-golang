@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	securitypb "github.com/erniealice/esqyma/pkg/schema/v1/service/security"
@@ -36,6 +37,7 @@ type GetUserPermissionCodesRepositories struct {
 // the lookup itself on RBAC would be circular.
 type GetUserPermissionCodesServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetUserPermissionCodesUseCase resolves the effective ALLOW permission

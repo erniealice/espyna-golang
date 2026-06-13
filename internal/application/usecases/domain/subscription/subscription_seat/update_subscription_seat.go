@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 )
@@ -23,6 +23,7 @@ type UpdateSubscriptionSeatServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateSubscriptionSeatUseCase handles the business logic for updating subscription seats
@@ -56,8 +57,10 @@ func NewUpdateSubscriptionSeatUseCase(
 // from it), overwriting any caller-supplied value before the write. Status changes
 // must go only through SetSubscriptionSeatStatus.
 func (uc *UpdateSubscriptionSeatUseCase) Execute(ctx context.Context, req *subscriptionseatpb.UpdateSubscriptionSeatRequest) (*subscriptionseatpb.UpdateSubscriptionSeatResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionSeat, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionSeat,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

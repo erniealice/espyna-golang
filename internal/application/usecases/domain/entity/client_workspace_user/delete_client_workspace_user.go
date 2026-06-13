@@ -8,7 +8,7 @@ import (
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
@@ -23,6 +23,7 @@ type DeleteClientWorkspaceUserServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteClientWorkspaceUserUseCase handles the business logic for deleting client workspace users (soft-delete)
@@ -44,8 +45,10 @@ func NewDeleteClientWorkspaceUserUseCase(
 
 // Execute performs the delete client workspace user operation (soft-delete: active=false).
 func (uc *DeleteClientWorkspaceUserUseCase) Execute(ctx context.Context, req *clientworkspaceuserpb.DeleteClientWorkspaceUserRequest) (*clientworkspaceuserpb.DeleteClientWorkspaceUserResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ClientWorkspaceUser, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ClientWorkspaceUser,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

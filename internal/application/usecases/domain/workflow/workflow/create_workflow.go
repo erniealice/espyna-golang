@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	workflowpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow"
@@ -25,6 +25,7 @@ type CreateWorkflowServices struct {
 	Authorizer            ports.Authorizer
 	Transactor            ports.Transactor
 	Translator            ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator           ports.IDGenerator
 	WorkflowEngineService ports.WorkflowEngineService
 }
@@ -66,8 +67,10 @@ func NewCreateWorkflowUseCaseUngrouped(workflowRepo workflowpb.WorkflowDomainSer
 // Execute performs the create workflow operation
 func (uc *CreateWorkflowUseCase) Execute(ctx context.Context, req *workflowpb.CreateWorkflowRequest) (*workflowpb.CreateWorkflowResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow", entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "workflow",
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

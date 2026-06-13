@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
@@ -38,6 +38,7 @@ type RegisterReleaseRepositories struct {
 type RegisterReleaseServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // RegisterReleaseUseCase increments released_amount when a PO is created against a contract.
@@ -57,8 +58,10 @@ func NewRegisterReleaseUseCase(
 
 // Execute performs the register release operation.
 func (uc *RegisterReleaseUseCase) Execute(ctx context.Context, req RegisterReleaseRequest) error {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContract, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entitySupplierContract,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return err
 	}
 	if req.ContractID == "" {

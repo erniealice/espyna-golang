@@ -2,6 +2,7 @@ package delegate_attribute
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 	delegateattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_attribute"
@@ -30,6 +31,7 @@ type DelegateAttributeServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -44,6 +46,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -53,6 +56,7 @@ func NewUseCases(
 	readServices := ReadDelegateAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateDelegateAttributeRepositories{
@@ -63,6 +67,7 @@ func NewUseCases(
 	updateServices := UpdateDelegateAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteDelegateAttributeRepositories{
@@ -71,6 +76,7 @@ func NewUseCases(
 	deleteServices := DeleteDelegateAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListDelegateAttributesRepositories{
@@ -79,6 +85,7 @@ func NewUseCases(
 	listServices := ListDelegateAttributesServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getListPageDataRepos := GetDelegateAttributeListPageDataRepositories{
@@ -87,6 +94,7 @@ func NewUseCases(
 	getListPageDataServices := GetDelegateAttributeListPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getItemPageDataRepos := GetDelegateAttributeItemPageDataRepositories{
@@ -95,6 +103,7 @@ func NewUseCases(
 	getItemPageDataServices := GetDelegateAttributeItemPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

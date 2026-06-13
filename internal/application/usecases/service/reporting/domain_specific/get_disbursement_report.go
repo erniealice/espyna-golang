@@ -8,7 +8,7 @@ import (
 	dspb "github.com/erniealice/esqyma/pkg/schema/v1/service/reporting/domain_specific"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 )
@@ -19,6 +19,7 @@ type GetDisbursementReportUseCase struct {
 	reporter             reporter
 	authorizationService ports.Authorizer
 	translationService   ports.Translator
+	actionGatekeeper  *actiongate.ActionGatekeeper
 }
 
 // NewGetDisbursementReportUseCase wires the use case with nil-safe deps.
@@ -43,13 +44,10 @@ func (uc *GetDisbursementReportUseCase) Execute(
 	ctx context.Context,
 	req *dspb.GetDisbursementReportRequest,
 ) (*dspb.GetDisbursementReportResponse, error) {
-	if err := authcheck.Check(
-		ctx,
-		uc.authorizationService,
-		uc.translationService,
-		"reports",
-		entityid.ActionList,
-	); err != nil {
+	if err := uc.actionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "reports",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

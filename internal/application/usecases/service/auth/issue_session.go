@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
@@ -32,6 +33,7 @@ type IssueSessionRepositories struct {
 type IssueSessionServices struct {
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 	Expiry      SessionExpiryConfig
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -618,5 +619,844 @@ func BenchmarkResolveSimple_EmailScenario(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_, _ = p.Resolve(workflowContext, mappingJson)
+	}
+}
+
+// =============================================================================
+// Phase 4: Fail-closed test wave — JSON Schema validation via santhosh-tekuri
+// =============================================================================
+//
+// These tests exercise the swapped validateWithJSONSchema (now backed by
+// santhosh-tekuri/jsonschema/v6, draft 2020-12). Each FAIL-CLOSED case asserts
+// a non-nil error; each regression case asserts success and the expected map.
+// The tests use ValidateInput (the public seam) to confirm end-to-end behavior.
+
+func TestValidateInput_JSONSchema_BadEnum_FailsClosed(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"status": {
+				"type": "string",
+				"enum": ["active", "inactive"]
+			}
+		}
+	}`
+
+	input := `{"status": "unknown_value"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for bad enum value, got nil")
+	}
+	t.Logf("bad-enum error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_OutOfBoundsMinimum_FailsClosed(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"new_monthly_rate": {
+				"type": "integer",
+				"minimum": 1
+			}
+		}
+	}`
+
+	input := `{"new_monthly_rate": 0}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for value below minimum (centavos floor), got nil")
+	}
+	t.Logf("minimum-violation error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_OutOfBoundsMaximum_FailsClosed(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"hours_per_week": {
+				"type": "integer",
+				"maximum": 168
+			}
+		}
+	}`
+
+	input := `{"hours_per_week": 200}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for value above maximum, got nil")
+	}
+	t.Logf("maximum-violation error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_ShortMinLength_FailsClosed(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"justification": {
+				"type": "string",
+				"minLength": 10
+			}
+		}
+	}`
+
+	input := `{"justification": "short"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for string shorter than minLength, got nil")
+	}
+	t.Logf("minLength-violation error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_PatternMismatch_FailsClosed(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"code": {
+				"type": "string",
+				"pattern": "^[a-z_]+$"
+			}
+		}
+	}`
+
+	input := `{"code": "bad value!"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for pattern mismatch, got nil")
+	}
+	t.Logf("pattern-mismatch error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_UnknownField_FailsClosed_ByDefault(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// Schema does NOT declare additionalProperties — reject-by-default applies
+	// (implicit additionalProperties:false per Q-VAL-2).
+	schema := `{
+		"type": "object",
+		"properties": {
+			"known_field": {
+				"type": "string"
+			}
+		}
+	}`
+
+	input := `{"known_field": "x", "rogue_field": "y"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for unknown field (reject-by-default), got nil")
+	}
+	t.Logf("unknown-field error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_MissingRequired_FailsClosed(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"new_monthly_rate": {
+				"type": "integer",
+				"minimum": 1
+			}
+		},
+		"required": ["new_monthly_rate"]
+	}`
+
+	input := `{}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for missing required field, got nil")
+	}
+	t.Logf("missing-required error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_ValidFullPayload_Succeeds(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"new_monthly_rate": {
+				"type": "integer",
+				"minimum": 1,
+				"maximum": 10000000
+			},
+			"justification": {
+				"type": "string",
+				"minLength": 10,
+				"maxLength": 5000
+			},
+			"status": {
+				"type": "string",
+				"enum": ["active", "inactive"]
+			},
+			"code": {
+				"type": "string",
+				"pattern": "^[a-z_]+$"
+			}
+		},
+		"required": ["new_monthly_rate", "justification"]
+	}`
+
+	input := `{
+		"new_monthly_rate": 500000,
+		"justification": "Annual performance-based salary adjustment for senior developer role",
+		"status": "active",
+		"code": "salary_increase"
+	}`
+
+	result, err := p.ValidateInput(input, schema)
+	if err != nil {
+		t.Fatalf("expected success for valid full payload, got error: %v", err)
+	}
+
+	// Verify the enriched map contains the expected values
+	if result["new_monthly_rate"] != 500000 {
+		t.Errorf("expected new_monthly_rate=500000, got %v (type %T)", result["new_monthly_rate"], result["new_monthly_rate"])
+	}
+	if result["status"] != "active" {
+		t.Errorf("expected status='active', got %v", result["status"])
+	}
+	if result["code"] != "salary_increase" {
+		t.Errorf("expected code='salary_increase', got %v", result["code"])
+	}
+	t.Logf("valid payload result: %v", result)
+}
+
+func TestValidateInput_JSONSchema_EmptySchema_NoOp(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// Empty schema string
+	input := `{"any_field": "any_value"}`
+
+	result, err := p.ValidateInput(input, "")
+	if err != nil {
+		t.Fatalf("expected no error for empty schema string, got: %v", err)
+	}
+	if result["any_field"] != "any_value" {
+		t.Errorf("expected pass-through of input with empty schema, got %v", result)
+	}
+
+	// Empty JSON object schema
+	result2, err := p.ValidateInput(input, "{}")
+	if err != nil {
+		t.Fatalf("expected no error for empty JSON object schema, got: %v", err)
+	}
+	if result2["any_field"] != "any_value" {
+		t.Errorf("expected pass-through of input with empty JSON object schema, got %v", result2)
+	}
+}
+
+func TestValidateInput_JSONSchema_PerSchemaOptOut_PassesThrough(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// Schema explicitly declares additionalProperties:true — opt-out from
+	// the reject-by-default policy (Q-VAL-2).
+	schema := `{
+		"type": "object",
+		"properties": {
+			"known_field": {
+				"type": "string"
+			}
+		},
+		"additionalProperties": true
+	}`
+
+	input := `{"known_field": "x", "extra_field": "y", "another_extra": 42}`
+
+	result, err := p.ValidateInput(input, schema)
+	if err != nil {
+		t.Fatalf("expected success when additionalProperties:true, got error: %v", err)
+	}
+
+	if result["known_field"] != "x" {
+		t.Errorf("expected known_field='x', got %v", result["known_field"])
+	}
+	if result["extra_field"] != "y" {
+		t.Errorf("expected extra_field='y' (pass-through), got %v", result["extra_field"])
+	}
+	t.Logf("opt-out result: %v", result)
+}
+
+func TestValidateInput_JSONSchema_TypeCoercionPreserved(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// Q-VAL-1: coerce-first. A portal submitting "42" for an integer field
+	// should still work because coercion normalises the type before validation.
+	schema := `{
+		"type": "object",
+		"properties": {
+			"count": {
+				"type": "integer",
+				"minimum": 1,
+				"maximum": 100
+			}
+		},
+		"required": ["count"]
+	}`
+
+	input := `{"count": "42"}`
+
+	result, err := p.ValidateInput(input, schema)
+	if err != nil {
+		t.Fatalf("expected success with string-to-integer coercion, got error: %v", err)
+	}
+
+	// After coercion, count should be an int
+	count, ok := result["count"].(int)
+	if !ok {
+		t.Fatalf("expected count to be int after coercion, got %T", result["count"])
+	}
+	if count != 42 {
+		t.Errorf("expected count=42, got %d", count)
+	}
+}
+
+func TestValidateInput_JSONSchema_TypeCoercion_BooleanPreserved(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"active": {
+				"type": "boolean"
+			}
+		}
+	}`
+
+	input := `{"active": "true"}`
+
+	result, err := p.ValidateInput(input, schema)
+	if err != nil {
+		t.Fatalf("expected success with string-to-boolean coercion, got error: %v", err)
+	}
+
+	active, ok := result["active"].(bool)
+	if !ok {
+		t.Fatalf("expected active to be bool after coercion, got %T", result["active"])
+	}
+	if !active {
+		t.Error("expected active=true, got false")
+	}
+}
+
+func TestValidateInput_JSONSchema_CoercionDoesNotRelaxMinimum(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// SEC-4: Coerce-first must NOT relax a constraint. A string "0" for a
+	// centavos field (minimum:1) must still fail after coercion to int(0).
+	schema := `{
+		"type": "object",
+		"properties": {
+			"new_monthly_rate": {
+				"type": "integer",
+				"minimum": 1
+			}
+		},
+		"required": ["new_monthly_rate"]
+	}`
+
+	input := `{"new_monthly_rate": "0"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error: coercion of '0' to int(0) should still fail minimum:1")
+	}
+	t.Logf("coerce-does-not-relax error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_NegativeIntegerFails(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"new_monthly_rate": {
+				"type": "integer",
+				"minimum": 1
+			}
+		}
+	}`
+
+	input := `{"new_monthly_rate": -100}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for negative integer with minimum:1, got nil")
+	}
+	t.Logf("negative-integer error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_MaxLength_FailsClosed(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"code": {
+				"type": "string",
+				"maxLength": 5
+			}
+		}
+	}`
+
+	input := `{"code": "too_long_value"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for string exceeding maxLength, got nil")
+	}
+	t.Logf("maxLength-violation error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_MalformedSchema_Denies(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// A malformed schema string that cannot be compiled must return an error
+	// (SEC-3: deny, never degrade to pass-through).
+	schema := `{
+		"type": "object",
+		"properties": {
+			"field": {
+				"type": "INVALID_TYPE_NOT_IN_SPEC"
+			}
+		}
+	}`
+
+	input := `{"field": "value"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error for malformed/uncompilable schema, got nil")
+	}
+	t.Logf("malformed-schema error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_DefaultsApplied(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"status": {
+				"type": "string",
+				"enum": ["active", "inactive"],
+				"default": "active"
+			},
+			"name": {
+				"type": "string"
+			}
+		},
+		"required": ["name"]
+	}`
+
+	input := `{"name": "test"}`
+
+	result, err := p.ValidateInput(input, schema)
+	if err != nil {
+		t.Fatalf("expected success with default applied, got error: %v", err)
+	}
+
+	if result["status"] != "active" {
+		t.Errorf("expected status='active' (default), got %v", result["status"])
+	}
+	if result["name"] != "test" {
+		t.Errorf("expected name='test', got %v", result["name"])
+	}
+}
+
+// Caller-level integration tests (TEST-3 replacement: ValidateInputToJson +
+// ValidateInput are the two public callers; both must work end-to-end).
+
+func TestValidateInputToJson_ValidPayload_ReturnsJSON(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"amount": {
+				"type": "integer",
+				"minimum": 1
+			},
+			"currency": {
+				"type": "string",
+				"enum": ["USD", "EUR", "GBP"]
+			}
+		},
+		"required": ["amount", "currency"]
+	}`
+
+	input := `{"amount": 5000, "currency": "USD"}`
+
+	result, err := p.ValidateInputToJson(input, schema)
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+
+	// Parse the JSON result and verify
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("failed to parse result JSON: %v", err)
+	}
+
+	// JSON numbers unmarshal as float64
+	if parsed["amount"] != float64(5000) {
+		t.Errorf("expected amount=5000, got %v", parsed["amount"])
+	}
+	if parsed["currency"] != "USD" {
+		t.Errorf("expected currency='USD', got %v", parsed["currency"])
+	}
+}
+
+func TestValidateInputToJson_InvalidPayload_ReturnsError(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"amount": {
+				"type": "integer",
+				"minimum": 1
+			}
+		},
+		"required": ["amount"]
+	}`
+
+	input := `{"amount": 0}`
+
+	_, err := p.ValidateInputToJson(input, schema)
+	if err == nil {
+		t.Fatal("expected error for invalid payload through ValidateInputToJson, got nil")
+	}
+	t.Logf("ValidateInputToJson error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_EmptyInput_WithRequired_Fails(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string"
+			}
+		},
+		"required": ["name"]
+	}`
+
+	// Empty input with a required field
+	_, err := p.ValidateInput("", schema)
+	if err == nil {
+		t.Fatal("expected error for empty input with required field, got nil")
+	}
+	t.Logf("empty-input-with-required error: %v", err)
+}
+
+func TestValidateInput_JSONSchema_EmptyInput_NoRequired_Succeeds(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string"
+			}
+		}
+	}`
+
+	// Empty input, no required fields
+	result, err := p.ValidateInput("", schema)
+	if err != nil {
+		t.Fatalf("expected success for empty input with no required fields, got: %v", err)
+	}
+	t.Logf("empty-input-no-required result: %v", result)
+}
+
+func TestValidateInput_JSONSchema_SchemaCaching(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string",
+				"minLength": 1
+			}
+		},
+		"required": ["name"]
+	}`
+
+	// First call compiles and caches the schema
+	result1, err := p.ValidateInput(`{"name": "first"}`, schema)
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+	if result1["name"] != "first" {
+		t.Errorf("first call: expected name='first', got %v", result1["name"])
+	}
+
+	// Second call should use the cached schema
+	result2, err := p.ValidateInput(`{"name": "second"}`, schema)
+	if err != nil {
+		t.Fatalf("second call (cached) failed: %v", err)
+	}
+	if result2["name"] != "second" {
+		t.Errorf("second call: expected name='second', got %v", result2["name"])
+	}
+
+	// Third call with invalid data should still fail (cache does not bypass validation)
+	_, err = p.ValidateInput(`{}`, schema)
+	if err == nil {
+		t.Fatal("third call (missing required): expected error, got nil")
+	}
+}
+
+func TestValidateInput_JSONSchema_MultipleConstraintsCombined(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// A realistic salary_increase request type schema
+	schema := `{
+		"type": "object",
+		"properties": {
+			"new_monthly_rate": {
+				"type": "integer",
+				"minimum": 1,
+				"maximum": 10000000
+			},
+			"justification": {
+				"type": "string",
+				"minLength": 10,
+				"maxLength": 5000
+			},
+			"effective_date": {
+				"type": "string",
+				"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+			}
+		},
+		"required": ["new_monthly_rate", "justification", "effective_date"]
+	}`
+
+	tests := []struct {
+		name      string
+		input     string
+		wantError bool
+	}{
+		{
+			name:      "valid salary increase request",
+			input:     `{"new_monthly_rate": 500000, "justification": "Annual performance-based salary adjustment", "effective_date": "2026-07-01"}`,
+			wantError: false,
+		},
+		{
+			name:      "zero rate (centavos floor)",
+			input:     `{"new_monthly_rate": 0, "justification": "Annual adjustment for role change", "effective_date": "2026-07-01"}`,
+			wantError: true,
+		},
+		{
+			name:      "short justification",
+			input:     `{"new_monthly_rate": 500000, "justification": "too short", "effective_date": "2026-07-01"}`,
+			wantError: true,
+		},
+		{
+			name:      "bad date format",
+			input:     `{"new_monthly_rate": 500000, "justification": "Annual performance-based salary adjustment", "effective_date": "July 1 2026"}`,
+			wantError: true,
+		},
+		{
+			name:      "missing required effective_date",
+			input:     `{"new_monthly_rate": 500000, "justification": "Annual performance-based salary adjustment"}`,
+			wantError: true,
+		},
+		{
+			name:      "unknown field rejected by default",
+			input:     `{"new_monthly_rate": 500000, "justification": "Annual performance-based salary adjustment", "effective_date": "2026-07-01", "rogue": "data"}`,
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := p.ValidateInput(tt.input, schema)
+			if tt.wantError && err == nil {
+				t.Error("expected error, got nil")
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("expected success, got error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateInput_JSONSchema_ExplicitAdditionalPropertiesFalse(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// Explicit additionalProperties:false should behave identically to the
+	// implicit default.
+	schema := `{
+		"type": "object",
+		"properties": {
+			"name": {"type": "string"}
+		},
+		"additionalProperties": false
+	}`
+
+	// Known field only — should pass
+	result, err := p.ValidateInput(`{"name": "valid"}`, schema)
+	if err != nil {
+		t.Fatalf("expected success for known-only payload, got: %v", err)
+	}
+	if result["name"] != "valid" {
+		t.Errorf("expected name='valid', got %v", result["name"])
+	}
+
+	// Unknown field — should fail
+	_, err = p.ValidateInput(`{"name": "valid", "extra": "nope"}`, schema)
+	if err == nil {
+		t.Fatal("expected error for unknown field with explicit additionalProperties:false")
+	}
+}
+
+func TestValidateInput_JSONSchema_NumberType(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"rate": {
+				"type": "number",
+				"minimum": 0.01,
+				"maximum": 1.0
+			}
+		}
+	}`
+
+	// Valid number
+	result, err := p.ValidateInput(`{"rate": 0.5}`, schema)
+	if err != nil {
+		t.Fatalf("expected success for valid number, got: %v", err)
+	}
+	t.Logf("number result: %v (type %T)", result["rate"], result["rate"])
+
+	// Below minimum
+	_, err = p.ValidateInput(`{"rate": 0.001}`, schema)
+	if err == nil {
+		t.Fatal("expected error for number below minimum")
+	}
+}
+
+func TestValidateInput_JSONSchema_StringCoercionToNumber(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"rate": {
+				"type": "number",
+				"minimum": 0.01
+			}
+		}
+	}`
+
+	// String "0.5" should coerce to float64(0.5) before validation
+	result, err := p.ValidateInput(`{"rate": "0.5"}`, schema)
+	if err != nil {
+		t.Fatalf("expected success with string-to-number coercion, got: %v", err)
+	}
+
+	rate, ok := result["rate"].(float64)
+	if !ok {
+		t.Fatalf("expected rate to be float64 after coercion, got %T", result["rate"])
+	}
+	if rate != 0.5 {
+		t.Errorf("expected rate=0.5, got %v", rate)
+	}
+}
+
+func TestValidateInput_JSONSchema_ErrorMessageContainsContext(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"type": "object",
+		"properties": {
+			"status": {
+				"type": "string",
+				"enum": ["active", "inactive"]
+			}
+		}
+	}`
+
+	input := `{"status": "bad"}`
+
+	_, err := p.ValidateInput(input, schema)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	// The error message should contain "validation failed" (our wrapper)
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "validation failed") {
+		t.Errorf("expected error to contain 'validation failed', got: %s", errMsg)
+	}
+}
+
+func TestValidateInput_SimpleFormat_StillWorks(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	// The simple format (non-JSON-Schema) path should be untouched (Q-VAL-5).
+	schema := `{
+		"name": {
+			"type": "string",
+			"required": true
+		},
+		"age": {
+			"type": "int",
+			"required": false,
+			"default": 25
+		}
+	}`
+
+	result, err := p.ValidateInput(`{"name": "John"}`, schema)
+	if err != nil {
+		t.Fatalf("expected success for simple format, got: %v", err)
+	}
+	if result["name"] != "John" {
+		t.Errorf("expected name='John', got %v", result["name"])
+	}
+	// JSON unmarshaling produces float64 for numbers; the simple format path
+	// stores the default as-is (json.Unmarshal default behaviour).
+	if result["age"] != float64(25) {
+		t.Errorf("expected age=25.0 (default, json float64), got %v (type %T)", result["age"], result["age"])
+	}
+}
+
+func TestValidateInput_SimpleFormat_MissingRequired_Fails(t *testing.T) {
+	p := NewSchemaProcessor()
+
+	schema := `{
+		"name": {
+			"type": "string",
+			"required": true
+		}
+	}`
+
+	_, err := p.ValidateInput(`{}`, schema)
+	if err == nil {
+		t.Fatal("expected error for missing required in simple format, got nil")
 	}
 }

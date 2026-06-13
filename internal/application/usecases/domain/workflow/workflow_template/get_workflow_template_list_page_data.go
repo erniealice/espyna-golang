@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
@@ -22,6 +22,7 @@ type GetWorkflowTemplateListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetWorkflowTemplateListPageDataUseCase handles the business logic for getting workflow template list page data
@@ -49,8 +50,10 @@ func (uc *GetWorkflowTemplateListPageDataUseCase) Execute(
 	req *workflow_templatepb.GetWorkflowTemplateListPageDataRequest,
 ) (*workflow_templatepb.GetWorkflowTemplateListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"workflow_template", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "workflow_template",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

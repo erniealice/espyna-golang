@@ -2,6 +2,7 @@ package procurementrequest
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 )
@@ -26,6 +27,7 @@ type ProcurementRequestServices struct {
 	Authorizer             ports.Authorizer
 	Transactor             ports.Transactor
 	Translator             ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator            ports.IDGenerator
 	ApprovalPolicyResolver ApprovalPolicyResolver
 }
@@ -57,6 +59,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -65,6 +68,7 @@ func NewUseCases(
 			ReadProcurementRequestServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateProcurementRequest: NewUpdateProcurementRequestUseCase(
@@ -72,6 +76,7 @@ func NewUseCases(
 			UpdateProcurementRequestServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteProcurementRequest: NewDeleteProcurementRequestUseCase(
@@ -79,6 +84,7 @@ func NewUseCases(
 			DeleteProcurementRequestServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListProcurementRequests: NewListProcurementRequestsUseCase(
@@ -86,6 +92,7 @@ func NewUseCases(
 			ListProcurementRequestsServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		GetProcurementRequestListPageData: NewGetProcurementRequestListPageDataUseCase(
@@ -93,6 +100,7 @@ func NewUseCases(
 			GetProcurementRequestListPageDataServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		GetProcurementRequestItemPageData: NewGetProcurementRequestItemPageDataUseCase(
@@ -100,6 +108,7 @@ func NewUseCases(
 			GetProcurementRequestItemPageDataServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		SubmitProcurementRequest: NewSubmitProcurementRequestUseCase(
@@ -107,6 +116,7 @@ func NewUseCases(
 			SubmitProcurementRequestServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ApproveProcurementRequest: NewApproveProcurementRequestUseCase(
@@ -119,6 +129,7 @@ func NewUseCases(
 				Authorizer:             services.Authorizer,
 				Transactor:             services.Transactor,
 				Translator:             services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator:            services.IDGenerator,
 				ApprovalPolicyResolver: services.ApprovalPolicyResolver,
 			},
@@ -128,6 +139,7 @@ func NewUseCases(
 			RejectProcurementRequestServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		SpawnPurchaseOrder: NewSpawnPurchaseOrderUseCase(
@@ -136,6 +148,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

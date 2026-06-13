@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
@@ -21,6 +21,7 @@ type ReadRevenueCategoryServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadRevenueCategoryUseCase handles the business logic for reading a revenue category
@@ -42,8 +43,10 @@ func NewReadRevenueCategoryUseCase(
 
 // Execute performs the read revenue category operation
 func (uc *ReadRevenueCategoryUseCase) Execute(ctx context.Context, req *pb.ReadRevenueCategoryRequest) (*pb.ReadRevenueCategoryResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueCategory, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenueCategory,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -24,6 +24,7 @@ type GetLicenseHistoryListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetLicenseHistoryListPageDataUseCase handles the business logic for getting license history list page data
@@ -51,8 +52,10 @@ func (uc *GetLicenseHistoryListPageDataUseCase) Execute(
 	req *licensehistorypb.GetLicenseHistoryListPageDataRequest,
 ) (*licensehistorypb.GetLicenseHistoryListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.LicenseHistory, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.LicenseHistory,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

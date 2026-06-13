@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
@@ -22,6 +22,7 @@ type DeleteInventoryAttributeServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteInventoryAttributeUseCase handles the business logic for deleting inventory attributes
@@ -43,8 +44,10 @@ func NewDeleteInventoryAttributeUseCase(
 
 // Execute performs the delete inventory attribute operation
 func (uc *DeleteInventoryAttributeUseCase) Execute(ctx context.Context, req *inventoryattributepb.DeleteInventoryAttributeRequest) (*inventoryattributepb.DeleteInventoryAttributeResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.InventoryAttribute, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.InventoryAttribute,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

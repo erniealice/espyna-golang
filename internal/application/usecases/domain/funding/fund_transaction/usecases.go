@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	fundtransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/funding/fund_transaction"
 )
@@ -34,6 +34,7 @@ type FundTransactionServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -64,8 +65,10 @@ type CreateFundTransactionUseCase struct {
 }
 
 func (uc *CreateFundTransactionUseCase) Execute(ctx context.Context, req *fundtransactionpb.CreateFundTransactionRequest) (*fundtransactionpb.CreateFundTransactionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityFundTransaction, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityFundTransaction,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil {
@@ -92,8 +95,10 @@ type ReadFundTransactionUseCase struct {
 }
 
 func (uc *ReadFundTransactionUseCase) Execute(ctx context.Context, req *fundtransactionpb.ReadFundTransactionRequest) (*fundtransactionpb.ReadFundTransactionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityFundTransaction, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityFundTransaction,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repo.ReadFundTransaction(ctx, req)
@@ -112,8 +117,10 @@ type UpdateFundTransactionUseCase struct {
 }
 
 func (uc *UpdateFundTransactionUseCase) Execute(ctx context.Context, req *fundtransactionpb.UpdateFundTransactionRequest) (*fundtransactionpb.UpdateFundTransactionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityFundTransaction, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityFundTransaction,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.Data == nil || req.Data.Id == "" {
@@ -131,8 +138,10 @@ type DeleteFundTransactionUseCase struct {
 }
 
 func (uc *DeleteFundTransactionUseCase) Execute(ctx context.Context, req *fundtransactionpb.DeleteFundTransactionRequest) (*fundtransactionpb.DeleteFundTransactionResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityFundTransaction, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityFundTransaction,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repo.DeleteFundTransaction(ctx, req)
@@ -145,8 +154,10 @@ type ListFundTransactionsUseCase struct {
 }
 
 func (uc *ListFundTransactionsUseCase) Execute(ctx context.Context, req *fundtransactionpb.ListFundTransactionsRequest) (*fundtransactionpb.ListFundTransactionsResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityFundTransaction, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityFundTransaction,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	return uc.repo.ListFundTransactions(ctx, req)

@@ -40,6 +40,7 @@ import (
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 )
 
 // reporter is the narrow port for gross-margin + cash-flow reports. The
@@ -59,6 +60,7 @@ type Deps struct {
 	Reporter   any
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases aggregates every gross/cashflow use case.

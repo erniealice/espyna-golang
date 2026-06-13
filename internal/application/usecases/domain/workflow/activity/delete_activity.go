@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
@@ -22,6 +22,7 @@ type DeleteActivityServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteActivityUseCase handles the business logic for deleting activities
@@ -60,8 +61,10 @@ func NewDeleteActivityUseCaseUngrouped(activityRepo activitypb.ActivityDomainSer
 // Execute performs the delete activity operation
 func (uc *DeleteActivityUseCase) Execute(ctx context.Context, req *activitypb.DeleteActivityRequest) (*activitypb.DeleteActivityResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"activity", entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "activity",
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

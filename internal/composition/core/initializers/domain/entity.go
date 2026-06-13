@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
@@ -54,9 +55,10 @@ func InitializeEntity(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*entity.EntityUseCases, error) {
 	svc := func() entityServices {
-		return entityServices{authSvc, txSvc, i18nSvc, idSvc}
+		return entityServices{authSvc, txSvc, i18nSvc, actionGate, idSvc}
 	}
 
 	result := &entity.EntityUseCases{}
@@ -374,8 +376,9 @@ func InitializeEntity(
 // entityServices is a type alias to reduce repetition in InitializeEntity.
 // All entity *Services structs share the same layout, so we can convert between them.
 type entityServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
-	IDGenerator ports.IDGenerator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
+	IDGenerator      ports.IDGenerator
 }

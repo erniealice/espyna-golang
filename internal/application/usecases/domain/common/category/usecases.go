@@ -2,6 +2,7 @@ package category
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -14,6 +15,7 @@ type CategoryRepositories struct {
 type CategoryServices struct {
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -36,6 +38,7 @@ func NewUseCases(
 	createServices := CreateCategoryServices{
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -43,24 +46,28 @@ func NewUseCases(
 	readServices := ReadCategoryServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateCategoryRepositories(repositories)
 	updateServices := UpdateCategoryServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteCategoryRepositories(repositories)
 	deleteServices := DeleteCategoryServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListCategoriesRepositories(repositories)
 	listServices := ListCategoriesServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

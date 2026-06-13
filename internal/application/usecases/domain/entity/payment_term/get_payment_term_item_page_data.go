@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 )
@@ -19,6 +19,7 @@ type GetPaymentTermItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetPaymentTermItemPageDataUseCase handles getting individual payment term item data
@@ -45,8 +46,10 @@ func (uc *GetPaymentTermItemPageDataUseCase) Execute(
 	req *paymenttermpb.GetPaymentTermItemPageDataRequest,
 ) (*paymenttermpb.GetPaymentTermItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"payment_term", entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "payment_term",
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

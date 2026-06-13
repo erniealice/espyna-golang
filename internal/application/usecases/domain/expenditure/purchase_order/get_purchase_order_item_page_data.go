@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
@@ -22,6 +22,7 @@ type GetPurchaseOrderItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetPurchaseOrderItemPageDataUseCase handles fetching full item detail page data for a purchase order
@@ -43,8 +44,10 @@ func NewGetPurchaseOrderItemPageDataUseCase(
 
 // Execute performs the get purchase order item page data operation
 func (uc *GetPurchaseOrderItemPageDataUseCase) Execute(ctx context.Context, req *purchaseorderpb.GetPurchaseOrderItemPageDataRequest) (*purchaseorderpb.GetPurchaseOrderItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityPurchaseOrder, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityPurchaseOrder,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

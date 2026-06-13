@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_category"
@@ -21,6 +21,7 @@ type ListExpenditureCategoriesServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListExpenditureCategoriesUseCase handles the business logic for listing expenditure categories
@@ -42,8 +43,10 @@ func NewListExpenditureCategoriesUseCase(
 
 // Execute performs the list expenditure categories operation
 func (uc *ListExpenditureCategoriesUseCase) Execute(ctx context.Context, req *pb.ListExpenditureCategoriesRequest) (*pb.ListExpenditureCategoriesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenditureCategory, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityExpenditureCategory,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

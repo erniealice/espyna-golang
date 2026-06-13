@@ -65,6 +65,7 @@ import (
 	disbreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/reporting/disbursement_report"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 )
 
 // reporter is the narrow port for the 3 typed pivot reports + the 2 Go-
@@ -86,6 +87,7 @@ type Deps struct {
 	Reporter   any
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases aggregates every domain-specific use case.

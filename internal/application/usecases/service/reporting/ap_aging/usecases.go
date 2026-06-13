@@ -44,6 +44,7 @@ import (
 	payagingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/payables_aging"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 )
 
 // reporter is the narrow port the AP aging use cases need from the
@@ -76,6 +77,7 @@ type Deps struct {
 	Reporter   any
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UseCases aggregates every AP aging use case. Apps reach it via

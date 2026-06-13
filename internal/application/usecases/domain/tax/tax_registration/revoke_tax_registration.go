@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
@@ -23,6 +23,7 @@ type RevokeTaxRegistrationServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // RevokeTaxRegistrationRequest is the input for revoking a tax_registration.
@@ -50,8 +51,10 @@ func NewRevokeTaxRegistrationUseCase(repositories RevokeTaxRegistrationRepositor
 // Execute performs the revoke operation.
 func (uc *RevokeTaxRegistrationUseCase) Execute(ctx context.Context, req *RevokeTaxRegistrationRequest) (*taxregistrationpb.TaxRegistration, error) {
 	// Revoke is a "delete" action in CRUD permission terms.
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRegistration, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityTaxRegistration,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

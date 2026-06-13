@@ -2,6 +2,7 @@ package revenue_tax_line
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 )
 
@@ -16,6 +17,7 @@ type RevenueTaxLineRepositories struct {
 type RevenueTaxLineServices struct {
 	Authorizer  ports.Authorizer
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 

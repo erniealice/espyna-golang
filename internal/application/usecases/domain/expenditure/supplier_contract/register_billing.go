@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
@@ -26,6 +26,7 @@ type RegisterBillingRepositories struct {
 type RegisterBillingServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // RegisterBillingUseCase increments billed_amount and recomputes remaining_amount
@@ -46,8 +47,10 @@ func NewRegisterBillingUseCase(
 
 // Execute performs the register billing operation.
 func (uc *RegisterBillingUseCase) Execute(ctx context.Context, req RegisterBillingRequest) error {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContract, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entitySupplierContract,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return err
 	}
 	if req.ContractID == "" {

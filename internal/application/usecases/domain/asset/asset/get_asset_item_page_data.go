@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
@@ -23,6 +23,7 @@ type GetAssetItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetAssetItemPageDataUseCase handles the business logic for getting asset item page data
@@ -45,8 +46,10 @@ func NewGetAssetItemPageDataUseCase(
 // Execute performs the get asset item page data operation
 func (uc *GetAssetItemPageDataUseCase) Execute(ctx context.Context, req *assetpb.GetAssetItemPageDataRequest) (*assetpb.GetAssetItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAsset, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAsset,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

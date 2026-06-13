@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userctx "github.com/erniealice/espyna-golang/internal/application/shared/context"
@@ -25,6 +25,7 @@ type RecomputeTaxesRepositories struct {
 type RecomputeTaxesServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // RecomputeTaxesRequest is the input to RecomputeTaxes.
@@ -83,8 +84,10 @@ func (uc *RecomputeTaxesUseCase) Execute(
 	ctx context.Context,
 	req *RecomputeTaxesRequest,
 ) (*RecomputeTaxesResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"revenue_tax_line", entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "revenue_tax_line",
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

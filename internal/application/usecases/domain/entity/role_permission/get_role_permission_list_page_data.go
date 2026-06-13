@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
@@ -24,6 +24,7 @@ type GetRolePermissionListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetRolePermissionListPageDataUseCase handles the business logic for retrieving role permission list page data
@@ -63,8 +64,10 @@ func NewGetRolePermissionListPageDataUseCaseUngrouped(rolePermissionRepo roleper
 // Execute performs the get role permission list page data operation
 func (uc *GetRolePermissionListPageDataUseCase) Execute(ctx context.Context, req *rolepermissionpb.GetRolePermissionListPageDataRequest) (*rolepermissionpb.GetRolePermissionListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.RolePermission, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.RolePermission,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

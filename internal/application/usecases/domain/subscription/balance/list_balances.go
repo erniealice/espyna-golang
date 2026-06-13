@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 )
@@ -21,6 +21,7 @@ type ListBalancesServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor // Current: Database transactions
 	Translator ports.Translator // Current: Text translation and localization
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListBalancesUseCase handles the business logic for listing balances
@@ -43,8 +44,10 @@ func NewListBalancesUseCase(
 // Execute performs the list balances operation
 func (uc *ListBalancesUseCase) Execute(ctx context.Context, req *balancepb.ListBalancesRequest) (*balancepb.ListBalancesResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Balance, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Balance,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

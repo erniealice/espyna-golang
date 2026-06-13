@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
@@ -22,6 +22,7 @@ type GetLoanListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetLoanListPageDataUseCase handles the business logic for getting loan list page data.
@@ -43,8 +44,10 @@ func NewGetLoanListPageDataUseCase(
 
 // Execute performs the get loan list page data operation.
 func (uc *GetLoanListPageDataUseCase) Execute(ctx context.Context, req *loanpb.GetLoanListPageDataRequest) (*loanpb.GetLoanListPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityLoan, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityLoan,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

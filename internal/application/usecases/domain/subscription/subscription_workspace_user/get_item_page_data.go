@@ -8,7 +8,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 )
@@ -23,6 +23,7 @@ type GetSubscriptionWorkspaceUserItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetSubscriptionWorkspaceUserItemPageDataUseCase handles the business logic for getting subscription workspace user item page data
@@ -44,8 +45,10 @@ func NewGetSubscriptionWorkspaceUserItemPageDataUseCase(
 
 // Execute performs the get subscription workspace user item page data operation
 func (uc *GetSubscriptionWorkspaceUserItemPageDataUseCase) Execute(ctx context.Context, req *subscriptionworkspaceuserpb.GetSubscriptionWorkspaceUserItemPageDataRequest) (*subscriptionworkspaceuserpb.GetSubscriptionWorkspaceUserItemPageDataResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionWorkspaceUser, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionWorkspaceUser,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

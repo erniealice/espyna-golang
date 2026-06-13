@@ -19,6 +19,7 @@ import (
 	"database/sql"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
@@ -42,6 +43,7 @@ type Deps struct {
 	DB         *sql.DB
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 
 	AdminPermission        admin.PermissionDashboardRepository
 	AdminRole              admin.RoleDashboardRepository

@@ -9,7 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
@@ -26,6 +26,7 @@ type CreateSubscriptionSeatServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -52,8 +53,10 @@ func NewCreateSubscriptionSeatUseCase(
 // subscription (single-write boundary), NEVER taken from caller input. status
 // defaults to PROPOSED when unset (entity-status-conventions: never NULL).
 func (uc *CreateSubscriptionSeatUseCase) Execute(ctx context.Context, req *subscriptionseatpb.CreateSubscriptionSeatRequest) (*subscriptionseatpb.CreateSubscriptionSeatResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionSeat, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionSeat,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

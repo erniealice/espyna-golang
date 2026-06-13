@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
@@ -22,6 +22,7 @@ type GetCollectionPlanListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetCollectionPlanListPageDataUseCase handles the business logic for getting collection plan list page data
@@ -49,8 +50,10 @@ func (uc *GetCollectionPlanListPageDataUseCase) Execute(
 	req *collectionplanpb.GetCollectionPlanListPageDataRequest,
 ) (*collectionplanpb.GetCollectionPlanListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.CollectionPlan, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.CollectionPlan,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

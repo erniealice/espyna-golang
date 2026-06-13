@@ -13,8 +13,8 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	auditquerypb "github.com/erniealice/esqyma/pkg/schema/v1/service/audit"
@@ -33,6 +33,7 @@ type ListAuditEntriesRepositories struct {
 type ListAuditEntriesServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListAuditEntriesUseCase resolves a paginated audit entry list for an
@@ -62,13 +63,10 @@ func (uc *ListAuditEntriesUseCase) Execute(
 	req *auditquerypb.ListAuditEntriesRequest,
 ) (*auditquerypb.ListAuditEntriesResponse, error) {
 	// Authorization — "audit_trail" + ActionList.
-	if err := authcheck.Check(
-		ctx,
-		uc.services.Authorizer,
-		uc.services.Translator,
-		"audit_trail",
-		entityid.ActionList,
-	); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "audit_trail",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

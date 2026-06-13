@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	locationareapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_area"
@@ -22,6 +22,7 @@ type GetLocationAreaListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetLocationAreaListPageDataUseCase handles the business logic for getting location area list page data with pagination, filtering, sorting, and search
@@ -44,8 +45,10 @@ func NewGetLocationAreaListPageDataUseCase(
 // Execute performs the get location area list page data operation
 func (uc *GetLocationAreaListPageDataUseCase) Execute(ctx context.Context, req *locationareapb.GetLocationAreaListPageDataRequest) (*locationareapb.GetLocationAreaListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.LocationArea, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.LocationArea,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

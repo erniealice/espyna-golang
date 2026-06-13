@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -23,6 +23,7 @@ type ReadUserServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadUserUseCase handles the business logic for reading a user
@@ -62,8 +63,10 @@ func NewReadUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *ReadU
 // Execute performs the read user operation
 func (uc *ReadUserUseCase) Execute(ctx context.Context, req *userpb.ReadUserRequest) (*userpb.ReadUserResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.User, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.User,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

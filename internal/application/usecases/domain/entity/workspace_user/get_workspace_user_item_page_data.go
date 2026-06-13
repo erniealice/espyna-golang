@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -20,6 +20,7 @@ type GetWorkspaceUserItemPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetWorkspaceUserItemPageDataUseCase handles the business logic for getting workspace user item page data
@@ -45,8 +46,10 @@ func (uc *GetWorkspaceUserItemPageDataUseCase) Execute(
 	req *workspaceuserpb.GetWorkspaceUserItemPageDataRequest,
 ) (*workspaceuserpb.GetWorkspaceUserItemPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.WorkspaceUser, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.WorkspaceUser,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

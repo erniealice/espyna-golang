@@ -6,7 +6,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 )
@@ -21,6 +21,7 @@ type ReadSubscriptionSeatServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadSubscriptionSeatUseCase handles the business logic for reading subscription seats
@@ -42,8 +43,10 @@ func NewReadSubscriptionSeatUseCase(
 
 // Execute performs the read subscription seat operation
 func (uc *ReadSubscriptionSeatUseCase) Execute(ctx context.Context, req *subscriptionseatpb.ReadSubscriptionSeatRequest) (*subscriptionseatpb.ReadSubscriptionSeatResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionSeat, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionSeat,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

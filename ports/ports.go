@@ -179,9 +179,16 @@ type (
 
 // Workflow types
 type (
-	WorkflowEngineService = internal.WorkflowEngineService
-	ActivityExecutor      = internal.ActivityExecutor
-	ExecutorRegistry      = internal.ExecutorRegistry
+	WorkflowEngineService          = internal.WorkflowEngineService
+	WorkflowAssigneeQueryService   = internal.WorkflowAssigneeQueryService
+	ActivityExecutor               = internal.ActivityExecutor
+	ExecutorRegistry               = internal.ExecutorRegistry
+)
+
+// Workflow request/response types
+type (
+	ListPendingActivitiesForAssigneeRequest  = internal.ListPendingActivitiesForAssigneeRequest
+	ListPendingActivitiesForAssigneeResponse = internal.ListPendingActivitiesForAssigneeResponse
 )
 
 // Translation types

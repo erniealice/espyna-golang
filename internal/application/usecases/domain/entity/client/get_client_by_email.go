@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -25,6 +25,7 @@ type GetClientByEmailServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetClientByEmailUseCase handles the business logic for finding a client by email address.
@@ -78,8 +79,10 @@ func NewGetClientByEmailUseCaseUngrouped(clientRepo clientpb.ClientDomainService
 // 4. Returns the client if found, or an error if not found (does NOT create)
 func (uc *GetClientByEmailUseCase) Execute(ctx context.Context, req *userpb.ListUsersRequest) (*clientpb.ListClientsResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Client, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Client,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

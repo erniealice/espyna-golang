@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
@@ -22,6 +22,7 @@ type GetRevenuePaymentListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetRevenuePaymentListPageDataUseCase handles the business logic for getting revenue payment list page data with pagination, filtering, sorting, and search
@@ -47,8 +48,10 @@ func NewGetRevenuePaymentListPageDataUseCase(
 // which the W4 adapter honors as a server-side revenue_id filter (design doc §4 / §5.4).
 func (uc *GetRevenuePaymentListPageDataUseCase) Execute(ctx context.Context, req *pb.GetRevenuePaymentListPageDataRequest) (*pb.GetRevenuePaymentListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenuePayment, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenuePayment,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

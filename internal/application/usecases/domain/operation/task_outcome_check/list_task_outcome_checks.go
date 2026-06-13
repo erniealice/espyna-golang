@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
@@ -20,6 +20,7 @@ type ListTaskOutcomeChecksServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListTaskOutcomeChecksUseCase handles the business logic for listing task outcome checks
@@ -42,8 +43,10 @@ func NewListTaskOutcomeChecksUseCase(
 // Execute performs the list task outcome checks operation
 func (uc *ListTaskOutcomeChecksUseCase) Execute(ctx context.Context, req *pb.ListTaskOutcomeChecksRequest) (*pb.ListTaskOutcomeChecksResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.TaskOutcomeCheck, entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.TaskOutcomeCheck,
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

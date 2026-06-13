@@ -10,7 +10,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 
@@ -93,6 +93,7 @@ type MaterializeInstanceJobsForSubscriptionServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -245,8 +246,10 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
 	ctx context.Context, req materializeInstanceJobsInternalRequest,
 ) (*materializeInstanceJobsInternalResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.Subscription, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Subscription,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

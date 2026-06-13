@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	eventrecurrencepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_recurrence"
 )
@@ -20,6 +20,7 @@ type GetEventRecurrenceListPageDataServices struct {
 	Authorizer ports.Authorizer // Current: RBAC and permissions
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetEventRecurrenceListPageDataUseCase handles the business logic for getting event recurrence list page data
@@ -45,8 +46,10 @@ func (uc *GetEventRecurrenceListPageDataUseCase) Execute(
 	req *eventrecurrencepb.GetEventRecurrenceListPageDataRequest,
 ) (*eventrecurrencepb.GetEventRecurrenceListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"event_recurrence", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "event_recurrence",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

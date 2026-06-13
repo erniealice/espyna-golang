@@ -2,6 +2,7 @@ package suppliercontractpriceschedule
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
 )
 
@@ -15,6 +16,7 @@ type SupplierContractPriceScheduleServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -48,6 +50,7 @@ func NewUseCases(
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 				IDGenerator: services.IDGenerator,
 			},
 		),
@@ -56,6 +59,7 @@ func NewUseCases(
 			ReadSupplierContractPriceScheduleServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateSupplierContractPriceSchedule: NewUpdateSupplierContractPriceScheduleUseCase(
@@ -64,6 +68,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteSupplierContractPriceSchedule: NewDeleteSupplierContractPriceScheduleUseCase(
@@ -71,6 +76,7 @@ func NewUseCases(
 			DeleteSupplierContractPriceScheduleServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListSupplierContractPriceSchedules: NewListSupplierContractPriceSchedulesUseCase(
@@ -78,6 +84,7 @@ func NewUseCases(
 			ListSupplierContractPriceSchedulesServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ActivateSupplierContractPriceSchedule: NewActivateSupplierContractPriceScheduleUseCase(
@@ -86,6 +93,7 @@ func NewUseCases(
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		SupersedeSupplierContractPriceSchedule: NewSupersedeSupplierContractPriceScheduleUseCase(
@@ -93,6 +101,7 @@ func NewUseCases(
 			SupersedeSupplierContractPriceScheduleServices{
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 	}

@@ -1,10 +1,14 @@
 package engine
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
+
+	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // SchemaField defines how a single field is resolved
@@ -15,8 +19,13 @@ type SchemaField struct {
 	Required bool   `json:"required,omitempty"`
 }
 
-// SchemaProcessor handles resolution of input and output schemas
-type SchemaProcessor struct{}
+// SchemaProcessor handles resolution of input and output schemas.
+// The schemaCache field (sync.Map) caches compiled JSON Schema validators keyed
+// by the SHA-256 hash of the raw schema string. The zero value of sync.Map is
+// usable, so NewSchemaProcessor() remains a zero-value factory.
+type SchemaProcessor struct {
+	schemaCache sync.Map // map[string]*jsonschema.Schema — keyed on sha256(schemaJson)
+}
 
 // NewSchemaProcessor creates a new schema processor
 func NewSchemaProcessor() *SchemaProcessor {
@@ -306,19 +315,33 @@ func (p *SchemaProcessor) coerce(value any, targetType string) (any, error) {
 	switch targetType {
 	case "string":
 		return fmt.Sprintf("%v", value), nil
-	case "int":
-		// Basic int coercion
+	case "int", "integer", "number":
+		// Basic numeric coercion. "integer" is the JSON Schema keyword; "int" is
+		// the legacy espyna simple-format keyword; "number" covers JSON Schema floats.
+		// For "integer" and "int" we coerce to int; for "number" we coerce to float64.
 		switch v := value.(type) {
 		case int:
+			if targetType == "number" {
+				return float64(v), nil
+			}
 			return v, nil
 		case float64:
+			if targetType == "number" {
+				return v, nil
+			}
 			return int(v), nil
 		case string:
+			if targetType == "number" {
+				var f float64
+				_, err := fmt.Sscanf(v, "%g", &f)
+				return f, err
+			}
 			var i int
 			_, err := fmt.Sscanf(v, "%d", &i)
 			return i, err
 		}
-	case "bool":
+	case "bool", "boolean":
+		// "boolean" is the JSON Schema keyword; "bool" is the legacy keyword.
 		switch v := value.(type) {
 		case bool:
 			return v, nil
@@ -376,10 +399,14 @@ func (p *SchemaProcessor) ValidateInput(inputJson string, schemaJson string) (ma
 		}
 	}
 
-	// Try JSON Schema format first (has "type": "object" and "properties")
-	var jsonSchema JSONSchemaObject
-	if err := json.Unmarshal([]byte(schemaJson), &jsonSchema); err == nil && jsonSchema.Type == "object" && jsonSchema.Properties != nil {
-		return p.validateWithJSONSchema(input, &jsonSchema)
+	// Try JSON Schema format first (has "type": "object" and "properties").
+	// We parse the struct only to DETECT the JSON Schema shape; the raw schemaJson
+	// string is fed to santhosh-tekuri so that keywords the struct does not model
+	// (enum, minimum, maximum, minLength, maxLength, pattern, additionalProperties)
+	// are NOT dropped. See SEC-1/STRUCT-1.
+	var jsonSchemaDetect JSONSchemaObject
+	if err := json.Unmarshal([]byte(schemaJson), &jsonSchemaDetect); err == nil && jsonSchemaDetect.Type == "object" && jsonSchemaDetect.Properties != nil {
+		return p.validateWithJSONSchema(input, schemaJson, &jsonSchemaDetect)
 	}
 
 	// Fall back to simple format
@@ -448,55 +475,129 @@ func (p *SchemaProcessor) ValidateInputToJson(inputJson string, schemaJson strin
 	return string(result), nil
 }
 
-// validateWithJSONSchema validates input against a JSON Schema object
-func (p *SchemaProcessor) validateWithJSONSchema(input map[string]any, schema *JSONSchemaObject) (map[string]any, error) {
-	result := make(map[string]any)
-	var validationErrors []string
-
-	// Build required field set for quick lookup
-	requiredFields := make(map[string]bool)
-	for _, field := range schema.Required {
-		requiredFields[field] = true
+// validateWithJSONSchema validates input against a JSON Schema document using
+// santhosh-tekuri/jsonschema v6 (draft 2020-12).
+//
+// The raw schemaJson string is fed to the library so that every keyword
+// (enum, minimum, maximum, minLength, maxLength, pattern, additionalProperties)
+// is enforced. The parsed JSONSchemaObject is used ONLY for type-aware coercion
+// of the input map (Q-VAL-1: coerce-first — a portal submitting "42" for an
+// integer field still works, because coercion normalises the type BEFORE the
+// strict validator runs).
+//
+// Reject-by-default (Q-VAL-2): if the schema does NOT declare
+// additionalProperties, an implicit "additionalProperties":false is applied so
+// that undeclared fields are rejected at the validation boundary. A schema may
+// opt out by setting "additionalProperties":true explicitly.
+//
+// The compiled schema is cached in a sync.Map keyed on sha256(schemaJson)
+// (Q-VAL-4) so that repeated validations of the same schema do not re-parse.
+func (p *SchemaProcessor) validateWithJSONSchema(input map[string]any, schemaJson string, schema *JSONSchemaObject) (map[string]any, error) {
+	// --- Step 1: Coerce-first (Q-VAL-1) ---
+	// Apply the existing coerce() helper to produce a type-correct map BEFORE
+	// handing it to the strict validator. This is intentional, not a bug: it
+	// preserves the lenient-input contract (portals may submit string-typed
+	// values for integer/boolean fields). Coercion normalises the TYPE but
+	// never relaxes a constraint (bounds, enum, pattern are checked on the
+	// coerced value).
+	coerced := make(map[string]any, len(input))
+	for k, v := range input {
+		if fieldDef, ok := schema.Properties[k]; ok && fieldDef.Type != "" {
+			cv, err := p.coerce(v, fieldDef.Type)
+			if err != nil {
+				return nil, fmt.Errorf("validation failed: field '%s' type coercion failed: %v", k, err)
+			}
+			coerced[k] = cv
+		} else {
+			coerced[k] = v
+		}
 	}
 
-	// Validate each property defined in schema
+	// Apply defaults for missing fields that have them declared in the schema.
 	for fieldName, fieldDef := range schema.Properties {
-		value, exists := input[fieldName]
-
-		if !exists || value == nil {
-			// Field not provided
-			if requiredFields[fieldName] && fieldDef.Default == nil {
-				validationErrors = append(validationErrors, fmt.Sprintf("required field '%s' is missing", fieldName))
-				continue
-			}
-			if fieldDef.Default != nil {
-				result[fieldName] = fieldDef.Default
-			}
-			continue
-		}
-
-		// Type coercion
-		coercedValue, err := p.coerce(value, fieldDef.Type)
-		if err != nil {
-			validationErrors = append(validationErrors, fmt.Sprintf("field '%s' type coercion failed: %v", fieldName, err))
-			continue
-		}
-
-		result[fieldName] = coercedValue
-	}
-
-	// Include any extra fields from input that weren't in schema (pass-through)
-	for fieldName, value := range input {
-		if _, exists := result[fieldName]; !exists {
-			if _, inSchema := schema.Properties[fieldName]; !inSchema {
-				result[fieldName] = value
-			}
+		if _, exists := coerced[fieldName]; !exists && fieldDef.Default != nil {
+			coerced[fieldName] = fieldDef.Default
 		}
 	}
 
-	if len(validationErrors) > 0 {
-		return nil, fmt.Errorf("validation failed: %v", validationErrors)
+	// --- Step 2: Compile the schema (cached, Q-VAL-4) ---
+	compiled, err := p.compileSchema(schemaJson)
+	if err != nil {
+		// Malformed / uncompilable schema = deny (SEC-3). Never degrade to
+		// pass-through.
+		return nil, fmt.Errorf("validation failed: schema compilation error: %w", err)
 	}
 
-	return result, nil
+	// --- Step 3: Validate the coerced input against the compiled schema ---
+	if err := compiled.Validate(coerced); err != nil {
+		return nil, fmt.Errorf("validation failed: %s", err)
+	}
+
+	return coerced, nil
+}
+
+// compileSchema compiles a raw JSON Schema string into a *jsonschema.Schema,
+// applying the reject-by-default policy (Q-VAL-2: implicit additionalProperties:false)
+// and caching the result.
+func (p *SchemaProcessor) compileSchema(schemaJson string) (*jsonschema.Schema, error) {
+	// Cache key: SHA-256 of the schema string.
+	h := sha256.Sum256([]byte(schemaJson))
+	key := string(h[:])
+
+	if cached, ok := p.schemaCache.Load(key); ok {
+		return cached.(*jsonschema.Schema), nil
+	}
+
+	// Apply implicit additionalProperties:false (Q-VAL-2) if the schema does not
+	// already declare it. We parse, inject, and re-serialize. This is safe because
+	// compilation only happens once per unique schema (cached).
+	effectiveSchema := applyAdditionalPropertiesDefault(schemaJson)
+
+	// Parse the schema string into a JSON value using santhosh-tekuri's decoder,
+	// which preserves number precision via json.Number. AddResource expects a
+	// parsed JSON value (any), NOT a Reader.
+	schemaDoc, err := jsonschema.UnmarshalJSON(strings.NewReader(effectiveSchema))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse schema JSON: %w", err)
+	}
+
+	// Compile with santhosh-tekuri, draft 2020-12.
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource("schema.json", schemaDoc); err != nil {
+		return nil, fmt.Errorf("failed to add schema resource: %w", err)
+	}
+	compiled, err := c.Compile("schema.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile schema: %w", err)
+	}
+
+	p.schemaCache.Store(key, compiled)
+	return compiled, nil
+}
+
+// applyAdditionalPropertiesDefault injects "additionalProperties":false into a
+// JSON Schema document that does not already declare the key, enforcing the
+// reject-by-default policy (Q-VAL-2). If the schema already sets
+// additionalProperties to any value (true, false, or an object), it is left
+// unchanged. This ensures that reject-by-default is the IMPLICIT stance and a
+// schema must EXPLICITLY opt out.
+func applyAdditionalPropertiesDefault(schemaJson string) string {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(schemaJson), &raw); err != nil {
+		// If we cannot parse, return as-is — compilation will fail and deny.
+		return schemaJson
+	}
+
+	if _, exists := raw["additionalProperties"]; exists {
+		// Schema explicitly declares additionalProperties — do not override.
+		return schemaJson
+	}
+
+	// Inject additionalProperties:false.
+	raw["additionalProperties"] = json.RawMessage(`false`)
+	out, err := json.Marshal(raw)
+	if err != nil {
+		return schemaJson
+	}
+	return string(out)
 }

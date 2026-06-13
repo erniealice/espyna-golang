@@ -10,7 +10,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
 
@@ -24,6 +24,7 @@ type UpdateSubscriptionWorkspaceUserServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateSubscriptionWorkspaceUserUseCase handles the business logic for updating subscription workspace users
@@ -54,8 +55,10 @@ func NewUpdateSubscriptionWorkspaceUserUseCase(
 // fields back to their persisted values before the write; only mutable fields
 // (is_owner / active) actually change.
 func (uc *UpdateSubscriptionWorkspaceUserUseCase) Execute(ctx context.Context, req *subscriptionworkspaceuserpb.UpdateSubscriptionWorkspaceUserRequest) (*subscriptionworkspaceuserpb.UpdateSubscriptionWorkspaceUserResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.SubscriptionWorkspaceUser, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.SubscriptionWorkspaceUser,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

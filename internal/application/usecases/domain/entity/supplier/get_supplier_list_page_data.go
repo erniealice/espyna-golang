@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 )
@@ -19,6 +19,7 @@ type GetSupplierListPageDataServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetSupplierListPageDataUseCase handles getting paginated supplier list data with search, filtering, and sorting
@@ -45,8 +46,10 @@ func (uc *GetSupplierListPageDataUseCase) Execute(
 	req *supplierpb.GetSupplierListPageDataRequest,
 ) (*supplierpb.GetSupplierListPageDataResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"supplier", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "supplier",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

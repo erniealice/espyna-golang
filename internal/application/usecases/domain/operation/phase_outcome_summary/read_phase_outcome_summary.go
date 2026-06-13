@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
@@ -19,6 +19,7 @@ type ReadPhaseOutcomeSummaryServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadPhaseOutcomeSummaryUseCase handles the business logic for reading phase outcome summaries
@@ -41,8 +42,10 @@ func NewReadPhaseOutcomeSummaryUseCase(
 // Execute performs the read phase outcome summary operation
 func (uc *ReadPhaseOutcomeSummaryUseCase) Execute(ctx context.Context, req *pb.ReadPhaseOutcomeSummaryRequest) (*pb.ReadPhaseOutcomeSummaryResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.PhaseOutcomeSummary, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.PhaseOutcomeSummary,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

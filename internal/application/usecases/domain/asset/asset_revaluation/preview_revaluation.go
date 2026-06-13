@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
@@ -72,8 +72,10 @@ func (uc *PreviewRevaluationUseCase) Execute(
 	ctx context.Context,
 	pbReq *revaluation_pb.PreviewRevaluationUseCaseRequest,
 ) (*revaluation_pb.PreviewRevaluationUseCaseResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityAssetRevaluation, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityAssetRevaluation,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

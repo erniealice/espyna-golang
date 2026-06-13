@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_cycle"
@@ -24,7 +24,7 @@ type OpenRequest struct {
 }
 
 func (uc *OpenUseCase) Execute(ctx context.Context, req *OpenRequest) (*pb.UpdateEvaluationCycleResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycle, entityid.ActionUpdate); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycle, Action: entityid.ActionUpdate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.EvaluationCycleID == "" {
@@ -149,7 +149,7 @@ type CloseRequest struct {
 }
 
 func (uc *CloseUseCase) Execute(ctx context.Context, req *CloseRequest) (*pb.UpdateEvaluationCycleResponse, error) {
-	if err := authcheck.Check(ctx, uc.s.Authorizer, uc.s.Translator, entityid.EvaluationCycle, entityid.ActionUpdate); err != nil {
+	if err := uc.s.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.EvaluationCycle, Action: entityid.ActionUpdate}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.EvaluationCycleID == "" {

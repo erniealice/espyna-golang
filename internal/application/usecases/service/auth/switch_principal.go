@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
@@ -50,6 +51,7 @@ type SwitchPrincipalRepositories struct {
 // session.
 type SwitchPrincipalServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // SwitchPrincipalUseCase orchestrates the session-rotation primitive.

@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	sessionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/session"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
@@ -70,6 +71,7 @@ type Repositories struct {
 type Services struct {
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 	// SessionExpiry is the default time-to-live for a newly issued session.
 	// Callers typically source this from PASSWORD_AUTH_SESSION_EXPIRY.

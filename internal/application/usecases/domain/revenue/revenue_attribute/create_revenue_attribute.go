@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
@@ -25,6 +25,7 @@ type CreateRevenueAttributeServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -47,8 +48,10 @@ func NewCreateRevenueAttributeUseCase(
 
 // Execute performs the create revenue attribute operation
 func (uc *CreateRevenueAttributeUseCase) Execute(ctx context.Context, req *pb.CreateRevenueAttributeRequest) (*pb.CreateRevenueAttributeResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityRevenueAttribute, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityRevenueAttribute,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

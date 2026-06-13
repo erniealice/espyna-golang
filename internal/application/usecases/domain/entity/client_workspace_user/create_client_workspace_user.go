@@ -11,7 +11,7 @@ import (
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 )
@@ -27,6 +27,7 @@ type CreateClientWorkspaceUserServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -54,8 +55,10 @@ func NewCreateClientWorkspaceUserUseCase(
 // the DB partial-unique (client_id) WHERE is_owner is the backstop (this surfaces
 // a clean domain error before the raw constraint fires).
 func (uc *CreateClientWorkspaceUserUseCase) Execute(ctx context.Context, req *clientworkspaceuserpb.CreateClientWorkspaceUserRequest) (*clientworkspaceuserpb.CreateClientWorkspaceUserResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ClientWorkspaceUser, entityid.ActionCreate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ClientWorkspaceUser,
+		Action: entityid.ActionCreate,
+	}); err != nil {
 		return nil, err
 	}
 

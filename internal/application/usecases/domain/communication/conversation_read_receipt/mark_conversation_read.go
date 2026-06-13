@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
@@ -25,6 +25,7 @@ type MarkConversationReadServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -43,8 +44,10 @@ func NewMarkConversationReadUseCase(repos MarkConversationReadRepositories, svcs
 // Execute performs the mark-conversation-read upsert.
 func (uc *MarkConversationReadUseCase) Execute(ctx context.Context, req *conversationReadReceiptpb.CreateConversationReadReceiptRequest) (*conversationReadReceiptpb.CreateConversationReadReceiptResponse, error) {
 	// Verb-fold: conversation_post:mark_read -> conversation_post:read.
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.ConversationPost, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.ConversationPost,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

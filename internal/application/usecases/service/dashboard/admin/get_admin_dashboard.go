@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 	admindashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/admin"
@@ -66,6 +67,7 @@ type GetAdminDashboardRepositories struct {
 // session middleware rather than per-entity authcheck.
 type GetAdminDashboardServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetAdminDashboardUseCase composes the four entity aggregates (permission /

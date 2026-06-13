@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxclasspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_class"
@@ -26,6 +26,7 @@ type FindByCodeTaxClassRepositories struct {
 type FindByCodeTaxClassServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // FindByCodeTaxClassUseCase wraps the adapter's FindByCode method.
@@ -45,8 +46,10 @@ func NewFindByCodeTaxClassUseCase(
 
 // Execute returns the TaxClass matching (code, direction).
 func (uc *FindByCodeTaxClassUseCase) Execute(ctx context.Context, code, direction string) (*taxclasspb.TaxClass, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxClass, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityTaxClass,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 	if code == "" {

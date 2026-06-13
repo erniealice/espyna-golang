@@ -8,7 +8,7 @@ import (
 	gcfpb "github.com/erniealice/esqyma/pkg/schema/v1/service/reporting/gross_cashflow"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 )
@@ -21,6 +21,7 @@ type GetGrossProfitReportUseCase struct {
 	reporter             reporter
 	authorizationService ports.Authorizer
 	translationService   ports.Translator
+	actionGatekeeper  *actiongate.ActionGatekeeper
 }
 
 // NewGetGrossProfitReportUseCase wires the use case with nil-safe deps.
@@ -45,13 +46,10 @@ func (uc *GetGrossProfitReportUseCase) Execute(
 	ctx context.Context,
 	req *gcfpb.GetGrossProfitRequest,
 ) (*gcfpb.GetGrossProfitResponse, error) {
-	if err := authcheck.Check(
-		ctx,
-		uc.authorizationService,
-		uc.translationService,
-		"reports",
-		entityid.ActionList,
-	); err != nil {
+	if err := uc.actionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "reports",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

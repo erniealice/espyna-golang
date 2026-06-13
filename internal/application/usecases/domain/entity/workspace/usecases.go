@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
@@ -15,6 +16,7 @@ type WorkspaceServices struct {
 	Authorizer    ports.Authorizer
 	Transactor    ports.Transactor
 	Translator    ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator   ports.IDGenerator
 	ReservedSlugs ReservedSlugProvider // optional; nil disables the reserved-word slug check
 }
@@ -44,6 +46,7 @@ func NewUseCases(
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -52,6 +55,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateWorkspaceRepositories(repositories)
@@ -59,6 +63,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteWorkspaceRepositories(repositories)
@@ -66,6 +71,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListWorkspacesRepositories(repositories)
@@ -73,6 +79,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getListPageDataRepos := GetWorkspaceListPageDataRepositories(repositories)
@@ -80,6 +87,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getItemPageDataRepos := GetWorkspaceItemPageDataRepositories(repositories)
@@ -87,6 +95,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	switchRepos := SwitchWorkspaceRepositories(repositories)
@@ -94,6 +103,7 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listUserRepos := ListUserWorkspacesRepositories(repositories)
@@ -101,10 +111,12 @@ func NewUseCases(
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	validateSlugServices := ValidateSlugServices{
 		Translator:    services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		ReservedSlugs: services.ReservedSlugs,
 	}
 

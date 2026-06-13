@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
@@ -19,6 +19,7 @@ type UpdateTemplateTaskCriteriaServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UpdateTemplateTaskCriteriaUseCase handles the business logic for updating template task criteria
@@ -41,8 +42,10 @@ func NewUpdateTemplateTaskCriteriaUseCase(
 // Execute performs the update template task criteria operation
 func (uc *UpdateTemplateTaskCriteriaUseCase) Execute(ctx context.Context, req *pb.UpdateTemplateTaskCriteriaRequest) (*pb.UpdateTemplateTaskCriteriaResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.TemplateTaskCriteria, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.TemplateTaskCriteria,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
@@ -21,6 +21,7 @@ type ReadExpenditureLineItemServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ReadExpenditureLineItemUseCase handles the business logic for reading an expenditure line item
@@ -42,8 +43,10 @@ func NewReadExpenditureLineItemUseCase(
 
 // Execute performs the read expenditure line item operation
 func (uc *ReadExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb.ReadExpenditureLineItemRequest) (*pb.ReadExpenditureLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenditureLineItem, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityExpenditureLineItem,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

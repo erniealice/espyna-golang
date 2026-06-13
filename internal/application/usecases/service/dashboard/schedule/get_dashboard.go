@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	scheduledashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/schedule"
 )
@@ -31,6 +32,7 @@ type GetScheduleDashboardRepositories struct {
 type GetScheduleDashboardServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetScheduleDashboardUseCase is the proto-shaped wrapper over the entity-

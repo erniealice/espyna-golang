@@ -2,6 +2,7 @@ package location_attribute
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
@@ -19,6 +20,7 @@ type LocationAttributeServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -47,6 +49,7 @@ func NewUseCases(
 	createServices := CreateLocationAttributeServices{
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 		IDGenerator: services.IDGenerator,
 	}
 
@@ -56,6 +59,7 @@ func NewUseCases(
 	readServices := ReadLocationAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdateLocationAttributeRepositories{
@@ -66,6 +70,7 @@ func NewUseCases(
 	updateServices := UpdateLocationAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	deleteRepos := DeleteLocationAttributeRepositories{
@@ -74,6 +79,7 @@ func NewUseCases(
 	deleteServices := DeleteLocationAttributeServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListLocationAttributesRepositories{
@@ -82,6 +88,7 @@ func NewUseCases(
 	listServices := ListLocationAttributesServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listPageDataRepos := GetLocationAttributeListPageDataRepositories{
@@ -90,6 +97,7 @@ func NewUseCases(
 	listPageDataServices := GetLocationAttributeListPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	itemPageDataRepos := GetLocationAttributeItemPageDataRepositories{
@@ -98,6 +106,7 @@ func NewUseCases(
 	itemPageDataServices := GetLocationAttributeItemPageDataServices{
 		Transactor: services.Transactor,
 		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	return &UseCases{

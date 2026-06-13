@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
@@ -25,6 +25,7 @@ type SupersedeTaxRegistrationServices struct {
 	Authorizer  ports.Authorizer
 	Transactor  ports.Transactor
 	Translator  ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 }
 
@@ -58,8 +59,10 @@ func NewSupersedeTaxRegistrationUseCase(repositories SupersedeTaxRegistrationRep
 // Execute performs the supersede operation.
 func (uc *SupersedeTaxRegistrationUseCase) Execute(ctx context.Context, req *SupersedeTaxRegistrationRequest) (*taxregistrationpb.TaxRegistration, error) {
 	// Supersede is an "update" action in CRUD permission terms.
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityTaxRegistration, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityTaxRegistration,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 

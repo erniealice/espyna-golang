@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	conversationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation"
 	conversationPostpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/communication/conversation_post"
@@ -20,6 +21,7 @@ type ComputeConversationUnreadRepositories struct {
 // ComputeConversationUnreadServices groups all business service dependencies.
 type ComputeConversationUnreadServices struct {
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // UnreadResult is the per-conversation unread count returned to the notifications

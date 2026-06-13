@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
@@ -20,6 +20,7 @@ type GetByJobServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // GetByJobUseCase handles the business logic for getting job outcome summary by job
@@ -42,8 +43,10 @@ func NewGetByJobUseCase(
 // Execute performs the get by job operation
 func (uc *GetByJobUseCase) Execute(ctx context.Context, req *pb.GetJobOutcomeSummaryByJobRequest) (*pb.GetJobOutcomeSummaryByJobResponse, error) {
 	// Authorization check
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityid.JobOutcomeSummary, entityid.ActionRead); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.JobOutcomeSummary,
+		Action: entityid.ActionRead,
+	}); err != nil {
 		return nil, err
 	}
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
@@ -21,6 +21,7 @@ type DeleteExpenditureLineItemServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // DeleteExpenditureLineItemUseCase handles the business logic for deleting expenditure line items
@@ -42,8 +43,10 @@ func NewDeleteExpenditureLineItemUseCase(
 
 // Execute performs the delete expenditure line item operation
 func (uc *DeleteExpenditureLineItemUseCase) Execute(ctx context.Context, req *pb.DeleteExpenditureLineItemRequest) (*pb.DeleteExpenditureLineItemResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entityExpenditureLineItem, entityid.ActionDelete); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityExpenditureLineItem,
+		Action: entityid.ActionDelete,
+	}); err != nil {
 		return nil, err
 	}
 

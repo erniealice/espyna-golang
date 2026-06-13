@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
@@ -22,6 +22,7 @@ type ActivateSupplierContractPriceScheduleServices struct {
 	Authorizer ports.Authorizer
 	Transactor ports.Transactor
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ActivateSupplierContractPriceScheduleUseCase transitions SCHEDULED -> ACTIVE.
@@ -46,8 +47,10 @@ func NewActivateSupplierContractPriceScheduleUseCase(
 
 // Execute performs the activate operation.
 func (uc *ActivateSupplierContractPriceScheduleUseCase) Execute(ctx context.Context, req *scpspb.ActivateSupplierContractPriceScheduleRequest) (*scpspb.ActivateSupplierContractPriceScheduleResponse, error) {
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		entitySupplierContractPriceSchedule, entityid.ActionUpdate); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entitySupplierContractPriceSchedule,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
 		return nil, err
 	}
 	if req == nil || req.GetSupplierContractPriceScheduleId() == "" {

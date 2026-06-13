@@ -7,7 +7,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/internal/application/shared/authcheck"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -24,6 +24,7 @@ type ListAdvanceDisbursementsForDashboardRepositories struct {
 type ListAdvanceDisbursementsForDashboardServices struct {
 	Authorizer ports.Authorizer
 	Translator ports.Translator
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // ListAdvanceDisbursementsForDashboardUseCase projects active buying-side
@@ -51,8 +52,10 @@ func (uc *ListAdvanceDisbursementsForDashboardUseCase) Execute(
 	}
 	_ = req
 
-	if err := authcheck.Check(ctx, uc.services.Authorizer, uc.services.Translator,
-		"treasury_disbursement", entityid.ActionList); err != nil {
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: "treasury_disbursement",
+		Action: entityid.ActionList,
+	}); err != nil {
 		return nil, err
 	}
 

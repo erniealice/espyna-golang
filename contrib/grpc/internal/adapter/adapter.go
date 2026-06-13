@@ -1,4 +1,4 @@
-//go:build grpc_vanilla
+//go:build grpc
 
 package adapter
 
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -24,7 +25,7 @@ import (
 
 func init() {
 	registry.RegisterServerProvider(
-		"grpc_vanilla",
+		"grpc",
 		func() ports.ServerProvider {
 			return NewGRPCVanillaAdapter()
 		},
@@ -32,7 +33,7 @@ func init() {
 	)
 }
 
-// buildFromEnv creates a gRPC Vanilla adapter from environment variables.
+// buildFromEnv creates a gRPC adapter from environment variables.
 func buildFromEnv() (ports.ServerProvider, error) {
 	adapter := NewGRPCVanillaAdapter()
 	return adapter, nil
@@ -62,7 +63,7 @@ func NewGRPCVanillaAdapter() *GRPCVanillaAdapter {
 
 // Name returns the provider name.
 func (a *GRPCVanillaAdapter) Name() string {
-	return "grpc_vanilla"
+	return "grpc"
 }
 
 // Initialize sets up the gRPC server with the container.
@@ -70,13 +71,13 @@ func (a *GRPCVanillaAdapter) Name() string {
 // to satisfy the ports.ServerProvider interface and avoid import cycles.
 func (a *GRPCVanillaAdapter) Initialize(container any) error {
 	if container == nil {
-		return fmt.Errorf("grpc vanilla adapter requires a non-nil container")
+		return fmt.Errorf("gRPC adapter requires a non-nil container")
 	}
 
 	// Type assert to *core.Container
 	c, ok := container.(*core.Container)
 	if !ok {
-		return fmt.Errorf("grpc vanilla adapter requires *core.Container, got %T", container)
+		return fmt.Errorf("gRPC adapter requires *core.Container, got %T", container)
 	}
 
 	a.container = c
@@ -119,17 +120,17 @@ func (a *GRPCVanillaAdapter) Initialize(container any) error {
 		log.Printf("gRPC reflection enabled")
 	}
 
-	log.Printf("gRPC Vanilla adapter initialized successfully")
+	log.Printf("gRPC adapter initialized successfully")
 	return nil
 }
 
 // Start starts the gRPC server on the specified address.
 func (a *GRPCVanillaAdapter) Start(addr string) error {
 	if a.server == nil {
-		return fmt.Errorf("grpc vanilla adapter not initialized - call Initialize() first")
+		return fmt.Errorf("gRPC adapter not initialized - call Initialize() first")
 	}
 
-	printServerInfo("grpc_vanilla", addr)
+	printServerInfo("grpc", addr)
 
 	// Create listener
 	listener, err := net.Listen("tcp", addr)
@@ -153,7 +154,7 @@ func (a *GRPCVanillaAdapter) IsHealthy(ctx context.Context) error {
 // Close shuts down the gRPC server.
 func (a *GRPCVanillaAdapter) Close() error {
 	if a.server != nil {
-		log.Printf("gRPC Vanilla adapter closing")
+		log.Printf("gRPC adapter closing")
 		a.server.GracefulStop()
 	}
 	if a.listener != nil {
@@ -167,6 +168,11 @@ func (a *GRPCVanillaAdapter) IsEnabled() bool {
 	return a.enabled
 }
 
+// RegisterCustomHandler is a no-op for gRPC. The method satisfies ports.ServerProvider.
+func (a *GRPCVanillaAdapter) RegisterCustomHandler(method, path string, handler http.HandlerFunc) error {
+	log.Printf("WARN: RegisterCustomHandler called on gRPC adapter (method=%s, path=%s) -- ignored", method, path)
+	return nil
+}
 // GetServer returns the underlying gRPC server for advanced customization.
 func (a *GRPCVanillaAdapter) GetServer() *grpc.Server {
 	return a.server

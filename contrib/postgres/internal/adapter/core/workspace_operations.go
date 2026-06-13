@@ -12,6 +12,7 @@ import (
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/model"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -586,9 +587,9 @@ func (w *WorkspaceAwareOperations) GetDB() *sql.DB {
 // GetExecutor returns the transaction-aware executor from the inner operation.
 // Adapters that type-assert to an executorProvider interface use this to
 // participate in active transactions.
-func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) interfaces.DBExecutor {
+func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) sqlexec.DBExecutor {
 	type executorProvider interface {
-		GetExecutor(ctx context.Context) interfaces.DBExecutor
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
 	}
 	if ep, ok := w.inner.(executorProvider); ok {
 		return ep.GetExecutor(ctx)

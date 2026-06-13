@@ -1,4 +1,4 @@
-//go:build gcp_storage
+//go:build gcs
 
 package consumer
 

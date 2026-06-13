@@ -7,18 +7,18 @@ import (
 	"fmt"
 	"time"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 )
 
 // executorProvider provides a transaction-aware database executor.
 // WorkspaceAwareOperations in the core package satisfies this interface via its
 // GetExecutor method.
 type executorProvider interface {
-	GetExecutor(ctx context.Context) interfaces.DBExecutor
+	GetExecutor(ctx context.Context) sqlexec.DBExecutor
 }
 
 // dbExecutor is a package-local alias for the shared interface.
-type dbExecutor = interfaces.DBExecutor
+type dbExecutor = sqlexec.DBExecutor
 
 // convertMillisToTime converts a millis-epoch value in a JSON map to time.Time.
 // Protobuf int64 fields serialize to JSON strings via protojson (e.g. "1771886746000").

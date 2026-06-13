@@ -11,6 +11,7 @@ import (
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
@@ -290,7 +291,7 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatItemPageData(ctx
 // seatExecutorProvider is the narrow type-assertion interface used to obtain a
 // transaction-aware executor (mirrors the entity package's executorProvider).
 type seatExecutorProvider interface {
-	GetExecutor(ctx context.Context) interfaces.DBExecutor
+	GetExecutor(ctx context.Context) sqlexec.DBExecutor
 }
 
 // LockSubscriptionSeatForUpdate reads the seat by id WITH a row lock

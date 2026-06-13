@@ -21,15 +21,15 @@ import (
 
 func init() {
 	registry.RegisterDatabaseProvider(
-		"mock",
+		"mock_db",
 		func() ports.DatabaseProvider {
 			return NewMockAdapter()
 		},
 		transformConfig,
 	)
-	registry.RegisterDatabaseBuildFromEnv("mock", buildFromEnv)
+	registry.RegisterDatabaseBuildFromEnv("mock_db", buildFromEnv)
 	// Mock adapter uses default table names - no need for custom env vars
-	registry.RegisterDatabaseTableConfigBuilder("mock", registry.NewDefaultTableConfig)
+	registry.RegisterDatabaseTableConfigBuilder("mock_db", registry.NewDefaultTableConfig)
 }
 
 // buildFromEnv creates and initializes a Mock adapter from environment variables.
@@ -100,7 +100,7 @@ func NewMockAdapter() *MockAdapter {
 
 // Name returns the provider name.
 func (a *MockAdapter) Name() string {
-	return "mock"
+	return "mock_db"
 }
 
 // Initialize sets up the Mock adapter with configuration.
@@ -154,7 +154,7 @@ func (a *MockAdapter) IsEnabled() bool {
 // CreateRepository creates a repository by looking up the registered factory.
 // This replaces the giant switch statement by delegating to self-registered factories.
 func (a *MockAdapter) CreateRepository(entityName string, conn any, tableName string) (any, error) {
-	return registry.CreateRepository("mock", entityName, conn, tableName)
+	return registry.CreateRepository("mock_db", entityName, conn, tableName)
 }
 
 // GetTransactionManager returns the Mock transaction manager.

@@ -24,6 +24,7 @@ import (
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	espynactx "github.com/erniealice/espyna-golang/shared/context"
@@ -78,7 +79,7 @@ func NewSQLServerSubscriptionRepository(dbOps interfaces.DatabaseOperation, tabl
 	}
 	var db *sql.DB
 	if ep, ok := dbOps.(interface {
-		GetExecutor(ctx context.Context) interfaces.DBExecutor
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
 	}); ok {
 		_ = ep // wired via GetExecutor; direct db extracted below
 	}

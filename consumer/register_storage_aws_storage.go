@@ -1,4 +1,4 @@
-//go:build aws
+//go:build aws_storage
 
 package consumer
 

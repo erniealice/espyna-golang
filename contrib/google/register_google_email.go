@@ -1,4 +1,4 @@
-//go:build gmail
+//go:build google_email
 
 package google
 

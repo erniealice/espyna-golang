@@ -34,13 +34,13 @@ import (
 
 func init() {
 	registry.RegisterStorageProvider(
-		"s3",
+		"aws_storage",
 		func() ports.StorageProvider {
 			return NewS3StorageProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterStorageBuildFromEnv("s3", buildFromEnv)
+	registry.RegisterStorageBuildFromEnv("aws_storage", buildFromEnv)
 }
 
 // buildFromEnv creates and initializes an S3 storage provider from environment variables.
@@ -133,7 +133,7 @@ func NewS3StorageProvider() ports.StorageProvider {
 
 // Name returns the name of this storage provider
 func (p *S3StorageProvider) Name() string {
-	return "s3"
+	return "aws_storage"
 }
 
 // Initialize sets up the S3 storage provider with proto configuration

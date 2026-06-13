@@ -5,17 +5,17 @@
 
 .DESCRIPTION
     This script builds the Espyna server using Go build tags to conditionally compile
-    only the specified HTTP framework adapters (vanilla, gin, fiber) and secondary adapters.
+    only the specified HTTP framework adapters (http, gin, fiber) and secondary adapters.
     
     The build tags are already implemented in the source files:
-    - packages/espyna/internal/infrastructure/adapters/primary/http/vanilla/server.go (//go:build vanilla)
+    - packages/espyna/internal/infrastructure/adapters/primary/http/http/server.go (//go:build http)
     - packages/espyna/internal/infrastructure/adapters/primary/http/gin/server.go (//go:build gin)  
     - packages/espyna/internal/infrastructure/adapters/primary/http/fiber/server.go (//go:build fiber)
     - Secondary adapters now also have build tags (e.g., //go:build firestore, //go:build google && gcp_storage).
 
 .PARAMETER Framework
-    The HTTP framework to build with. Valid values: vanilla, gin, fiber, all
-    Default: vanilla
+    The HTTP framework to build with. Valid values: http, gin, fiber, all
+    Default: http
 
 .PARAMETER SecondaryTags
     Comma-separated list of secondary adapter build tags (e.g., "firestore,google,aws").
@@ -52,8 +52,8 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet("vanilla", "gin", "fiber")]
-    [string]$Framework = "vanilla",
+    [ValidateSet("http", "gin", "fiber")]
+    [string]$Framework = "http",
     
     [Parameter(Mandatory=$false)]
     [string[]]$SecondaryTags = @(),
@@ -89,8 +89,8 @@ try {
     
     # Add framework tags
     if ($Framework -eq "all") {
-        $AllTags += "vanilla", "gin", "fiber"
-        Write-Host "Framework tags: vanilla,gin,fiber (all frameworks)" -ForegroundColor Green
+        $AllTags += "http", "gin", "fiber"
+        Write-Host "Framework tags: http,gin,fiber (all frameworks)" -ForegroundColor Green
     } else {
         $AllTags += $Framework
         Write-Host "Framework tags: $Framework" -ForegroundColor Green
@@ -195,7 +195,7 @@ try {
         Write-Host ""
         Write-Host "Usage examples:" -ForegroundColor Cyan
         switch ($Framework) {
-            "vanilla" {
+            "http" {
                 Write-Host "   ./$OutputPath" -ForegroundColor White
                 Write-Host "   SERVER_PORT=8080 ./$OutputPath" -ForegroundColor White
             }
@@ -208,7 +208,7 @@ try {
                 Write-Host "   SERVER_TYPE=fiber SERVER_PORT=8082 ./$OutputPath" -ForegroundColor White
             }
             "all" {
-                Write-Host "   SERVER_TYPE=vanilla ./$OutputPath" -ForegroundColor White
+                Write-Host "   SERVER_TYPE=http ./$OutputPath" -ForegroundColor White
                 Write-Host "   SERVER_TYPE=gin ./$OutputPath" -ForegroundColor White
                 Write-Host "   SERVER_TYPE=fiber ./$OutputPath" -ForegroundColor White
                 Write-Host "   SERVER_TYPE=multi ./$OutputPath" -ForegroundColor White

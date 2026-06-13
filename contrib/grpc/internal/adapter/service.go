@@ -1,4 +1,4 @@
-//go:build grpc_vanilla
+//go:build grpc
 
 package adapter
 
@@ -159,9 +159,9 @@ func (s *EspynaService) registerService(server *grpc.Server, fullName string, de
 	methods := make([]grpc.MethodDesc, 0, len(desc.Methods))
 	streams := make([]grpc.StreamDesc, 0)
 
-	for methodName, methodDesc := range desc.Methods {
+	for methodName, _ := range desc.Methods {
 		method := grpc.MethodDesc{
-			Name: methodName,
+			MethodName: methodName,
 			Handler: func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 				// Extract the method name from context (set by interceptor)
 				// In a real implementation, you'd pass this through closure context
@@ -243,18 +243,4 @@ func (s *EspynaService) GetMethodDescriptor(fullMethod string) (*MethodDescripto
 	return desc, ok
 }
 
-// capitalize capitalizes the first letter of a string
-func capitalize(s string) string {
-	if s == "" {
-		return ""
-	}
-	return strings.ToUpper(string(s[0])) + s[1:]
-}
 
-// toLowerCamel converts a string to lowerCamelCase
-func toLowerCamel(s string) string {
-	if s == "" {
-		return ""
-	}
-	return strings.ToLower(string(s[0])) + s[1:]
-}

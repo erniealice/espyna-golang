@@ -3,16 +3,16 @@
 # Build Espyna server with specific framework and secondary adapter tags.
 #
 # This script builds the Espyna server using Go build tags to conditionally compile
-# only the specified HTTP framework adapters (vanilla, gin, fiber) and secondary adapters.
+# only the specified HTTP framework adapters (http, gin, fiber) and secondary adapters.
 # 
 # The build tags are already implemented in the source files:
-# - packages/espyna/internal/infrastructure/adapters/primary/http/vanilla/server.go (//go:build vanilla)
+# - packages/espyna/internal/infrastructure/adapters/primary/http/http/server.go (//go:build http)
 # - packages/espyna/internal/infrastructure/adapters/primary/http/gin/server.go (//go:build gin)  
 # - packages/espyna/internal/infrastructure/adapters/primary/http/fiber/server.go (//go:build fiber)
 # - Secondary adapters now also have build tags (e.g., //go:build firestore, //go:build google && gcp_storage).
 #
 # PARAMETERS:
-#   -f, --framework FRAMEWORK    HTTP framework to build with. Valid values: vanilla, gin, fiber, all (default: vanilla)
+#   -f, --framework FRAMEWORK    HTTP framework to build with. Valid values: http, gin, fiber, all (default: http)
 #   -s, --secondary-tags TAGS    Comma-separated list of secondary adapter build tags (e.g., "firestore,google,aws")
 #   -o, --output OUTPUT          Output binary name (default: espyna-server)
 #   -v, --verbose               Enable verbose build output
@@ -38,7 +38,7 @@
 set -euo pipefail
 
 # Default values
-FRAMEWORK="vanilla"
+FRAMEWORK="http"
 SECONDARY_TAGS=()
 OUTPUT="espyna-server"
 VERBOSE_BUILD=false
@@ -62,7 +62,7 @@ show_help() {
     echo "Build Espyna server with specific framework and secondary adapter tags."
     echo ""
     echo "OPTIONS:"
-    echo "  -f, --framework FRAMEWORK    HTTP framework to build with [vanilla|gin|fiber|all] (default: vanilla)"
+    echo "  -f, --framework FRAMEWORK    HTTP framework to build with [http|gin|fiber|all] (default: http)"
     echo "  -s, --secondary-tags TAGS    Comma-separated secondary adapter build tags"
     echo "  -o, --output OUTPUT          Output binary name (default: espyna-server)"
     echo "  -v, --verbose               Enable verbose build output"
@@ -117,10 +117,10 @@ done
 
 # Validate framework parameter
 case $FRAMEWORK in
-    vanilla|gin|fiber|all)
+    http|gin|fiber|all)
         ;;
     *)
-        echo -e "${RED}Error: Invalid framework '$FRAMEWORK'. Valid values: vanilla, gin, fiber, all${NC}"
+        echo -e "${RED}Error: Invalid framework '$FRAMEWORK'. Valid values: http, gin, fiber, all${NC}"
         exit 1
         ;;
 esac
@@ -141,8 +141,8 @@ ALL_TAGS=()
 
 # Add framework tags
 if [[ "$FRAMEWORK" == "all" ]]; then
-    ALL_TAGS+=(vanilla gin fiber)
-    echo -e "${GREEN}Framework tags: vanilla,gin,fiber (all frameworks)${NC}"
+    ALL_TAGS+=(http gin fiber)
+    echo -e "${GREEN}Framework tags: http,gin,fiber (all frameworks)${NC}"
 else
     ALL_TAGS+=("$FRAMEWORK")
     echo -e "${GREEN}Framework tags: $FRAMEWORK${NC}"
@@ -247,7 +247,7 @@ if go build "${BUILD_ARGS[@]}"; then
     echo ""
     echo -e "${CYAN}Usage examples:${NC}"
     case $FRAMEWORK in
-        vanilla)
+        http)
             echo -e "${NC}   ./$OUTPUT_PATH${NC}"
             echo -e "${NC}   SERVER_PORT=8080 ./$OUTPUT_PATH${NC}"
             ;;
@@ -260,7 +260,7 @@ if go build "${BUILD_ARGS[@]}"; then
             echo -e "${NC}   SERVER_TYPE=fiber SERVER_PORT=8082 ./$OUTPUT_PATH${NC}"
             ;;
         all)
-            echo -e "${NC}   SERVER_TYPE=vanilla ./$OUTPUT_PATH${NC}"
+            echo -e "${NC}   SERVER_TYPE=http ./$OUTPUT_PATH${NC}"
             echo -e "${NC}   SERVER_TYPE=gin ./$OUTPUT_PATH${NC}"
             echo -e "${NC}   SERVER_TYPE=fiber ./$OUTPUT_PATH${NC}"
             echo -e "${NC}   SERVER_TYPE=multi ./$OUTPUT_PATH${NC}"

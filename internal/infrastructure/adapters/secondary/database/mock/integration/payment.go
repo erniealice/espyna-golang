@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", entityid.IntegrationPayment, func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock_db", entityid.IntegrationPayment, func(conn any, tableName string) (any, error) {
 		return NewMockIntegrationPaymentRepository(), nil
 	})
 }

@@ -202,7 +202,7 @@ func (r *MockSessionRepository) ListSessions(ctx context.Context, req *sessionpb
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", entityid.Session, func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock_db", entityid.Session, func(conn any, tableName string) (any, error) {
 		return NewMockSessionRepository(), nil
 	})
 }

@@ -15,6 +15,7 @@ import (
 
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/model"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
@@ -1628,7 +1629,7 @@ func (p *PostgresOperations) getExecutor(ctx context.Context) dbExecutor {
 // The return type uses the shared interfaces.DBExecutor so that adapter
 // packages (e.g. the entity package) can type-assert dbOps to a common
 // executorProvider interface without each package defining its own copy.
-func (p *PostgresOperations) GetExecutor(ctx context.Context) interfaces.DBExecutor {
+func (p *PostgresOperations) GetExecutor(ctx context.Context) sqlexec.DBExecutor {
 	return p.getExecutor(ctx)
 }
 

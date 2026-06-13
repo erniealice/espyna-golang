@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 )
 
 // executorProvider is a local interface satisfied by
@@ -26,7 +26,7 @@ import (
 // transaction-aware DBExecutor (either *sql.DB or an active *sql.Tx) for raw
 // SQL queries that bypass the generic CRUD layer.
 type executorProvider interface {
-	GetExecutor(ctx context.Context) interfaces.DBExecutor
+	GetExecutor(ctx context.Context) sqlexec.DBExecutor
 }
 
 // convertMillisToTime converts a millis-epoch value in a JSON map to time.Time.

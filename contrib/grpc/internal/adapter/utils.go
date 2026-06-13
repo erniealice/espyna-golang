@@ -1,4 +1,4 @@
-//go:build grpc_vanilla
+//go:build grpc
 
 package adapter
 

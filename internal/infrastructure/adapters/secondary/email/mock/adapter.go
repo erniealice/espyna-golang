@@ -33,7 +33,7 @@ func init() {
 // buildFromEnv creates and initializes a mock email provider.
 func buildFromEnv() (ports.EmailProvider, error) {
 	protoConfig := &emailpb.EmailProviderConfig{
-		ProviderId: "mock",
+		ProviderId: "mock_email",
 		Enabled:    true,
 	}
 	p := NewMockEmailProvider()
@@ -46,7 +46,7 @@ func buildFromEnv() (ports.EmailProvider, error) {
 // transformConfig converts raw config map to mock email proto config.
 func transformConfig(rawConfig map[string]any) (*emailpb.EmailProviderConfig, error) {
 	return &emailpb.EmailProviderConfig{
-		ProviderId: "mock",
+		ProviderId: "mock_email",
 		Enabled:    true,
 	}, nil
 }
@@ -78,7 +78,7 @@ func NewMockEmailProvider() ports.EmailProvider {
 
 // Name returns the name of this email provider
 func (p *MockEmailProvider) Name() string {
-	return "mock"
+	return "mock_email"
 }
 
 // Initialize sets up the mock email provider with configuration

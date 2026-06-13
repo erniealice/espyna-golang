@@ -13,7 +13,7 @@ import (
 // It uses `any` for the container parameter to avoid import cycles between
 // the ports layer and the composition layer.
 type ServerProvider interface {
-	// Name returns the name of the server provider (e.g., "gin", "fiber", "vanilla")
+	// Name returns the name of the server provider (e.g., "http", "gin", "fiber", "grpc")
 	Name() string
 
 	// Initialize sets up the server with the application container.

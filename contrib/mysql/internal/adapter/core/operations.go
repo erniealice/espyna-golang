@@ -13,6 +13,7 @@ import (
 
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/model"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
@@ -1339,7 +1340,7 @@ func (m *MySQLOperations) getExecutor(ctx context.Context) dbExecutor {
 // holding their own *sql.DB reference. The return type uses the shared
 // interfaces.DBExecutor so adapter packages can type-assert without each
 // package defining its own copy.
-func (m *MySQLOperations) GetExecutor(ctx context.Context) interfaces.DBExecutor {
+func (m *MySQLOperations) GetExecutor(ctx context.Context) sqlexec.DBExecutor {
 	return m.getExecutor(ctx)
 }
 

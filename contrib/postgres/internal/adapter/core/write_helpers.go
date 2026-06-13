@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 )
 
 // write_helpers.go hoists the two direct-SQL write shapes that domain adapters
@@ -18,7 +18,7 @@ import (
 //   - BulkInsertFromSelect — a set-based INSERT ... SELECT helper that replaces
 //     per-row INSERT loops (closes the A7 N+1-INSERT class).
 //
-// Both take an interfaces.DBExecutor so they work uniformly over *sql.DB and
+// Both take an sqlexec.DBExecutor so they work uniformly over *sql.DB and
 // *sql.Tx (the shared executor interface; see
 // internal/infrastructure/adapters/secondary/database/common/interface/operations.go).
 
@@ -40,7 +40,7 @@ import (
 // query is: UPDATE <table> SET <setClause> WHERE id = $N AND workspace_id = $N+1.
 func UpdateWithWorkspaceGuard(
 	ctx context.Context,
-	db interfaces.DBExecutor,
+	db sqlexec.DBExecutor,
 	table string,
 	setClause string,
 	setArgs []any,
@@ -95,7 +95,7 @@ func UpdateWithWorkspaceGuard(
 // Callers that previously discarded RowsAffected may ignore the returned count.
 func HardDeleteByColumn(
 	ctx context.Context,
-	db interfaces.DBExecutor,
+	db sqlexec.DBExecutor,
 	table string,
 	column string,
 	value any,
@@ -143,7 +143,7 @@ func HardDeleteByColumn(
 // Callers that previously discarded RowsAffected may ignore the returned count.
 func UpdateColumnByID(
 	ctx context.Context,
-	db interfaces.DBExecutor,
+	db sqlexec.DBExecutor,
 	table string,
 	setClause string,
 	setArgs []any,
@@ -188,7 +188,7 @@ func UpdateColumnByID(
 // switch to QueryContext at the call site when the inserted IDs are needed.
 func BulkInsertFromSelect(
 	ctx context.Context,
-	db interfaces.DBExecutor,
+	db sqlexec.DBExecutor,
 	insertSQL string,
 	args []any,
 ) (int64, error) {

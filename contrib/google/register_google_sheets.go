@@ -1,4 +1,4 @@
-//go:build googlesheets
+//go:build google_sheets
 
 package google
 

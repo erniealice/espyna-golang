@@ -14,6 +14,7 @@ import (
 	"time"
 
 	dbinterfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
@@ -671,7 +672,7 @@ func (a *PasswordAuthAdapter) GetSessionWorkspaceContext(ctx context.Context, to
 // implement this, so recordFailedAttempt transparently falls back to the
 // read-modify-write path for those backends.
 type executorProvider interface {
-	GetExecutor(ctx context.Context) dbinterfaces.DBExecutor
+	GetExecutor(ctx context.Context) sqlexec.DBExecutor
 }
 
 // recordFailedAttempt increments the failed-login counter for userID and locks

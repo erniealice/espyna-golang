@@ -104,14 +104,21 @@ func WithStorageFromEnv() ContainerOption {
 		storageProvider := strings.ToLower(GetEnv("CONFIG_STORAGE_PROVIDER", "local_storage"))
 
 		switch storageProvider {
-		case "gcp_storage":
+		case "gcs":
 			return WithGoogleCloudStorage(createGCSConfigFromEnv())(c)
-		case "s3":
+		case "aws_storage":
 			return WithS3Storage(createS3ConfigFromEnv())(c)
 		case "local_storage", "":
 			return WithLocalStorage(createLocalStorageConfigFromEnv())(c)
+		// Retired aliases — fail at startup with a clear message
+		case "gcp_storage":
+			return fmt.Errorf("CONFIG_STORAGE_PROVIDER=%q is a retired alias — use \"gcs\" instead", storageProvider)
+		case "s3":
+			return fmt.Errorf("CONFIG_STORAGE_PROVIDER=%q is a retired alias — use \"aws_storage\" instead", storageProvider)
+		case "azure_blob":
+			return fmt.Errorf("CONFIG_STORAGE_PROVIDER=%q is a retired alias — use \"azure_storage\" instead", storageProvider)
 		default:
-			return fmt.Errorf("unsupported storage provider: %s", storageProvider)
+			return fmt.Errorf("unsupported storage provider: %s (valid: gcs, aws_storage, azure_storage, local_storage, mock_storage)", storageProvider)
 		}
 	}
 }

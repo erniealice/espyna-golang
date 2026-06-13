@@ -42,12 +42,12 @@ Usage:
 	fmt.Println("Running:", adapter.Name())
 
 Environment Variables:
-  - CONFIG_SERVER_PROVIDER: Server framework to use (gin, fiber, fiber_v3, vanilla)
+  - CONFIG_SERVER_PROVIDER: Server framework to use (http, gin, fiber, fiber_v3, grpc)
     Defaults to the first available compiled-in provider.
 */
 
 // ServerAdapter provides technology-agnostic access to HTTP server implementations.
-// It wraps the ServerProvider interface and works with Gin, Fiber, Vanilla HTTP, etc.
+// It wraps the ServerProvider interface and works with Gin, Fiber, stdlib net/http, gRPC, etc.
 type ServerAdapter struct {
 	provider  ports.ServerProvider
 	container *core.Container
@@ -90,7 +90,7 @@ func (a *ServerAdapter) Start(addr string) error {
 	return a.provider.Start(addr)
 }
 
-// Name returns the name of the server framework (e.g., "gin", "fiber", "vanilla")
+// Name returns the name of the server framework (e.g., "http", "gin", "fiber", "grpc")
 func (a *ServerAdapter) Name() string {
 	if a.provider == nil {
 		return ""

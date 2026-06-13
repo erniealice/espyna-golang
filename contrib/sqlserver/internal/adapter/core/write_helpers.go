@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 )
 
 // write_helpers.go hoists the two direct-SQL write shapes that domain adapters
@@ -46,7 +46,7 @@ import (
 // this helper keeps it simple with RowsAffected per the brief (A6 fix only).
 func UpdateWithWorkspaceGuard(
 	ctx context.Context,
-	db interfaces.DBExecutor,
+	db sqlexec.DBExecutor,
 	table string,
 	setClause string,
 	setArgs []any,
@@ -105,7 +105,7 @@ func UpdateWithWorkspaceGuard(
 //     gen_random_uuid() in SQL Server.
 func BulkInsertFromSelect(
 	ctx context.Context,
-	db interfaces.DBExecutor,
+	db sqlexec.DBExecutor,
 	insertSQL string,
 	args []any,
 ) (int64, error) {

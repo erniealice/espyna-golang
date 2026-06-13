@@ -1,4 +1,4 @@
-//go:build (google && gmail) || (microsoft && microsoftgraph) || microsoft_email
+//go:build google_email || microsoft_email
 
 // Package integration provides HTTP routing configuration for integration use cases.
 //
@@ -34,7 +34,7 @@ import (
 var _ ports.EmailProvider = nil
 
 // ConfigureEmailIntegration configures routes for email integration
-// Compiled when: (google && gmail) || (microsoft && microsoftgraph) || microsoft_email
+// Compiled when: google_email || microsoft_email
 func ConfigureEmailIntegration(
 	_ ports.EmailProvider, // Kept for backward compatibility
 	integration *integrationuc.IntegrationUseCases,

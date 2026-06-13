@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/consumer"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
 	"github.com/erniealice/espyna-golang/database/model"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
@@ -1373,7 +1374,7 @@ func (s *SQLServerOperations) getExecutor(ctx context.Context) dbExecutor {
 // holding their own *sql.DB reference. The return type uses the shared
 // interfaces.DBExecutor so adapter packages can type-assert without each package
 // defining its own copy.
-func (s *SQLServerOperations) GetExecutor(ctx context.Context) interfaces.DBExecutor {
+func (s *SQLServerOperations) GetExecutor(ctx context.Context) sqlexec.DBExecutor {
 	return s.getExecutor(ctx)
 }
 
@@ -1559,9 +1560,9 @@ func (w *WorkspaceAwareOperations) GetDB() *sql.DB { return w.db }
 // GetExecutor returns the transaction-aware executor from the inner operation.
 // Entity adapters that type-assert to executorProvider use this to participate
 // in active transactions.
-func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) interfaces.DBExecutor {
+func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) sqlexec.DBExecutor {
 	type executorProvider interface {
-		GetExecutor(ctx context.Context) interfaces.DBExecutor
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
 	}
 	if ep, ok := w.inner.(executorProvider); ok {
 		return ep.GetExecutor(ctx)

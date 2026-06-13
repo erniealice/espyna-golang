@@ -30,13 +30,13 @@ import (
 
 func init() {
 	registry.RegisterEmailProvider(
-		"gmail",
+		"google_email",
 		func() ports.EmailProvider {
 			return NewGoogleEmailProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterEmailBuildFromEnv("gmail", buildFromEnv)
+	registry.RegisterEmailBuildFromEnv("google_email", buildFromEnv)
 }
 
 // buildFromEnv creates and initializes a Gmail email provider from environment variables.
@@ -73,7 +73,7 @@ func buildFromEnv() (ports.EmailProvider, error) {
 	}
 
 	protoConfig := &emailpb.EmailProviderConfig{
-		ProviderId:         "gmail",
+		ProviderId:         "google_email",
 		ProviderType:       emailpb.EmailProviderType_EMAIL_PROVIDER_TYPE_OAUTH,
 		Enabled:            true,
 		DefaultFromAddress: fromEmail,
@@ -91,7 +91,7 @@ func buildFromEnv() (ports.EmailProvider, error) {
 
 	p := NewGoogleEmailProvider()
 	if err := p.Initialize(protoConfig); err != nil {
-		return nil, fmt.Errorf("gmail: failed to initialize: %w", err)
+		return nil, fmt.Errorf("google_email: failed to initialize: %w", err)
 	}
 	return p, nil
 }
@@ -99,7 +99,7 @@ func buildFromEnv() (ports.EmailProvider, error) {
 // transformConfig converts raw config map to Gmail proto config.
 func transformConfig(rawConfig map[string]any) (*emailpb.EmailProviderConfig, error) {
 	protoConfig := &emailpb.EmailProviderConfig{
-		ProviderId:   "gmail",
+		ProviderId:   "google_email",
 		ProviderType: emailpb.EmailProviderType_EMAIL_PROVIDER_TYPE_OAUTH,
 		Enabled:      true,
 		Settings:     make(map[string]string),
@@ -208,7 +208,7 @@ func NewGoogleEmailProvider() ports.EmailProvider {
 
 // Name returns the name of this email provider
 func (p *GoogleEmailProvider) Name() string {
-	return "google_gmail"
+	return "google_email"
 }
 
 // Initialize sets up the Google Email provider with configuration

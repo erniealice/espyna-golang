@@ -5,12 +5,12 @@ package asset
 import (
 	"context"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 )
 
 // executorProvider provides a transaction-aware database executor.
 // PostgresOperations in the core package satisfies this interface via its
-// GetExecutor method, which returns interfaces.DBExecutor — the shared
+// GetExecutor method, which returns sqlexec.DBExecutor — the shared
 // exported type that avoids the "missing method GetExecutor" panic caused
 // by each package previously defining its own unexported dbExecutor copy.
 //
@@ -20,9 +20,9 @@ import (
 // like client has) so they can call r.dbOps.(executorProvider).GetExecutor
 // without re-defining the type assertion.
 type executorProvider interface {
-	GetExecutor(ctx context.Context) interfaces.DBExecutor
+	GetExecutor(ctx context.Context) sqlexec.DBExecutor
 }
 
 // dbExecutor is a package-local alias for the shared interface, so that
 // future code inside this package can use the short name.
-type dbExecutor = interfaces.DBExecutor
+type dbExecutor = sqlexec.DBExecutor

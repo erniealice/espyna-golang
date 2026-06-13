@@ -1,4 +1,4 @@
-//go:build vanilla
+//go:build http
 
 package middleware
 

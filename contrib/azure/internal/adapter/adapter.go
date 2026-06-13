@@ -58,13 +58,13 @@ func fromAzureMetadata(m map[string]*string) map[string]string {
 
 func init() {
 	registry.RegisterStorageProvider(
-		"azure",
+		"azure_storage",
 		func() ports.StorageProvider {
 			return NewAzureStorageProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterStorageBuildFromEnv("azure", buildFromEnv)
+	registry.RegisterStorageBuildFromEnv("azure_storage", buildFromEnv)
 }
 
 // buildFromEnv creates and initializes an Azure storage provider from environment variables.
@@ -119,7 +119,7 @@ func NewAzureStorageProvider() ports.StorageProvider {
 
 // Name returns the name of this storage provider
 func (p *AzureStorageProvider) Name() string {
-	return "azure"
+	return "azure_storage"
 }
 
 // Initialize sets up the Azure Blob Storage provider with proto configuration

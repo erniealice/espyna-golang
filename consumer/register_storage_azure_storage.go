@@ -1,4 +1,4 @@
-//go:build azure_blob
+//go:build azure_storage
 
 package consumer
 

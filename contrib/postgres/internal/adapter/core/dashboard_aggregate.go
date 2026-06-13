@@ -8,14 +8,14 @@ import (
 	"errors"
 	"fmt"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 )
 
 // DBExecutor is the shared executor abstraction over *sql.DB and *sql.Tx.
 // Re-exported here so dashboard aggregate callers in this package and in the
 // domain adapters can name a single type without importing the internal
 // interface package directly.
-type DBExecutor = interfaces.DBExecutor
+type DBExecutor = sqlexec.DBExecutor
 
 // RunDashboardAggregate runs ONE row-returning aggregate query and scans the
 // single result row into dest in column order.

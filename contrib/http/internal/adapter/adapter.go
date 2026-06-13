@@ -1,4 +1,4 @@
-//go:build vanilla
+//go:build http
 
 package vanilla
 
@@ -30,7 +30,7 @@ import (
 
 func init() {
 	registry.RegisterServerProvider(
-		"vanilla",
+		"http",
 		func() ports.ServerProvider {
 			return NewVanillaAdapter()
 		},
@@ -38,7 +38,7 @@ func init() {
 	)
 }
 
-// buildFromEnv creates a Vanilla adapter from environment variables.
+// buildFromEnv creates a HTTP adapter from environment variables.
 func buildFromEnv() (ports.ServerProvider, error) {
 	adapter := NewVanillaAdapter()
 	return adapter, nil
@@ -63,7 +63,7 @@ func NewVanillaAdapter() *VanillaAdapter {
 
 // Name returns the provider name.
 func (a *VanillaAdapter) Name() string {
-	return "vanilla"
+	return "http"
 }
 
 // Initialize sets up the HTTP mux with the container.
@@ -71,13 +71,13 @@ func (a *VanillaAdapter) Name() string {
 // to satisfy the ports.ServerProvider interface and avoid import cycles.
 func (a *VanillaAdapter) Initialize(container any) error {
 	if container == nil {
-		return fmt.Errorf("vanilla adapter requires a non-nil container")
+		return fmt.Errorf("HTTP adapter requires a non-nil container")
 	}
 
 	// Type assert to *core.Container
 	c, ok := container.(*core.Container)
 	if !ok {
-		return fmt.Errorf("vanilla adapter requires *core.Container, got %T", container)
+		return fmt.Errorf("HTTP adapter requires *core.Container, got %T", container)
 	}
 
 	a.container = c
@@ -93,11 +93,11 @@ func (a *VanillaAdapter) Initialize(container any) error {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":    "ok",
 			"timestamp": time.Now().UTC(),
-			"framework": "vanilla",
+			"framework": "http",
 		})
 	})
 
-	log.Printf("Vanilla adapter initialized successfully")
+	log.Printf("HTTP adapter initialized successfully")
 	return nil
 }
 
@@ -107,7 +107,7 @@ func (a *VanillaAdapter) installRoutes() {
 	baseRoutes := a.container.GetRouteManager().GetAllRoutes()
 	routes := customizer.ApplyCustomizations(baseRoutes)
 
-	log.Printf("INFO: Installing %d routes on vanilla HTTP mux", len(routes))
+	log.Printf("INFO: Installing %d routes on HTTP mux", len(routes))
 
 	for _, route := range routes {
 		a.installRouteOnMux(route)
@@ -201,10 +201,10 @@ func (a *VanillaAdapter) createHTTPHandler(route *routing.Route) http.HandlerFun
 // Start starts the vanilla HTTP server on the specified address.
 func (a *VanillaAdapter) Start(addr string) error {
 	if a.mux == nil {
-		return fmt.Errorf("vanilla adapter not initialized - call Initialize() first")
+		return fmt.Errorf("HTTP adapter not initialized - call Initialize() first")
 	}
 
-	printServerInfo("vanilla", addr)
+	printServerInfo("http", addr)
 
 	// Wrap the mux with CORS and Gzip middleware
 	handler := corsMiddleware(gzipMiddleware(a.mux))
@@ -220,7 +220,7 @@ func (a *VanillaAdapter) Start(addr string) error {
 // IsHealthy checks if the server is healthy.
 func (a *VanillaAdapter) IsHealthy(ctx context.Context) error {
 	if a.mux == nil {
-		return fmt.Errorf("vanilla mux not initialized")
+		return fmt.Errorf("HTTP mux not initialized")
 	}
 	return nil
 }
@@ -228,7 +228,7 @@ func (a *VanillaAdapter) IsHealthy(ctx context.Context) error {
 // Close shuts down the vanilla server.
 func (a *VanillaAdapter) Close() error {
 	if a.server != nil {
-		log.Printf("Vanilla adapter closing")
+		log.Printf("HTTP adapter closing")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return a.server.Shutdown(ctx)
@@ -245,7 +245,7 @@ func (a *VanillaAdapter) IsEnabled() bool {
 // This allows consumer applications to add custom routes beyond the espyna-generated routes.
 func (a *VanillaAdapter) RegisterCustomHandler(method, path string, handler http.HandlerFunc) error {
 	if a.mux == nil {
-		return fmt.Errorf("vanilla adapter not initialized - call Initialize() first")
+		return fmt.Errorf("HTTP adapter not initialized - call Initialize() first")
 	}
 
 	// For vanilla HTTP, we create a wrapper that checks the method

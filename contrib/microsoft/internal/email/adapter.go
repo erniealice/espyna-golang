@@ -1,4 +1,4 @@
-//go:build (microsoft && microsoftgraph) || microsoft_email
+//go:build microsoft_email
 
 package email
 
@@ -26,16 +26,16 @@ import (
 // =============================================================================
 
 func init() {
-	fmt.Println("[MicrosoftEmailAdapter] init() called - registering microsoft email provider")
+	fmt.Println("[MicrosoftEmailAdapter] init() called - registering microsoft_email provider")
 	registry.RegisterEmailProvider(
-		"microsoft",
+		"microsoft_email",
 		func() ports.EmailProvider {
 			return NewMicrosoftGraphProvider()
 		},
 		transformConfig,
 	)
-	registry.RegisterEmailBuildFromEnv("microsoft", buildFromEnv)
-	fmt.Println("[MicrosoftEmailAdapter] init() complete - microsoft email provider registered")
+	registry.RegisterEmailBuildFromEnv("microsoft_email", buildFromEnv)
+	fmt.Println("[MicrosoftEmailAdapter] init() complete - microsoft_email provider registered")
 }
 
 // buildFromEnv creates a Microsoft Graph email provider from environment variables
@@ -45,22 +45,22 @@ func buildFromEnv() (ports.EmailProvider, error) {
 	// Read required environment variables
 	tenantID := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TENANT_ID")
 	if tenantID == "" {
-		return nil, fmt.Errorf("microsoft: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TENANT_ID is required")
+		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TENANT_ID is required")
 	}
 
 	clientID := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_ID")
 	if clientID == "" {
-		return nil, fmt.Errorf("microsoft: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_ID is required")
+		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_ID is required")
 	}
 
 	clientSecret := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_SECRET")
 	if clientSecret == "" {
-		return nil, fmt.Errorf("microsoft: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_SECRET is required")
+		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_SECRET is required")
 	}
 
 	delegateEmail := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_DELEGATE_EMAIL")
 	if delegateEmail == "" {
-		return nil, fmt.Errorf("microsoft: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_DELEGATE_EMAIL is required")
+		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_DELEGATE_EMAIL is required")
 	}
 
 	// Optional environment variables
@@ -73,7 +73,7 @@ func buildFromEnv() (ports.EmailProvider, error) {
 
 	// Build protobuf config
 	config := &emailpb.EmailProviderConfig{
-		ProviderId:         "microsoft",
+		ProviderId:         "microsoft_email",
 		ProviderType:       emailpb.EmailProviderType_EMAIL_PROVIDER_TYPE_OAUTH,
 		Enabled:            true,
 		DefaultFromAddress: fromEmail,
@@ -116,7 +116,7 @@ func buildFromEnv() (ports.EmailProvider, error) {
 
 	// Initialize the provider
 	if err := provider.Initialize(config); err != nil {
-		return nil, fmt.Errorf("microsoft: failed to initialize: %w", err)
+		return nil, fmt.Errorf("microsoft_email: failed to initialize: %w", err)
 	}
 
 	return provider, nil
@@ -125,7 +125,7 @@ func buildFromEnv() (ports.EmailProvider, error) {
 // transformConfig converts raw config map to Microsoft Graph proto config.
 func transformConfig(rawConfig map[string]any) (*emailpb.EmailProviderConfig, error) {
 	protoConfig := &emailpb.EmailProviderConfig{
-		ProviderId:   "microsoft",
+		ProviderId:   "microsoft_email",
 		ProviderType: emailpb.EmailProviderType_EMAIL_PROVIDER_TYPE_OAUTH,
 		Enabled:      true,
 		Settings:     make(map[string]string),
@@ -136,7 +136,7 @@ func transformConfig(rawConfig map[string]any) (*emailpb.EmailProviderConfig, er
 		fromEmail = fe
 		protoConfig.DefaultFromAddress = fe
 	} else {
-		return nil, fmt.Errorf("microsoft: from_email is required")
+		return nil, fmt.Errorf("microsoft_email: from_email is required")
 	}
 	if fromName, ok := rawConfig["from_name"].(string); ok {
 		protoConfig.DefaultFromName = fromName
@@ -146,17 +146,17 @@ func transformConfig(rawConfig map[string]any) (*emailpb.EmailProviderConfig, er
 	if clientID, ok := rawConfig["client_id"].(string); ok && clientID != "" {
 		oauth2Auth.ClientId = clientID
 	} else {
-		return nil, fmt.Errorf("microsoft: client_id is required")
+		return nil, fmt.Errorf("microsoft_email: client_id is required")
 	}
 	if clientSecret, ok := rawConfig["client_secret"].(string); ok && clientSecret != "" {
 		oauth2Auth.ClientSecret = clientSecret
 	} else {
-		return nil, fmt.Errorf("microsoft: client_secret is required")
+		return nil, fmt.Errorf("microsoft_email: client_secret is required")
 	}
 	if tenantID, ok := rawConfig["tenant_id"].(string); ok && tenantID != "" {
 		oauth2Auth.TenantId = tenantID
 	} else {
-		return nil, fmt.Errorf("microsoft: tenant_id is required")
+		return nil, fmt.Errorf("microsoft_email: tenant_id is required")
 	}
 	protoConfig.Auth = &emailpb.EmailProviderConfig_Oauth2Auth{Oauth2Auth: oauth2Auth}
 
@@ -241,7 +241,7 @@ func NewMicrosoftGraphProvider() ports.EmailProvider {
 
 // Name returns the name of this email provider
 func (p *MicrosoftGraphProvider) Name() string {
-	return "microsoft_graph"
+	return "microsoft_email"
 }
 
 // Initialize sets up the Microsoft Graph provider with configuration

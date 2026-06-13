@@ -39,7 +39,7 @@ func NewEventTagRepository(businessType string) eventtagpb.EventTagDomainService
 }
 
 func init() {
-	registry.RegisterRepositoryFactory("mock", entityid.EventTag, func(conn any, tableName string) (any, error) {
+	registry.RegisterRepositoryFactory("mock_db", entityid.EventTag, func(conn any, tableName string) (any, error) {
 		businessType, _ := conn.(string)
 		if businessType == "" {
 			businessType = "education"

@@ -25,9 +25,8 @@ import (
 // =============================================================================
 
 func init() {
-	// Registered name matches CONFIG_STORAGE_PROVIDER=gcs (the wiki's documented
-	// value). The build tag remains gcp_storage (see register_gcs.go); only the
-	// runtime selector name is "gcs".
+	// Registered name matches CONFIG_STORAGE_PROVIDER=gcs and the build tag (gcs).
+	// See register_gcs.go for the //go:build gcs constraint.
 	registry.RegisterStorageProvider(
 		"gcs",
 		func() ports.StorageProvider {

@@ -101,24 +101,32 @@ func createS3ConfigFromEnv() S3Config {
 // WithStorageFromEnv dynamically selects storage provider based on CONFIG_STORAGE_PROVIDER
 func WithStorageFromEnv() ContainerOption {
 	return func(c Container) error {
-		storageProvider := strings.ToLower(GetEnv("CONFIG_STORAGE_PROVIDER", "local_storage"))
+		storageProvider := strings.ToLower(GetEnv("CONFIG_STORAGE_PROVIDER", ""))
 
 		switch storageProvider {
 		case "gcs":
 			return WithGoogleCloudStorage(createGCSConfigFromEnv())(c)
 		case "aws_storage":
 			return WithS3Storage(createS3ConfigFromEnv())(c)
-		case "local_storage", "":
+		case "local_storage":
 			return WithLocalStorage(createLocalStorageConfigFromEnv())(c)
+		case "mock_storage":
+			return WithMockStorage()(c)
 		// Retired aliases — fail at startup with a clear message
 		case "gcp_storage":
-			return fmt.Errorf("CONFIG_STORAGE_PROVIDER=%q is a retired alias — use \"gcs\" instead", storageProvider)
+			return fmt.Errorf("storage provider 'gcp_storage' is retired - use CONFIG_STORAGE_PROVIDER=gcs")
 		case "s3":
-			return fmt.Errorf("CONFIG_STORAGE_PROVIDER=%q is a retired alias — use \"aws_storage\" instead", storageProvider)
-		case "azure_blob":
-			return fmt.Errorf("CONFIG_STORAGE_PROVIDER=%q is a retired alias — use \"azure_storage\" instead", storageProvider)
+			return fmt.Errorf("storage provider 's3' is retired - use CONFIG_STORAGE_PROVIDER=aws_storage")
+		case "azure_blob", "azure":
+			return fmt.Errorf("storage provider '%s' is retired - use CONFIG_STORAGE_PROVIDER=azure_storage", storageProvider)
+		case "local":
+			return fmt.Errorf("storage provider 'local' is retired - use CONFIG_STORAGE_PROVIDER=local_storage")
+		case "mock":
+			return fmt.Errorf("storage provider 'mock' is retired - use CONFIG_STORAGE_PROVIDER=mock_storage")
+		case "":
+			return fmt.Errorf("CONFIG_STORAGE_PROVIDER is empty - set it explicitly (mock_storage, local_storage, gcs, aws_storage, azure_storage)")
 		default:
-			return fmt.Errorf("unsupported storage provider: %s (valid: gcs, aws_storage, azure_storage, local_storage, mock_storage)", storageProvider)
+			return fmt.Errorf("unsupported storage provider: %s (canonical: mock_storage, local_storage, gcs, aws_storage, azure_storage)", storageProvider)
 		}
 	}
 }

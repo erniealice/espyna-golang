@@ -264,6 +264,9 @@ func ConfigureOperationDomain(operationUseCases *operationuc.OperationUseCases) 
 		}
 	}
 
+	// WorkRequest routes (20260604-requests-workflow v1) — wired when use cases land.
+	// WorkRequestType routes (20260604-requests-workflow v1) — wired when use cases land.
+
 	return contracts.DomainRouteConfiguration{
 		Domain:  "operation",
 		Prefix:  "/operation",

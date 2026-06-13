@@ -264,6 +264,12 @@ const (
 	EvaluationCycleMember  = "evaluation_cycle_member"
 )
 
+// Operation domain — Work Requests (20260604-requests-workflow v1)
+const (
+	WorkRequest     = "work_request"
+	WorkRequestType = "work_request_type"
+)
+
 // Ledger domain — Chart of Accounts
 const (
 	Account                  = "account"
@@ -459,6 +465,7 @@ var OperationEntities = []string{
 	JobSettlement, InventoryMovement,
 	Evaluation, EvaluationResponse, EvaluationTemplate,
 	EvaluationTemplateItem, EvaluationCycle, EvaluationCycleMember,
+	WorkRequest, WorkRequestType,
 }
 
 // OperationOutcomeEntities lists all entity IDs in the Operation Layer 7 Outcome domain.

@@ -30,6 +30,8 @@ import (
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+	workrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workrequesttypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 )
@@ -75,6 +77,11 @@ type OperationRepositories struct {
 	// (deny unless the caller holds evaluation:triage_all).
 	ClientWorkspaceUser       clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer
 	SubscriptionWorkspaceUser subscriptionworkspaceuserpb.SubscriptionWorkspaceUserDomainServiceServer
+
+	// Work Requests (20260604-requests-workflow v1). Optional: when an adapter
+	// is not registered the field stays nil and use cases degrade gracefully.
+	WorkRequest     workrequestpb.WorkRequestDomainServiceServer
+	WorkRequestType workrequesttypepb.WorkRequestTypeDomainServiceServer
 }
 
 // NewOperationRepositories creates and returns a new set of OperationRepositories.
@@ -203,6 +210,17 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	if repo, e := repoCreator.CreateRepository(entityid.SubscriptionSeat, conn, tableConfig.TableName(entityid.SubscriptionSeat)); e == nil {
 		subscriptionSeatServer = repo.(subscriptionseatpb.SubscriptionSeatDomainServiceServer)
 	}
+	// Work Requests (20260604-requests-workflow v1) — best-effort: nil when no
+	// adapter is registered (e.g. mock-only tests), mirroring Evaluation.
+	var workRequestServer workrequestpb.WorkRequestDomainServiceServer
+	if repo, e := repoCreator.CreateRepository(entityid.WorkRequest, conn, tableConfig.TableName(entityid.WorkRequest)); e == nil {
+		workRequestServer = repo.(workrequestpb.WorkRequestDomainServiceServer)
+	}
+	var workRequestTypeServer workrequesttypepb.WorkRequestTypeDomainServiceServer
+	if repo, e := repoCreator.CreateRepository(entityid.WorkRequestType, conn, tableConfig.TableName(entityid.WorkRequestType)); e == nil {
+		workRequestTypeServer = repo.(workrequesttypepb.WorkRequestTypeDomainServiceServer)
+	}
+
 	// Q-SERVICING F-GATE membership readers (CR-5) — best-effort, mirroring
 	// SubscriptionSeat. The concrete postgres adapters additionally implement the
 	// servicing reader ports (IsActiveAccountTeamMember / IsActiveServicer) as
@@ -244,5 +262,8 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 
 		ClientWorkspaceUser:       clientWorkspaceUserServer,
 		SubscriptionWorkspaceUser: subscriptionWorkspaceUserServer,
+
+		WorkRequest:     workRequestServer,
+		WorkRequestType: workRequestTypeServer,
 	}, nil
 }

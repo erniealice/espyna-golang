@@ -1,7 +1,7 @@
 package registry
 
 import (
-	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
 	schedulerpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/scheduler"
 )
 
@@ -9,17 +9,17 @@ import (
 // Scheduler Factory Registry Instance
 // =============================================================================
 
-var schedulerRegistry = NewFactoryRegistry[ports.SchedulerProvider, *schedulerpb.SchedulerProviderConfig]("scheduler")
+var schedulerRegistry = NewFactoryRegistry[integration.SchedulerProvider, *schedulerpb.SchedulerProviderConfig]("scheduler")
 
 // =============================================================================
 // Scheduler Provider Functions
 // =============================================================================
 
-func RegisterSchedulerProviderFactory(name string, factory func() ports.SchedulerProvider) {
+func RegisterSchedulerProviderFactory(name string, factory func() integration.SchedulerProvider) {
 	schedulerRegistry.RegisterFactory(name, factory)
 }
 
-func GetSchedulerProviderFactory(name string) (func() ports.SchedulerProvider, bool) {
+func GetSchedulerProviderFactory(name string) (func() integration.SchedulerProvider, bool) {
 	return schedulerRegistry.GetFactory(name)
 }
 
@@ -41,15 +41,15 @@ func TransformSchedulerConfig(name string, rawConfig map[string]any) (*scheduler
 	return schedulerRegistry.TransformConfig(name, rawConfig)
 }
 
-func RegisterSchedulerBuildFromEnv(name string, builder func() (ports.SchedulerProvider, error)) {
+func RegisterSchedulerBuildFromEnv(name string, builder func() (integration.SchedulerProvider, error)) {
 	schedulerRegistry.RegisterBuildFromEnv(name, builder)
 }
 
-func GetSchedulerBuildFromEnv(name string) (func() (ports.SchedulerProvider, error), bool) {
+func GetSchedulerBuildFromEnv(name string) (func() (integration.SchedulerProvider, error), bool) {
 	return schedulerRegistry.GetBuildFromEnv(name)
 }
 
-func BuildSchedulerProviderFromEnv(name string) (ports.SchedulerProvider, error) {
+func BuildSchedulerProviderFromEnv(name string) (integration.SchedulerProvider, error) {
 	return schedulerRegistry.BuildFromEnv(name)
 }
 
@@ -57,7 +57,7 @@ func ListAvailableSchedulerBuildFromEnv() []string {
 	return schedulerRegistry.ListBuildFromEnv()
 }
 
-func RegisterSchedulerProvider(name string, factory func() ports.SchedulerProvider, transformer SchedulerConfigTransformer) {
+func RegisterSchedulerProvider(name string, factory func() integration.SchedulerProvider, transformer SchedulerConfigTransformer) {
 	RegisterSchedulerProviderFactory(name, factory)
 	if transformer != nil {
 		RegisterSchedulerConfigTransformer(name, transformer)

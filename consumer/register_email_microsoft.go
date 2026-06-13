@@ -15,5 +15,5 @@ import (
 	// The legacy -tags "microsoft microsoftgraph" set still COMPILES the adapter, but does
 	// not register it: nothing blank-imports the adapter package under that tag-set, so its
 	// init() never runs. Use microsoft_email to actually wire the Microsoft Graph provider.
-	_ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/email/microsoft"
+	_ "github.com/erniealice/espyna-golang/contrib/microsoft"
 )

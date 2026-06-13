@@ -1,7 +1,7 @@
 package registry
 
 import (
-	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/ports/integration"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 )
 
@@ -9,17 +9,17 @@ import (
 // Payment Factory Registry Instance
 // =============================================================================
 
-var paymentRegistry = NewFactoryRegistry[ports.PaymentProvider, *paymentpb.PaymentProviderConfig]("payment")
+var paymentRegistry = NewFactoryRegistry[integration.PaymentProvider, *paymentpb.PaymentProviderConfig]("payment")
 
 // =============================================================================
 // Payment Provider Functions
 // =============================================================================
 
-func RegisterPaymentProviderFactory(name string, factory func() ports.PaymentProvider) {
+func RegisterPaymentProviderFactory(name string, factory func() integration.PaymentProvider) {
 	paymentRegistry.RegisterFactory(name, factory)
 }
 
-func GetPaymentProviderFactory(name string) (func() ports.PaymentProvider, bool) {
+func GetPaymentProviderFactory(name string) (func() integration.PaymentProvider, bool) {
 	return paymentRegistry.GetFactory(name)
 }
 
@@ -41,15 +41,15 @@ func TransformPaymentConfig(name string, rawConfig map[string]any) (*paymentpb.P
 	return paymentRegistry.TransformConfig(name, rawConfig)
 }
 
-func RegisterPaymentBuildFromEnv(name string, builder func() (ports.PaymentProvider, error)) {
+func RegisterPaymentBuildFromEnv(name string, builder func() (integration.PaymentProvider, error)) {
 	paymentRegistry.RegisterBuildFromEnv(name, builder)
 }
 
-func GetPaymentBuildFromEnv(name string) (func() (ports.PaymentProvider, error), bool) {
+func GetPaymentBuildFromEnv(name string) (func() (integration.PaymentProvider, error), bool) {
 	return paymentRegistry.GetBuildFromEnv(name)
 }
 
-func BuildPaymentProviderFromEnv(name string) (ports.PaymentProvider, error) {
+func BuildPaymentProviderFromEnv(name string) (integration.PaymentProvider, error) {
 	return paymentRegistry.BuildFromEnv(name)
 }
 
@@ -57,7 +57,7 @@ func ListAvailablePaymentBuildFromEnv() []string {
 	return paymentRegistry.ListBuildFromEnv()
 }
 
-func RegisterPaymentProvider(name string, factory func() ports.PaymentProvider, transformer PaymentConfigTransformer) {
+func RegisterPaymentProvider(name string, factory func() integration.PaymentProvider, transformer PaymentConfigTransformer) {
 	RegisterPaymentProviderFactory(name, factory)
 	if transformer != nil {
 		RegisterPaymentConfigTransformer(name, transformer)

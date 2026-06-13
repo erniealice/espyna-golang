@@ -2,4 +2,4 @@
 
 package consumer
 
-import _ "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/payment/asiapay"
+import _ "github.com/erniealice/espyna-golang/contrib/asiapay"

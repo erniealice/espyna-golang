@@ -187,6 +187,86 @@ var (
 )
 
 // =============================================================================
+// Scheduler Provider Registry
+// =============================================================================
+// (Integration provider. Re-exported here so contrib/ scheduler adapters —
+// e.g. contrib/calendly — can self-register without importing internal/.
+// Added 2026-06-10 per E5 contrib relocation: the public registry previously
+// re-exported email + tabular but omitted scheduler/payment/fulfillment.
+// registry/integration/ namespacing tracked as an N9 follow-up.)
+
+type SchedulerConfigTransformer = internal.SchedulerConfigTransformer
+
+var (
+	RegisterSchedulerProvider        = internal.RegisterSchedulerProvider
+	RegisterSchedulerProviderFactory = internal.RegisterSchedulerProviderFactory
+	GetSchedulerProviderFactory      = internal.GetSchedulerProviderFactory
+
+	RegisterSchedulerConfigTransformer = internal.RegisterSchedulerConfigTransformer
+	GetSchedulerConfigTransformer      = internal.GetSchedulerConfigTransformer
+	TransformSchedulerConfig           = internal.TransformSchedulerConfig
+
+	RegisterSchedulerBuildFromEnv      = internal.RegisterSchedulerBuildFromEnv
+	GetSchedulerBuildFromEnv           = internal.GetSchedulerBuildFromEnv
+	BuildSchedulerProviderFromEnv      = internal.BuildSchedulerProviderFromEnv
+	ListAvailableSchedulerBuildFromEnv = internal.ListAvailableSchedulerBuildFromEnv
+
+	ListAvailableSchedulerProviderFactories = internal.ListAvailableSchedulerProviderFactories
+)
+
+// =============================================================================
+// Payment Provider Registry
+// =============================================================================
+// (Integration provider. Re-exported here so contrib/ payment adapters —
+// e.g. contrib/maya, contrib/asiapay, contrib/paypal — can self-register
+// without importing internal/. Added 2026-06-11 per E5 P1 contrib relocation.)
+
+type PaymentConfigTransformer = internal.PaymentConfigTransformer
+
+var (
+	RegisterPaymentProvider        = internal.RegisterPaymentProvider
+	RegisterPaymentProviderFactory = internal.RegisterPaymentProviderFactory
+	GetPaymentProviderFactory      = internal.GetPaymentProviderFactory
+
+	RegisterPaymentConfigTransformer = internal.RegisterPaymentConfigTransformer
+	GetPaymentConfigTransformer      = internal.GetPaymentConfigTransformer
+	TransformPaymentConfig           = internal.TransformPaymentConfig
+
+	RegisterPaymentBuildFromEnv      = internal.RegisterPaymentBuildFromEnv
+	GetPaymentBuildFromEnv           = internal.GetPaymentBuildFromEnv
+	BuildPaymentProviderFromEnv      = internal.BuildPaymentProviderFromEnv
+	ListAvailablePaymentBuildFromEnv = internal.ListAvailablePaymentBuildFromEnv
+
+	ListAvailablePaymentProviderFactories = internal.ListAvailablePaymentProviderFactories
+)
+
+// =============================================================================
+// ID Provider Registry
+// =============================================================================
+// (Re-exported so contrib/ ID adapters — e.g. contrib/google (uuidv7) — can
+// self-register without importing internal/. Added 2026-06-11 per E5 P7 relocation.)
+
+type IDProviderConfig = internal.IDProviderConfig
+type IDConfigTransformer = internal.IDConfigTransformer
+
+var (
+	RegisterIDProvider        = internal.RegisterIDProvider
+	RegisterIDProviderFactory = internal.RegisterIDProviderFactory
+	GetIDProviderFactory      = internal.GetIDProviderFactory
+
+	RegisterIDConfigTransformer = internal.RegisterIDConfigTransformer
+	GetIDConfigTransformer      = internal.GetIDConfigTransformer
+	TransformIDConfig           = internal.TransformIDConfig
+
+	RegisterIDBuildFromEnv      = internal.RegisterIDBuildFromEnv
+	GetIDBuildFromEnv           = internal.GetIDBuildFromEnv
+	BuildIDProviderFromEnv      = internal.BuildIDProviderFromEnv
+	ListAvailableIDBuildFromEnv = internal.ListAvailableIDBuildFromEnv
+
+	ListAvailableIDProviderFactories = internal.ListAvailableIDProviderFactories
+)
+
+// =============================================================================
 // Tabular Provider Registry
 // =============================================================================
 

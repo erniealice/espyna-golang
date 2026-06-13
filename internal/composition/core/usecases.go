@@ -1485,17 +1485,7 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, e
 		}
 	}
 
-	// Wave B P1.E.1 AR aging — the espyna composition root cannot build the
-	// concrete ledger reporting svc here (the table config lives in the
-	// app's composition root, inlined at apps/service-admin/internal/composition/
-	// container.go ~line 187 (struct) and ~line 759 (factory call)). Pass nil; the AR aging Reporter on the
-	// umbrella stays nil and the use cases degrade to empty responses
-	// until the app's composition root rewires through a different code
-	// path. The actual wiring happens in apps/service-admin via a setter
-	// pattern (see ar_aging.SetReporter in service/reporting/ar_aging/).
-	var ledgerReportingSvcForARAging any = nil
-
-	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, actiongate.NewActionGatekeeper(authSvc, i18nSvc), entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, ledgerReportingSvcForARAging, entityComputeTaxes)
+	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, actiongate.NewActionGatekeeper(authSvc, i18nSvc), entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, entityComputeTaxes)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize service-driven use cases: %v\n", err)
 		return &service.ServiceUseCases{}, err

@@ -9,6 +9,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Reporting use cases
 	cashbookreporting "github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger/reporting/cash_book"
@@ -80,6 +81,7 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *LedgerUseCases {
 	var documentTemplateUC *documentTemplateUseCases.UseCases
 	if repos.DocumentTemplate != nil {
@@ -88,10 +90,11 @@ func NewUseCases(
 				DocumentTemplate: repos.DocumentTemplate,
 			},
 			documentTemplateUseCases.DocumentTemplateServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idService,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idService,
+				ActionGatekeeper: actionGate,
 			},
 		)
 	}
@@ -103,10 +106,11 @@ func NewUseCases(
 				Attachment: repos.Attachment,
 			},
 			attachmentUseCases.AttachmentServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idService,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idService,
+				ActionGatekeeper: actionGate,
 			},
 		)
 	}
@@ -118,10 +122,11 @@ func NewUseCases(
 				Account: repos.Account,
 			},
 			accountUseCases.AccountServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idService,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idService,
+				ActionGatekeeper: actionGate,
 			},
 		)
 	}
@@ -133,10 +138,11 @@ func NewUseCases(
 				JournalEntry: repos.JournalEntry,
 			},
 			journalEntryUseCases.JournalEntryServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idService,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idService,
+				ActionGatekeeper: actionGate,
 			},
 		)
 	}
@@ -148,10 +154,11 @@ func NewUseCases(
 				FiscalPeriod: repos.FiscalPeriod,
 			},
 			fiscalPeriodUseCases.FiscalPeriodServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idService,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idService,
+				ActionGatekeeper: actionGate,
 			},
 		)
 	}

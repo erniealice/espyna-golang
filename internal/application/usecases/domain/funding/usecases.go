@@ -12,6 +12,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services
 	fundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/funding/fund"
@@ -40,24 +41,28 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *FundingUseCases {
 	svcFund := fundUseCases.FundServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 	svcAlloc := fundAllocationUseCases.FundAllocationServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 	svcTx := fundTransactionUseCases.FundTransactionServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 
 	return &FundingUseCases{

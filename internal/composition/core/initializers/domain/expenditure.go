@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury"
 	treasurydisbursement "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement"
@@ -33,6 +34,7 @@ func InitializeExpenditure(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 	treasuryUseCases *treasury.TreasuryUseCases,
 ) (*expenditure.ExpenditureUseCases, error) {
 	// AmortizeAdvanceDisbursement is the cross-domain composition target for
@@ -71,6 +73,7 @@ func InitializeExpenditure(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 		amortizeAdvDis,
 	), nil
 }

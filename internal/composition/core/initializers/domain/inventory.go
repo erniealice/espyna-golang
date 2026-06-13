@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/inventory"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -14,6 +15,7 @@ func InitializeInventory(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*inventory.InventoryUseCases, error) {
 	// Use the domain's constructor which properly handles all use case creation
 	return inventory.NewUseCases(
@@ -29,5 +31,6 @@ func InitializeInventory(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

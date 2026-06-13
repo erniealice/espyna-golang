@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/funding"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -13,6 +14,7 @@ func InitializeFunding(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*funding.FundingUseCases, error) {
 	return funding.NewUseCases(
 		funding.FundingRepositories{
@@ -24,5 +26,6 @@ func InitializeFunding(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

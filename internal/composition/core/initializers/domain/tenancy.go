@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tenancy"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -13,6 +14,7 @@ func InitializeTenancy(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*tenancy.TenancyUseCases, error) {
 	return tenancy.NewUseCases(
 		tenancy.TenancyRepositories{
@@ -24,5 +26,6 @@ func InitializeTenancy(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/product"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -14,6 +15,7 @@ func InitializeProduct(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*product.ProductUseCases, error) {
 	// Use the domain's constructor which properly handles all use case creation
 	return product.NewUseCases(
@@ -37,5 +39,6 @@ func InitializeProduct(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

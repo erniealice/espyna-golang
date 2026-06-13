@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -13,6 +14,7 @@ func InitializeTreasury(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*treasury.TreasuryUseCases, error) {
 	return treasury.NewUseCases(
 		treasury.TreasuryRepositories{
@@ -50,5 +52,6 @@ func InitializeTreasury(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

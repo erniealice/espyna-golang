@@ -2,6 +2,7 @@ package communication
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	conversationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/communication/conversation"
 	conversationPostUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/communication/conversation_post"
@@ -37,21 +38,22 @@ func NewCommunicationUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *CommunicationUseCases {
 	return &CommunicationUseCases{
 		Conversation: conversationUseCases.NewUseCases(
 			conversationUseCases.ConversationRepositories{Conversation: convRepo, Client: clientRepo, User: userRepo},
-			conversationUseCases.ConversationServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+			conversationUseCases.ConversationServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 			txSvc,
 		),
 		ConversationPost: conversationPostUseCases.NewUseCases(
 			conversationPostUseCases.ConversationPostRepositories{Conversation: convRepo, ConversationPost: convPostRepo, Client: clientRepo},
-			conversationPostUseCases.ConversationPostServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+			conversationPostUseCases.ConversationPostServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 			txSvc,
 		),
 		ConversationReadReceipt: conversationReceiptUseCases.NewUseCases(
 			conversationReceiptUseCases.ConversationReadReceiptRepositories{ConversationReadReceipt: convReceiptRepo, Conversation: convRepo, ConversationPost: convPostRepo},
-			conversationReceiptUseCases.ConversationReadReceiptServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+			conversationReceiptUseCases.ConversationReadReceiptServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 			txSvc,
 		),
 	}

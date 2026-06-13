@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -13,6 +14,7 @@ func InitializeLedger(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*ledger.LedgerUseCases, error) {
 	return ledger.NewUseCases(
 		ledger.LedgerRepositories{
@@ -35,5 +37,6 @@ func InitializeLedger(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

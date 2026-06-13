@@ -2,6 +2,7 @@ package common
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	attributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/common/attribute"
 	categoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/common/category"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -20,6 +21,7 @@ func NewCommonUseCases(
 	categoryRepo categorypb.CategoryDomainServiceServer,
 	translationService ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *CommonUseCases {
 	uc := &CommonUseCases{}
 
@@ -29,9 +31,10 @@ func NewCommonUseCases(
 			Attribute: attributeRepo,
 		}
 		attributeServices := attributeUseCases.AttributeServices{
-			Transactor:  ports.NewNoOpTransactor(),
-			Translator:  translationService,
-			IDGenerator: idService,
+			Transactor:       ports.NewNoOpTransactor(),
+			Translator:       translationService,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		}
 		uc.Attribute = attributeUseCases.NewUseCases(attributeRepositories, attributeServices)
 	}
@@ -42,9 +45,10 @@ func NewCommonUseCases(
 			Category: categoryRepo,
 		}
 		categoryServices := categoryUseCases.CategoryServices{
-			Transactor:  ports.NewNoOpTransactor(),
-			Translator:  translationService,
-			IDGenerator: idService,
+			Transactor:       ports.NewNoOpTransactor(),
+			Translator:       translationService,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		}
 		uc.Category = categoryUseCases.NewUseCases(categoryRepositories, categoryServices)
 	}

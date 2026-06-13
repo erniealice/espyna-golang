@@ -12,6 +12,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services
 	tenantinvoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tenancy/tenant_invoice"
@@ -40,24 +41,28 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *TenancyUseCases {
 	svcSub := tenantSubscriptionUseCases.TenantSubscriptionServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 	svcPM := tenantPaymentMethodUseCases.TenantPaymentMethodServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 	svcInv := tenantInvoiceUseCases.TenantInvoiceServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 
 	return &TenancyUseCases{

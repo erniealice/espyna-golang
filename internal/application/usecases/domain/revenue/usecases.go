@@ -12,6 +12,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	computepkg "github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
 	treasurycollectionpkg "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection"
 
@@ -112,6 +113,7 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 	computeTaxes ...*computepkg.ComputeTaxesForRevenueUseCase,
 ) *RevenueUseCases {
 	// Accept optional computeTaxes as variadic for backward-compatibility.
@@ -142,11 +144,12 @@ func NewUseCases(
 			TreasuryCollection: repos.TreasuryCollection,
 		},
 		revenueUseCases.RevenueServices{
-			Authorizer:   authSvc,
-			Transactor:   txSvc,
-			Translator:   i18nSvc,
-			IDGenerator:  idService,
-			ComputeTaxes: computeUC,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ComputeTaxes:     computeUC,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -155,10 +158,11 @@ func NewUseCases(
 			RevenueLineItem: repos.RevenueLineItem,
 		},
 		revenueLineItemUseCases.RevenueLineItemServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -167,10 +171,11 @@ func NewUseCases(
 			RevenuePayment: repos.RevenuePayment,
 		},
 		revenuePaymentUseCases.RevenuePaymentServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -179,10 +184,11 @@ func NewUseCases(
 			RevenueCategory: repos.RevenueCategory,
 		},
 		revenueCategoryUseCases.RevenueCategoryServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -191,10 +197,11 @@ func NewUseCases(
 			RevenueAttribute: repos.RevenueAttribute,
 		},
 		revenueAttributeUseCases.RevenueAttributeServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -203,10 +210,11 @@ func NewUseCases(
 			DeferredRevenue: repos.DeferredRevenue,
 		},
 		deferredRevenueUseCases.DeferredRevenueServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -215,8 +223,9 @@ func NewUseCases(
 			RevenueTaxLine: repos.RevenueTaxLine,
 		},
 		revenueTaxLineUseCases.RevenueTaxLineServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 

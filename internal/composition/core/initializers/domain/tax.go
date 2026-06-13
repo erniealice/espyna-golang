@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -13,6 +14,7 @@ func InitializeTax(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*tax.TaxUseCases, error) {
 	return tax.NewUseCases(
 		tax.TaxRepositories{
@@ -34,5 +36,6 @@ func InitializeTax(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

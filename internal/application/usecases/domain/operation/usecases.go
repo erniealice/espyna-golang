@@ -27,6 +27,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services for operation repositories
 	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
@@ -154,6 +155,7 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *OperationUseCases {
 	jobUC := jobUseCases.NewUseCases(
 		jobUseCases.JobRepositories{
@@ -167,10 +169,11 @@ func NewUseCases(
 			ProductPricePlan: repos.ProductPricePlan,
 		},
 		jobUseCases.JobServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -180,140 +183,154 @@ func NewUseCases(
 			BillingEvent: repos.BillingEvent,
 		},
 		jobPhaseUseCases.JobPhaseServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	jobTaskUC := jobTaskUseCases.NewUseCases(
 		jobTaskUseCases.JobTaskRepositories{JobTask: repos.JobTask},
 		jobTaskUseCases.JobTaskServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	jobTemplateUC := jobTemplateUseCases.NewUseCases(
 		jobTemplateUseCases.JobTemplateRepositories{JobTemplate: repos.JobTemplate},
 		jobTemplateUseCases.JobTemplateServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	jobTemplatePhaseUC := jobTemplatePhaseUseCases.NewUseCases(
 		jobTemplatePhaseUseCases.JobTemplatePhaseRepositories{JobTemplatePhase: repos.JobTemplatePhase},
 		jobTemplatePhaseUseCases.JobTemplatePhaseServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	jobTemplateTaskUC := jobTemplateTaskUseCases.NewUseCases(
 		jobTemplateTaskUseCases.JobTemplateTaskRepositories{JobTemplateTask: repos.JobTemplateTask},
 		jobTemplateTaskUseCases.JobTemplateTaskServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	jobActivityUC := jobActivityUseCases.NewUseCases(
 		jobActivityUseCases.JobActivityRepositories{JobActivity: repos.JobActivity},
 		jobActivityUseCases.JobActivityServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	outcomeCriteriaUC := outcomeCriteriaUseCases.NewUseCases(
 		outcomeCriteriaUseCases.OutcomeCriteriaRepositories{OutcomeCriteria: repos.OutcomeCriteria},
 		outcomeCriteriaUseCases.OutcomeCriteriaServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	criteriaThresholdUC := criteriaThresholdUseCases.NewUseCases(
 		criteriaThresholdUseCases.CriteriaThresholdRepositories{CriteriaThreshold: repos.CriteriaThreshold},
 		criteriaThresholdUseCases.CriteriaThresholdServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	criteriaOptionUC := criteriaOptionUseCases.NewUseCases(
 		criteriaOptionUseCases.CriteriaOptionRepositories{CriteriaOption: repos.CriteriaOption},
 		criteriaOptionUseCases.CriteriaOptionServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	templateTaskCriteriaUC := templateTaskCriteriaUseCases.NewUseCases(
 		templateTaskCriteriaUseCases.TemplateTaskCriteriaRepositories{TemplateTaskCriteria: repos.TemplateTaskCriteria},
 		templateTaskCriteriaUseCases.TemplateTaskCriteriaServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	taskOutcomeUC := taskOutcomeUseCases.NewUseCases(
 		taskOutcomeUseCases.TaskOutcomeRepositories{TaskOutcome: repos.TaskOutcome},
 		taskOutcomeUseCases.TaskOutcomeServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	taskOutcomeCheckUC := taskOutcomeCheckUseCases.NewUseCases(
 		taskOutcomeCheckUseCases.TaskOutcomeCheckRepositories{TaskOutcomeCheck: repos.TaskOutcomeCheck},
 		taskOutcomeCheckUseCases.TaskOutcomeCheckServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	phaseOutcomeSummaryUC := phaseOutcomeSummaryUseCases.NewUseCases(
 		phaseOutcomeSummaryUseCases.PhaseOutcomeSummaryRepositories{PhaseOutcomeSummary: repos.PhaseOutcomeSummary},
 		phaseOutcomeSummaryUseCases.PhaseOutcomeSummaryServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	jobOutcomeSummaryUC := jobOutcomeSummaryUseCases.NewUseCases(
 		jobOutcomeSummaryUseCases.JobOutcomeSummaryRepositories{JobOutcomeSummary: repos.JobOutcomeSummary},
 		jobOutcomeSummaryUseCases.JobOutcomeSummaryServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -325,19 +342,19 @@ func NewUseCases(
 			OutcomeCriteria:    repos.OutcomeCriteria,
 			SubscriptionSeat:   repos.SubscriptionSeat,
 		},
-		evaluationUseCases.EvaluationServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+		evaluationUseCases.EvaluationServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
 	)
 	evaluationResponseUC := evaluationResponseUseCases.NewUseCases(
 		evaluationResponseUseCases.Repositories{EvaluationResponse: repos.EvaluationResponse, Evaluation: repos.Evaluation},
-		evaluationResponseUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+		evaluationResponseUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
 	)
 	evaluationTemplateUC := evaluationTemplateUseCases.NewUseCases(
 		evaluationTemplateUseCases.Repositories{EvaluationTemplate: repos.EvaluationTemplate, EvaluationTemplateItem: repos.EvaluationTemplateItem, OutcomeCriteria: repos.OutcomeCriteria},
-		evaluationTemplateUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+		evaluationTemplateUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
 	)
 	evaluationTemplateItemUC := evaluationTemplateItemUseCases.NewUseCases(
 		evaluationTemplateItemUseCases.Repositories{EvaluationTemplateItem: repos.EvaluationTemplateItem, EvaluationTemplate: repos.EvaluationTemplate},
-		evaluationTemplateItemUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+		evaluationTemplateItemUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
 	)
 	evaluationCycleUC := evaluationCycleUseCases.NewUseCases(
 		evaluationCycleUseCases.Repositories{
@@ -345,11 +362,11 @@ func NewUseCases(
 			EvaluationCycleMember: repos.EvaluationCycleMember,
 			SubscriptionSeat:      repos.SubscriptionSeat,
 		},
-		evaluationCycleUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+		evaluationCycleUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
 	)
 	evaluationCycleMemberUC := evaluationCycleMemberUseCases.NewUseCases(
 		evaluationCycleMemberUseCases.Repositories{EvaluationCycleMember: repos.EvaluationCycleMember},
-		evaluationCycleMemberUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService},
+		evaluationCycleMemberUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
 	)
 
 	// Job dashboard wiring retired 2026-05-21 (Wave C P1.C.9 Job) —
@@ -365,8 +382,9 @@ func NewUseCases(
 			JobTemplateRelation: repos.JobTemplateRelation,
 		},
 		jobTemplateRelationUseCases.JobTemplateRelationServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 

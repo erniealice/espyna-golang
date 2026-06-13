@@ -20,6 +20,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services for subscription repositories
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -106,6 +107,7 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
 	refChecker ports.ReferenceChecker,
 ) *SubscriptionUseCases {
@@ -116,20 +118,22 @@ func NewUseCases(
 	balanceUC := balanceUseCases.NewUseCases(
 		balanceUseCases.BalanceRepositories{Balance: repos.Balance},
 		balanceUseCases.BalanceServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	invoiceUC := invoiceUseCases.NewUseCases(
 		invoiceUseCases.InvoiceRepositories{Invoice: repos.Invoice},
 		invoiceUseCases.InvoiceServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -149,16 +153,18 @@ func NewUseCases(
 			Translator:       i18nSvc,
 			IDGenerator:      idService,
 			ReferenceChecker: refChecker,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	planSettingsUC := planSettingsUseCases.NewUseCases(
 		planSettingsUseCases.PlanSettingsRepositories{PlanSettings: repos.PlanSettings},
 		planSettingsUseCases.PlanSettingsServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -175,16 +181,18 @@ func NewUseCases(
 			Translator:       i18nSvc,
 			IDGenerator:      idService,
 			ReferenceChecker: refChecker,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
 	priceScheduleUC := priceScheduleUseCases.NewUseCases(
 		priceScheduleUseCases.PriceScheduleRepositories{PriceSchedule: repos.PriceSchedule},
 		priceScheduleUseCases.PriceScheduleServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -195,10 +203,11 @@ func NewUseCases(
 			ProductPlan:      repos.ProductPlan,
 		},
 		productPricePlanUseCases.ProductPricePlanServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -214,6 +223,7 @@ func NewUseCases(
 			Translator:              i18nSvc,
 			IDGenerator:             idService,
 			JobTemplateInstantiator: jobTemplateInstantiator,
+			ActionGatekeeper:        actionGate,
 		},
 	)
 
@@ -224,10 +234,11 @@ func NewUseCases(
 			Attribute:        repos.Attribute,
 		},
 		balanceAttributeUseCases.BalanceAttributeServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -238,10 +249,11 @@ func NewUseCases(
 			Attribute:        repos.Attribute,
 		},
 		invoiceAttributeUseCases.InvoiceAttributeServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -252,10 +264,11 @@ func NewUseCases(
 			Attribute:     repos.Attribute,
 		},
 		planAttributeUseCases.PlanAttributeServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -266,10 +279,11 @@ func NewUseCases(
 			Attribute:             repos.Attribute,
 		},
 		subscriptionAttributeUseCases.SubscriptionAttributeServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -280,10 +294,11 @@ func NewUseCases(
 			Subscription:     repos.Subscription,
 		},
 		subscriptionSeatUseCases.SubscriptionSeatServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -296,10 +311,11 @@ func NewUseCases(
 			ClientWorkspaceUser:       repos.ClientWorkspaceUser,
 		},
 		subscriptionWorkspaceUserUseCases.SubscriptionWorkspaceUserServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -309,9 +325,10 @@ func NewUseCases(
 	billingEventUC := billingEventUseCases.NewUseCases(
 		billingEventUseCases.BillingEventRepositories{BillingEvent: repos.BillingEvent},
 		billingEventUseCases.BillingEventServices{
-			Authorizer: authSvc,
-			Transactor: txSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 

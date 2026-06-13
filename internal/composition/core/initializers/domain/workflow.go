@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/workflow"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 
@@ -27,6 +28,7 @@ func InitializeWorkflow(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*workflow.WorkflowUseCases, error) {
 	// Create individual domain use cases with proper dependency injection
 	workflowUC := workflowUseCases.NewUseCases(
@@ -34,10 +36,11 @@ func InitializeWorkflow(
 			Workflow: repos.Workflow,
 		},
 		workflowUseCases.WorkflowServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -47,10 +50,11 @@ func InitializeWorkflow(
 			WorkflowTemplate: repos.WorkflowTemplate,
 		},
 		stageTemplateUseCases.StageTemplateServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -59,10 +63,11 @@ func InitializeWorkflow(
 			WorkflowTemplate: repos.WorkflowTemplate,
 		},
 		workflowTemplateUseCases.WorkflowTemplateServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -72,10 +77,11 @@ func InitializeWorkflow(
 			StageTemplate:    repos.StageTemplate,
 		},
 		activityTemplateUseCases.ActivityTemplateServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -86,10 +92,11 @@ func InitializeWorkflow(
 			StageTemplate: repos.StageTemplate,
 		},
 		stageUseCases.StageServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -99,10 +106,11 @@ func InitializeWorkflow(
 			Stage:    repos.Stage,
 		},
 		activityUseCases.ActivityServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 

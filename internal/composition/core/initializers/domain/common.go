@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/common"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -14,6 +15,7 @@ func InitializeCommon(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*common.CommonUseCases, error) {
 	// Use the domain's constructor which properly handles all use case creation
 	return common.NewCommonUseCases(
@@ -21,5 +23,6 @@ func InitializeCommon(
 		repos.Category,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

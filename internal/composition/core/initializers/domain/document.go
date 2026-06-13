@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/document"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/document/attachment"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/document/template"
@@ -22,6 +23,7 @@ func InitializeDocument(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*document.UseCases, error) {
 	uc := &document.UseCases{}
 	if ledgerRepos == nil {
@@ -32,10 +34,11 @@ func InitializeDocument(
 		uc.Attachment = attachment.NewUseCases(
 			attachment.AttachmentRepositories{Attachment: ledgerRepos.Attachment},
 			attachment.AttachmentServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idSvc,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idSvc,
+				ActionGatekeeper: actionGate,
 			},
 		)
 	}
@@ -43,10 +46,11 @@ func InitializeDocument(
 		uc.Template = template.NewUseCases(
 			template.DocumentTemplateRepositories{DocumentTemplate: ledgerRepos.DocumentTemplate},
 			template.DocumentTemplateServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idSvc,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idSvc,
+				ActionGatekeeper: actionGate,
 			},
 		)
 	}

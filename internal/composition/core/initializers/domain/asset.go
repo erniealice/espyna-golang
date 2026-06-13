@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset"
 	assetUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset/asset"
 	assetCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset/asset_category"
@@ -18,6 +19,7 @@ func InitializeAsset(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*asset.AssetUseCases, error) {
 	// Build the Asset sub-bundle
 	assetSub := assetUseCases.NewUseCases(
@@ -25,10 +27,11 @@ func InitializeAsset(
 			Asset: repos.Asset,
 		},
 		assetUseCases.AssetServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -38,10 +41,11 @@ func InitializeAsset(
 			AssetCategory: repos.AssetCategory,
 		},
 		assetCategoryUseCases.AssetCategoryServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idSvc,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -54,10 +58,11 @@ func InitializeAsset(
 		DepreciationRun:      repos.DepreciationRun,
 	}
 	depRunSvc := depreciationRunUseCases.DepreciationRunServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idSvc,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idSvc,
+		ActionGatekeeper: actionGate,
 	}
 	depRunSub := depreciationRunUseCases.NewUseCases(depRunRepos, depRunSvc)
 
@@ -68,10 +73,11 @@ func InitializeAsset(
 		AssetRevaluation: repos.AssetRevaluation,
 	}
 	revSvc := assetRevaluationUseCases.AssetRevaluationServices{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idSvc,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idSvc,
+		ActionGatekeeper: actionGate,
 	}
 	revSub := assetRevaluationUseCases.NewUseCases(revRepos, revSvc)
 

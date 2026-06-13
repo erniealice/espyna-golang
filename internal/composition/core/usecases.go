@@ -352,7 +352,8 @@ func (uci *UseCaseInitializer) initializeCommonUseCases(container *Container) (*
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	commonUseCases, err := domain.InitializeCommon(repos, authSvc, txSvc, i18nSvc, idSvc)
+	commonUseCases, err := domain.InitializeCommon(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize common use cases: %v\n", err)
 		return nil, err
@@ -412,7 +413,8 @@ func (uci *UseCaseInitializer) initializeEventUseCases(container *Container) (*e
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	eventUseCases, err := domain.InitializeEvent(repos, authSvc, txSvc, i18nSvc, idSvc)
+	eventUseCases, err := domain.InitializeEvent(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize event use cases: %v\n", err)
 		return nil, err
@@ -436,7 +438,8 @@ func (uci *UseCaseInitializer) initializeCommunicationUseCases(container *Contai
 		return nil, err
 	}
 
-	return domain.InitializeCommunication(repos, authSvc, txSvc, i18nSvc, idSvc)
+	return domain.InitializeCommunication(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 }
 
 // initializeLedgerUseCases initializes Ledger domain use cases (document template)
@@ -457,7 +460,8 @@ func (uci *UseCaseInitializer) initializeLedgerUseCases(container *Container) (*
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	ledgerUseCases, err := domain.InitializeLedger(repos, authSvc, txSvc, i18nSvc, idSvc)
+	ledgerUseCases, err := domain.InitializeLedger(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize ledger use cases: %v\n", err)
 		return nil, err
@@ -485,7 +489,8 @@ func (uci *UseCaseInitializer) initializeDocumentUseCases(container *Container) 
 		return nil, err
 	}
 
-	documentUseCases, err := domain.InitializeDocument(ledgerRepos, authSvc, txSvc, i18nSvc, idSvc)
+	documentUseCases, err := domain.InitializeDocument(ledgerRepos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize document use cases: %v\n", err)
 		return nil, err
@@ -525,7 +530,8 @@ func (uci *UseCaseInitializer) initializeOperationUseCases(container *Container)
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	operationUseCases, err := domain.InitializeOperation(repos, subRepos, authSvc, txSvc, i18nSvc, idSvc)
+	operationUseCases, err := domain.InitializeOperation(repos, subRepos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize operation use cases: %v\n", err)
 		return nil, err
@@ -582,7 +588,8 @@ func (uci *UseCaseInitializer) initializeTreasuryUseCases(container *Container) 
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	treasuryUseCases, err := domain.InitializeTreasury(repos, authSvc, txSvc, i18nSvc, idSvc)
+	treasuryUseCases, err := domain.InitializeTreasury(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize treasury use cases: %v\n", err)
 		return nil, err
@@ -612,7 +619,8 @@ func (uci *UseCaseInitializer) initializeProductUseCases(container *Container) (
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	productUseCases, err := domain.InitializeProduct(repos, authSvc, txSvc, i18nSvc, idSvc)
+	productUseCases, err := domain.InitializeProduct(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize product use cases: %v\n", err)
 		return nil, err
@@ -640,7 +648,8 @@ func (uci *UseCaseInitializer) initializeRevenueUseCases(container *Container) (
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	revenueUseCases, err := domain.InitializeRevenue(repos, authSvc, txSvc, i18nSvc, idSvc)
+	revenueUseCases, err := domain.InitializeRevenue(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize revenue use cases: %v\n", err)
 		return nil, err
@@ -696,7 +705,8 @@ func (uci *UseCaseInitializer) initializeExpenditureUseCases(container *Containe
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	expenditureUseCases, err := domain.InitializeExpenditure(repos, authSvc, txSvc, i18nSvc, idSvc, treasuryUseCases)
+	expenditureUseCases, err := domain.InitializeExpenditure(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc), treasuryUseCases)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize expenditure use cases: %v\n", err)
 		return nil, err
@@ -726,7 +736,8 @@ func (uci *UseCaseInitializer) initializeInventoryUseCases(container *Container)
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	inventoryUseCases, err := domain.InitializeInventory(repos, authSvc, txSvc, i18nSvc, idSvc)
+	inventoryUseCases, err := domain.InitializeInventory(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize inventory use cases: %v\n", err)
 		return nil, err
@@ -845,7 +856,8 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 	// checker is plumbed through ports.NewNoOpReferenceChecker by default —
 	// the application owner (service-admin) wires the postgres-backed
 	// reference.Checker via the container path when running on postgres.
-	subscriptionUseCases, err := domain.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc, jobTemplateInstantiator, ports.NewNoOpReferenceChecker())
+	subscriptionUseCases, err := domain.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc), jobTemplateInstantiator, ports.NewNoOpReferenceChecker())
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize subscription use cases: %v\n", err)
 		return nil, err
@@ -898,7 +910,8 @@ func (uci *UseCaseInitializer) initializeWorkflowUseCases(container *Container) 
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
 	// Use composition initializer to wire everything together
-	workflowUseCases, err := domain.InitializeWorkflow(repos, authSvc, txSvc, i18nSvc, idSvc)
+	workflowUseCases, err := domain.InitializeWorkflow(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize workflow use cases: %v\n", err)
 		return nil, err
@@ -941,7 +954,8 @@ func (uci *UseCaseInitializer) initializePayrollUseCases(container *Container) (
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	payrollUseCases, err := domain.InitializePayroll(repos, entityRepos, expenditureRepos, authSvc, txSvc, i18nSvc, idSvc)
+	payrollUseCases, err := domain.InitializePayroll(repos, entityRepos, expenditureRepos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize payroll use cases: %v\n", err)
 		return nil, err
@@ -969,7 +983,8 @@ func (uci *UseCaseInitializer) initializeFulfillmentUseCases(container *Containe
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	fulfillmentUseCases, err := domain.InitializeFulfillment(repos, authSvc, txSvc, i18nSvc, idSvc)
+	fulfillmentUseCases, err := domain.InitializeFulfillment(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize fulfillment use cases: %v\n", err)
 		return nil, err
@@ -997,7 +1012,8 @@ func (uci *UseCaseInitializer) initializeAssetUseCases(container *Container) (*a
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
-	assetUseCases, err := domain.InitializeAsset(repos, authSvc, txSvc, i18nSvc, idSvc)
+	assetUseCases, err := domain.InitializeAsset(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize asset use cases: %v\n", err)
 		return nil, err
@@ -1025,7 +1041,8 @@ func (uci *UseCaseInitializer) initializeTaxUseCases(container *Container) (*tax
 		return nil, err
 	}
 
-	taxUseCases, err := domain.InitializeTax(repos, authSvc, txSvc, i18nSvc, idSvc)
+	taxUseCases, err := domain.InitializeTax(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize tax use cases: %v\n", err)
 		return nil, err
@@ -1053,7 +1070,8 @@ func (uci *UseCaseInitializer) initializeFinanceUseCases(container *Container) (
 		return nil, err
 	}
 
-	financeUseCases, err := domain.InitializeFinance(repos, authSvc, txSvc, i18nSvc, idSvc)
+	financeUseCases, err := domain.InitializeFinance(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize finance use cases: %v\n", err)
 		return nil, err
@@ -1081,7 +1099,8 @@ func (uci *UseCaseInitializer) initializeProcurementUseCases(container *Containe
 		return nil, err
 	}
 
-	procurementUseCases, err := domain.InitializeProcurement(repos, authSvc, txSvc, i18nSvc, idSvc)
+	procurementUseCases, err := domain.InitializeProcurement(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize procurement use cases: %v\n", err)
 		return nil, err
@@ -1364,7 +1383,8 @@ func (uci *UseCaseInitializer) initializeTenancyUseCases(container *Container) (
 		return nil, err
 	}
 
-	tenancyUseCases, err := domain.InitializeTenancy(repos, authSvc, txSvc, i18nSvc, idSvc)
+	tenancyUseCases, err := domain.InitializeTenancy(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize tenancy use cases: %v\n", err)
 		return nil, err
@@ -1507,7 +1527,8 @@ func (uci *UseCaseInitializer) initializeFundingUseCases(container *Container) (
 		return nil, err
 	}
 
-	fundingUseCases, err := domain.InitializeFunding(repos, authSvc, txSvc, i18nSvc, idSvc)
+	fundingUseCases, err := domain.InitializeFunding(repos, authSvc, txSvc, i18nSvc, idSvc,
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
 	if err != nil {
 		fmt.Printf("ERROR: Failed to initialize funding use cases: %v\n", err)
 		return nil, err

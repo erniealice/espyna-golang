@@ -6,6 +6,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services
 	forexratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/finance/forex_rate"
@@ -28,6 +29,7 @@ func NewUseCases(
 	_ ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *FinanceUseCases {
 	// Wire the ForexRateMutator via type assertion.
 	// The postgres adapter implements ForexRateMutator; when nil, RecordOperatorRate
@@ -42,9 +44,10 @@ func NewUseCases(
 			ForexRate: repos.ForexRate,
 		},
 		forexRateUseCases.ForexRateServices{
-			Authorizer:  authSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:      authSvc,
+			Translator:      i18nSvc,
+			IDGenerator:     idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -55,9 +58,10 @@ func NewUseCases(
 			Mutator:   mutator,
 		},
 		forexRateUseCases.RecordOperatorRateServices{
-			Authorizer:  authSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:      authSvc,
+			Translator:      i18nSvc,
+			IDGenerator:     idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -68,8 +72,9 @@ func NewUseCases(
 			Mutator:   mutator,
 		},
 		forexRateUseCases.FindMostRecentForexRateServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:      authSvc,
+			Translator:      i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 

@@ -12,6 +12,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services — entity
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
@@ -73,14 +74,16 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *TaxUseCases {
 	taxAuthorityUC := taxAuthorityUseCases.NewUseCases(
 		taxAuthorityUseCases.TaxAuthorityRepositories{
 			TaxAuthority: repos.TaxAuthority,
 		},
 		taxAuthorityUseCases.TaxAuthorityServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -89,8 +92,9 @@ func NewUseCases(
 			TaxRegistrationKind: repos.TaxRegistrationKind,
 		},
 		taxRegistrationKindUseCases.TaxRegistrationKindServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -99,8 +103,9 @@ func NewUseCases(
 			TaxTreatment: repos.TaxTreatment,
 		},
 		taxTreatmentUseCases.TaxTreatmentServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -109,8 +114,9 @@ func NewUseCases(
 			TaxClass: repos.TaxClass,
 		},
 		taxClassUseCases.TaxClassServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -119,8 +125,9 @@ func NewUseCases(
 			TaxRate: repos.TaxRate,
 		},
 		taxRateUseCases.TaxRateServices{
-			Authorizer: authSvc,
-			Translator: i18nSvc,
+			Authorizer:       authSvc,
+			Translator:       i18nSvc,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -130,10 +137,11 @@ func NewUseCases(
 			TaxRegistrationKind: repos.TaxRegistrationKind,
 		},
 		taxRegistrationUseCases.TaxRegistrationServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -153,10 +161,11 @@ func NewUseCases(
 			WithholdingCertificate: repos.WithholdingCertificate,
 		},
 		computeTaxesUseCases.ComputeTaxesServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 

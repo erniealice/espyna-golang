@@ -451,7 +451,8 @@ func (c *Container) initializeWorkflowEngine() error {
 	switch orchcontracts.WorkflowEngineMode(c.config.WorkflowEngineMode) {
 	case orchcontracts.ModeLate, orchcontracts.ModeEager, "": // Eager and Late are now the same
 		fmt.Printf("🚀 Initializing Workflow Engine (%s binding mode)...\n", c.config.WorkflowEngineMode)
-		engineUC, err := domain.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc, executorRegistry)
+		engineUC, err := domain.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc,
+			executorRegistry)
 		if err != nil {
 			return err
 		}
@@ -470,7 +471,8 @@ func (c *Container) initializeWorkflowEngine() error {
 			if c.services.WorkflowEngine != nil {
 				return nil // Already initialized
 			}
-			engineUC, err := domain.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc, executorRegistry)
+			engineUC, err := domain.InitializeWorkflowEngine(workflowRepos, authSvc, txSvc, i18nSvc, idSvc,
+				executorRegistry)
 			if err != nil {
 				return err
 			}

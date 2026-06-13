@@ -11,6 +11,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services for procurement repositories
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
@@ -50,35 +51,36 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *ProcurementUseCases {
 	costScheduleUC := costScheduleUseCases.NewUseCases(
 		costScheduleUseCases.Repositories{CostSchedule: repos.CostSchedule},
-		costScheduleUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+		costScheduleUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 	)
 
 	supplierPlanUC := supplierPlanUseCases.NewUseCases(
 		supplierPlanUseCases.Repositories{SupplierPlan: repos.SupplierPlan},
-		supplierPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+		supplierPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 	)
 
 	costPlanUC := costPlanUseCases.NewUseCases(
 		costPlanUseCases.Repositories{CostPlan: repos.CostPlan, Workspace: repos.Workspace},
-		costPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+		costPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 	)
 
 	supplierProductPlanUC := supplierProductPlanUseCases.NewUseCases(
 		supplierProductPlanUseCases.Repositories{SupplierProductPlan: repos.SupplierProductPlan},
-		supplierProductPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+		supplierProductPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 	)
 
 	supplierProductCostPlanUC := supplierProductCostPlanUseCases.NewUseCases(
 		supplierProductCostPlanUseCases.Repositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-		supplierProductCostPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+		supplierProductCostPlanUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 	)
 
 	supplierSubscriptionUC := supplierSubscriptionUseCases.NewUseCases(
 		supplierSubscriptionUseCases.Repositories{SupplierSubscription: repos.SupplierSubscription, CostPlan: repos.CostPlan, Workspace: repos.Workspace},
-		supplierSubscriptionUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc},
+		supplierSubscriptionUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idSvc, ActionGatekeeper: actionGate},
 	)
 
 	return &ProcurementUseCases{

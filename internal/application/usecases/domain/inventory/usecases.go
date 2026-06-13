@@ -11,6 +11,7 @@ import (
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services for inventory repositories
 	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
@@ -48,6 +49,7 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *InventoryUseCases {
 	// Create inventory item use cases
 	inventoryItemUseCases := inventoryItemUC.NewUseCases(
@@ -55,10 +57,11 @@ func NewUseCases(
 			InventoryItem: repos.InventoryItem,
 		},
 		inventoryItemUC.InventoryItemServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -68,10 +71,11 @@ func NewUseCases(
 			InventorySerial: repos.InventorySerial,
 		},
 		inventorySerialUC.InventorySerialServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -81,10 +85,11 @@ func NewUseCases(
 			InventoryTransaction: repos.InventoryTransaction,
 		},
 		inventoryTransactionUC.InventoryTransactionServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -94,10 +99,11 @@ func NewUseCases(
 			InventoryAttribute: repos.InventoryAttribute,
 		},
 		inventoryAttributeUC.InventoryAttributeServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -107,10 +113,11 @@ func NewUseCases(
 			InventoryDepreciation: repos.InventoryDepreciation,
 		},
 		inventoryDepreciationUC.InventoryDepreciationServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 
@@ -120,10 +127,11 @@ func NewUseCases(
 			InventorySerialHistory: repos.InventorySerialHistory,
 		},
 		serialHistoryUC.InventorySerialHistoryServices{
-			Authorizer:  authSvc,
-			Transactor:  txSvc,
-			Translator:  i18nSvc,
-			IDGenerator: idService,
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
 		},
 	)
 

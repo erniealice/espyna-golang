@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription"
 	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
@@ -15,6 +16,7 @@ func InitializeSubscription(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
 	refChecker ports.ReferenceChecker,
 ) (*subscription.SubscriptionUseCases, error) {
@@ -45,6 +47,7 @@ func InitializeSubscription(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 		jobTemplateInstantiator,
 		refChecker,
 	), nil

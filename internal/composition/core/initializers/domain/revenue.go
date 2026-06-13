@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 )
@@ -15,6 +16,7 @@ func InitializeRevenue(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) (*revenue.RevenueUseCases, error) {
 	return revenue.NewUseCases(
 		revenue.RevenueRepositories{
@@ -46,5 +48,6 @@ func InitializeRevenue(
 		txSvc,
 		i18nSvc,
 		idSvc,
+		actionGate,
 	), nil
 }

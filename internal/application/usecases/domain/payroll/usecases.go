@@ -3,6 +3,7 @@ package payroll
 import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	payrollservice "github.com/erniealice/espyna-golang/internal/application/services/payroll"
 	payrollremittanceuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/payroll/payroll_remittance"
 	payrollrunuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/payroll/payroll_run"
@@ -90,22 +91,25 @@ func NewUseCases(
 	txSvc ports.Transactor,
 	i18nSvc ports.Translator,
 	idService ports.IDGenerator,
+	actionGate *actiongate.ActionGatekeeper,
 ) *PayrollUseCases {
 	runServices := payrollrunuc.Services{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 	runRepos := payrollrunuc.Repositories{
 		PayrollRun: repos.PayrollRun,
 	}
 
 	remittanceServices := payrollremittanceuc.Services{
-		Authorizer:  authSvc,
-		Transactor:  txSvc,
-		Translator:  i18nSvc,
-		IDGenerator: idService,
+		Authorizer:       authSvc,
+		Transactor:       txSvc,
+		Translator:       i18nSvc,
+		IDGenerator:      idService,
+		ActionGatekeeper: actionGate,
 	}
 	remittanceRepos := payrollremittanceuc.Repositories{
 		PayrollRemittance: repos.PayrollRemittance,

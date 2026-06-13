@@ -24,6 +24,8 @@ import (
 	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome"
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome_check"
 	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/template_task_criteria"
+	workRequestUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/work_request"
+	workRequestTypeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/work_request_type"
 
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -52,6 +54,11 @@ import (
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+	workrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workrequesttypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+
+	// Cross-domain dependencies: entity domain
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 
 	// Cross-domain dependency for the OnJobPhaseCompleted hook + the
 	// MaterializeBillingEventsForJob use case (milestone-billing plan §3).
@@ -107,6 +114,12 @@ type OperationRepositories struct {
 	Subscription     subscriptionpb.SubscriptionDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
+
+	// Work Requests (20260604-requests-workflow v1).
+	WorkRequest     workrequestpb.WorkRequestDomainServiceServer
+	WorkRequestType workrequesttypepb.WorkRequestTypeDomainServiceServer
+	// WorkspaceUser — cross-domain FK validation for work_request.AssignWorkRequest.
+	WorkspaceUser workspaceuserpb.WorkspaceUserDomainServiceServer
 }
 
 // OperationUseCases contains all operation-related use cases.
@@ -139,6 +152,10 @@ type OperationUseCases struct {
 	EvaluationTemplateItem *evaluationTemplateItemUseCases.UseCases
 	EvaluationCycle        *evaluationCycleUseCases.UseCases
 	EvaluationCycleMember  *evaluationCycleMemberUseCases.UseCases
+
+	// Work Requests (20260604-requests-workflow v1).
+	WorkRequest     *workRequestUseCases.UseCases
+	WorkRequestType *workRequestTypeUseCases.UseCases
 
 	// Dashboard field retired 2026-05-21 (Wave C P1.C.9 Job) — the dashboard
 	// now lives under `service.Dashboard.Job` (note the candidate-name vs.
@@ -369,6 +386,38 @@ func NewUseCases(
 		evaluationCycleMemberUseCases.Services{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
 	)
 
+	// Work Requests (20260604-requests-workflow v1).
+	var workRequestUC *workRequestUseCases.UseCases
+	if repos.WorkRequest != nil {
+		workRequestUC = workRequestUseCases.NewUseCases(
+			workRequestUseCases.WorkRequestRepositories{
+				WorkRequest:     repos.WorkRequest,
+				WorkRequestType: repos.WorkRequestType,
+				WorkspaceUser:   repos.WorkspaceUser,
+			},
+			workRequestUseCases.WorkRequestServices{
+				ActionGatekeeper: actionGate,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idService,
+			},
+		)
+	}
+	var workRequestTypeUC *workRequestTypeUseCases.UseCases
+	if repos.WorkRequestType != nil {
+		workRequestTypeUC = workRequestTypeUseCases.NewUseCases(
+			workRequestTypeUseCases.WorkRequestTypeRepositories{
+				WorkRequestType: repos.WorkRequestType,
+			},
+			workRequestTypeUseCases.WorkRequestTypeServices{
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+				IDGenerator:      idService,
+			},
+		)
+	}
+
 	// Job dashboard wiring retired 2026-05-21 (Wave C P1.C.9 Job) —
 	// type-assertion + factory wiring now lives in the service-layer
 	// initializer at `internal/composition/core/initializers/service.go`
@@ -412,5 +461,8 @@ func NewUseCases(
 		EvaluationTemplateItem: evaluationTemplateItemUC,
 		EvaluationCycle:        evaluationCycleUC,
 		EvaluationCycleMember:  evaluationCycleMemberUC,
+
+		WorkRequest:     workRequestUC,
+		WorkRequestType: workRequestTypeUC,
 	}
 }

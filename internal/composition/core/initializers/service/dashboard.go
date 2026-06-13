@@ -8,6 +8,7 @@ import (
 	eventdashboard "github.com/erniealice/espyna-golang/internal/application/usecases/domain/event/dashboard"
 	dashboardusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
 	admindash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
+	homedash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/home"
 	equitydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
 	expendituredash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/expenditure"
 	fulfillmentdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/fulfillment"
@@ -72,6 +73,26 @@ func initServiceDashboard(
 		if entityRepos.WorkspaceUserRole != nil {
 			if q, ok := entityRepos.WorkspaceUserRole.(admindash.WorkspaceUserRoleDashboardRepository); ok {
 				dashboardDeps.AdminWorkspaceUserRole = q
+			}
+		}
+
+		// Home dashboard — type-assert entity repos into home's dashboard
+		// repository interfaces. All four are satisfied by the workspace_user
+		// and workspace_user_role postgres adapters.
+		if entityRepos.WorkspaceUser != nil {
+			if q, ok := entityRepos.WorkspaceUser.(homedash.HomeDashboardStatsRepository); ok {
+				dashboardDeps.HomeDashboardStats = q
+			}
+			if q, ok := entityRepos.WorkspaceUser.(homedash.HomeDashboardActivityRepository); ok {
+				dashboardDeps.HomeDashboardActivity = q
+			}
+			if q, ok := entityRepos.WorkspaceUser.(homedash.HomeDashboardChartRepository); ok {
+				dashboardDeps.HomeDashboardChart = q
+			}
+		}
+		if entityRepos.WorkspaceUserRole != nil {
+			if q, ok := entityRepos.WorkspaceUserRole.(homedash.UsersByRoleRepository); ok {
+				dashboardDeps.HomeUsersByRole = q
 			}
 		}
 

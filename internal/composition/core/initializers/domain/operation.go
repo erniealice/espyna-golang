@@ -40,6 +40,10 @@ func InitializeOperation(
 		EvaluationTemplateItem: repos.EvaluationTemplateItem,
 		EvaluationCycle:        repos.EvaluationCycle,
 		EvaluationCycleMember:  repos.EvaluationCycleMember,
+		// Work Requests (20260604-requests-workflow v1).
+		WorkRequest:     repos.WorkRequest,
+		WorkRequestType: repos.WorkRequestType,
+		WorkspaceUser:   repos.WorkspaceUser,
 	}
 	if subRepos != nil {
 		opRepos.BillingEvent = subRepos.BillingEvent

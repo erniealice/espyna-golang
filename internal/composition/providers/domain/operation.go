@@ -34,6 +34,8 @@ import (
 	workrequesttypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
+
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 )
 
 // OperationRepositories contains all operation domain repositories.
@@ -82,6 +84,11 @@ type OperationRepositories struct {
 	// is not registered the field stays nil and use cases degrade gracefully.
 	WorkRequest     workrequestpb.WorkRequestDomainServiceServer
 	WorkRequestType workrequesttypepb.WorkRequestTypeDomainServiceServer
+
+	// WorkspaceUser is consumed cross-domain by work_request.AssignWorkRequest
+	// for FK validation of the assignee. Best-effort: nil when no adapter is
+	// registered — the assign use case returns a clear error.
+	WorkspaceUser workspaceuserpb.WorkspaceUserDomainServiceServer
 }
 
 // NewOperationRepositories creates and returns a new set of OperationRepositories.
@@ -220,6 +227,12 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	if repo, e := repoCreator.CreateRepository(entityid.WorkRequestType, conn, tableConfig.TableName(entityid.WorkRequestType)); e == nil {
 		workRequestTypeServer = repo.(workrequesttypepb.WorkRequestTypeDomainServiceServer)
 	}
+	// WorkspaceUser — cross-domain FK validation for work_request.AssignWorkRequest.
+	// Best-effort: nil when no adapter is registered.
+	var workspaceUserServer workspaceuserpb.WorkspaceUserDomainServiceServer
+	if repo, e := repoCreator.CreateRepository(entityid.WorkspaceUser, conn, tableConfig.TableName(entityid.WorkspaceUser)); e == nil {
+		workspaceUserServer = repo.(workspaceuserpb.WorkspaceUserDomainServiceServer)
+	}
 
 	// Q-SERVICING F-GATE membership readers (CR-5) — best-effort, mirroring
 	// SubscriptionSeat. The concrete postgres adapters additionally implement the
@@ -265,5 +278,6 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 
 		WorkRequest:     workRequestServer,
 		WorkRequestType: workRequestTypeServer,
+		WorkspaceUser:   workspaceUserServer,
 	}, nil
 }

@@ -17,6 +17,7 @@ type UseCases struct {
 	ListWorkspaceUsers           *ListWorkspaceUsersUseCase
 	GetWorkspaceUserListPageData *GetWorkspaceUserListPageDataUseCase
 	GetWorkspaceUserItemPageData *GetWorkspaceUserItemPageDataUseCase
+	ListWorkspacesForUsers       *ListWorkspacesForUsersUseCase
 }
 
 // WorkspaceUserRepositories groups all repository dependencies for workspace user use cases
@@ -102,6 +103,13 @@ func NewUseCases(
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
+	listWorkspacesForUsersRepos := ListWorkspacesForUsersRepositories{
+		WorkspaceUser: repositories.WorkspaceUser,
+	}
+	listWorkspacesForUsersServices := ListWorkspacesForUsersServices{
+		ActionGatekeeper: services.ActionGatekeeper,
+	}
+
 	return &UseCases{
 		CreateWorkspaceUser:          NewCreateWorkspaceUserUseCase(createRepos, createServices),
 		ReadWorkspaceUser:            NewReadWorkspaceUserUseCase(readRepos, readServices),
@@ -110,6 +118,7 @@ func NewUseCases(
 		ListWorkspaceUsers:           NewListWorkspaceUsersUseCase(listRepos, listServices),
 		GetWorkspaceUserListPageData: NewGetWorkspaceUserListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetWorkspaceUserItemPageData: NewGetWorkspaceUserItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
+		ListWorkspacesForUsers:       NewListWorkspacesForUsersUseCase(listWorkspacesForUsersRepos, listWorkspacesForUsersServices),
 	}
 }
 

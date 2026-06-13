@@ -659,6 +659,16 @@ func (a *PasswordAuthAdapter) GetSessionWorkspaceContext(ctx context.Context, to
 	return a.sessionService.GetSessionWorkspaceContext(ctx, token)
 }
 
+// HashPassword hashes a plaintext password using bcrypt via the PasswordService.
+// Exposed so that the composition root can delegate password hashing to the auth
+// adapter layer instead of importing bcrypt directly.
+func (a *PasswordAuthAdapter) HashPassword(password string) (string, error) {
+	if a.passwordService == nil {
+		return "", fmt.Errorf("password: service not initialised (call SetOperations first)")
+	}
+	return a.passwordService.HashPassword(password)
+}
+
 // =============================================================================
 // Internal helpers
 // =============================================================================

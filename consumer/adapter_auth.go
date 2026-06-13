@@ -24,6 +24,7 @@ type databaseAuthOperations interface {
 	RequestPasswordReset(ctx context.Context, email string) (string, error)
 	ExecutePasswordReset(ctx context.Context, token, newPassword string) error
 	ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error
+	HashPassword(password string) (string, error)
 	CreateSession(ctx context.Context, userID string) (string, error)
 	ValidateSession(ctx context.Context, token string) (string, error)
 	InvalidateSession(ctx context.Context, token string) error
@@ -312,6 +313,18 @@ func (a *AuthAdapter) InvalidateSession(ctx context.Context, token string) error
 		return fmt.Errorf("session management not supported by %s provider", a.Name())
 	}
 	return dbAuth.InvalidateSession(ctx, token)
+}
+
+// HashPassword hashes a plaintext password using bcrypt.
+// Delegates to the password adapter's PasswordService so that consumers do not
+// need to import bcrypt directly.
+// Only supported by the password provider.
+func (a *AuthAdapter) HashPassword(password string) (string, error) {
+	dbAuth, ok := a.provider.(databaseAuthOperations)
+	if !ok {
+		return "", fmt.Errorf("hash password not supported by %s provider", a.Name())
+	}
+	return dbAuth.HashPassword(password)
 }
 
 // ChangePassword updates the password for an authenticated user.

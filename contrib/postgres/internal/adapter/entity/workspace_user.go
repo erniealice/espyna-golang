@@ -780,6 +780,70 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 	}, nil
 }
 
+// ListWorkspacesForUsers batch-loads workspace memberships for all active users.
+// Returns a grouped list: each UserWorkspaces entry maps a user_id to the list of
+// workspaces the user belongs to (active workspace_user rows joined to active workspaces).
+// Workspace-scoped via identity context.
+func (r *PostgresWorkspaceUserRepository) ListWorkspacesForUsers(
+	ctx context.Context,
+	req *workspaceuserpb.ListWorkspacesForUsersRequest,
+) (*workspaceuserpb.ListWorkspacesForUsersResponse, error) {
+	if req == nil {
+		req = &workspaceuserpb.ListWorkspacesForUsersRequest{}
+	}
+
+	wsID := identity.Must(ctx).WorkspaceID
+
+	query := `
+		SELECT wu.user_id, w.id, w.name
+		FROM workspace_user wu
+		JOIN workspace w ON wu.workspace_id = w.id
+		WHERE wu.active = true AND w.active = true
+		  AND ($1::text = '' OR wu.workspace_id = $1::text)
+		ORDER BY wu.user_id, w.name
+	`
+
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, query, wsID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workspaces for users: %w", err)
+	}
+	defer rows.Close()
+
+	// Accumulate per-user workspace lists preserving row order (grouped by user_id).
+	grouped := make(map[string][]*workspaceuserpb.WorkspaceSummary)
+	var userOrder []string
+	for rows.Next() {
+		var userID, workspaceID, workspaceName string
+		if err := rows.Scan(&userID, &workspaceID, &workspaceName); err != nil {
+			continue
+		}
+		if _, seen := grouped[userID]; !seen {
+			userOrder = append(userOrder, userID)
+		}
+		grouped[userID] = append(grouped[userID], &workspaceuserpb.WorkspaceSummary{
+			Id:   workspaceID,
+			Name: workspaceName,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating workspace user rows: %w", err)
+	}
+
+	result := make([]*workspaceuserpb.UserWorkspaces, 0, len(userOrder))
+	for _, uid := range userOrder {
+		result = append(result, &workspaceuserpb.UserWorkspaces{
+			UserId:     uid,
+			Workspaces: grouped[uid],
+		})
+	}
+
+	return &workspaceuserpb.ListWorkspacesForUsersResponse{
+		UserWorkspaces: result,
+		Success:        true,
+	}, nil
+}
+
 // NewWorkspaceUserRepository creates a new PostgreSQL workspace_user repository (old-style constructor)
 func NewWorkspaceUserRepository(db *sql.DB, tableName string) workspaceuserpb.WorkspaceUserDomainServiceServer {
 	dbOps := postgresCore.NewWorkspaceAwareOperations(db)

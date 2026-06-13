@@ -25,6 +25,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/expenditure"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/fulfillment"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/home"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/integration"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/ledger"
@@ -128,6 +129,13 @@ type Deps struct {
 	// Reads from the fulfillment aggregate with status-event joins.
 	Fulfillment fulfillment.FulfillmentDashboardRepository
 
+	// Home — user/identity home dashboard + role-user lookup.
+	// Moved from raw-SQL closures in service-admin composition/dashboard.go.
+	HomeDashboardStats    home.HomeDashboardStatsRepository
+	HomeDashboardActivity home.HomeDashboardActivityRepository
+	HomeDashboardChart    home.HomeDashboardChartRepository
+	HomeUsersByRole       home.UsersByRoleRepository
+
 	ScheduleEntityDashboard *eventdashboard.GetScheduleDashboardPageDataUseCase
 }
 
@@ -139,6 +147,7 @@ type Deps struct {
 // Expenditure (P1.C.8), Job (P1.C.9, source aggregate `operation`),
 // Product (P1.C.11), Fulfillment (P1.C.12).
 type DashboardUseCases struct {
+	Home        *home.UseCases        // Home dashboard + ListUsersByRole LANDED
 	Admin       *admin.UseCases       // P1.C.1 LANDED
 	Location    *location.UseCases    // P1.C.2 LANDED 2026-05-20
 	Ledger      *ledger.UseCases      // P1.C.3 LANDED 2026-05-21
@@ -160,6 +169,13 @@ func NewDashboardUseCases(deps *Deps) *DashboardUseCases {
 		deps = &Deps{}
 	}
 	return &DashboardUseCases{
+		Home: home.NewUseCases(&home.Deps{
+			DashboardStats:    deps.HomeDashboardStats,
+			DashboardActivity: deps.HomeDashboardActivity,
+			DashboardChart:    deps.HomeDashboardChart,
+			UsersByRole:       deps.HomeUsersByRole,
+			Translator:        deps.Translator,
+		}),
 		Admin: admin.NewUseCases(&admin.Deps{
 			Permission:        deps.AdminPermission,
 			Role:              deps.AdminRole,

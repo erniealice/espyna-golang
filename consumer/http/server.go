@@ -377,15 +377,38 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("/", http.NotFoundHandler())
 	}
 
-	// ── 2. Business type context injection ──────────────────────────────
-	businessType := s.config.BusinessType
-	businessTypeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), "businessType", businessType)
-		mux.ServeHTTP(w, r.WithContext(ctx))
-	})
+	// ── 2. Assemble the full fixed-order middleware chain via the seam ───
+	// W2 (docs/plan/20260614-composition-model-a/w2-plan.md): the 11-middleware
+	// fixed order is no longer hand-rolled here. finalizePreset fills the opaque
+	// StandardAdmin() Preset's per-slot config closures from espyna's own use
+	// cases + env; buildChain forwards it to the build-tag-selected assembler
+	// (contrib/http/provider/chain_http.go under //go:build http, pass-through
+	// stub otherwise) which realizes the EXACT order:
+	//   SecurityHeaders → Gzip → Logger → Recovery → LoginRateLimit →
+	//   Session → WorkspacePath → CSRF → ActionGuard → Timezone → businessType → mux
+	// The businessType slot is owned by the chain now (it pins the same
+	// "businessType" ctx key), so the inner handler passed in is the bare mux.
+	preset := s.finalizePreset(consumermw.StandardAdmin())
+	handler := buildChain(preset, mux)
 
-	// ── 3. Inner middleware (timezone → action guard → CSRF → workspace path → session → rate limit) ──
-	// 3a. Timezone middleware config
+	s.handler = handler
+	return handler
+}
+
+// finalizePreset fills the opaque StandardAdmin() Preset's per-slot config
+// closures from the Server's use cases + env. This is the MECHANICAL relocation
+// of the pre-W2 inline middleware-config blocks: the SlugLookup / BindingResolver
+// / ExecuteSwitch / PrincipalLookup / SetCSRFCookie / SessionLookup / timezone
+// closures + the session-handler selection + the HMAC-secret boot guard are
+// copied verbatim. The FIXED ORDER stays in the chain assembler; finalizePreset
+// only fills the slots. The consumer app supplies NONE of these.
+func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
+	// ── Cookie-secure boot resolution (W2 §5.5) ─────────────────────────
+	// Resolved here (was app container.go); the chain prelude calls
+	// SetSecureCookies(p.CookieSecure()) ONCE before any cookie writer is built.
+	cookieSecure := consumermw.CookieSecureFromEnv(os.Getenv)
+
+	// ── Timezone slot config ────────────────────────────────────────────
 	tzCfg := consumermw.TimezoneConfig{
 		GetUserID: func(ctx context.Context) string {
 			uid := consumer.GetUserIDFromContext(ctx)
@@ -397,10 +420,12 @@ func (s *Server) Handler() http.Handler {
 		LookupTimezone: s.buildTimezoneLookup(),
 	}
 
-	// 3b. HMAC secret for CSRF + action guard
+	// ── HMAC secret for CSRF + action guard ─────────────────────────────
 	hmacSecret := consumermw.SecretFromEnv(os.Getenv)
 
-	// 3c. Boot guard: password provider requires an HMAC secret
+	// ── Boot guard: password provider requires an HMAC secret ───────────
+	// Fatal BEFORE serving, agnostic, ahead of the chain build. Stays here (not
+	// in the chain assembler) so it fatals regardless of the server-provider tag.
 	if guardProvider := os.Getenv("CONFIG_AUTH_PROVIDER"); guardProvider == "password" {
 		if hmacSecret == "" {
 			log.Fatalf("FATAL: CONFIG_AUTH_PROVIDER=%s requires an HMAC secret for the "+
@@ -410,7 +435,7 @@ func (s *Server) Handler() http.Handler {
 		}
 	}
 
-	// 3d. CSRF middleware config — workspace/session claim readers wired to the
+	// ── CSRF slot config — workspace/session claim readers wired to the
 	// consumer context so the v1 token claim validates against the live session.
 	csrfCfg := consumermw.CSRFConfig{
 		Secret: []byte(hmacSecret),
@@ -423,10 +448,10 @@ func (s *Server) Handler() http.Handler {
 	}
 	log.Printf("  CSRF: middleware configured (secret len=%d)", len(hmacSecret))
 
-	// 3e. Action guard middleware config — the HMAC secret + session
-	// workspace_id reader drive the signed _workspace_id form-field check on
-	// /action/* mutations. Empty secret → the impl is a pass-through (the boot
-	// guard above already fatals for a real auth provider with no secret).
+	// ── Action guard slot config — the HMAC secret + session workspace_id
+	// reader drive the signed _workspace_id form-field check on /action/*
+	// mutations. Empty secret → the impl is a pass-through (the boot guard above
+	// already fatals for a real auth provider with no secret).
 	agCfg := consumermw.ActionGuardConfig{
 		Secret: []byte(hmacSecret),
 		SessionWorkspaceID: func(ctx context.Context) string {
@@ -439,8 +464,8 @@ func (s *Server) Handler() http.Handler {
 		log.Printf("  ActionGuard: DISABLED (no %s / %s in env)", consumermw.EnvKeyWorkspaceFormHMAC, consumermw.EnvKeyFallbackHMAC)
 	}
 
-	// 3f. Workspace path middleware config — fully wired from espyna's OWN use
-	// cases (ResolveWorkspaceBySlug, ResolveBinding, SwitchPrincipal,
+	// ── Workspace path slot config — fully wired from espyna's OWN use cases
+	// (ResolveWorkspaceBySlug, ResolveBinding, SwitchPrincipal,
 	// LookupSessionPrincipal) + the contrib CSRF-cookie issuer. The consumer
 	// app supplies NONE of these.
 	reservedSet := make(map[string]bool, len(s.reservedSlugs))
@@ -602,7 +627,7 @@ func (s *Server) Handler() http.Handler {
 		}
 	}
 
-	// 3g. Session handler
+	// ── Session handler selection ───────────────────────────────────────
 	var sessionHandler consumermw.SessionHandler
 	if os.Getenv("CONFIG_AUTH_PROVIDER") == "mock" {
 		if s.useCases != nil && s.useCases.Service != nil && s.useCases.Service.Auth != nil &&
@@ -625,10 +650,7 @@ func (s *Server) Handler() http.Handler {
 		log.Printf("  Session: password session middleware active")
 	}
 
-	// ── 4. Compose the middleware stack ─────────────────────────────────
-	// Order (outermost → innermost):
-	//   SecurityHeaders → Gzip → Logger → Recovery → LoginRateLimit →
-	//   Session → WorkspacePath → CSRF → ActionGuard → Timezone → mux
+	// ── SecurityHeaders slot config ─────────────────────────────────────
 	secCfg := consumermw.SecurityHeadersConfigFromEnv(os.Getenv)
 	cspMode := "report-only"
 	if secCfg.CSPEnforce {
@@ -640,31 +662,26 @@ func (s *Server) Handler() http.Handler {
 		log.Printf("  SecurityHeaders: CSP %s; HSTS disabled", cspMode)
 	}
 
-	// WorkspacePath / CSRF / ActionGuard are dispatched to the FRAMEWORK-NATIVE
-	// contrib/http net/http impls via the build-tagged buildWorkspacePath /
-	// buildCSRF / buildActionGuard (middleware_dispatch_http.go, //go:build http).
-	// Under any other server provider tag they degrade to pass-throughs
-	// (middleware_dispatch_stub.go). The remaining middleware already have real
-	// impls behind the agnostic consumermw surface.
-	handler := consumermw.SecurityHeaders(secCfg)(
-		consumermw.Gzip()(
-			consumermw.Logger()(
-				consumermw.Recovery()(
-					consumermw.LoginRateLimit()(
-						consumermw.Session(sessionHandler)(
-							buildWorkspacePath(wpCfg)(
-								buildCSRF(csrfCfg)(
-									buildActionGuard(agCfg)(
-										consumermw.Timezone(tzCfg)(
-											businessTypeHandler))))))))))
-
-	// ── 5. Apply any extra middleware registered via WithMiddleware ──────
-	for i := len(s.middleware) - 1; i >= 0; i-- {
-		handler = s.middleware[i](handler)
+	// ── Fill the Preset slots ───────────────────────────────────────────
+	// WithMiddleware extras wrap OUTSIDE the fixed core only (never spliced
+	// between the security layers). Convert the consumer/http MiddlewareFunc
+	// slice into the agnostic consumermw.MiddlewareFunc slice (identical
+	// underlying signature).
+	extras := make([]consumermw.MiddlewareFunc, 0, len(s.middleware))
+	for _, mw := range s.middleware {
+		extras = append(extras, consumermw.MiddlewareFunc(mw))
 	}
 
-	s.handler = handler
-	return handler
+	return p.
+		WithCookieSecure(cookieSecure).
+		WithSecurity(secCfg).
+		WithSession(sessionHandler).
+		WithWorkspace(wpCfg).
+		WithCSRF(csrfCfg).
+		WithActionGuard(agCfg).
+		WithTimezone(tzCfg).
+		WithBusinessType(s.config.BusinessType).
+		WithExtras(extras)
 }
 
 // buildTimezoneLookup returns a closure that resolves a user's timezone

@@ -1,10 +1,22 @@
+//go:build http
+
+// session.go
+//
+// Session middleware wrapper for the net/http server provider. Delegates to the
+// consumer.SessionMiddleware (password provider) or consumer.MockSessionMiddleware
+// (mock provider) for session validation, cookie management, and identity injection.
+//
+// The session middleware validates session cookies on protected routes. If no valid
+// session exists, it redirects to the login URL. On valid session, it injects the
+// full session identity (user_id, workspace_id, workspace_user_id, session_token)
+// into the request context.
 package middleware
 
 import "net/http"
 
 // SessionHandler is the interface satisfied by both consumer.SessionMiddleware
 // and consumer.MockSessionMiddleware. The consumer types live in
-// github.com/erniealice/espyna-golang/consumer — this interface lets the
+// github.com/erniealice/espyna-golang/consumer -- this interface lets the
 // middleware wrapper accept either without importing the concrete types.
 type SessionHandler interface {
 	// Handler wraps the given handler with session validation. On each
@@ -36,7 +48,7 @@ func MockSessionHandler(handle func(http.Handler) http.Handler) SessionHandler {
 	return &mockSessionAdapter{handle: handle}
 }
 
-// Session returns a MiddlewareFunc that delegates to the given session
+// Session returns a middleware func that delegates to the given session
 // handler for session validation. The handler is typically either:
 //
 //   - consumer.SessionMiddleware  (password provider)
@@ -54,7 +66,7 @@ func MockSessionHandler(handle func(http.Handler) http.Handler) SessionHandler {
 //	// Mock provider:
 //	mockMw := consumer.NewMockSessionMiddleware(useCases, ...)
 //	server.WithMiddleware(middleware.Session(middleware.MockSessionHandler(mockMw.Handle)))
-func Session(handler SessionHandler) MiddlewareFunc {
+func Session(handler SessionHandler) func(http.Handler) http.Handler {
 	if handler == nil {
 		return func(next http.Handler) http.Handler {
 			return next

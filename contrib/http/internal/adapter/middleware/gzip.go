@@ -6,61 +6,43 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 )
 
-// gzipResponseWriter wraps http.ResponseWriter to provide gzip compression
 type gzipResponseWriter struct {
+	io.Writer
 	http.ResponseWriter
-	writer io.Writer
 }
 
-func (g *gzipResponseWriter) Write(data []byte) (int, error) {
-	return g.writer.Write(data)
+func (w gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
 }
 
-// Gzip creates a Vanilla HTTP-specific gzip compression middleware
+// Gzip compresses responses for clients that accept gzip encoding.
+// Pre-compressed binary formats (images, fonts, archives) are excluded
+// by file extension so they pass through without double-compression overhead.
 func Gzip(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if client accepts gzip encoding
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Check content type - only compress text-based content
-		contentType := w.Header().Get("Content-Type")
-		if contentType == "" {
-			// Set a default content type to enable compression for JSON responses
-			w.Header().Set("Content-Type", "application/json")
-		}
-
-		// Only compress certain content types
-		shouldCompress := strings.Contains(contentType, "application/json") ||
-			strings.Contains(contentType, "text/") ||
-			strings.Contains(contentType, "application/javascript") ||
-			strings.Contains(contentType, "application/xml")
-
-		if !shouldCompress {
+		ext := strings.ToLower(filepath.Ext(r.URL.Path))
+		switch ext {
+		case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".woff", ".woff2", ".gz", ".zip":
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Set gzip headers
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Vary", "Accept-Encoding")
+		w.Header().Del("Content-Length")
 
-		// Create gzip writer
-		gzipWriter := gzip.NewWriter(w)
-		defer gzipWriter.Close()
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
 
-		// Wrap response writer
-		gzw := &gzipResponseWriter{
-			ResponseWriter: w,
-			writer:         gzipWriter,
-		}
-
-		// Call next handler with gzip writer
-		next.ServeHTTP(gzw, r)
+		next.ServeHTTP(gzipResponseWriter{Writer: gz, ResponseWriter: w}, r)
 	})
 }

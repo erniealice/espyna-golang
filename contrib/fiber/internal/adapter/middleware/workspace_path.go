@@ -1,30 +1,31 @@
+//go:build fiber
+
 package middleware
 
 import (
 	"context"
-	"net/http"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
 )
 
-// WorkspacePathConfig configures the WorkspacePath middleware wrapper.
-// All closure fields are wired by the caller (container.go or Server.Build())
-// from the app's internal use cases and adapters.
+// WorkspacePathConfig configures the WorkspacePath middleware wrapper for Fiber.
+// All closure fields are wired by the caller from the app's internal use cases
+// and adapters.
 //
-// The full implementation of the workspace-path parsing, slug resolution,
-// binding validation, session rotation, and CSRF-cookie issuance lives in
-// the service-admin middleware package. This config struct mirrors its
-// closure interface so the espyna Server can construct the middleware
-// without importing service-admin internals.
+// Mirrors the vanilla WorkspacePathConfig
+// (consumer/http/middleware/workspace_path.go) adapted for Fiber's handler
+// signature.
 type WorkspacePathConfig struct {
 	// SlugLookup resolves a workspace slug to a workspace_id. Returns ("", nil)
 	// on miss; ("", err) on infrastructure failure. When nil every lookup
 	// returns miss (safe for boot-time stub configurations).
 	SlugLookup func(ctx context.Context, slug string) (string, error)
 
-	// SessionLookup reads the current session identity from the request.
+	// SessionLookup reads the current session identity from the Fiber context.
 	// Returns (userID, workspaceID, token, ok). ok=false means no session
 	// context was found (unauthenticated request). Required.
-	SessionLookup func(r *http.Request) (userID, workspaceID, token string, ok bool)
+	SessionLookup func(c *fiber.Ctx) (userID, workspaceID, token string, ok bool)
 
 	// BindingResolver validates the user's binding in the URL workspace.
 	// The kind and principalID parameters carry the session's current
@@ -33,20 +34,20 @@ type WorkspacePathConfig struct {
 	BindingResolver func(ctx context.Context, userID, workspaceID string, kind int32, principalID string) (binding interface{}, err error)
 
 	// PrincipalLookup reads the session's current principal kind + id
-	// from the request. Optional; when nil the middleware treats every
+	// from the Fiber context. Optional; when nil the middleware treats every
 	// request as "no hint" and the resolver falls back to single-binding
 	// or picker behaviour.
-	PrincipalLookup func(r *http.Request) (kind int32, principalID string)
+	PrincipalLookup func(c *fiber.Ctx) (kind int32, principalID string)
 
 	// ExecuteSwitch performs the atomic session update for a URL-driven
 	// workspace navigation. Required.
-	ExecuteSwitch func(ctx context.Context, userID, token string, binding interface{}, urlActingAs string, requestURL, referer, secFetchSite, userAgent string) (*WorkspaceSwitchResult, error)
+	ExecuteSwitch func(ctx context.Context, userID, token string, binding interface{}, urlActingAs string, requestURL, referer, secFetchSite, userAgent string) (*FiberWorkspaceSwitchResult, error)
 
 	// SetCSRFCookie issues a fresh workspace-claim CSRF cookie alongside
-	// the rotated session cookie. Called with (w, newSessionToken,
+	// the rotated session cookie. Called with (c, newSessionToken,
 	// newWorkspaceID) only when rotation occurred. When nil no CSRF cookie
 	// is issued on URL-driven rotation.
-	SetCSRFCookie func(w http.ResponseWriter, newSessionToken, newWorkspaceID string)
+	SetCSRFCookie func(c *fiber.Ctx, newSessionToken, newWorkspaceID string)
 
 	// IsReservedSlug reports whether a slug is reserved (e.g. "auth",
 	// "me", "portal"). When nil no slugs are treated as reserved.
@@ -65,53 +66,54 @@ type WorkspacePathConfig struct {
 	// user per minute. Default 10.
 	RotationRateLimitPerMin int
 
-	// Handler is the pre-built middleware function. When set, all other
+	// Handler is a pre-built Fiber middleware function. When set, all other
 	// config fields are ignored and this handler is used directly. This
 	// allows the caller to construct the full middleware implementation
-	// (e.g. from service-admin's NewWorkspacePathMiddleware) and pass it
-	// through. When nil, the config fields above must be populated and a
-	// built-in implementation will be used (future; currently panics).
-	Handler func(http.Handler) http.Handler
+	// and pass it through. When nil, the config fields above must be
+	// populated.
+	Handler fiber.Handler
 }
 
-// WorkspaceSwitchResult is the outcome of a URL-driven principal switch.
-type WorkspaceSwitchResult struct {
+// FiberWorkspaceSwitchResult is the outcome of a URL-driven principal switch.
+// Mirrors the vanilla WorkspaceSwitchResult.
+type FiberWorkspaceSwitchResult struct {
 	// NewToken is non-empty when the session was rotated.
 	NewToken string
 	// RedirectURL is the target URL after rotation (may be empty).
 	RedirectURL string
 }
 
-// WorkspacePath returns a MiddlewareFunc that parses /w/{slug}/* URL paths,
+// WorkspacePath returns a Fiber middleware that parses /w/{slug}/* URL paths,
 // resolves workspace slugs to workspace IDs, validates user bindings, and
 // optionally rotates sessions on cross-workspace navigation.
 //
 // When cfg.Handler is set, it is used directly (the caller has already
-// constructed the full middleware, e.g. from the service-admin middleware
-// package). Otherwise, the config closures are used to build the middleware.
-//
-// When cfg is nil or zero-valued with no Handler, the middleware is a
+// constructed the full middleware). Otherwise, the middleware is a
 // pass-through.
-func WorkspacePath(cfg WorkspacePathConfig) MiddlewareFunc {
-	// Fast path: pre-built handler provided
+//
+// Mirrors the vanilla net/http reference implementation
+// (consumer/http/middleware/workspace_path.go).
+//
+// TODO: Implement full slug resolution and session rotation logic when the
+// workspace-path adapter is ported to the fiber contrib layer.
+func WorkspacePath(cfg WorkspacePathConfig) fiber.Handler {
+	// Fast path: pre-built handler provided.
 	if cfg.Handler != nil {
-		return func(next http.Handler) http.Handler {
-			return cfg.Handler(next)
-		}
+		return cfg.Handler
 	}
 
-	// No handler and no session lookup → pass-through (boot-time stub)
+	// No handler and no session lookup: pass-through (boot-time stub).
 	if cfg.SessionLookup == nil {
-		return func(next http.Handler) http.Handler {
-			return next
+		return func(c *fiber.Ctx) error {
+			return c.Next()
 		}
 	}
 
-	// Future: when the full implementation moves to espyna, it will be
-	// constructed here from the config closures. For now, callers must
-	// either set cfg.Handler (delegating to service-admin's middleware)
-	// or accept the pass-through.
-	return func(next http.Handler) http.Handler {
-		return next
+	// TODO: When the full implementation moves to espyna's fiber contrib,
+	// it will be constructed here from the config closures. For now,
+	// callers must either set cfg.Handler (delegating to service-admin's
+	// middleware) or accept the pass-through.
+	return func(c *fiber.Ctx) error {
+		return c.Next()
 	}
 }

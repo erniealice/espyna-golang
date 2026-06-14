@@ -16,8 +16,10 @@ import (
 type contextKey string
 
 const (
-	ctxKeyIdentity contextKey = "identity"
-	ctxKeyExpires  contextKey = "expires"
+	ctxKeyIdentity  contextKey = "identity"
+	ctxKeyExpires   contextKey = "expires"
+	ctxKeyCSPNonce  contextKey = "csp_nonce"
+	ctxKeyTimezone  contextKey = "timezone"
 )
 
 // contextWithValue is a thin wrapper around context.WithValue using the

@@ -10,39 +10,39 @@ import (
 
 // Tests for the v1 workspace-claim CSRF token logic.
 //
-// The four cases from plan §3.C2:
-//  1. Token issued with (S1, W1) then verified against (S1, W1) → pass
-//  2. Token issued with (S1, W1) then verified against (S1, W2) → fail (workspace mismatch)
-//  3. Token issued with (S1, W1) then verified against (S2, W1) → fail (session mismatch)
-//  4. Token with tampered HMAC → fail
+// The four cases from plan 3.C2:
+//  1. Token issued with (S1, W1) then verified against (S1, W1) -> pass
+//  2. Token issued with (S1, W1) then verified against (S1, W2) -> fail (workspace mismatch)
+//  3. Token issued with (S1, W1) then verified against (S2, W1) -> fail (session mismatch)
+//  4. Token with tampered HMAC -> fail
 
 var testCSRFSecret = []byte("test-secret-for-csrf-unit-tests")
 
 func TestCSRFToken_IssueAndVerify_SameSessionAndWorkspace(t *testing.T) {
-	tok := issueCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
-	if err := verifyCSRFToken(testCSRFSecret, tok, "session-S1", "workspace-W1"); err != nil {
+	tok := issueWorkspaceCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
+	if err := verifyWorkspaceCSRFToken(testCSRFSecret, tok, "session-S1", "workspace-W1"); err != nil {
 		t.Errorf("expected pass, got error: %v", err)
 	}
 }
 
 func TestCSRFToken_WorkspaceMismatch(t *testing.T) {
-	tok := issueCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
-	err := verifyCSRFToken(testCSRFSecret, tok, "session-S1", "workspace-W2")
+	tok := issueWorkspaceCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
+	err := verifyWorkspaceCSRFToken(testCSRFSecret, tok, "session-S1", "workspace-W2")
 	if err == nil {
 		t.Error("expected workspace claim mismatch error, got nil")
 	}
 }
 
 func TestCSRFToken_SessionMismatch(t *testing.T) {
-	tok := issueCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
-	err := verifyCSRFToken(testCSRFSecret, tok, "session-S2", "workspace-W1")
+	tok := issueWorkspaceCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
+	err := verifyWorkspaceCSRFToken(testCSRFSecret, tok, "session-S2", "workspace-W1")
 	if err == nil {
 		t.Error("expected session claim mismatch error, got nil")
 	}
 }
 
 func TestCSRFToken_TamperedHMAC(t *testing.T) {
-	tok := issueCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
+	tok := issueWorkspaceCSRFToken(testCSRFSecret, "session-S1", "workspace-W1")
 	// Replace the HMAC segment (3rd dot-delimited part) with an all-A signature.
 	parts := splitDotParts(tok)
 	if len(parts) != 3 {
@@ -51,7 +51,7 @@ func TestCSRFToken_TamperedHMAC(t *testing.T) {
 	// Craft a clearly wrong signature: 32 zero bytes base64url-encoded.
 	wrongSig := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	tampered := parts[0] + "." + parts[1] + "." + wrongSig
-	err := verifyCSRFToken(testCSRFSecret, tampered, "session-S1", "workspace-W1")
+	err := verifyWorkspaceCSRFToken(testCSRFSecret, tampered, "session-S1", "workspace-W1")
 	if err == nil {
 		t.Error("expected HMAC verification failure, got nil")
 	}
@@ -79,29 +79,29 @@ func splitDotParts(s string) []string {
 }
 
 func TestCSRFToken_EmptySecret_LegacyMode(t *testing.T) {
-	// With no secret, issueCSRFToken returns a random opaque string, and
-	// verifyCSRFToken is a no-op (returns nil regardless).
-	tok := issueCSRFToken(nil, "session-S1", "workspace-W1")
+	// With no secret, issueWorkspaceCSRFToken returns a random opaque string, and
+	// verifyWorkspaceCSRFToken is a no-op (returns nil regardless).
+	tok := issueWorkspaceCSRFToken(nil, "session-S1", "workspace-W1")
 	if tok == "" {
 		t.Error("expected non-empty token in legacy mode")
 	}
-	if err := verifyCSRFToken(nil, tok, "session-S1", "workspace-W1"); err != nil {
+	if err := verifyWorkspaceCSRFToken(nil, tok, "session-S1", "workspace-W1"); err != nil {
 		t.Errorf("legacy mode should be a no-op, got error: %v", err)
 	}
 }
 
-// TestNewCSRFMiddleware_WorkspaceClaimVerification exercises the full middleware
-// HTTP path: a POST with a cookie and header token that carry stale workspace
-// claims is rejected with 403.
-func TestNewCSRFMiddleware_WorkspaceClaimVerification(t *testing.T) {
+// TestNewWorkspaceCSRFMiddleware_WorkspaceClaimVerification exercises the full
+// middleware HTTP path: a POST with a cookie and header token that carry stale
+// workspace claims is rejected with 403.
+func TestNewWorkspaceCSRFMiddleware_WorkspaceClaimVerification(t *testing.T) {
 	const currentSession = "current-session-tok"
 	const currentWorkspace = "workspace-W1"
 	const oldWorkspace = "workspace-W_old"
 
 	// Issue a token tied to the OLD workspace.
-	staleTok := issueCSRFToken(testCSRFSecret, currentSession, oldWorkspace)
+	staleTok := issueWorkspaceCSRFToken(testCSRFSecret, currentSession, oldWorkspace)
 
-	mw := NewCSRFMiddleware(CSRFConfig{
+	mw := NewWorkspaceCSRFMiddleware(WorkspaceCSRFConfig{
 		Secret: testCSRFSecret,
 		SessionToken: func(r *http.Request) string {
 			return currentSession
@@ -116,8 +116,8 @@ func TestNewCSRFMiddleware_WorkspaceClaimVerification(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/action/clients/add", nil)
-	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: staleTok})
-	req.Header.Set(csrfHeaderName, staleTok)
+	req.AddCookie(&http.Cookie{Name: WorkspaceCSRFCookieName, Value: staleTok})
+	req.Header.Set(WorkspaceCSRFHeaderName, staleTok)
 
 	rr := httptest.NewRecorder()
 	mw(next).ServeHTTP(rr, req)
@@ -127,15 +127,15 @@ func TestNewCSRFMiddleware_WorkspaceClaimVerification(t *testing.T) {
 	}
 }
 
-// TestNewCSRFMiddleware_ValidClaimsPass verifies that a POST with a fresh token
-// (matching session and workspace) is allowed through.
-func TestNewCSRFMiddleware_ValidClaimsPass(t *testing.T) {
+// TestNewWorkspaceCSRFMiddleware_ValidClaimsPass verifies that a POST with a
+// fresh token (matching session and workspace) is allowed through.
+func TestNewWorkspaceCSRFMiddleware_ValidClaimsPass(t *testing.T) {
 	const currentSession = "current-session-tok"
 	const currentWorkspace = "workspace-W1"
 
-	freshTok := issueCSRFToken(testCSRFSecret, currentSession, currentWorkspace)
+	freshTok := issueWorkspaceCSRFToken(testCSRFSecret, currentSession, currentWorkspace)
 
-	mw := NewCSRFMiddleware(CSRFConfig{
+	mw := NewWorkspaceCSRFMiddleware(WorkspaceCSRFConfig{
 		Secret: testCSRFSecret,
 		SessionToken: func(r *http.Request) string {
 			return currentSession
@@ -150,8 +150,8 @@ func TestNewCSRFMiddleware_ValidClaimsPass(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/action/clients/add", nil)
-	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: freshTok})
-	req.Header.Set(csrfHeaderName, freshTok)
+	req.AddCookie(&http.Cookie{Name: WorkspaceCSRFCookieName, Value: freshTok})
+	req.Header.Set(WorkspaceCSRFHeaderName, freshTok)
 
 	rr := httptest.NewRecorder()
 	mw(next).ServeHTTP(rr, req)

@@ -22,31 +22,25 @@
 package middleware
 
 import (
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
-	"time"
+
+	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 )
 
-// --- Constants ---
+// --- Constants (the canonical values now live on the agnostic surface,
+//     consumer/http/middleware/csrf.go — ONE source of cookie-name truth, A.2.3).
+//     These package-local aliases keep the impl + its tests referencing a short
+//     local name while pointing at the single agnostic definition. ---
 
 const (
 	// WorkspaceCSRFCookieName is the cookie that carries the signed CSRF token.
-	WorkspaceCSRFCookieName = "ws_csrf"
+	WorkspaceCSRFCookieName = consumermw.WorkspaceCSRFCookieName
 
 	// WorkspaceCSRFHeaderName is the request header that mirrors the cookie value.
-	WorkspaceCSRFHeaderName = "X-Ws-Csrf-Token"
-
-	// workspaceCSRFTokenVersion is the token format discriminator.
-	workspaceCSRFTokenVersion = "v1"
-
-	// workspaceCSRFNonceBytes is the per-token nonce length.
-	workspaceCSRFNonceBytes = 16
+	WorkspaceCSRFHeaderName = consumermw.WorkspaceCSRFHeaderName
 )
 
 // --- WorkspaceCSRFConfig ---
@@ -92,8 +86,11 @@ func NewWorkspaceCSRFMiddleware(cfg WorkspaceCSRFConfig) func(http.Handler) http
 			// POST has a fresh token. HEAD/OPTIONS pass through silently.
 			if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 				if r.Method == http.MethodGet {
-					IssueWorkspaceCSRFCookie(w, cfg.Secret,
-						cfg.SessionToken(r), cfg.WorkspaceID(r))
+					// GET refresh (A.3.3 trigger #1): issue/refresh ws_csrf via
+					// the agnostic no-tag writer. secure = this package's
+					// process-wide policy (single source of truth).
+					consumermw.IssueWorkspaceCSRFCookie(w, cfg.Secret,
+						cfg.SessionToken(r), cfg.WorkspaceID(r), secureCookies)
 				}
 				next.ServeHTTP(w, r)
 				return
@@ -157,109 +154,29 @@ func NewWorkspaceCSRFMiddleware(cfg WorkspaceCSRFConfig) func(http.Handler) http
 }
 
 // IssueWorkspaceCSRFCookie generates a fresh workspace-claim CSRF token and
-// writes it as a Set-Cookie response header. Returns the token so the caller
-// can embed it in a page response header if needed.
+// writes it as a Set-Cookie response header via the AGNOSTIC no-tag writer (the
+// attribute source of truth, consumer/http/middleware/cookie.go). Returns the
+// token so the caller can embed it in a page response header if needed. secure
+// follows this package's process-wide COOKIE_SECURE policy (secureCookies).
 //
 // Call this alongside SetSessionCookie whenever the session is rotated.
 func IssueWorkspaceCSRFCookie(w http.ResponseWriter, secret []byte, sessionToken, workspaceID string) string {
-	tok := issueWorkspaceCSRFToken(secret, sessionToken, workspaceID)
-	http.SetCookie(w, &http.Cookie{
-		Name:     WorkspaceCSRFCookieName,
-		Value:    tok,
-		Path:     "/",
-		MaxAge:   3600,
-		// Double-submit CSRF cookie: it MUST be readable by JS so the htmx
-		// configRequest hook can mirror it into the X-Ws-Csrf-Token header
-		// on every non-GET request. HttpOnly would silently break that.
-		HttpOnly: false,
-		// Secure follows the process-wide COOKIE_SECURE policy.
-		Secure:   secureCookies,
-		SameSite: http.SameSiteLaxMode,
-	})
-	return tok
+	return consumermw.IssueWorkspaceCSRFCookie(w, secret, sessionToken, workspaceID, secureCookies)
 }
 
-// --- internal token helpers ---
+// --- internal token helpers (forwarders to the agnostic no-tag crypto leaf,
+//     consumer/http/middleware/csrf.go — A.3.0). Kept as package-local names so
+//     the impl's claim check + the existing csrf_test.go reference one short
+//     symbol; the crypto itself is single-sourced agnostically. ---
 
 // issueWorkspaceCSRFToken produces a v1 workspace-claim CSRF token.
-// Falls back to a random opaque token when secret is empty (legacy/disabled mode).
 func issueWorkspaceCSRFToken(secret []byte, sessionToken, workspaceID string) string {
-	if len(secret) == 0 {
-		return generateWorkspaceCSRFToken()
-	}
-	nonce := make([]byte, workspaceCSRFNonceBytes)
-	if _, err := rand.Read(nonce); err != nil {
-		nonce = []byte(fmt.Sprintf("%d", time.Now().UnixNano()))
-	}
-	nonceB64 := base64.RawURLEncoding.EncodeToString(nonce)
-	payload := sessionToken + "|" + workspaceID + "|" + nonceB64
-	payloadB64 := base64.RawURLEncoding.EncodeToString([]byte(payload))
-	sig := computeWorkspaceCSRFHMAC(secret, payloadB64)
-	sigB64 := base64.RawURLEncoding.EncodeToString(sig)
-	return workspaceCSRFTokenVersion + "." + payloadB64 + "." + sigB64
+	return consumermw.IssueWorkspaceCSRFToken(secret, sessionToken, workspaceID)
 }
 
 // verifyWorkspaceCSRFToken parses and verifies a v1 workspace-claim CSRF token.
 func verifyWorkspaceCSRFToken(secret []byte, token, wantSessionToken, wantWorkspaceID string) error {
-	if len(secret) == 0 {
-		return nil // no-op in disabled mode
-	}
-	parts := strings.SplitN(token, ".", 3)
-	if len(parts) != 3 || parts[0] != workspaceCSRFTokenVersion {
-		return fmt.Errorf("unrecognized token format")
-	}
-	payloadB64 := parts[1]
-	sigB64 := parts[2]
-
-	// Verify HMAC (constant-time comparison).
-	expectedSig := computeWorkspaceCSRFHMAC(secret, payloadB64)
-	gotSig, err := base64.RawURLEncoding.DecodeString(sigB64)
-	if err != nil {
-		return fmt.Errorf("sig decode: %w", err)
-	}
-	if !hmac.Equal(expectedSig, gotSig) {
-		return fmt.Errorf("HMAC verification failed")
-	}
-
-	// Decode payload: sessionToken|workspaceID|nonce
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(payloadB64)
-	if err != nil {
-		return fmt.Errorf("payload decode: %w", err)
-	}
-	payloadStr := string(payloadBytes)
-	firstPipe := strings.Index(payloadStr, "|")
-	if firstPipe < 0 {
-		return fmt.Errorf("malformed payload: missing first pipe")
-	}
-	rest := payloadStr[firstPipe+1:]
-	secondPipe := strings.Index(rest, "|")
-	if secondPipe < 0 {
-		return fmt.Errorf("malformed payload: missing second pipe")
-	}
-	claimSession := payloadStr[:firstPipe]
-	claimWorkspace := rest[:secondPipe]
-
-	if wantSessionToken != "" && claimSession != wantSessionToken {
-		return fmt.Errorf("session claim mismatch")
-	}
-	if wantWorkspaceID != "" && claimWorkspace != wantWorkspaceID {
-		return fmt.Errorf("workspace claim mismatch")
-	}
-	return nil
-}
-
-func computeWorkspaceCSRFHMAC(secret []byte, payload string) []byte {
-	mac := hmac.New(sha256.New, secret)
-	mac.Write([]byte(payload))
-	return mac.Sum(nil)
-}
-
-func generateWorkspaceCSRFToken() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return base64.URLEncoding.EncodeToString([]byte(time.Now().String()))
-	}
-	return base64.RawURLEncoding.EncodeToString(b)
+	return consumermw.VerifyWorkspaceCSRFToken(secret, token, wantSessionToken, wantWorkspaceID)
 }
 
 func writeWorkspaceCSRFError(w http.ResponseWriter, message string) {

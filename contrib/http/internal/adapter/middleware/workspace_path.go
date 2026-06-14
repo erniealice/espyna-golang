@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/consumer/http/httpctx"
+	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	"github.com/erniealice/pyeza-golang/render"
 )
 
@@ -730,17 +731,12 @@ func wsCanActAs(p *Principal) bool {
 
 // writeStrictSessionCookie writes the rotated session cookie with
 // SameSite=Strict. URL-driven rotation upgrades SameSite from the espyna
-// primitive's default Lax to Strict.
+// primitive's default Lax to Strict. The attributes come from the agnostic
+// builder (consumer/http/middleware/cookie.go SessionRotateCookieSpec) so there
+// is ONE source of cookie-attribute truth; secure = this package's process-wide
+// policy. Byte-identical to the pre-migration inline cookie.
 func writeStrictSessionCookie(w http.ResponseWriter, cookieName, token string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   86400 * 7,
-		HttpOnly: true,
-		Secure:   secureCookies,
-		SameSite: http.SameSiteStrictMode,
-	})
+	http.SetCookie(w, consumermw.SessionRotateCookieSpec(cookieName, token, secureCookies))
 }
 
 // GetURLWorkspaceIDFromContext reads the URL-canonical workspace_id set by

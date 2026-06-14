@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	sharedidentity "github.com/erniealice/espyna-golang/shared/identity"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
@@ -97,14 +98,12 @@ func (m *MockSessionMiddleware) Handle(next http.Handler) http.Handler {
 			return
 		}
 
-		http.SetCookie(w, &http.Cookie{
-			Name:     DefaultSessionCookieName,
-			Value:    token,
-			Path:     "/",
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			MaxAge:   86400 * 365, // 1 year
-		})
+		// 1-year dev session cookie via the agnostic builder. secure=FALSE to
+		// preserve the historical Secure-absent bytes (the dev mock is
+		// CONFIG_AUTH_PROVIDER=mock, never prod — A.2.2 MOCK Secure NOTE). The
+		// builder writes Secure:false which serializes identically to the prior
+		// Secure-field-omitted cookie.
+		http.SetCookie(w, consumermw.SessionCookieSpec(DefaultSessionCookieName, token, 86400*365, false))
 
 		// Prefer the workspace_user the bootstrap just resolved over the env
 		// default — the user may belong to a different workspace than

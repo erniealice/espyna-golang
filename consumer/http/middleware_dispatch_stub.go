@@ -23,11 +23,11 @@ import (
 // contrib/http/provider/chain_stub.go for the fail-safety rationale.
 func buildChain(_ consumermw.Preset, inner http.Handler) http.Handler { return inner }
 
-// issueWorkspaceCSRFCookie (no-http stub): no cookie writer without the http
-// provider, so the rotation-time CSRF cookie issuance is a no-op.
-func issueWorkspaceCSRFCookie(w http.ResponseWriter, secret []byte, sessionToken, workspaceID string) string {
-	return ""
-}
+// NOTE (A.3.0): the build-tagged issueWorkspaceCSRFCookie twin (and its `!http`
+// `return ""` fail-open stub) are DELETED. The workspace-CSRF cookie writer is
+// now the AGNOSTIC no-tag consumermw.IssueWorkspaceCSRFCookie (it computes the
+// HMAC inline + http.SetCookie), so the cookie is written under EVERY build —
+// there is no tagged stub left to fail open.
 
 // buildWorkspacePath (no-http stub): pass-through twin of the http forwarder.
 // Retained for build-tag-twin symmetry with middleware_dispatch_http.go.

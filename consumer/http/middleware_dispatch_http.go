@@ -41,12 +41,11 @@ func buildChain(p consumermw.Preset, inner http.Handler) http.Handler {
 	return provider.BuildChain(p, inner)
 }
 
-// issueWorkspaceCSRFCookie issues a fresh workspace-claim CSRF cookie. Wired
-// into WorkspacePathConfig.SetCSRFCookie (in finalizePreset) so the rotation
-// path emits a matching CSRF cookie alongside the rotated session cookie.
-func issueWorkspaceCSRFCookie(w http.ResponseWriter, secret []byte, sessionToken, workspaceID string) string {
-	return provider.IssueWorkspaceCSRFCookie(w, secret, sessionToken, workspaceID)
-}
+// NOTE (A.3.0): the issueWorkspaceCSRFCookie dispatch twin is DELETED. The
+// workspace-CSRF cookie writer moved to the AGNOSTIC no-tag
+// consumermw.IssueWorkspaceCSRFCookie (HMAC computed inline + http.SetCookie),
+// so server.go's finalizePreset wires WorkspacePathConfig.SetCSRFCookie to it
+// directly — no build-tag boundary crossing, no provider re-export.
 
 // buildWorkspacePath returns the real net/http WorkspacePath middleware wired
 // from cfg. The production chain reaches it through provider.BuildChain (which

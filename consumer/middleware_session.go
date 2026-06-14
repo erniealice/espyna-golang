@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	sharedidentity "github.com/erniealice/espyna-golang/shared/identity"
 )
 
@@ -136,15 +137,10 @@ func (m *SessionMiddleware) SetSessionCookie(w http.ResponseWriter, token string
 		cookieName = DefaultSessionCookieName
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   m.CookieMaxAge,
-		HttpOnly: true,
-		Secure:   m.CookieSecure,
-		SameSite: http.SameSiteLaxMode,
-	})
+	// Attributes from the agnostic builder (ONE source of cookie-attribute truth);
+	// byte-identical to the pre-migration inline login cookie (Lax, HttpOnly,
+	// MaxAge=m.CookieMaxAge, Secure=m.CookieSecure).
+	http.SetCookie(w, consumermw.SessionCookieSpec(cookieName, token, m.CookieMaxAge, m.CookieSecure))
 }
 
 // ClearSessionCookie removes the session cookie from the response.
@@ -204,15 +200,11 @@ func (m *SessionMiddleware) clearSessionCookie(w http.ResponseWriter) {
 		cookieName = DefaultSessionCookieName
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   m.CookieSecure,
-		SameSite: http.SameSiteLaxMode,
-	})
+	// INVALID-SESSION tombstone (SameSite=Lax, MaxAge=-1) from the agnostic
+	// builder. Distinct from the auth-logout clear (Strict) — collapsing them
+	// would downgrade logout Strict→Lax. Byte-identical to the pre-migration
+	// inline tombstone.
+	http.SetCookie(w, consumermw.SessionClearCookieSpec(cookieName, m.CookieSecure))
 }
 
 func (m *SessionMiddleware) redirectToLogin(w http.ResponseWriter, r *http.Request) {

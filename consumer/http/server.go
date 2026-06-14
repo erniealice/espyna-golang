@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/consumer"
@@ -30,27 +31,34 @@ import (
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/composition/core"
 	"github.com/erniealice/espyna-golang/reference"
+	"github.com/erniealice/pyeza-golang"
 
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
 
-// MiddlewareFunc is a standard HTTP middleware signature.
+// MiddlewareFunc is a standard HTTP middleware signature. (Demote-to-internal
+// candidate per A.1; still referenced by the legacy Handler() extras conversion
+// until Wave B retires the old surface.)
 type MiddlewareFunc func(http.Handler) http.Handler
 
 // BlockFunc configures a domain module using the shared server context.
 // This is the espyna-side equivalent of pyeza.AppOption -- consumer apps
 // bridge from pyeza.AppOption to BlockFunc in their composition layer.
+//
+// DEAD (A.1 — slated for Wave B/C deletion): the fluent WithBlocks now takes
+// pyeza.AppOption directly. Retained ONLY so the legacy Build(routes) path and
+// any not-yet-migrated caller keep compiling; not used by the fluent chain.
 type BlockFunc func(ctx *BlockContext) error
 
 // BlockContext provides shared infrastructure to domain blocks during
 // composition. It mirrors the fields of pyeza.AppContext but lives in
 // espyna so the framework can populate it without importing pyeza.
 //
-// Consumer apps bridge between this and pyeza.AppContext: they create a
-// pyeza.AppContext from the BlockContext fields and pass it to their
-// pyeza.AppOption functions.
+// DEAD (A.1 — slated for Wave B/C deletion). espyna consumer/ already imports
+// pyeza (nav_resolver etc.), so the fluent path uses *pyeza.AppContext directly;
+// this hand-rolled mirror is retained only for the legacy Build(routes) path.
 type BlockContext struct {
 	// Container is the espyna DI container (typed, not opaque).
 	Container *core.Container
@@ -88,6 +96,10 @@ type BlockContext struct {
 // RouteRegistrar is the interface that route collectors must implement.
 // It matches the subset of service-admin's RouteRegistry that domain
 // blocks actually call.
+//
+// DEAD (A.1 — slated for Wave B/C deletion): routes are no longer app-owned in
+// the fluent path; blocks register into the pyeza.AppContext.Routes the Server
+// provides. Retained only for the legacy Build(routes) / BlockContext path.
 type RouteRegistrar interface {
 	GET(path string, handler http.Handler, middlewares ...string)
 	POST(path string, handler http.Handler, middlewares ...string)
@@ -125,6 +137,16 @@ type Server struct {
 	assetsDir       string
 	reservedSlugs   []string
 	catchAllHandler http.Handler
+
+	// Fluent-API builder state (A.1). Populated by WithApp / WithMiddleware /
+	// WithBlocks; consumed by Build / MustBuild. Kept SEPARATE from the legacy
+	// fields above so the old Handler()-based app path (service-admin until Wave
+	// B) and the new fluent path coexist without interference.
+	appConfig    AppConfig
+	appConfigSet bool
+	presetSet    bool
+	preset       consumermw.Preset
+	appBlocks    []pyeza.AppOption
 
 	// Built state
 	handler http.Handler
@@ -198,69 +220,129 @@ func NewServer() (*Server, error) {
 	}, nil
 }
 
-// WithMiddleware appends middleware functions to the server's middleware chain.
-// Middleware is applied outermost-first: the first middleware in the list wraps
-// all subsequent middleware and the final handler.
-//
-// Example:
-//
-//	server.WithMiddleware(
-//	    middleware.SecurityHeaders(),
-//	    middleware.Gzip,
-//	    middleware.Logger,
-//	    middleware.Recovery,
-//	)
-func (s *Server) WithMiddleware(mw ...MiddlewareFunc) *Server {
-	s.middleware = append(s.middleware, mw...)
+// WithApp records the application-level configuration (A.1 #3). Fluent: returns
+// the Server for chaining. Read by Build() when finalizing the chain (BusinessType,
+// reserved slugs, asset root, feature flags).
+func (s *Server) WithApp(cfg AppConfig) *Server {
+	s.appConfig = cfg
+	s.appConfigSet = true
+	if len(cfg.ReservedWorkspaceSlugs) > 0 {
+		s.reservedSlugs = append(s.reservedSlugs, cfg.ReservedWorkspaceSlugs...)
+	}
+	if cfg.AssetRoot != "" {
+		s.assetsDir = cfg.AssetRoot
+	}
+	if cfg.DefaultBusinessType != "" && s.config != nil {
+		s.config.BusinessType = cfg.DefaultBusinessType
+	}
 	return s
 }
 
-// WithBlocks applies domain blocks to the server. Each block receives a
-// BlockContext populated with the server's shared infrastructure and
-// configures its routes, labels, and views.
+// WithMiddleware records the opaque middleware Preset (A.1 #4). The Preset is the
+// fixed-order security chain (StandardAdmin()); the consumer app cannot reorder
+// or splice between its security layers — finalizePreset fills the per-slot
+// config from espyna's own use cases. Fluent: returns the Server for chaining.
 //
-// Example:
-//
-//	server.WithBlocks(
-//	    centymo.Block(),
-//	    entydad.Block(),
-//	)
-func (s *Server) WithBlocks(blocks ...BlockFunc) *Server {
-	s.blocks = append(s.blocks, blocks...)
+// (A.1 replaces the legacy WithMiddleware(...MiddlewareFunc); no caller used the
+// raw-func variant. The legacy extras slice is still threaded by finalizePreset
+// for the old Handler() path, but it is never populated now.)
+func (s *Server) WithMiddleware(preset consumermw.Preset) *Server {
+	s.preset = preset
+	s.presetSet = true
 	return s
 }
 
-// Build applies all blocks and middleware to produce the final http.Handler.
-// This must be called after WithMiddleware and WithBlocks. It is called
-// automatically by Handler() if not called explicitly.
-func (s *Server) Build(routes RouteRegistrar) error {
-	if s.built {
-		return nil
+// WithBlocks records the domain blocks as pyeza.AppOption values (A.1 #5).
+// espyna consumer/ already imports pyeza, so blocks register directly into the
+// pyeza.AppContext.Routes the Server provides — no BlockFunc/BlockContext mirror.
+// Fluent: returns the Server for chaining.
+func (s *Server) WithBlocks(opts ...pyeza.AppOption) *Server {
+	s.appBlocks = append(s.appBlocks, opts...)
+	return s
+}
+
+// Build boots the chain and produces the *Container (A.1 #6). It:
+//  1. builds a *pyeza.AppContext from the Server's already-booted infra,
+//  2. applies each pyeza.AppOption (domain block) to it,
+//  3. finalizes the opaque Preset's per-slot config from espyna's use cases,
+//  4. assembles the fixed-order middleware chain via the existing BuildChain seam.
+//
+// Infra boot already happened in NewServer (A.1 NOTE: NewServer keeps its
+// (*Server, error) signature so the service-admin app — which still calls the old
+// surface until Wave B — keeps compiling; the fluent methods are layered on top).
+func (s *Server) Build() (*Container, error) {
+	// AppContext from the Server's booted infrastructure. Routes use the
+	// framework NoopRegistrar in this wave — the real route registry + HTTP
+	// adapter wiring is the app's job until Wave B moves it server-side. Blocks
+	// still assemble their compose engines and merge Nav/RouteMap into
+	// ComposeResult through AssembleBlock.
+	appCtx := &pyeza.AppContext{
+		Routes:        consumer.NoopRegistrar{},
+		BusinessType:  s.config.BusinessType,
+		Container:     s.container,
+		UseCases:      s.useCases,
+		DB:            s.db,
+		RefChecker:    s.refChecker,
+		ComposeResult: nil,
 	}
 
-	// Create the block context that blocks will use
-	ctx := &BlockContext{
-		Container:         s.container,
-		UseCases:          s.useCases,
-		DB:                s.db,
-		AuthAdapter:       s.authAdapter,
-		StorageAdapter:    s.storageAdapter,
-		EmailAdapter:      s.emailAdapter,
-		RefChecker:        s.refChecker,
-		Config:            s.config,
-		SessionMiddleware: s.sessionMw,
-		Routes:            routes,
-	}
-
-	// Apply blocks
-	for _, block := range s.blocks {
-		if err := block(ctx); err != nil {
-			return err
+	// Apply domain blocks (pyeza.AppOption). AssembleBlock's error behaviour
+	// (log + return nil, R6) is carried verbatim by the blocks themselves.
+	for _, opt := range s.appBlocks {
+		if opt == nil {
+			continue
+		}
+		if err := opt(appCtx); err != nil {
+			return nil, err
 		}
 	}
 
-	s.built = true
-	return nil
+	// Mux + fixed-order chain (the same machinery the legacy Handler() uses).
+	handler := s.assembleHandler()
+	return &Container{handler: handler, addr: s.Addr()}, nil
+}
+
+// MustBuild is the panic-on-error convenience over Build (A.1 #7).
+func (s *Server) MustBuild() *Container {
+	c, err := s.Build()
+	if err != nil {
+		log.Fatalf("Server.Build failed: %v", err)
+	}
+	return c
+}
+
+// assembleHandler builds the mux and applies the fixed-order chain via the seam.
+// Shared by the legacy Handler() and the fluent Build(). When a Preset was set
+// via WithMiddleware it is used as the base; otherwise StandardAdmin() is used.
+func (s *Server) assembleHandler() http.Handler {
+	assetsDir := s.assetsDir
+	if assetsDir == "" {
+		assetsDir = "assets"
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir))))
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST "+consumermw.CSPReportPath(), consumermw.NewCSPReportHandler())
+	mux.HandleFunc("GET /api/notifications", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = io.WriteString(w, `{"notifications":[]}`)
+	})
+	if s.catchAllHandler != nil {
+		mux.Handle("/", s.catchAllHandler)
+	} else {
+		mux.Handle("/", http.NotFoundHandler())
+	}
+
+	base := consumermw.StandardAdmin()
+	if s.presetSet {
+		base = s.preset
+	}
+	preset := s.finalizePreset(base)
+	return buildChain(preset, mux)
 }
 
 // Container returns the underlying espyna container for advanced use cases
@@ -354,30 +436,7 @@ func (s *Server) WithCatchAll(h http.Handler) *Server {
 //
 //	return &Container{Handler: srv.Handler(), Addr: srv.Addr()}
 func (s *Server) Handler() http.Handler {
-	// ── 1. Mux ──────────────────────────────────────────────────────────
-	assetsDir := s.assetsDir
-	if assetsDir == "" {
-		assetsDir = "assets"
-	}
-
-	mux := http.NewServeMux()
-	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir))))
-	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-	mux.HandleFunc("POST "+consumermw.CSPReportPath(), consumermw.NewCSPReportHandler())
-	mux.HandleFunc("GET /api/notifications", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		_, _ = io.WriteString(w, `{"notifications":[]}`)
-	})
-	if s.catchAllHandler != nil {
-		mux.Handle("/", s.catchAllHandler)
-	} else {
-		mux.Handle("/", http.NotFoundHandler())
-	}
-
-	// ── 2. Assemble the full fixed-order middleware chain via the seam ───
+	// ── Assemble the mux + the full fixed-order middleware chain via the seam.
 	// W2 (docs/plan/20260614-composition-model-a/w2-plan.md): the 11-middleware
 	// fixed order is no longer hand-rolled here. finalizePreset fills the opaque
 	// StandardAdmin() Preset's per-slot config closures from espyna's own use
@@ -388,9 +447,8 @@ func (s *Server) Handler() http.Handler {
 	//   Session → WorkspacePath → CSRF → ActionGuard → Timezone → businessType → mux
 	// The businessType slot is owned by the chain now (it pins the same
 	// "businessType" ctx key), so the inner handler passed in is the bare mux.
-	preset := s.finalizePreset(consumermw.StandardAdmin())
-	handler := buildChain(preset, mux)
-
+	// Shares assembleHandler() with the fluent Build() path.
+	handler := s.assembleHandler()
 	s.handler = handler
 	return handler
 }
@@ -423,16 +481,28 @@ func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
 	// ── HMAC secret for CSRF + action guard ─────────────────────────────
 	hmacSecret := consumermw.SecretFromEnv(os.Getenv)
 
-	// ── Boot guard: password provider requires an HMAC secret ───────────
+	// ── Boot guard: ANY non-mock provider requires an HMAC secret ───────
 	// Fatal BEFORE serving, agnostic, ahead of the chain build. Stays here (not
 	// in the chain assembler) so it fatals regardless of the server-provider tag.
-	if guardProvider := os.Getenv("CONFIG_AUTH_PROVIDER"); guardProvider == "password" {
-		if hmacSecret == "" {
-			log.Fatalf("FATAL: CONFIG_AUTH_PROVIDER=%s requires an HMAC secret for the "+
-				"workspace action-guard + CSRF middleware, but neither %s nor %s is set. "+
-				"Set one before boot — refusing to start with /action/* mutations unprotected.",
-				guardProvider, consumermw.EnvKeyWorkspaceFormHMAC, consumermw.EnvKeyFallbackHMAC)
-		}
+	//
+	// BROADENED from password-only (A.3.0 / codex r2 #4): the middleware chain is
+	// FIXED for every provider (one StandardAdmin() Preset), but BuildCSRF +
+	// BuildActionGuard SHORT-CIRCUIT to pass-throughs on an empty secret
+	// (contrib middleware_http.go:129-132/147-150). So a non-mock production
+	// provider (e.g. firebase) booted with no HMAC secret used to start with
+	// /action/* workspace-claim mutations UNPROTECTED — a verified fail-OPEN.
+	// Reject boot for any provider that is NOT the dev mock when the secret is
+	// empty. mock (dev-only, intentionally unprotected) stays bootable. The
+	// provider token is normalized exactly like the auth provider factory
+	// (strings.ToLower — providers/infrastructure/auth.go:23) so accepted dev
+	// input like "Mock" does not wrongly fatal. Subsumes the old password check.
+	guardProvider := strings.ToLower(os.Getenv("CONFIG_AUTH_PROVIDER"))
+	if guardProvider != "mock" && hmacSecret == "" {
+		log.Fatalf("FATAL: CONFIG_AUTH_PROVIDER=%q runs the workspace action-guard + CSRF "+
+			"chain but no HMAC secret is set (neither %s nor %s). Refusing to start with "+
+			"/action/* mutations unprotected. Set one before boot, or use "+
+			"CONFIG_AUTH_PROVIDER=mock for dev.",
+			guardProvider, consumermw.EnvKeyWorkspaceFormHMAC, consumermw.EnvKeyFallbackHMAC)
 	}
 
 	// ── CSRF slot config — workspace/session claim readers wired to the
@@ -617,13 +687,16 @@ func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
 	}
 
 	// SetCSRFCookie: issue a fresh workspace-claim CSRF cookie whenever the
-	// workspace_path middleware rotates the session (C2). Disabled (empty
-	// secret) → IssueWorkspaceCSRFCookie no-ops on an opaque token; the impl
-	// only calls this on a real rotation.
+	// workspace_path middleware rotates the session (C2 — A.3.3 trigger #2). The
+	// closure keeps its agnostic signature func(w http.ResponseWriter, ...) and
+	// calls the AGNOSTIC no-tag consumermw.IssueWorkspaceCSRFCookie directly (it
+	// computes the HMAC inline + http.SetCookie — no build-tag dispatch, no ""
+	// stub). secure is captured from the resolved cookieSecure policy (single
+	// source of truth). The impl only calls this on a real rotation.
 	if hmacSecret != "" {
 		csrfSecret := []byte(hmacSecret)
 		wpCfg.SetCSRFCookie = func(w http.ResponseWriter, newSessionToken, newWorkspaceID string) {
-			issueWorkspaceCSRFCookie(w, csrfSecret, newSessionToken, newWorkspaceID)
+			consumermw.IssueWorkspaceCSRFCookie(w, csrfSecret, newSessionToken, newWorkspaceID, cookieSecure)
 		}
 	}
 

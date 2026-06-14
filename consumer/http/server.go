@@ -16,14 +16,20 @@
 package http
 
 import (
+	"context"
+	"io"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/erniealice/espyna-golang/consumer"
+	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	"github.com/erniealice/espyna-golang/internal/application/usecases"
 	"github.com/erniealice/espyna-golang/internal/composition/core"
 	"github.com/erniealice/espyna-golang/reference"
+
+	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
 
 // MiddlewareFunc is a standard HTTP middleware signature.
@@ -110,8 +116,11 @@ type Server struct {
 	config         *ServerConfig
 
 	// Builder state (populated by With* methods)
-	middleware []MiddlewareFunc
-	blocks     []BlockFunc
+	middleware     []MiddlewareFunc
+	blocks         []BlockFunc
+	assetsDir      string
+	reservedSlugs  []string
+	catchAllHandler http.Handler
 
 	// Built state
 	handler http.Handler
@@ -310,6 +319,233 @@ func (s *Server) ApplyMiddleware(handler http.Handler) http.Handler {
 		handler = s.middleware[i](handler)
 	}
 	return handler
+}
+
+// WithAssets sets the directory path for serving static assets at /assets/.
+// Defaults to "assets" when not set.
+func (s *Server) WithAssets(path string) *Server {
+	s.assetsDir = path
+	return s
+}
+
+// WithReservedSlugs sets workspace slug values that are reserved and cannot
+// be used as workspace slugs (e.g., "auth", "me", "portal").
+func (s *Server) WithReservedSlugs(slugs ...string) *Server {
+	s.reservedSlugs = append(s.reservedSlugs, slugs...)
+	return s
+}
+
+// WithCatchAll sets the catch-all handler (typically an httpAdapter.Handler())
+// that serves all application routes registered by domain blocks. When nil,
+// a default 404 handler is used.
+func (s *Server) WithCatchAll(h http.Handler) *Server {
+	s.catchAllHandler = h
+	return s
+}
+
+// Handler constructs the full middleware stack and returns the composed
+// http.Handler ready to serve. This is the primary entry point for consumer
+// apps -- it builds the mux, applies all middleware, and returns a handler
+// that container.go can store directly:
+//
+//	return &Container{Handler: srv.Handler(), Addr: srv.Addr()}
+func (s *Server) Handler() http.Handler {
+	// ── 1. Mux ──────────────────────────────────────────────────────────
+	assetsDir := s.assetsDir
+	if assetsDir == "" {
+		assetsDir = "assets"
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir))))
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST "+consumermw.CSPReportPath(), consumermw.NewCSPReportHandler())
+	mux.HandleFunc("GET /api/notifications", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = io.WriteString(w, `{"notifications":[]}`)
+	})
+	if s.catchAllHandler != nil {
+		mux.Handle("/", s.catchAllHandler)
+	} else {
+		mux.Handle("/", http.NotFoundHandler())
+	}
+
+	// ── 2. Business type context injection ──────────────────────────────
+	businessType := s.config.BusinessType
+	businessTypeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), "businessType", businessType)
+		mux.ServeHTTP(w, r.WithContext(ctx))
+	})
+
+	// ── 3. Inner middleware (timezone → action guard → CSRF → workspace path → session → rate limit) ──
+	// 3a. Timezone middleware config
+	tzCfg := consumermw.TimezoneConfig{
+		GetUserID: func(ctx context.Context) string {
+			uid := consumer.GetUserIDFromContext(ctx)
+			if uid == "" {
+				uid = consumer.ExtractUserIDFromContext(ctx)
+			}
+			return uid
+		},
+		LookupTimezone: s.buildTimezoneLookup(),
+	}
+
+	// 3b. HMAC secret for CSRF + action guard
+	hmacSecret := consumermw.SecretFromEnv(os.Getenv)
+
+	// 3c. Boot guard: password provider requires an HMAC secret
+	if guardProvider := os.Getenv("CONFIG_AUTH_PROVIDER"); guardProvider == "password" {
+		if hmacSecret == "" {
+			log.Fatalf("FATAL: CONFIG_AUTH_PROVIDER=%s requires an HMAC secret for the "+
+				"workspace action-guard + CSRF middleware, but neither %s nor %s is set. "+
+				"Set one before boot — refusing to start with /action/* mutations unprotected.",
+				guardProvider, consumermw.EnvKeyWorkspaceFormHMAC, consumermw.EnvKeyFallbackHMAC)
+		}
+	}
+
+	// 3d. CSRF middleware config
+	csrfCfg := consumermw.CSRFConfig{
+		Secret: []byte(hmacSecret),
+	}
+	log.Printf("  CSRF: middleware configured (secret len=%d)", len(hmacSecret))
+
+	// 3e. Action guard middleware config (Signer is nil → pass-through
+	// until the signer implementation moves to espyna; container.go can
+	// override via WithMiddleware if needed).
+	agCfg := consumermw.ActionGuardConfig{}
+	if hmacSecret != "" {
+		log.Printf("  ActionGuard: HMAC key available (will be active when signer wired)")
+	}
+
+	// 3f. Workspace path middleware config
+	reservedSet := make(map[string]bool, len(s.reservedSlugs))
+	for _, slug := range s.reservedSlugs {
+		reservedSet[slug] = true
+	}
+	wpCfg := consumermw.WorkspacePathConfig{
+		SessionLookup: func(r *http.Request) (userID, workspaceID, token string, ok bool) {
+			ctx := r.Context()
+			userID = consumer.GetUserIDFromContext(ctx)
+			workspaceID = consumer.GetWorkspaceIDFromContext(ctx)
+			token = consumer.GetSessionTokenFromContext(ctx)
+			ok = userID != ""
+			return
+		},
+		IsReservedSlug: func(slug string) bool {
+			return reservedSet[slug]
+		},
+	}
+
+	// Wire slug lookup if the Workspace use case is available.
+	if s.useCases != nil && s.useCases.Entity != nil &&
+		s.useCases.Entity.Workspace != nil &&
+		s.useCases.Entity.Workspace.ResolveWorkspaceBySlug != nil {
+		resolveUC := s.useCases.Entity.Workspace.ResolveWorkspaceBySlug
+		wpCfg.SlugLookup = func(ctx context.Context, slug string) (string, error) {
+			return resolveUC.Execute(ctx, slug)
+		}
+	}
+
+	// Wire principal lookup if the Auth service is available.
+	if s.useCases != nil && s.useCases.Service != nil && s.useCases.Service.Auth != nil &&
+		s.useCases.Service.Auth.LookupSessionPrincipal != nil {
+		lookupUC := s.useCases.Service.Auth.LookupSessionPrincipal
+		wpCfg.PrincipalLookup = func(r *http.Request) (kind int32, principalID string) {
+			token := consumer.GetSessionTokenFromContext(r.Context())
+			if token == "" {
+				return 0, ""
+			}
+			resp, err := lookupUC.Execute(r.Context(), &authpb.LookupSessionPrincipalRequest{Token: token})
+			if err != nil || resp == nil {
+				return 0, ""
+			}
+			return int32(resp.Kind), resp.PrincipalId
+		}
+	}
+
+	// 3g. Session handler
+	var sessionHandler consumermw.SessionHandler
+	if os.Getenv("CONFIG_AUTH_PROVIDER") == "mock" {
+		if s.useCases != nil && s.useCases.Service != nil && s.useCases.Service.Auth != nil &&
+			s.useCases.Service.Auth.AuthenticateSession != nil &&
+			s.useCases.Service.Auth.IssueSession != nil {
+			testUserID := getEnv("TEST_USER_ID", "superadmin-001")
+			testEmail := getEnv("TEST_USER_EMAIL", "admin@ichizen.leapfor.xyz")
+			testWsUserID := getEnv("TEST_WORKSPACE_USER_ID", "ws-user-001")
+			defaultWsID := getEnv("DEFAULT_WORKSPACE_ID", "default-workspace")
+			mockMw := consumer.NewMockSessionMiddleware(
+				s.container.GetUseCases(), testUserID, testEmail, testWsUserID, defaultWsID,
+			)
+			sessionHandler = consumermw.MockSessionHandler(mockMw.Handle)
+			log.Printf("  Session: mock (auto-create for %s)", testUserID)
+		} else {
+			log.Printf("  Session: mock requested but Auth use cases unavailable — running without session middleware")
+		}
+	} else if s.sessionMw != nil {
+		sessionHandler = s.sessionMw
+		log.Printf("  Session: password session middleware active")
+	}
+
+	// ── 4. Compose the middleware stack ─────────────────────────────────
+	// Order (outermost → innermost):
+	//   SecurityHeaders → Gzip → Logger → Recovery → LoginRateLimit →
+	//   Session → WorkspacePath → CSRF → ActionGuard → Timezone → mux
+	secCfg := consumermw.SecurityHeadersConfigFromEnv(os.Getenv)
+	cspMode := "report-only"
+	if secCfg.CSPEnforce {
+		cspMode = "ENFORCING (CONFIG_SECURITY_CSP_ENFORCE set)"
+	}
+	if secCfg.HSTSEnabled {
+		log.Printf("  SecurityHeaders: CSP %s + HSTS enabled", cspMode)
+	} else {
+		log.Printf("  SecurityHeaders: CSP %s; HSTS disabled", cspMode)
+	}
+
+	handler := consumermw.SecurityHeaders(secCfg)(
+		consumermw.Gzip()(
+			consumermw.Logger()(
+				consumermw.Recovery()(
+					consumermw.LoginRateLimit()(
+						consumermw.Session(sessionHandler)(
+							consumermw.WorkspacePath(wpCfg)(
+								consumermw.CSRF(csrfCfg)(
+									consumermw.ActionGuard(agCfg)(
+										consumermw.Timezone(tzCfg)(
+											businessTypeHandler))))))))))
+
+	// ── 5. Apply any extra middleware registered via WithMiddleware ──────
+	for i := len(s.middleware) - 1; i >= 0; i-- {
+		handler = s.middleware[i](handler)
+	}
+
+	s.handler = handler
+	return handler
+}
+
+// buildTimezoneLookup returns a closure that resolves a user's timezone
+// preference from the User use case. Returns nil when the use case is
+// unavailable (the Timezone middleware falls back to DefaultTimezone).
+func (s *Server) buildTimezoneLookup() func(ctx context.Context, userID string) string {
+	if s.useCases == nil || s.useCases.Entity == nil || s.useCases.Entity.User == nil ||
+		s.useCases.Entity.User.ReadUser == nil {
+		return nil
+	}
+	readUserUC := s.useCases.Entity.User.ReadUser
+	return func(ctx context.Context, userID string) string {
+		if userID == "" {
+			return ""
+		}
+		resp, err := readUserUC.Execute(ctx, &userpb.ReadUserRequest{
+			Data: &userpb.User{Id: userID},
+		})
+		if err != nil || resp == nil || len(resp.GetData()) == 0 {
+			return ""
+		}
+		return resp.GetData()[0].GetTimezone()
+	}
 }
 
 // Addr returns the server listen address (e.g., ":8080").

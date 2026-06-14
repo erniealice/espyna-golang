@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -115,6 +116,26 @@ func newNonce() (string, bool) {
 }
 
 // buildCSP constructs the Content-Security-Policy value with the given nonce.
+// CSPReportPath returns the sink endpoint that the report-only CSP points its
+// report-uri / report-to directives at. Mount a handler here (see
+// NewCSPReportHandler) so browsers don't get 404s for violation reports.
+func CSPReportPath() string { return "/csp-report" }
+
+// NewCSPReportHandler returns an http.HandlerFunc that accepts CSP violation
+// reports (POST with application/csp-report or application/reports+json) and
+// discards them with a 204. In the future this can be wired to a logging
+// pipeline; for now it silences browser console noise.
+func NewCSPReportHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Consume body so the browser considers the report delivered.
+		if r.Body != nil {
+			_, _ = io.ReadAll(r.Body)
+			_ = r.Body.Close()
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func buildCSP(nonce string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b,

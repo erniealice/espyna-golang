@@ -2,6 +2,30 @@ package middleware
 
 import "net/http"
 
+const (
+	// EnvKeyWorkspaceFormHMAC is the canonical env var for the action
+	// guard + CSRF HMAC signing key.
+	EnvKeyWorkspaceFormHMAC = "WORKSPACE_FORM_HMAC_KEY"
+
+	// EnvKeyFallbackHMAC is the fallback env var for dev/test. Re-uses the
+	// password-auth reset-token secret so a single secret serves both
+	// purposes in small deployments.
+	EnvKeyFallbackHMAC = "PASSWORD_AUTH_RESET_TOKEN_SECRET"
+)
+
+// SecretFromEnv reads the HMAC signing key from the environment,
+// preferring EnvKeyWorkspaceFormHMAC and falling back to
+// EnvKeyFallbackHMAC. Returns "" when neither is set.
+func SecretFromEnv(getenv func(string) string) string {
+	if v := getenv(EnvKeyWorkspaceFormHMAC); v != "" {
+		return v
+	}
+	if v := getenv(EnvKeyFallbackHMAC); v != "" {
+		return v
+	}
+	return ""
+}
+
 // ActionGuardConfig configures the ActionGuard middleware wrapper.
 //
 // The full implementation of the signed _workspace_id form-field verification

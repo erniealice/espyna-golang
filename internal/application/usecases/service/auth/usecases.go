@@ -44,10 +44,13 @@ type SessionExpiryConfig struct {
 
 // UseCases aggregates every service-driven Auth/Session use case.
 type UseCases struct {
-	AuthenticateSession *AuthenticateSessionUseCase
-	IssueSession        *IssueSessionUseCase
-	InvalidateSession   *InvalidateSessionUseCase
-	SwitchPrincipal     *SwitchPrincipalUseCase
+	AuthenticateSession     *AuthenticateSessionUseCase
+	IssueSession            *IssueSessionUseCase
+	InvalidateSession       *InvalidateSessionUseCase
+	SwitchPrincipal         *SwitchPrincipalUseCase
+	ResolvePrincipals       *ResolvePrincipalsUseCase
+	ResolveBinding          *ResolveBindingUseCase
+	LookupSessionPrincipal  *LookupSessionPrincipalUseCase
 }
 
 // Repositories groups proto-level domain services needed by auth flows.
@@ -61,9 +64,10 @@ type UseCases struct {
 // docs/plan/20260524-principal-switch-typed-stack/ wires this by
 // type-asserting the session repo inside initServiceAuth.
 type Repositories struct {
-	Session       sessionpb.SessionDomainServiceServer
-	User          userpb.UserDomainServiceServer
-	SessionSwitch SessionSwitchAdapter
+	Session           sessionpb.SessionDomainServiceServer
+	User              userpb.UserDomainServiceServer
+	SessionSwitch     SessionSwitchAdapter
+	PrincipalResolver PrincipalResolverAdapter
 }
 
 // Services groups infrastructure services. No Authorizer —
@@ -105,6 +109,18 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 		SwitchPrincipal: NewSwitchPrincipalUseCase(
 			SwitchPrincipalRepositories{SessionSwitch: repositories.SessionSwitch},
 			SwitchPrincipalServices{Translator: services.Translator},
+		),
+		ResolvePrincipals: NewResolvePrincipalsUseCase(
+			ResolvePrincipalsRepositories{PrincipalResolver: repositories.PrincipalResolver},
+			ResolvePrincipalsServices{Translator: services.Translator},
+		),
+		ResolveBinding: NewResolveBindingUseCase(
+			ResolveBindingRepositories{PrincipalResolver: repositories.PrincipalResolver},
+			ResolveBindingServices{Translator: services.Translator},
+		),
+		LookupSessionPrincipal: NewLookupSessionPrincipalUseCase(
+			LookupSessionPrincipalRepositories{PrincipalResolver: repositories.PrincipalResolver},
+			LookupSessionPrincipalServices{Translator: services.Translator},
 		),
 	}
 }

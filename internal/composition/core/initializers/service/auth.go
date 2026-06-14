@@ -38,6 +38,15 @@ func initServiceAuth(
 		if adapter, ok := entityRepos.Session.(serviceauth.SessionSwitchAdapter); ok {
 			repos.SessionSwitch = adapter
 		}
+		// PrincipalResolver is a narrow extension interface satisfied only by
+		// concrete backends that implement ResolvePrincipals,
+		// EnumerateBindingsInWorkspace, and LookupSessionPrincipal. Under
+		// mock-db / non-postgres builds the assertion fails and
+		// PrincipalResolver stays nil — the use case's body-entry nil-guard
+		// returns auth.errors.service_unavailable.
+		if adapter, ok := entityRepos.Session.(serviceauth.PrincipalResolverAdapter); ok {
+			repos.PrincipalResolver = adapter
+		}
 	}
 	services := serviceauth.Services{
 		Transactor:    txSvc,

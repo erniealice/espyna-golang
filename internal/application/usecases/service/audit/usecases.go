@@ -8,7 +8,8 @@ import (
 
 // UseCases aggregates every service-driven audit use case.
 type UseCases struct {
-	ListAuditEntries *ListAuditEntriesUseCase
+	ListAuditEntries    *ListAuditEntriesUseCase
+	ListRecentSwitches  *ListRecentSwitchesUseCase
 }
 
 // Repositories groups infrastructure dependencies. AuditService may be
@@ -36,6 +37,9 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},
+		),
+		ListRecentSwitches: NewListRecentSwitchesUseCase(
+			repositories.AuditService,
 		),
 	}
 }

@@ -15,6 +15,7 @@ type UseCases struct {
 	ListUsers           *ListUsersUseCase
 	GetUserListPageData *GetUserListPageDataUseCase
 	GetUserItemPageData *GetUserItemPageDataUseCase
+	ResolveUserByEmail  *ResolveUserByEmailUseCase
 }
 
 // UserRepositories groups all repository dependencies for user use cases
@@ -94,6 +95,11 @@ func NewUseCases(
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
+	resolveByEmailRepos := ResolveUserByEmailRepositories(repositories)
+	resolveByEmailServices := ResolveUserByEmailServices{
+		Translator: services.Translator,
+	}
+
 	return &UseCases{
 		CreateUser:          NewCreateUserUseCase(createRepos, createServices),
 		ReadUser:            NewReadUserUseCase(readRepos, readServices),
@@ -102,6 +108,7 @@ func NewUseCases(
 		ListUsers:           NewListUsersUseCase(listRepos, listServices),
 		GetUserListPageData: NewGetUserListPageDataUseCase(getUserListPageDataRepos, getUserListPageDataServices),
 		GetUserItemPageData: NewGetUserItemPageDataUseCase(getUserItemPageDataRepos, getUserItemPageDataServices),
+		ResolveUserByEmail:  NewResolveUserByEmailUseCase(resolveByEmailRepos, resolveByEmailServices),
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 	locationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location"
 	locationAreaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_area"
 	locationAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_attribute"
+	paymentTermUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/payment_term"
 	permissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/permission"
 	roleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role"
 	rolePermissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role_permission"
@@ -55,6 +56,7 @@ type EntityUseCases struct {
 	Location            *locationUseCases.UseCases
 	LocationArea        *locationAreaUseCases.UseCases
 	LocationAttribute   *locationAttributeUseCases.UseCases
+	PaymentTerm         *paymentTermUseCases.UseCases
 	Permission          *permissionUseCases.UseCases
 	Role                *roleUseCases.UseCases
 	RolePermission      *rolePermissionUseCases.UseCases

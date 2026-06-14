@@ -32,8 +32,9 @@ type UseCases struct {
 	GetWorkspaceItemPageData *GetWorkspaceItemPageDataUseCase
 	SwitchWorkspace          *SwitchWorkspaceUseCase
 	ListUserWorkspaces       *ListUserWorkspacesUseCase
-	ValidateSlug             *ValidateSlugUseCase
-	ResolveWorkspaceBySlug   *ResolveWorkspaceBySlugUseCase
+	ValidateSlug               *ValidateSlugUseCase
+	ResolveWorkspaceBySlug     *ResolveWorkspaceBySlugUseCase
+	ResolveSlugByWorkspaceID   *ResolveSlugByWorkspaceIDUseCase
 }
 
 // NewUseCases creates a new collection of workspace use cases
@@ -126,6 +127,11 @@ func NewUseCases(
 		Translator: services.Translator,
 	}
 
+	resolveSlugByIDRepos := ResolveSlugByWorkspaceIDRepositories(repositories)
+	resolveSlugByIDServices := ResolveSlugByWorkspaceIDServices{
+		Translator: services.Translator,
+	}
+
 	return &UseCases{
 		CreateWorkspace:          NewCreateWorkspaceUseCase(createRepos, createServices),
 		ReadWorkspace:            NewReadWorkspaceUseCase(readRepos, readServices),
@@ -137,7 +143,8 @@ func NewUseCases(
 		SwitchWorkspace:          NewSwitchWorkspaceUseCase(switchRepos, switchServices),
 		ListUserWorkspaces:       NewListUserWorkspacesUseCase(listUserRepos, listUserServices),
 		ValidateSlug:             NewValidateSlugUseCase(validateSlugServices),
-		ResolveWorkspaceBySlug:   NewResolveWorkspaceBySlugUseCase(resolveBySlugRepos, resolveBySlugServices),
+		ResolveWorkspaceBySlug:     NewResolveWorkspaceBySlugUseCase(resolveBySlugRepos, resolveBySlugServices),
+		ResolveSlugByWorkspaceID:   NewResolveSlugByWorkspaceIDUseCase(resolveSlugByIDRepos, resolveSlugByIDServices),
 	}
 }
 

@@ -276,6 +276,74 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 	}, nil
 }
 
+// ListByActor returns audit entries for a specific actor, newest first,
+// optionally filtered by a use_case prefix (e.g. "switch_").
+// COALESCE guards against missing request_url / referer columns in older schemas.
+func (a *auditAdapter) ListByActor(ctx context.Context, req *infraports.ListByActorRequest) (*infraports.ListAuditResponse, error) {
+	limit := req.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+
+	exec := a.getExecutor(ctx)
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+
+	if req.UseCasePrefix != "" {
+		const q = `
+			SELECT id, actor_id, actor_type, use_case,
+			       COALESCE(request_url, ''), COALESCE(referer, ''),
+			       occurred_at
+			FROM audit_trail.audit_entry
+			WHERE actor_id = $1
+			  AND use_case LIKE $2
+			ORDER BY occurred_at DESC
+			LIMIT $3`
+		rows, err = exec.QueryContext(ctx, q,
+			req.ActorID, req.UseCasePrefix+"%", limit)
+	} else {
+		const q = `
+			SELECT id, actor_id, actor_type, use_case,
+			       COALESCE(request_url, ''), COALESCE(referer, ''),
+			       occurred_at
+			FROM audit_trail.audit_entry
+			WHERE actor_id = $1
+			ORDER BY occurred_at DESC
+			LIMIT $2`
+		rows, err = exec.QueryContext(ctx, q,
+			req.ActorID, limit)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("audit: query audit_entry by actor: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []infraports.AuditEntryResult
+	for rows.Next() {
+		var e infraports.AuditEntryResult
+		var occurredAt time.Time
+		if err := rows.Scan(
+			&e.ID, &e.ActorID, &e.ActorType, &e.UseCase,
+			&e.RequestURL, &e.Referer,
+			&occurredAt,
+		); err != nil {
+			return nil, fmt.Errorf("audit: scan audit_entry by actor: %w", err)
+		}
+		e.OccurredAt = occurredAt.UTC().Format(time.RFC3339Nano)
+		entries = append(entries, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("audit: iterate audit_entry by actor rows: %w", err)
+	}
+
+	return &infraports.ListAuditResponse{
+		Entries: entries,
+	}, nil
+}
+
 // nullableString returns nil for empty strings, otherwise the string value.
 // Used for optional INET/TEXT columns that accept NULL.
 func nullableString(s string) any {

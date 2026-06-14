@@ -19,6 +19,10 @@ func (m *mockAuditService) ListByEntity(_ context.Context, _ *ListAuditRequest) 
 	return &ListAuditResponse{}, nil
 }
 
+func (m *mockAuditService) ListByActor(_ context.Context, _ *ListByActorRequest) (*ListAuditResponse, error) {
+	return &ListAuditResponse{}, nil
+}
+
 // fieldMap converts a slice of AuditFieldChange to a map keyed by FieldName
 // so tests can look up changes by field name without caring about slice order.
 func fieldMap(changes []AuditFieldChange) map[string]AuditFieldChange {

@@ -16,6 +16,11 @@ type AuditService interface {
 	// ListByEntity returns audit entries for a specific entity, newest first.
 	// Uses cursor pagination on (occurred_at, id).
 	ListByEntity(ctx context.Context, req *ListAuditRequest) (*ListAuditResponse, error)
+
+	// ListByActor returns audit entries for a specific actor, newest first,
+	// optionally filtered by a use_case prefix (e.g. "switch_").
+	// Used by the /me/recent-activity view.
+	ListByActor(ctx context.Context, req *ListByActorRequest) (*ListAuditResponse, error)
 }
 
 // AuditLogRequest contains all data for one audit event.
@@ -49,6 +54,15 @@ type ListAuditRequest struct {
 	CursorToken string // opaque cursor for keyset pagination
 }
 
+// ListByActorRequest is the query parameters for listing audit entries by actor.
+// UseCasePrefix filters to rows whose use_case starts with the given string
+// (e.g. "switch_"). Empty prefix means no filter.
+type ListByActorRequest struct {
+	ActorID        string
+	UseCasePrefix  string
+	Limit          int
+}
+
 // ListAuditResponse is the paginated result.
 type ListAuditResponse struct {
 	Entries    []AuditEntryResult
@@ -71,6 +85,8 @@ type AuditEntryResult struct {
 	Reason         string
 	MethodName     string
 	RequestID      string
+	RequestURL     string // HTTP request URL (populated by P3+P7 forensic logging)
+	Referer        string // HTTP Referer header (populated by P3+P7 forensic logging)
 	FieldCount     int32
 	OccurredAt     string // RFC3339 UTC
 	FieldChanges   []AuditFieldChange
@@ -202,5 +218,8 @@ func (s *NoOpAuditService) LogEntry(_ context.Context, _ *AuditLogRequest) error
 	return nil
 }
 func (s *NoOpAuditService) ListByEntity(_ context.Context, _ *ListAuditRequest) (*ListAuditResponse, error) {
+	return &ListAuditResponse{}, nil
+}
+func (s *NoOpAuditService) ListByActor(_ context.Context, _ *ListByActorRequest) (*ListAuditResponse, error) {
 	return &ListAuditResponse{}, nil
 }

@@ -30,6 +30,7 @@ import (
 	locationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location"
 	locationAreaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_area"
 	locationAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/location_attribute"
+	paymentTermUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/payment_term"
 	permissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/permission"
 	roleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role"
 	rolePermissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role_permission"
@@ -195,6 +196,13 @@ func InitializeEntity(
 				Attribute:         repos.Attribute,
 			},
 			locationAttributeUseCases.LocationAttributeServices(svc()),
+		)
+	}
+
+	if repos.PaymentTerm != nil {
+		result.PaymentTerm = paymentTermUseCases.NewUseCases(
+			paymentTermUseCases.PaymentTermRepositories{PaymentTerm: repos.PaymentTerm},
+			paymentTermUseCases.PaymentTermServices(svc()),
 		)
 	}
 

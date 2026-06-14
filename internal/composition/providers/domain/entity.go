@@ -26,6 +26,7 @@ import (
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	locationareapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_area"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
+	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
@@ -59,6 +60,7 @@ type EntityRepositories struct {
 	Location            locationpb.LocationDomainServiceServer
 	LocationArea        locationareapb.LocationAreaDomainServiceServer
 	LocationAttribute   locationattributepb.LocationAttributeDomainServiceServer
+	PaymentTerm         paymenttermpb.PaymentTermDomainServiceServer
 	Permission          permissionpb.PermissionDomainServiceServer
 	Role                rolepb.RoleDomainServiceServer
 	RolePermission      rolepermissionpb.RolePermissionDomainServiceServer
@@ -149,6 +151,9 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	}
 	if r := tryCreate(entityid.LocationAttribute); r != nil {
 		repos.LocationAttribute = r.(locationattributepb.LocationAttributeDomainServiceServer)
+	}
+	if r := tryCreate(entityid.PaymentTerm); r != nil {
+		repos.PaymentTerm = r.(paymenttermpb.PaymentTermDomainServiceServer)
 	}
 	if r := tryCreate(entityid.Permission); r != nil {
 		repos.Permission = r.(permissionpb.PermissionDomainServiceServer)

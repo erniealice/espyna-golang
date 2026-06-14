@@ -286,6 +286,12 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 	}, nil
 }
 
+// ListByActor returns audit entries for a specific actor, newest first.
+// SQL Server stub — returns empty; the feature is postgres-first.
+func (a *auditAdapter) ListByActor(_ context.Context, _ *infraports.ListByActorRequest) (*infraports.ListAuditResponse, error) {
+	return &infraports.ListAuditResponse{}, nil
+}
+
 // nullableString returns nil for empty strings, otherwise the string value.
 // Used for optional columns that accept NULL.
 func nullableString(s string) any {

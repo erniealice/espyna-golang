@@ -324,10 +324,11 @@ func InitializeEntity(
 		result.Workspace = workspaceUseCases.NewUseCases(
 			workspaceUseCases.WorkspaceRepositories{Workspace: repos.Workspace},
 			workspaceUseCases.WorkspaceServices{
-				Authorizer:  s.Authorizer,
-				Transactor:  s.Transactor,
-				Translator:  s.Translator,
-				IDGenerator: s.IDGenerator,
+				Authorizer:       s.Authorizer,
+				Transactor:       s.Transactor,
+				Translator:       s.Translator,
+				ActionGatekeeper: s.ActionGatekeeper,
+				IDGenerator:      s.IDGenerator,
 			},
 		)
 	}

@@ -1,5 +1,5 @@
 //go:build http
 
-package espynahttp
+package provider
 
 import _ "github.com/erniealice/espyna-golang/contrib/http/internal/adapter"

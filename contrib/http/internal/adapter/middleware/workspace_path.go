@@ -39,6 +39,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	sharedmw "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/http/middleware"
 )
 
 // defaultSessionCookieName mirrors consumer.DefaultSessionCookieName.
@@ -53,21 +55,30 @@ const defaultSessionCookieName = "ichizen_session"
 // and the concrete types via closures.
 
 // PrincipalType represents the kind of principal binding.
+//
+// The integer values are PROTO-ALIGNED: they match esqyma's
+// domain.entity.principal_type.PrincipalType enum (and pyeza render's mirror)
+// VERBATIM, so the int32 binding kind flows across the consumer/http <-> contrib
+// boundary with no translation table. This is load-bearing for wsCanActAs:
+// SUPPLIER_DELEGATE is 6 (NOT 5) in the proto, so an iota-based enum would
+// silently misclassify supplier delegates and break /as/{id} for them.
 type PrincipalType int
 
 const (
-	// PrincipalTypeUnspecified is the zero value (no hint).
-	PrincipalTypeUnspecified PrincipalType = iota
-	// PrincipalTypeOperatorStaff is an operator staff binding.
-	PrincipalTypeOperatorStaff
-	// PrincipalTypeClient is a client binding.
-	PrincipalTypeClient
-	// PrincipalTypeSupplier is a supplier binding.
-	PrincipalTypeSupplier
-	// PrincipalTypeClientDelegate is a delegate-for-client binding.
-	PrincipalTypeClientDelegate
-	// PrincipalTypeSupplierDelegate is a delegate-for-supplier binding.
-	PrincipalTypeSupplierDelegate
+	// PrincipalTypeUnspecified is the zero value (no hint). (proto 0)
+	PrincipalTypeUnspecified PrincipalType = 0
+	// PrincipalTypeOperatorOwner is the workspace owner / top-level admin. (proto 1)
+	PrincipalTypeOperatorOwner PrincipalType = 1
+	// PrincipalTypeOperatorStaff is an operator staff binding. (proto 2)
+	PrincipalTypeOperatorStaff PrincipalType = 2
+	// PrincipalTypeClient is a client binding. (proto 3)
+	PrincipalTypeClient PrincipalType = 3
+	// PrincipalTypeClientDelegate is a delegate-for-client binding. (proto 4)
+	PrincipalTypeClientDelegate PrincipalType = 4
+	// PrincipalTypeSupplier is a supplier binding. (proto 5)
+	PrincipalTypeSupplier PrincipalType = 5
+	// PrincipalTypeSupplierDelegate is a delegate-for-supplier binding. (proto 6)
+	PrincipalTypeSupplierDelegate PrincipalType = 6
 )
 
 // ActingAsTarget is one target a delegate may act for.
@@ -386,11 +397,17 @@ func (m *WorkspacePathMiddleware) handle(next http.Handler) http.Handler {
 			return
 		}
 
-		// Pin workspace + binding into context.
+		// Pin workspace + binding into context. The slug + acting-as are also
+		// written under the canonical framework-agnostic keys (sharedmw) so any
+		// consumer — incl. the app's workspace route rewriter — reads ONE key
+		// regardless of server provider. The provider-local CtxKey* values are
+		// retained for in-package readers / backward compat.
 		ctx = context.WithValue(ctx, CtxKeyURLWorkspaceID, workspaceID)
 		ctx = context.WithValue(ctx, CtxKeyURLWorkspaceSlug, slugLower)
+		ctx = sharedmw.WithURLWorkspaceSlug(ctx, slugLower)
 		if actingAsClientID != "" {
 			ctx = context.WithValue(ctx, CtxKeyActingAsClientID, actingAsClientID)
+			ctx = sharedmw.WithActingAsClientID(ctx, actingAsClientID)
 		}
 		ctx = wsWithBindingMemo(ctx, userID, workspaceID, binding)
 		// Override the espyna-owned workspace_id key so the legacy

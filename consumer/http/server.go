@@ -17,17 +17,21 @@ package http
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/erniealice/espyna-golang/consumer"
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	"github.com/erniealice/espyna-golang/internal/application/usecases"
+	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/composition/core"
 	"github.com/erniealice/espyna-golang/reference"
 
+	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
@@ -116,10 +120,10 @@ type Server struct {
 	config         *ServerConfig
 
 	// Builder state (populated by With* methods)
-	middleware     []MiddlewareFunc
-	blocks         []BlockFunc
-	assetsDir      string
-	reservedSlugs  []string
+	middleware      []MiddlewareFunc
+	blocks          []BlockFunc
+	assetsDir       string
+	reservedSlugs   []string
 	catchAllHandler http.Handler
 
 	// Built state
@@ -406,21 +410,39 @@ func (s *Server) Handler() http.Handler {
 		}
 	}
 
-	// 3d. CSRF middleware config
+	// 3d. CSRF middleware config — workspace/session claim readers wired to the
+	// consumer context so the v1 token claim validates against the live session.
 	csrfCfg := consumermw.CSRFConfig{
 		Secret: []byte(hmacSecret),
+		SessionToken: func(r *http.Request) string {
+			return consumer.GetSessionTokenFromContext(r.Context())
+		},
+		WorkspaceID: func(r *http.Request) string {
+			return consumer.GetWorkspaceIDFromContext(r.Context())
+		},
 	}
 	log.Printf("  CSRF: middleware configured (secret len=%d)", len(hmacSecret))
 
-	// 3e. Action guard middleware config (Signer is nil → pass-through
-	// until the signer implementation moves to espyna; container.go can
-	// override via WithMiddleware if needed).
-	agCfg := consumermw.ActionGuardConfig{}
+	// 3e. Action guard middleware config — the HMAC secret + session
+	// workspace_id reader drive the signed _workspace_id form-field check on
+	// /action/* mutations. Empty secret → the impl is a pass-through (the boot
+	// guard above already fatals for a real auth provider with no secret).
+	agCfg := consumermw.ActionGuardConfig{
+		Secret: []byte(hmacSecret),
+		SessionWorkspaceID: func(ctx context.Context) string {
+			return consumer.GetWorkspaceIDFromContext(ctx)
+		},
+	}
 	if hmacSecret != "" {
-		log.Printf("  ActionGuard: HMAC key available (will be active when signer wired)")
+		log.Printf("  ActionGuard: middleware configured (signed _workspace_id form-field guard active)")
+	} else {
+		log.Printf("  ActionGuard: DISABLED (no %s / %s in env)", consumermw.EnvKeyWorkspaceFormHMAC, consumermw.EnvKeyFallbackHMAC)
 	}
 
-	// 3f. Workspace path middleware config
+	// 3f. Workspace path middleware config — fully wired from espyna's OWN use
+	// cases (ResolveWorkspaceBySlug, ResolveBinding, SwitchPrincipal,
+	// LookupSessionPrincipal) + the contrib CSRF-cookie issuer. The consumer
+	// app supplies NONE of these.
 	reservedSet := make(map[string]bool, len(s.reservedSlugs))
 	for _, slug := range s.reservedSlugs {
 		reservedSet[slug] = true
@@ -437,9 +459,18 @@ func (s *Server) Handler() http.Handler {
 		IsReservedSlug: func(slug string) bool {
 			return reservedSet[slug]
 		},
+		// Q-WS-13: pin the URL-canonical workspace_id into ctx so downstream
+		// guards (CSRF claim, action guard, view adapter) read the URL value,
+		// not the stale session-injected one.
+		WithWorkspaceID: consumer.WithWorkspaceID,
+		SlugCacheTTL:    5 * time.Minute,
+		// Per-user URL-driven rotation cap (matches the pre-migration value).
+		RotationRateLimitPerMin: 10,
 	}
 
-	// Wire slug lookup if the Workspace use case is available.
+	// Slug → workspace_id (Entity.Workspace.ResolveWorkspaceBySlug — skips
+	// authcheck; this is a pre-auth middleware concern, the middleware's own
+	// LRU sits above it).
 	if s.useCases != nil && s.useCases.Entity != nil &&
 		s.useCases.Entity.Workspace != nil &&
 		s.useCases.Entity.Workspace.ResolveWorkspaceBySlug != nil {
@@ -449,20 +480,125 @@ func (s *Server) Handler() http.Handler {
 		}
 	}
 
-	// Wire principal lookup if the Auth service is available.
-	if s.useCases != nil && s.useCases.Service != nil && s.useCases.Service.Auth != nil &&
-		s.useCases.Service.Auth.LookupSessionPrincipal != nil {
-		lookupUC := s.useCases.Service.Auth.LookupSessionPrincipal
-		wpCfg.PrincipalLookup = func(r *http.Request) (kind int32, principalID string) {
-			token := consumer.GetSessionTokenFromContext(r.Context())
-			if token == "" {
-				return 0, ""
+	// Session principal hint + binding resolver + switch primitive — all from
+	// service.Auth. PrincipalLookup surfaces the session's (kind, id) so the
+	// BindingResolver stays in the session's lane (A3: no auto-elect by
+	// privilege); ExecuteSwitch rotates atomically through SwitchPrincipal.
+	if s.useCases != nil && s.useCases.Service != nil && s.useCases.Service.Auth != nil {
+		auth := s.useCases.Service.Auth
+
+		if auth.LookupSessionPrincipal != nil {
+			lookupUC := auth.LookupSessionPrincipal
+			wpCfg.PrincipalLookup = func(r *http.Request) (kind int32, principalID string) {
+				token := consumer.GetSessionTokenFromContext(r.Context())
+				if token == "" {
+					return 0, ""
+				}
+				resp, err := lookupUC.Execute(r.Context(), &authpb.LookupSessionPrincipalRequest{Token: token})
+				if err != nil || resp == nil {
+					return 0, ""
+				}
+				return int32(resp.Kind), resp.PrincipalId
 			}
-			resp, err := lookupUC.Execute(r.Context(), &authpb.LookupSessionPrincipalRequest{Token: token})
-			if err != nil || resp == nil {
-				return 0, ""
+		}
+
+		// BindingResolver: ResolveBinding use case → neutral WorkspaceBinding.
+		// The use case applies the A3 resolution policy and returns its own
+		// sentinels (serviceauth.ErrAmbiguousBinding / serviceauth.ErrNoBinding).
+		// We map them to the agnostic sentinels so the impl renders the CORRECT
+		// fail-closed branch: ambiguous → picker (NO auto-elect by privilege —
+		// security invariant A3); no binding → unified not-found. We call the
+		// use case DIRECTLY rather than via consumer.BuildBindingResolveFn
+		// because that helper collapses BOTH sentinels into one generic "no
+		// binding" error, which would silently route the ambiguous case to
+		// not-found instead of the picker (a fail-open of the A3 invariant).
+		if auth.ResolveBinding != nil {
+			resolveUC := auth.ResolveBinding
+			wpCfg.BindingResolver = func(ctx context.Context, userID, workspaceID string, kind int32, principalID string) (*consumermw.WorkspaceBinding, error) {
+				pb, err := resolveUC.Execute(ctx, userID, workspaceID, principaltypepb.PrincipalType(kind), principalID)
+				if err != nil {
+					switch {
+					case errors.Is(err, serviceauth.ErrAmbiguousBinding):
+						return nil, consumermw.ErrAmbiguousBinding
+					case errors.Is(err, serviceauth.ErrNoBinding):
+						return nil, consumermw.ErrNoBinding
+					default:
+						// Infrastructure failure → propagate so the impl returns
+						// 500 (must NOT leak as a silent not-found / fail-open).
+						return nil, err
+					}
+				}
+				if pb == nil {
+					return nil, consumermw.ErrNoBinding
+				}
+				pd := consumer.ProtoPrincipalToData(pb)
+				return principalDataToBinding(&pd), nil
 			}
-			return int32(resp.Kind), resp.PrincipalId
+		}
+
+		// ExecuteSwitch: SwitchPrincipal use case via consumer.ExecutePrincipalSwitch.
+		// URL-driven (UseCase derived from the rotation/in-place delta), audited,
+		// audit-failure rolls back the rotation (red-team A-4).
+		if auth.SwitchPrincipal != nil {
+			switchUC := auth.SwitchPrincipal
+			wpCfg.ExecuteSwitch = func(
+				ctx context.Context,
+				userID, token string,
+				binding *consumermw.WorkspaceBinding,
+				urlActingAs string,
+				requestURL, referer, secFetchSite, userAgent string,
+			) (*consumermw.WorkspaceSwitchResult, error) {
+				if binding == nil {
+					return nil, consumermw.ErrNoBinding
+				}
+				// Interpret the URL /as/{id} value as client vs supplier from
+				// the resolved binding's kind (the load-bearing fix against
+				// silent target-misrouting — without this the switch primitive
+				// would default to ActingAsTargets[0]).
+				var actingAsClientID, actingAsSupplierID string
+				if urlActingAs != "" {
+					switch binding.Kind {
+					case consumermw.BindingKindClientDelegate:
+						actingAsClientID = urlActingAs
+					case consumermw.BindingKindSupplierDelegate:
+						actingAsSupplierID = urlActingAs
+					}
+				}
+				res, err := consumer.ExecutePrincipalSwitch(ctx, switchUC, consumer.PrincipalSwitchInput{
+					UserID:             userID,
+					Token:              token,
+					TargetPrincipal:    bindingToPrincipalData(binding),
+					ActingAsClientID:   actingAsClientID,
+					ActingAsSupplierID: actingAsSupplierID,
+					// URLDriven=true + empty UseCase → the adapter derives the
+					// discriminator (switch_url_rotate / _acting_as_inplace /
+					// _principal_inplace) from what actually changed.
+					URLDriven:    true,
+					RequestURL:   requestURL,
+					Referer:      referer,
+					SecFetchSite: secFetchSite,
+					UserAgent:    userAgent,
+					RequireAudit: true,
+				})
+				if err != nil {
+					return nil, err
+				}
+				if res == nil {
+					return nil, nil
+				}
+				return &consumermw.WorkspaceSwitchResult{NewToken: res.NewToken, RedirectURL: res.RedirectURL}, nil
+			}
+		}
+	}
+
+	// SetCSRFCookie: issue a fresh workspace-claim CSRF cookie whenever the
+	// workspace_path middleware rotates the session (C2). Disabled (empty
+	// secret) → IssueWorkspaceCSRFCookie no-ops on an opaque token; the impl
+	// only calls this on a real rotation.
+	if hmacSecret != "" {
+		csrfSecret := []byte(hmacSecret)
+		wpCfg.SetCSRFCookie = func(w http.ResponseWriter, newSessionToken, newWorkspaceID string) {
+			issueWorkspaceCSRFCookie(w, csrfSecret, newSessionToken, newWorkspaceID)
 		}
 	}
 
@@ -504,15 +640,21 @@ func (s *Server) Handler() http.Handler {
 		log.Printf("  SecurityHeaders: CSP %s; HSTS disabled", cspMode)
 	}
 
+	// WorkspacePath / CSRF / ActionGuard are dispatched to the FRAMEWORK-NATIVE
+	// contrib/http net/http impls via the build-tagged buildWorkspacePath /
+	// buildCSRF / buildActionGuard (middleware_dispatch_http.go, //go:build http).
+	// Under any other server provider tag they degrade to pass-throughs
+	// (middleware_dispatch_stub.go). The remaining middleware already have real
+	// impls behind the agnostic consumermw surface.
 	handler := consumermw.SecurityHeaders(secCfg)(
 		consumermw.Gzip()(
 			consumermw.Logger()(
 				consumermw.Recovery()(
 					consumermw.LoginRateLimit()(
 						consumermw.Session(sessionHandler)(
-							consumermw.WorkspacePath(wpCfg)(
-								consumermw.CSRF(csrfCfg)(
-									consumermw.ActionGuard(agCfg)(
+							buildWorkspacePath(wpCfg)(
+								buildCSRF(csrfCfg)(
+									buildActionGuard(agCfg)(
 										consumermw.Timezone(tzCfg)(
 											businessTypeHandler))))))))))
 

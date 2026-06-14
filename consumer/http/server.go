@@ -32,6 +32,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/composition/core"
 	"github.com/erniealice/espyna-golang/reference"
 	"github.com/erniealice/pyeza-golang"
+	"github.com/erniealice/pyeza-golang/compose"
 
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -148,9 +149,80 @@ type Server struct {
 	preset       consumermw.Preset
 	appBlocks    []pyeza.AppOption
 
+	// Wave B D1: the COMPLETE app-supplied UI/labels bundle (renderer, labels,
+	// sidebars, translations, route-rewriter, auth labels). Populated by
+	// WithUI; stamped into appCtx.UI by Build() and read + fail-loud-asserted
+	// by finalizeHTTPAdapter. NOT used by the legacy Handler() path (the app
+	// still owns its own renderer/labels until D2).
+	appUI *pyeza.AppUIBundle
+
+	// Wave B D1: memoized security resolution (HMAC secret + cookie-secure
+	// policy + CSRF issuer + the non-mock-empty-secret boot fatal). Resolved
+	// ONCE by resolveSecurity() and shared by BOTH Build() and the legacy
+	// finalizePreset()/Handler() path (codex C2 — single source of truth).
+	security *securityResolution
+
 	// Built state
 	handler http.Handler
 	built   bool
+}
+
+// securityResolution carries the once-resolved HMAC secret + cookie-secure
+// policy + agnostic CSRF-cookie issuer closure (Wave B D1.0). resolveSecurity()
+// populates it (running the non-mock-empty-secret boot fatal as a side effect);
+// both Build() and finalizePreset() consume it so the env is read once and the
+// values can never drift between the two paths.
+type securityResolution struct {
+	secret       []byte
+	cookieSecure bool
+	issuer       func(w http.ResponseWriter, secret []byte, sessionToken, workspaceID string) string
+}
+
+// resolveSecurity resolves the HMAC secret + cookie-secure policy ONCE, runs the
+// non-mock-empty-secret boot fatal, and builds the agnostic CSRFIssuer closure.
+// Idempotent + memoized on the Server so Build() (pre-opt-loop) and the legacy
+// finalizePreset()/Handler() path resolve the SAME values and BOTH fatal on a
+// non-mock empty secret. (Wave B D1.0 / codex C2 — the legacy guard is
+// PRESERVED: this is the exact behaviour previously inlined at server.go
+// finalizePreset, lifted into a shared helper so neither path can boot non-mock
+// with /action/* CSRF unprotected.)
+func (s *Server) resolveSecurity() securityResolution {
+	if s.security != nil {
+		return *s.security // memoized — single source of truth
+	}
+	cookieSecure := consumermw.CookieSecureFromEnv(os.Getenv)
+	hmacSecret := consumermw.SecretFromEnv(os.Getenv)
+
+	// Boot guard: ANY non-mock provider requires an HMAC secret. The middleware
+	// chain is FIXED for every provider (one StandardAdmin() Preset), but
+	// BuildCSRF + BuildActionGuard SHORT-CIRCUIT to pass-throughs on an empty
+	// secret — so a non-mock production provider booted with no HMAC secret
+	// would start with /action/* workspace-claim mutations UNPROTECTED (a
+	// verified fail-OPEN). The provider token is normalized like the auth
+	// provider factory (strings.ToLower) so accepted dev input like "Mock"
+	// does not wrongly fatal. mock (dev-only) stays bootable.
+	guardProvider := strings.ToLower(os.Getenv("CONFIG_AUTH_PROVIDER"))
+	if guardProvider != "mock" && hmacSecret == "" {
+		log.Fatalf("FATAL: CONFIG_AUTH_PROVIDER=%q runs the workspace action-guard + CSRF "+
+			"chain but no HMAC secret is set (neither %s nor %s). Refusing to start with "+
+			"/action/* mutations unprotected. Set one before boot, or use "+
+			"CONFIG_AUTH_PROVIDER=mock for dev.",
+			guardProvider, consumermw.EnvKeyWorkspaceFormHMAC, consumermw.EnvKeyFallbackHMAC)
+	}
+
+	var issuer func(w http.ResponseWriter, secret []byte, sessionToken, workspaceID string) string
+	if hmacSecret != "" {
+		issuer = func(w http.ResponseWriter, secret []byte, sessionToken, workspaceID string) string {
+			return consumermw.IssueWorkspaceCSRFCookie(w, secret, sessionToken, workspaceID, cookieSecure)
+		}
+	}
+
+	s.security = &securityResolution{
+		secret:       []byte(hmacSecret),
+		cookieSecure: cookieSecure,
+		issuer:       issuer,
+	}
+	return *s.security
 }
 
 // NewServer creates a new Server by reading all configuration from environment
@@ -220,6 +292,19 @@ func NewServer() (*Server, error) {
 	}, nil
 }
 
+// MustNewServer is the fluent-chain entry: it boots the espyna container and
+// log.Fatals on any boot error, returning a non-nil *Server so the
+// .WithApp(...).WithUI(...).WithMiddleware(...).WithBlocks(...).MustBuild()
+// chain is buildable as one expression (Wave B D1.3 / codex C3). NewServer()
+// keeps its (*Server, error) signature for callers that handle the error.
+func MustNewServer() *Server {
+	s, err := NewServer()
+	if err != nil {
+		log.Fatalf("FATAL: espyna NewServer: %v", err)
+	}
+	return s
+}
+
 // WithApp records the application-level configuration (A.1 #3). Fluent: returns
 // the Server for chaining. Read by Build() when finalizing the chain (BusinessType,
 // reserved slugs, asset root, feature flags).
@@ -261,6 +346,19 @@ func (s *Server) WithBlocks(opts ...pyeza.AppOption) *Server {
 	return s
 }
 
+// WithUI records the COMPLETE app-supplied UI/labels bundle (Wave B D1.1). The
+// app builds it once from its own renderer / labels / sidebars / translations /
+// route-rewriter / auth labels and passes it here; Build() stamps it into
+// appCtx.UI (and mirrors Common/Table/Translations into the existing typed
+// slots), and finalizeHTTPAdapter reads + fail-loud-asserts every field. Fluent:
+// returns the Server for chaining. The renderer / sidebars / labels never enter
+// espyna — they import app + domain template FSes and app-specific sidebar code
+// (codex C4 boundary).
+func (s *Server) WithUI(ui *pyeza.AppUIBundle) *Server {
+	s.appUI = ui
+	return s
+}
+
 // Build boots the chain and produces the *Container (A.1 #6). It:
 //  1. builds a *pyeza.AppContext from the Server's already-booted infra,
 //  2. applies each pyeza.AppOption (domain block) to it,
@@ -271,23 +369,50 @@ func (s *Server) WithBlocks(opts ...pyeza.AppOption) *Server {
 // (*Server, error) signature so the service-admin app — which still calls the old
 // surface until Wave B — keeps compiling; the fluent methods are layered on top).
 func (s *Server) Build() (*Container, error) {
-	// AppContext from the Server's booted infrastructure. Routes use the
-	// framework NoopRegistrar in this wave — the real route registry + HTTP
-	// adapter wiring is the app's job until Wave B moves it server-side. Blocks
-	// still assemble their compose engines and merge Nav/RouteMap into
-	// ComposeResult through AssembleBlock.
+	// 1. Resolve CSRF secret + cookie-secure + issuer + run the non-mock-empty-
+	//    secret boot fatal via the ONE shared helper (D1.0) BEFORE the opt loop,
+	//    so blocks (entydad auth, D2) read the SAME values from the AppContext
+	//    slots and the legacy Handler() path shares the guard.
+	sec := s.resolveSecurity()
+
+	// 2. The COMPLETE app-supplied UI/labels bundle is required to finalize the
+	//    HTTP adapter (codex round-2). A non-mock binary must NEVER boot with a
+	//    blank UI, so a missing WithUI(...) is a fail-loud boot fatal here.
+	if s.appUI == nil {
+		log.Fatalf("FATAL espyna Build(): WithUI(...) was not called — the consumer/http " +
+			"adapter cannot be finalized without the app-supplied renderer/labels/translations " +
+			"bundle. Refusing to boot with a blank UI.")
+	}
+
+	// 3. AppContext from the Server's booted infra. Routes = the Server's REAL
+	//    registry (it satisfies pyeza's view.RouteRegistrar + the auth-module
+	//    HandleFunc/Redirect surface). CSRF slots pre-stamped from
+	//    resolveSecurity(); the app-supplied UI bundle is stamped from WithUI,
+	//    and the three pre-existing typed slots (Common/Table/Translations) are
+	//    mirrored from the bundle so blocks reading them get the SAME values the
+	//    adapter does. Translations comes from appCtx.UI.Translations (the
+	//    Server has NO s.translations field).
+	routes := newRouteRegistry()
 	appCtx := &pyeza.AppContext{
-		Routes:        consumer.NoopRegistrar{},
+		Routes:        routes,
 		BusinessType:  s.config.BusinessType,
 		Container:     s.container,
 		UseCases:      s.useCases,
 		DB:            s.db,
 		RefChecker:    s.refChecker,
-		ComposeResult: nil,
+		ComposeResult: compose.NewResult(),
+		CSRFSecret:    sec.secret,
+		CookieSecure:  sec.cookieSecure,
+		CSRFIssuer:    sec.issuer,
+		UI:            s.appUI,
+		Common:        mustCommonLabels(s.appUI.CommonLabels),
+		Table:         mustTableLabels(s.appUI.TableLabels),
+		Translations:  s.appUI.Translations,
 	}
 
-	// Apply domain blocks (pyeza.AppOption). AssembleBlock's error behaviour
-	// (log + return nil, R6) is carried verbatim by the blocks themselves.
+	// 4. Apply domain blocks (pyeza.AppOption). Each block registers routes into
+	//    appCtx.Routes, merges Nav into appCtx.ComposeResult, and (entydad, D2)
+	//    sets appCtx.WorkspaceLoader / AuthDeps / SecureWorkspaceSwitch*.
 	for _, opt := range s.appBlocks {
 		if opt == nil {
 			continue
@@ -297,8 +422,13 @@ func (s *Server) Build() (*Container, error) {
 		}
 	}
 
-	// Mux + fixed-order chain (the same machinery the legacy Handler() uses).
-	handler := s.assembleHandler()
+	// 5. Finalize the HTTP adapter from the now-populated AppContext (the
+	//    framework-generic relocation of the app's old build(); the renderer /
+	//    sidebars / labels are read from the APP-SUPPLIED bundle).
+	handler, err := s.finalizeHTTPAdapter(appCtx, routes)
+	if err != nil {
+		return nil, err
+	}
 	return &Container{handler: handler, addr: s.Addr()}, nil
 }
 
@@ -461,10 +591,16 @@ func (s *Server) Handler() http.Handler {
 // copied verbatim. The FIXED ORDER stays in the chain assembler; finalizePreset
 // only fills the slots. The consumer app supplies NONE of these.
 func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
-	// ── Cookie-secure boot resolution (W2 §5.5) ─────────────────────────
-	// Resolved here (was app container.go); the chain prelude calls
-	// SetSecureCookies(p.CookieSecure()) ONCE before any cookie writer is built.
-	cookieSecure := consumermw.CookieSecureFromEnv(os.Getenv)
+	// ── Cookie-secure + HMAC secret + CSRF issuer + the non-mock-empty-secret
+	// boot fatal: resolved ONCE via the shared helper (Wave B D1.0 / codex C2).
+	// The fatal NO LONGER lives inline here — it MOVED INTO resolveSecurity(),
+	// which BOTH this legacy Handler() path AND the new Build() invoke, so
+	// neither path can boot non-mock with /action/* CSRF unprotected. The
+	// chain prelude calls SetSecureCookies(p.CookieSecure()) ONCE before any
+	// cookie writer is built.
+	sec := s.resolveSecurity()
+	cookieSecure := sec.cookieSecure
+	hmacSecret := string(sec.secret)
 
 	// ── Timezone slot config ────────────────────────────────────────────
 	tzCfg := consumermw.TimezoneConfig{
@@ -476,33 +612,6 @@ func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
 			return uid
 		},
 		LookupTimezone: s.buildTimezoneLookup(),
-	}
-
-	// ── HMAC secret for CSRF + action guard ─────────────────────────────
-	hmacSecret := consumermw.SecretFromEnv(os.Getenv)
-
-	// ── Boot guard: ANY non-mock provider requires an HMAC secret ───────
-	// Fatal BEFORE serving, agnostic, ahead of the chain build. Stays here (not
-	// in the chain assembler) so it fatals regardless of the server-provider tag.
-	//
-	// BROADENED from password-only (A.3.0 / codex r2 #4): the middleware chain is
-	// FIXED for every provider (one StandardAdmin() Preset), but BuildCSRF +
-	// BuildActionGuard SHORT-CIRCUIT to pass-throughs on an empty secret
-	// (contrib middleware_http.go:129-132/147-150). So a non-mock production
-	// provider (e.g. firebase) booted with no HMAC secret used to start with
-	// /action/* workspace-claim mutations UNPROTECTED — a verified fail-OPEN.
-	// Reject boot for any provider that is NOT the dev mock when the secret is
-	// empty. mock (dev-only, intentionally unprotected) stays bootable. The
-	// provider token is normalized exactly like the auth provider factory
-	// (strings.ToLower — providers/infrastructure/auth.go:23) so accepted dev
-	// input like "Mock" does not wrongly fatal. Subsumes the old password check.
-	guardProvider := strings.ToLower(os.Getenv("CONFIG_AUTH_PROVIDER"))
-	if guardProvider != "mock" && hmacSecret == "" {
-		log.Fatalf("FATAL: CONFIG_AUTH_PROVIDER=%q runs the workspace action-guard + CSRF "+
-			"chain but no HMAC secret is set (neither %s nor %s). Refusing to start with "+
-			"/action/* mutations unprotected. Set one before boot, or use "+
-			"CONFIG_AUTH_PROVIDER=mock for dev.",
-			guardProvider, consumermw.EnvKeyWorkspaceFormHMAC, consumermw.EnvKeyFallbackHMAC)
 	}
 
 	// ── CSRF slot config — workspace/session claim readers wired to the

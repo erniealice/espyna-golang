@@ -66,6 +66,7 @@ func (f *fakeAuthProvider) ExecutePasswordReset(context.Context, string, string)
 func (f *fakeAuthProvider) ChangePassword(context.Context, string, string, string) error {
 	return nil
 }
+func (f *fakeAuthProvider) HashPassword(string) (string, error)                   { return "", nil }
 func (f *fakeAuthProvider) CreateSession(context.Context, string) (string, error) { return "", nil }
 func (f *fakeAuthProvider) InvalidateSession(context.Context, string) error       { return nil }
 

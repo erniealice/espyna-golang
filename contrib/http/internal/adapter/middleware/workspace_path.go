@@ -40,7 +40,8 @@ import (
 	"sync"
 	"time"
 
-	sharedmw "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/primary/http/middleware"
+	"github.com/erniealice/espyna-golang/consumer/http/httpctx"
+	"github.com/erniealice/pyeza-golang/render"
 )
 
 // defaultSessionCookieName mirrors consumer.DefaultSessionCookieName.
@@ -153,29 +154,15 @@ const (
 )
 
 // --- Post-rotation banner ---
-
-// PostRotationBannerData is set on the request context when a URL-driven
-// rotation occurs. The view layer reads this to render a dismissable banner.
-type PostRotationBannerData struct {
-	TargetSlug   string
-	PreviousSlug string
-}
-
-type bannerCtxKey struct{}
-
-// WithPostRotationBanner stores banner data in ctx.
-func WithPostRotationBanner(ctx context.Context, data *PostRotationBannerData) context.Context {
-	return context.WithValue(ctx, bannerCtxKey{}, data)
-}
-
-// PostRotationBannerFromContext retrieves banner data. Returns nil when
-// no rotation occurred.
-func PostRotationBannerFromContext(ctx context.Context) *PostRotationBannerData {
-	if v, ok := ctx.Value(bannerCtxKey{}).(*PostRotationBannerData); ok {
-		return v
-	}
-	return nil
-}
+//
+// The post-rotation banner ctx-key is owned by pyeza render
+// (render.WithPostRotationBanner / render.PostRotationBannerFromContext /
+// render.PostRotationBannerData), the canonical reader in the render pipeline.
+// The espyna→pyeza import arrow makes render the single source of this key:
+// this writer (WorkspacePath, on a URL-driven rotation) writes render's key;
+// the render pipeline reads it. Do NOT re-declare a private banner key here —
+// that fork is exactly the silent ctx-key drift the leaf convergence (W3)
+// eliminated (and which had left the banner inert before W3).
 
 // --- Public contract ---
 
@@ -398,16 +385,16 @@ func (m *WorkspacePathMiddleware) handle(next http.Handler) http.Handler {
 		}
 
 		// Pin workspace + binding into context. The slug + acting-as are also
-		// written under the canonical framework-agnostic keys (sharedmw) so any
-		// consumer — incl. the app's workspace route rewriter — reads ONE key
+		// written under the canonical framework-agnostic keys (httpctx leaf) so
+		// any consumer — incl. the app's workspace route rewriter — reads ONE key
 		// regardless of server provider. The provider-local CtxKey* values are
 		// retained for in-package readers / backward compat.
 		ctx = context.WithValue(ctx, CtxKeyURLWorkspaceID, workspaceID)
 		ctx = context.WithValue(ctx, CtxKeyURLWorkspaceSlug, slugLower)
-		ctx = sharedmw.WithURLWorkspaceSlug(ctx, slugLower)
+		ctx = httpctx.WithURLWorkspaceSlug(ctx, slugLower)
 		if actingAsClientID != "" {
 			ctx = context.WithValue(ctx, CtxKeyActingAsClientID, actingAsClientID)
-			ctx = sharedmw.WithActingAsClientID(ctx, actingAsClientID)
+			ctx = httpctx.WithActingAsClientID(ctx, actingAsClientID)
 		}
 		ctx = wsWithBindingMemo(ctx, userID, workspaceID, binding)
 		// Override the espyna-owned workspace_id key so the legacy
@@ -474,9 +461,10 @@ func (m *WorkspacePathMiddleware) handle(next http.Handler) http.Handler {
 					m.cfg.SetCSRFCookie(w, result.NewToken, workspaceID)
 				}
 
-				// 8e. Banner data.
+				// 8e. Banner data. Written under pyeza render's canonical key so
+				// the render pipeline (the reader) round-trips it.
 				prevSlug, _ := m.cache.getSlugByID(sessionWsID)
-				ctx = WithPostRotationBanner(ctx, &PostRotationBannerData{
+				ctx = render.WithPostRotationBanner(ctx, &render.PostRotationBannerData{
 					TargetSlug:   slugLower,
 					PreviousSlug: prevSlug,
 				})

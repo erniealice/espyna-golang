@@ -11,41 +11,30 @@
 //
 // Per-request CSP nonce: SecurityHeaders is the natural place to mint the
 // per-request nonce (outermost middleware). It generates a fresh 128-bit
-// base64 nonce, stores it on r.Context() via contextWithNonce, writes the
-// header, and threads the enriched context inward so handlers and templates
-// can read it back with NonceFromContext.
+// base64 nonce, stores it on r.Context() via render.WithNonce (pyeza render is
+// the canonical home of the nonce ctx-key — espyna writes, pyeza reads), writes
+// the header, and threads the enriched context inward so templates can read it
+// back via render.NonceFromContext in the render pipeline.
 package middleware
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/erniealice/pyeza-golang/render"
 )
 
-// --- Nonce context helpers ---
+// --- Nonce context key ---
 //
-// These live in this package to avoid an import cycle: the middleware writes
-// the nonce, and the consumer/view_adapter reads it via NonceFromContext.
-
-// nonceCtxKey is the typed, unexported context key for the per-request CSP nonce.
-type nonceCtxKey struct{}
-
-// contextWithNonce stores the per-request CSP nonce in ctx. Called by
-// SecurityHeaders immediately after minting the nonce.
-func contextWithNonce(ctx context.Context, nonce string) context.Context {
-	return context.WithValue(ctx, nonceCtxKey{}, nonce)
-}
-
-// NonceFromContext reads the per-request CSP nonce set by contextWithNonce.
-// Returns "" when no nonce was set (e.g. requests that never passed through
-// SecurityHeaders, such as unit tests).
-func NonceFromContext(ctx context.Context) string {
-	v, _ := ctx.Value(nonceCtxKey{}).(string)
-	return v
-}
+// The CSP nonce ctx-key is owned by pyeza render (render.WithNonce /
+// render.NonceFromContext), the canonical reader in the render pipeline. The
+// espyna→pyeza import arrow makes render the single source of this key: this
+// writer (SecurityHeaders) writes render's key; the render pipeline reads it.
+// Do NOT re-declare a private nonce key here — that fork is exactly the
+// silent ctx-key drift the leaf convergence (W3) eliminated.
 
 // --- Constants ---
 
@@ -163,7 +152,7 @@ func SecurityHeaders(cfg SecurityHeadersConfig) func(http.Handler) http.Handler 
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-			ctx := contextWithNonce(r.Context(), nonce)
+			ctx := render.WithNonce(r.Context(), nonce)
 
 			// CSP enforce/report-only gated behind CONFIG_SECURITY_CSP_ENFORCE.
 			if cfg.CSPEnforce {

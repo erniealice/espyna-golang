@@ -33,6 +33,7 @@ type UseCases struct {
 	SwitchWorkspace          *SwitchWorkspaceUseCase
 	ListUserWorkspaces       *ListUserWorkspacesUseCase
 	ValidateSlug             *ValidateSlugUseCase
+	ResolveWorkspaceBySlug   *ResolveWorkspaceBySlugUseCase
 }
 
 // NewUseCases creates a new collection of workspace use cases
@@ -120,6 +121,11 @@ func NewUseCases(
 		ReservedSlugs: services.ReservedSlugs,
 	}
 
+	resolveBySlugRepos := ResolveWorkspaceBySlugRepositories(repositories)
+	resolveBySlugServices := ResolveWorkspaceBySlugServices{
+		Translator: services.Translator,
+	}
+
 	return &UseCases{
 		CreateWorkspace:          NewCreateWorkspaceUseCase(createRepos, createServices),
 		ReadWorkspace:            NewReadWorkspaceUseCase(readRepos, readServices),
@@ -131,6 +137,7 @@ func NewUseCases(
 		SwitchWorkspace:          NewSwitchWorkspaceUseCase(switchRepos, switchServices),
 		ListUserWorkspaces:       NewListUserWorkspacesUseCase(listUserRepos, listUserServices),
 		ValidateSlug:             NewValidateSlugUseCase(validateSlugServices),
+		ResolveWorkspaceBySlug:   NewResolveWorkspaceBySlugUseCase(resolveBySlugRepos, resolveBySlugServices),
 	}
 }
 

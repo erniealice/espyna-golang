@@ -4,7 +4,7 @@ import (
 	// Application ports
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	payrollservice "github.com/erniealice/espyna-golang/internal/application/services/payroll"
+	payrollservice "github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll"
 	payrollremittanceuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/payroll/payroll_remittance"
 	payrollrunuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/payroll/payroll_run"
 

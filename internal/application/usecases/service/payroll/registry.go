@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/internal/application/services/payroll/eu"
-	"github.com/erniealice/espyna-golang/internal/application/services/payroll/ph"
-	"github.com/erniealice/espyna-golang/internal/application/services/payroll/us"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll/eu"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll/ph"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll/us"
 )
 
 // Get returns the PayrollCalculator implementation for a compliance

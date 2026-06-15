@@ -1,14 +1,25 @@
-// Package depreciation provides the pure-compute depreciation engine for IAS 16 methods.
+// engine.go — pure-compute IAS-16 depreciation engine.
 //
-// No I/O — all functions are pure functions over asset parameters and period information.
-// The engine is called by the application-layer use cases (GenerateDepreciationRun,
+// Relocated from internal/domain/asset/depreciation/ (20260615 stray-layer
+// relocation) and co-located with its sole consuming entity, depreciation_run.
+//
+// CHARTER (file-level — see docs/plan/20260615-espyna-stray-layer-relocation):
+// this engine is a pure-compute leaf. It MUST import the Go standard library
+// ONLY (currently {errors, math, time}) — never proto entity types (esqyma/...),
+// DB drivers/adapters, or anything under internal/application/usecases/... . The
+// import-set guard test in engine_charter_test.go enforces this. Keep all I/O,
+// repository access, and proto translation in the depreciation_run use cases.
+//
+// No I/O — all functions are pure functions over asset parameters and period
+// information. Called by the application-layer use cases (GenerateDepreciationRun,
 // ListDepreciationCandidates); it never touches repositories directly.
 //
 // Monetary amounts are always int64 centavos. Display ÷100 is the caller's
 // responsibility. Zero-float rule: no float arithmetic on centavo amounts.
 // Floating-point rates (depreciation_rate, salvage_pct) are inputs-only and are
 // converted to centavos immediately.
-package depreciation
+
+package depreciation_run
 
 import (
 	"errors"

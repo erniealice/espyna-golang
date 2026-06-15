@@ -8,7 +8,7 @@
 package payroll
 
 import (
-	"github.com/erniealice/espyna-golang/internal/application/services/payroll/payrollcore"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll/payrollcore"
 )
 
 // Type aliases — canonical definitions in payrollcore.

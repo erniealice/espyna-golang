@@ -11,7 +11,7 @@ import (
 	ratebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/rate_band"
 	ratetablepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/rate_table"
 
-	"github.com/erniealice/espyna-golang/internal/application/services/payroll/payrollcore"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll/payrollcore"
 )
 
 // ---------------------------------------------------------------------

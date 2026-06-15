@@ -11,7 +11,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	depengine "github.com/erniealice/espyna-golang/internal/domain/asset/depreciation"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
@@ -686,7 +685,7 @@ func enumerateElapsedPeriods(asset *assetpb.Asset, asOfDate time.Time) []periodE
 // — passed to declining-balance methods so each period sees the prior period's
 // post-state, not the original asset snapshot.
 func computeAmountForMethod(asset *assetpb.Asset, pd periodEntry, runningAccumulated int64) (int64, error) {
-	params := depengine.AssetParams{
+	params := AssetParams{
 		AcquisitionCost:         asset.GetAcquisitionCost(),
 		SalvageValue:            asset.GetSalvageValue(),
 		UsefulLifeMonths:        asset.GetUsefulLifeMonths(),
@@ -694,22 +693,22 @@ func computeAmountForMethod(asset *assetpb.Asset, pd periodEntry, runningAccumul
 		DepreciationRate:        asset.GetDepreciationRate(),
 		AccumulatedDepreciation: runningAccumulated,
 	}
-	periodP := depengine.PeriodParams{
+	periodP := PeriodParams{
 		PeriodStart: pd.startTime,
 		PeriodEnd:   pd.endTime,
 		PeriodIndex: pd.index,
 	}
 	switch asset.GetDepreciationMethod() {
 	case assetpb.DepreciationMethod_DEPRECIATION_METHOD_STRAIGHT_LINE:
-		return depengine.ComputeStraightLine(params, periodP)
+		return ComputeStraightLine(params, periodP)
 	case assetpb.DepreciationMethod_DEPRECIATION_METHOD_DECLINING_BALANCE:
-		return depengine.ComputeDecliningBalance(params, periodP, runningAccumulated)
+		return ComputeDecliningBalance(params, periodP, runningAccumulated)
 	case assetpb.DepreciationMethod_DEPRECIATION_METHOD_DOUBLE_DECLINING_BALANCE:
-		return depengine.ComputeDoubleDecliningBalance(params, periodP, runningAccumulated)
+		return ComputeDoubleDecliningBalance(params, periodP, runningAccumulated)
 	case assetpb.DepreciationMethod_DEPRECIATION_METHOD_SUM_OF_YEARS_DIGITS:
-		return depengine.ComputeSumOfYearsDigits(params, periodP)
+		return ComputeSumOfYearsDigits(params, periodP)
 	case assetpb.DepreciationMethod_DEPRECIATION_METHOD_UNITS_OF_PRODUCTION:
-		return depengine.ComputeUnitsOfProduction(params, periodP, 0)
+		return ComputeUnitsOfProduction(params, periodP, 0)
 	default:
 		return 0, fmt.Errorf("missing or unsupported depreciation_method: %v", asset.GetDepreciationMethod())
 	}

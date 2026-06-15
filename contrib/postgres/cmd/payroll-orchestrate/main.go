@@ -32,7 +32,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	payrollservice "github.com/erniealice/espyna-golang/internal/application/services/payroll"
+	payrollservice "github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	pgentity "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/entity"

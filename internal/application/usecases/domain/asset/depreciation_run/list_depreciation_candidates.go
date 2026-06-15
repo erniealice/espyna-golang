@@ -13,7 +13,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	depengine "github.com/erniealice/espyna-golang/internal/domain/asset/depreciation"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
@@ -154,7 +153,7 @@ func (uc *ListDepreciationCandidatesUseCase) buildCandidate(
 	for _, pd := range periods {
 		amount, err := computeAmountForMethod(simulatedAsset, pd, runningAccumulated)
 		if err != nil {
-			if err == depengine.ErrUnitsRequired {
+			if err == ErrUnitsRequired {
 				// UoP asset — return UNITS_REQUIRED blocker instead of periods
 				candidate.Blockers = []*deprunpb.DepreciationCandidateBlocker{
 					{
@@ -242,7 +241,7 @@ func detectBlockers(asset *assetpb.Asset) []*deprunpb.DepreciationCandidateBlock
 	}
 
 	// Fully depreciated
-	depBase := depengine.DepreciableBase(asset.GetAcquisitionCost(), asset.GetSalvageValue())
+	depBase := DepreciableBase(asset.GetAcquisitionCost(), asset.GetSalvageValue())
 	if depBase > 0 && asset.GetAccumulatedDepreciation() >= depBase {
 		blockers = append(blockers, &deprunpb.DepreciationCandidateBlocker{
 			Kind:  deprunpb.DepreciationCandidateBlocker_DEPRECIATION_CANDIDATE_BLOCKER_KIND_FULLY_DEPRECIATED,

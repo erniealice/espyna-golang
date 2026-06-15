@@ -156,6 +156,16 @@ type Server struct {
 	// still owns its own renderer/labels until D2).
 	appUI *pyeza.AppUIBundle
 
+	// Wave B D2c: the app injection hook(s). Registered by WithAppContext;
+	// invoked by Build() AFTER espyna stamps the auth-chain slots it OWNS
+	// (SessionManager/AuthAdapter/SecureWorkspaceSwitch*) and BEFORE the opt
+	// loop. The app uses it to stamp its ~22 cross-cutting closures (SqlDB,
+	// UploadFile, SendEmail, GetDashboardData, doc-template CRUD, etc.) — the
+	// build-tag-selected adapters espyna does NOT know about — onto the same
+	// *pyeza.AppContext the domain EngineBlocks read. NOT invoked by the legacy
+	// Handler() path (these run only inside Build()).
+	appContextHooks []func(*pyeza.AppContext)
+
 	// Wave B D1: memoized security resolution (HMAC secret + cookie-secure
 	// policy + CSRF issuer + the non-mock-empty-secret boot fatal). Resolved
 	// ONCE by resolveSecurity() and shared by BOTH Build() and the legacy
@@ -267,6 +277,18 @@ func NewServer() (*Server, error) {
 	var sessionMw *consumer.SessionMiddleware
 	if os.Getenv("CONFIG_AUTH_PROVIDER") == "password" && authAdapter != nil {
 		sessionMw = consumer.NewSessionMiddleware(authAdapter)
+		// Wave B D2c — COOKIE FIX: stamp the resolved Secure-flag policy from env
+		// onto the session middleware so the ichizen_session cookie carries the
+		// COOKIE_SECURE-derived Secure flag. NewSessionMiddleware defaults
+		// CookieSecure=false; without this the password-auth session cookie
+		// would drop the Secure flag in production. Previously the app set this
+		// in newAppBuilder (container.go:84-89) AFTER NewServer; doing it here
+		// makes the Build()/fluent path correct on its own. ADDITIVE + SAFE for
+		// the legacy Handler() path: the app still overrides this same value to
+		// the identical CookieSecureFromEnv result until the collapse lands, so
+		// the legacy path sees no behaviour change. LoginURL already defaults to
+		// "/auth/login" (== entydad.AuthLoginURL), so no override is needed.
+		sessionMw.CookieSecure = consumermw.CookieSecureFromEnv(os.Getenv)
 	}
 
 	// 4. Use cases
@@ -359,6 +381,24 @@ func (s *Server) WithUI(ui *pyeza.AppUIBundle) *Server {
 	return s
 }
 
+// WithAppContext registers an app injection hook (Wave B D2c). Fluent: returns
+// the Server for chaining. The hook is invoked by Build() AFTER espyna stamps
+// the auth-chain slots it OWNS onto the *pyeza.AppContext (SessionManager,
+// AuthAdapter, and the espyna-derivable SecureWorkspaceSwitch* siblings) and
+// BEFORE the domain-block opt loop runs — so the app can stamp its ~22
+// cross-cutting closures (SqlDB / UploadFile / SendEmail / GetDashboardData /
+// doc-template CRUD / GetUsersByRoleID / HashPassword / ... captured from the
+// app's build-tag-selected adapters) onto the SAME context the domain
+// EngineBlocks read. espyna does NOT know providers; the hook is the seam where
+// the app injects them. Multiple hooks are invoked in registration order. nil
+// hooks are skipped. NOT invoked by the legacy Handler() path.
+func (s *Server) WithAppContext(fn func(*pyeza.AppContext)) *Server {
+	if fn != nil {
+		s.appContextHooks = append(s.appContextHooks, fn)
+	}
+	return s
+}
+
 // Build boots the chain and produces the *Container (A.1 #6). It:
 //  1. builds a *pyeza.AppContext from the Server's already-booted infra,
 //  2. applies each pyeza.AppOption (domain block) to it,
@@ -408,6 +448,46 @@ func (s *Server) Build() (*Container, error) {
 		Common:        mustCommonLabels(s.appUI.CommonLabels),
 		Table:         mustTableLabels(s.appUI.TableLabels),
 		Translations:  s.appUI.Translations,
+	}
+
+	// 3b. STAMP the auth-chain slots espyna OWNS onto appCtx, BEFORE the opt
+	//     loop (Wave B D2c). The entydad EngineBlock reconstructs the auth.Deps
+	//     from these — it reads ctx.SessionManager + ctx.AuthAdapter and derives
+	//     its Infra.SecureSwitch from the SAME session middleware instance. By
+	//     stamping s.sessionMw / s.authAdapter here (the SAME instances espyna
+	//     booted in NewServer, with the COOKIE_SECURE-stamped CookieSecure), the
+	//     block reuses them — no cookie/config drift between the middleware chain
+	//     and the auth chain. CSRFSecret/CookieSecure/CSRFIssuer were already
+	//     pre-stamped above from resolveSecurity(); these add the session/credential
+	//     half. The SecureWorkspaceSwitch* siblings espyna can derive (ResolveUserID
+	//     from the request, SetSessionCookie from s.sessionMw) are stamped too for
+	//     parity with the documented prescription — the live EngineBlock path
+	//     derives its own SecureSwitch internally so these are additive (only the
+	//     legacy identity.go Block() path reads them). The SecureWorkspaceSwitch
+	//     closure itself is NOT stamped: it requires entydad's switch primitive +
+	//     use cases, which the block builds internally (espyna does not import
+	//     entydad).
+	appCtx.SessionManager = s.sessionMw
+	appCtx.AuthAdapter = s.authAdapter
+	if s.sessionMw != nil {
+		appCtx.SecureWorkspaceSwitchResolveUserID = consumer.SecureSidebarResolveUserID
+		sessionMw := s.sessionMw
+		appCtx.SecureWorkspaceSwitchSetSessionCookie = func(w http.ResponseWriter, token string) {
+			sessionMw.SetSessionCookie(w, token)
+		}
+	}
+
+	// 3c. INVOKE the registered app injection hooks (Wave B D2c). The app stamps
+	//     its ~22 cross-cutting closures (SqlDB / UploadFile / SendEmail / doc
+	//     template CRUD / dashboard / role-user / hash-password / ... captured
+	//     from its build-tag-selected adapters) onto the SAME appCtx the domain
+	//     EngineBlocks read below. Runs AFTER the auth-chain stamps (so the app
+	//     can read them if needed) and BEFORE the opt loop (so blocks see the
+	//     stamped closures). espyna does NOT know providers — the app owns this.
+	for _, hook := range s.appContextHooks {
+		if hook != nil {
+			hook(appCtx)
+		}
 	}
 
 	// 4. Apply domain blocks (pyeza.AppOption). Each block registers routes into

@@ -3,7 +3,7 @@ module github.com/erniealice/espyna-golang/contrib/fiber
 go 1.25.1
 
 require (
-	github.com/erniealice/espyna-golang v0.0.0
+	github.com/erniealice/espyna-golang v0.1.0-alpha
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gofiber/fiber/v3 v3.0.0-rc.2
 	github.com/google/uuid v1.6.0
@@ -15,7 +15,7 @@ require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
-	github.com/erniealice/esqyma v0.0.0 // indirect
+	github.com/erniealice/esqyma v0.1.0-alpha // indirect
 	github.com/gofiber/schema v1.6.0 // indirect
 	github.com/gofiber/utils/v2 v2.0.0-rc.1 // indirect
 	github.com/google/cel-go v0.23.0 // indirect
@@ -37,9 +37,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/grpc v1.75.1 // indirect
 )
-
-replace github.com/erniealice/espyna-golang => ../..
-
-replace github.com/erniealice/esqyma => ../../../esqyma
-
-replace github.com/erniealice/lyngua => ../../../lyngua

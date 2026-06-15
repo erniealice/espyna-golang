@@ -6,8 +6,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.12.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.2
-	github.com/erniealice/espyna-golang v0.0.0
-	github.com/erniealice/esqyma v0.0.0
+	github.com/erniealice/espyna-golang v0.1.0-alpha
+	github.com/erniealice/esqyma v0.1.0-alpha
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -25,7 +25,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/grpc v1.75.1 // indirect
 )
-
-replace github.com/erniealice/espyna-golang => ../..
-
-replace github.com/erniealice/esqyma => ../../../esqyma

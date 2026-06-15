@@ -3,17 +3,17 @@ module github.com/erniealice/espyna-golang
 go 1.25.1
 
 require (
-	github.com/erniealice/espyna-golang/contrib/asiapay v0.0.0-20260613113307-df4287b64b22
-	github.com/erniealice/espyna-golang/contrib/aws v0.0.0-20260613113307-df4287b64b22
-	github.com/erniealice/espyna-golang/contrib/azure v0.0.0-20260613113307-df4287b64b22
-	github.com/erniealice/espyna-golang/contrib/calendly v0.0.0-20260613113307-df4287b64b22
-	github.com/erniealice/espyna-golang/contrib/fiber v0.0.0-20260502144100-452b0cf7ac22
-	github.com/erniealice/espyna-golang/contrib/gin v0.0.0-20260502144100-452b0cf7ac22
-	github.com/erniealice/espyna-golang/contrib/google v0.0.0-20260502144100-452b0cf7ac22
-	github.com/erniealice/espyna-golang/contrib/maya v0.0.0-20260613113307-df4287b64b22
-	github.com/erniealice/espyna-golang/contrib/microsoft v0.0.0-20260613113307-df4287b64b22
-	github.com/erniealice/espyna-golang/contrib/paypal v0.0.0-20260613113307-df4287b64b22
-	github.com/erniealice/esqyma v0.0.0
+	github.com/erniealice/espyna-golang/contrib/asiapay v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/aws v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/azure v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/calendly v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/fiber v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/gin v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/google v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/maya v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/microsoft v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/paypal v0.1.0-alpha
+	github.com/erniealice/esqyma v0.1.0-alpha
 	github.com/google/cel-go v0.23.0
 	github.com/google/uuid v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
@@ -146,9 +146,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/grpc v1.75.1 // indirect
 )
-
-replace github.com/erniealice/entydad-golang => ../entydad-golang
-
-replace github.com/erniealice/esqyma => ../esqyma
-
-replace github.com/erniealice/lyngua => ../lyngua

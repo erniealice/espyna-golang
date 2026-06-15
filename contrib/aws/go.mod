@@ -9,8 +9,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.9
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.3
 	github.com/aws/smithy-go v1.23.0
-	github.com/erniealice/espyna-golang v0.0.0
-	github.com/erniealice/esqyma v0.0.0
+	github.com/erniealice/espyna-golang v0.1.0-alpha
+	github.com/erniealice/esqyma v0.1.0-alpha
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -33,7 +33,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/grpc v1.75.1 // indirect
 )
-
-replace github.com/erniealice/espyna-golang => ../..
-
-replace github.com/erniealice/esqyma => ../../../esqyma

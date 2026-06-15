@@ -3,8 +3,8 @@ module github.com/erniealice/espyna-golang/contrib/sqlserver
 go 1.25.1
 
 require (
-	github.com/erniealice/espyna-golang v0.0.0
-	github.com/erniealice/esqyma v0.0.0
+	github.com/erniealice/espyna-golang v0.1.0-alpha
+	github.com/erniealice/esqyma v0.1.0-alpha
 	github.com/google/uuid v1.6.0
 	github.com/microsoft/go-mssqldb v1.9.6
 	google.golang.org/protobuf v1.36.11
@@ -40,10 +40,10 @@ require (
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.35.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
-	github.com/erniealice/espyna-golang/contrib/fiber v0.0.0-20260502144100-452b0cf7ac22 // indirect
-	github.com/erniealice/espyna-golang/contrib/gin v0.0.0-20260502144100-452b0cf7ac22 // indirect
-	github.com/erniealice/espyna-golang/contrib/google v0.0.0-20260502144100-452b0cf7ac22 // indirect
-	github.com/erniealice/lyngua v0.0.0-00010101000000-000000000000 // indirect
+	github.com/erniealice/espyna-golang/contrib/fiber v0.1.0-alpha // indirect
+	github.com/erniealice/espyna-golang/contrib/gin v0.1.0-alpha // indirect
+	github.com/erniealice/espyna-golang/contrib/google v0.1.0-alpha // indirect
+	github.com/erniealice/lyngua v0.1.0-alpha // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
 	github.com/gin-contrib/cors v1.7.6 // indirect
@@ -122,9 +122,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/grpc v1.75.1 // indirect
 )
-
-replace github.com/erniealice/espyna-golang => ../..
-
-replace github.com/erniealice/esqyma => ../../../esqyma
-
-replace github.com/erniealice/lyngua => ../../../lyngua

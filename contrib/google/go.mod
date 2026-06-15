@@ -7,8 +7,8 @@ require (
 	cloud.google.com/go/secretmanager v1.15.0
 	cloud.google.com/go/storage v1.57.0
 	firebase.google.com/go/v4 v4.18.0
-	github.com/erniealice/espyna-golang v0.0.0
-	github.com/erniealice/esqyma v0.0.0
+	github.com/erniealice/espyna-golang v0.1.0-alpha
+	github.com/erniealice/esqyma v0.1.0-alpha
 	github.com/google/uuid v1.6.0
 	golang.org/x/oauth2 v0.31.0
 	google.golang.org/api v0.251.0
@@ -64,11 +64,3 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 )
-
-replace github.com/erniealice/espyna-golang => ../..
-
-replace github.com/erniealice/esqyma => ../../../esqyma
-
-replace github.com/erniealice/entydad-golang => ../../../entydad-golang
-
-replace github.com/erniealice/lyngua => ../../../lyngua

@@ -3,8 +3,8 @@ module github.com/erniealice/espyna-golang/contrib/microsoft
 go 1.25.1
 
 require (
-	github.com/erniealice/espyna-golang v0.0.0
-	github.com/erniealice/esqyma v0.0.0
+	github.com/erniealice/espyna-golang v0.1.0-alpha
+	github.com/erniealice/esqyma v0.1.0-alpha
 )
 
 require (
@@ -15,7 +15,3 @@ require (
 	google.golang.org/grpc v1.75.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/erniealice/espyna-golang => ../..
-
-replace github.com/erniealice/esqyma => ../../../esqyma

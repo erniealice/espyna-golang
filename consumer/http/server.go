@@ -26,13 +26,13 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/consumer"
+	consumerapp "github.com/erniealice/espyna-golang/consumer/app"
+	compose "github.com/erniealice/espyna-golang/consumer/compose"
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	"github.com/erniealice/espyna-golang/internal/application/usecases"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/composition/core"
 	"github.com/erniealice/espyna-golang/reference"
-	"github.com/erniealice/pyeza-golang"
-	"github.com/erniealice/pyeza-golang/compose"
 
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -45,20 +45,20 @@ import (
 type MiddlewareFunc func(http.Handler) http.Handler
 
 // BlockFunc configures a domain module using the shared server context.
-// This is the espyna-side equivalent of pyeza.AppOption -- consumer apps
-// bridge from pyeza.AppOption to BlockFunc in their composition layer.
+// This is the espyna-side equivalent of consumerapp.AppOption -- consumer apps
+// bridge from consumerapp.AppOption to BlockFunc in their composition layer.
 //
 // DEAD (A.1 — slated for Wave B/C deletion): the fluent WithBlocks now takes
-// pyeza.AppOption directly. Retained ONLY so the legacy Build(routes) path and
+// consumerapp.AppOption directly. Retained ONLY so the legacy Build(routes) path and
 // any not-yet-migrated caller keep compiling; not used by the fluent chain.
 type BlockFunc func(ctx *BlockContext) error
 
 // BlockContext provides shared infrastructure to domain blocks during
-// composition. It mirrors the fields of pyeza.AppContext but lives in
+// composition. It mirrors the fields of consumerapp.AppContext but lives in
 // espyna so the framework can populate it without importing pyeza.
 //
 // DEAD (A.1 — slated for Wave B/C deletion). espyna consumer/ already imports
-// pyeza (nav_resolver etc.), so the fluent path uses *pyeza.AppContext directly;
+// pyeza (nav_resolver etc.), so the fluent path uses *consumerapp.AppContext directly;
 // this hand-rolled mirror is retained only for the legacy Build(routes) path.
 type BlockContext struct {
 	// Container is the espyna DI container (typed, not opaque).
@@ -99,7 +99,7 @@ type BlockContext struct {
 // blocks actually call.
 //
 // DEAD (A.1 — slated for Wave B/C deletion): routes are no longer app-owned in
-// the fluent path; blocks register into the pyeza.AppContext.Routes the Server
+// the fluent path; blocks register into the consumerapp.AppContext.Routes the Server
 // provides. Retained only for the legacy Build(routes) / BlockContext path.
 type RouteRegistrar interface {
 	GET(path string, handler http.Handler, middlewares ...string)
@@ -147,14 +147,14 @@ type Server struct {
 	appConfigSet bool
 	presetSet    bool
 	preset       consumermw.Preset
-	appBlocks    []pyeza.AppOption
+	appBlocks    []consumerapp.AppOption
 
 	// Wave B D1: the COMPLETE app-supplied UI/labels bundle (renderer, labels,
 	// sidebars, translations, route-rewriter, auth labels). Populated by
 	// WithUI; stamped into appCtx.UI by Build() and read + fail-loud-asserted
 	// by finalizeHTTPAdapter. NOT used by the legacy Handler() path (the app
 	// still owns its own renderer/labels until D2).
-	appUI *pyeza.AppUIBundle
+	appUI *consumerapp.AppUIBundle
 
 	// Wave B D2c: the app injection hook(s). Registered by WithAppContext;
 	// invoked by Build() AFTER espyna stamps the auth-chain slots it OWNS
@@ -162,9 +162,9 @@ type Server struct {
 	// loop. The app uses it to stamp its ~22 cross-cutting closures (SqlDB,
 	// UploadFile, SendEmail, GetDashboardData, doc-template CRUD, etc.) — the
 	// build-tag-selected adapters espyna does NOT know about — onto the same
-	// *pyeza.AppContext the domain EngineBlocks read. NOT invoked by the legacy
+	// *consumerapp.AppContext the domain EngineBlocks read. NOT invoked by the legacy
 	// Handler() path (these run only inside Build()).
-	appContextHooks []func(*pyeza.AppContext)
+	appContextHooks []func(*consumerapp.AppContext)
 
 	// Wave B D1: memoized security resolution (HMAC secret + cookie-secure
 	// policy + CSRF issuer + the non-mock-empty-secret boot fatal). Resolved
@@ -359,11 +359,11 @@ func (s *Server) WithMiddleware(preset consumermw.Preset) *Server {
 	return s
 }
 
-// WithBlocks records the domain blocks as pyeza.AppOption values (A.1 #5).
+// WithBlocks records the domain blocks as consumerapp.AppOption values (A.1 #5).
 // espyna consumer/ already imports pyeza, so blocks register directly into the
-// pyeza.AppContext.Routes the Server provides — no BlockFunc/BlockContext mirror.
+// consumerapp.AppContext.Routes the Server provides — no BlockFunc/BlockContext mirror.
 // Fluent: returns the Server for chaining.
-func (s *Server) WithBlocks(opts ...pyeza.AppOption) *Server {
+func (s *Server) WithBlocks(opts ...consumerapp.AppOption) *Server {
 	s.appBlocks = append(s.appBlocks, opts...)
 	return s
 }
@@ -376,14 +376,14 @@ func (s *Server) WithBlocks(opts ...pyeza.AppOption) *Server {
 // returns the Server for chaining. The renderer / sidebars / labels never enter
 // espyna — they import app + domain template FSes and app-specific sidebar code
 // (codex C4 boundary).
-func (s *Server) WithUI(ui *pyeza.AppUIBundle) *Server {
+func (s *Server) WithUI(ui *consumerapp.AppUIBundle) *Server {
 	s.appUI = ui
 	return s
 }
 
 // WithAppContext registers an app injection hook (Wave B D2c). Fluent: returns
 // the Server for chaining. The hook is invoked by Build() AFTER espyna stamps
-// the auth-chain slots it OWNS onto the *pyeza.AppContext (SessionManager,
+// the auth-chain slots it OWNS onto the *consumerapp.AppContext (SessionManager,
 // AuthAdapter, and the espyna-derivable SecureWorkspaceSwitch* siblings) and
 // BEFORE the domain-block opt loop runs — so the app can stamp its ~22
 // cross-cutting closures (SqlDB / UploadFile / SendEmail / GetDashboardData /
@@ -392,7 +392,7 @@ func (s *Server) WithUI(ui *pyeza.AppUIBundle) *Server {
 // EngineBlocks read. espyna does NOT know providers; the hook is the seam where
 // the app injects them. Multiple hooks are invoked in registration order. nil
 // hooks are skipped. NOT invoked by the legacy Handler() path.
-func (s *Server) WithAppContext(fn func(*pyeza.AppContext)) *Server {
+func (s *Server) WithAppContext(fn func(*consumerapp.AppContext)) *Server {
 	if fn != nil {
 		s.appContextHooks = append(s.appContextHooks, fn)
 	}
@@ -400,8 +400,8 @@ func (s *Server) WithAppContext(fn func(*pyeza.AppContext)) *Server {
 }
 
 // Build boots the chain and produces the *Container (A.1 #6). It:
-//  1. builds a *pyeza.AppContext from the Server's already-booted infra,
-//  2. applies each pyeza.AppOption (domain block) to it,
+//  1. builds a *consumerapp.AppContext from the Server's already-booted infra,
+//  2. applies each consumerapp.AppOption (domain block) to it,
 //  3. finalizes the opaque Preset's per-slot config from espyna's use cases,
 //  4. assembles the fixed-order middleware chain via the existing BuildChain seam.
 //
@@ -433,7 +433,7 @@ func (s *Server) Build() (*Container, error) {
 	//    adapter does. Translations comes from appCtx.UI.Translations (the
 	//    Server has NO s.translations field).
 	routes := newRouteRegistry()
-	appCtx := &pyeza.AppContext{
+	appCtx := &consumerapp.AppContext{
 		Routes:        routes,
 		BusinessType:  s.config.BusinessType,
 		Container:     s.container,
@@ -490,7 +490,7 @@ func (s *Server) Build() (*Container, error) {
 		}
 	}
 
-	// 4. Apply domain blocks (pyeza.AppOption). Each block registers routes into
+	// 4. Apply domain blocks (consumerapp.AppOption). Each block registers routes into
 	//    appCtx.Routes, merges Nav into appCtx.ComposeResult, and (entydad, D2)
 	//    sets appCtx.WorkspaceLoader / AuthDeps / SecureWorkspaceSwitch*.
 	for _, opt := range s.appBlocks {

@@ -6,7 +6,7 @@ package http
 // This is the relocation of the FRAMEWORK-GENERIC half of the app's old
 // composition build() (apps/service-admin/internal/composition/container.go
 // build():308-486). It reconstructs the EXACT 15-arg NewHTTPAdapter call from
-// the now-populated *pyeza.AppContext: the renderer / sidebars / labels /
+// the now-populated *consumerapp.AppContext: the renderer / sidebars / labels /
 // translations / route-rewriter come from the APP-SUPPLIED *pyeza.AppUIBundle
 // (codex C4 + round-2 — stamped by Build() from WithUI), and the rest
 // (cacheVersion / theme / font / businessType / perm+user+nav loaders) are
@@ -26,8 +26,9 @@ import (
 	"net/http"
 	"strings"
 
+	consumerapp "github.com/erniealice/espyna-golang/consumer/app"
+	compose "github.com/erniealice/espyna-golang/consumer/compose"
 	"github.com/erniealice/pyeza-golang"
-	"github.com/erniealice/pyeza-golang/compose"
 	pyezatypes "github.com/erniealice/pyeza-golang/types"
 
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
@@ -39,7 +40,7 @@ import (
 // (the framework-generic relocation of the app's build()), registers the routes
 // the blocks collected into the registry, wires the catch-all, and assembles the
 // fixed-order middleware chain. It returns the composed http.Handler.
-func (s *Server) finalizeHTTPAdapter(appCtx *pyeza.AppContext, routes *routeRegistry) (http.Handler, error) {
+func (s *Server) finalizeHTTPAdapter(appCtx *consumerapp.AppContext, routes *routeRegistry) (http.Handler, error) {
 	ui := s.appUI // already nil-guarded in Build()
 
 	// ── ComposeResult / NavResolver (Server-built, generic) ──────────────
@@ -61,21 +62,21 @@ func (s *Server) finalizeHTTPAdapter(appCtx *pyeza.AppContext, routes *routeRegi
 
 	// ── HTTP adapter — the EXACT 15-arg NewHTTPAdapter call ──────────────
 	httpAdapter := NewHTTPAdapter(
-		mustRenderer(ui.Renderer),       // 1  renderer        (APP-SUPPLIED)
-		s.config.CacheVersion,           // 2  cacheVersion    (Server)
-		mustCommonLabels(ui.CommonLabels), // 3 commonLabels   (APP-SUPPLIED)
-		mustMessages(ui.Messages),       // 4  messages        (APP-SUPPLIED)
-		mustRenderIcon(ui.RenderIcon),   // 5  renderIcon      (APP-SUPPLIED)
-		mustSidebar(ui.SidebarBuilder),  // 6  sidebarBuilder  (APP-SUPPLIED)
+		mustRenderer(ui.Renderer),             // 1  renderer        (APP-SUPPLIED)
+		s.config.CacheVersion,                 // 2  cacheVersion    (Server)
+		mustCommonLabels(ui.CommonLabels),     // 3 commonLabels   (APP-SUPPLIED)
+		mustMessages(ui.Messages),             // 4  messages        (APP-SUPPLIED)
+		mustRenderIcon(ui.RenderIcon),         // 5  renderIcon      (APP-SUPPLIED)
+		mustSidebar(ui.SidebarBuilder),        // 6  sidebarBuilder  (APP-SUPPLIED)
 		mustPortalSidebars(ui.PortalSidebars), // 7 portalSidebars (APP-SUPPLIED)
-		mustBottomNav(ui.BottomNavBuilder), // 8 bottomNavBuilder (APP-SUPPLIED)
-		permLoader,                      // 9  permLoader      (Server)
-		workspaceLoader,                 // 10 workspaceLoader (block slot)
-		userLoader,                      // 11 userLoader      (Server)
-		s.config.Theme,                  // 12 theme           (Server)
-		s.config.Font,                   // 13 font            (Server)
-		s.config.BusinessType,           // 14 businessType    (Server)
-		mustTranslations(ui.Translations), // 15 translations  (APP-SUPPLIED)
+		mustBottomNav(ui.BottomNavBuilder),    // 8 bottomNavBuilder (APP-SUPPLIED)
+		permLoader,                            // 9  permLoader      (Server)
+		workspaceLoader,                       // 10 workspaceLoader (block slot)
+		userLoader,                            // 11 userLoader      (Server)
+		s.config.Theme,                        // 12 theme           (Server)
+		s.config.Font,                         // 13 font            (Server)
+		s.config.BusinessType,                 // 14 businessType    (Server)
+		mustTranslations(ui.Translations),     // 15 translations  (APP-SUPPLIED)
 	)
 
 	// ── Messages-URL: PRESERVE the {status}->open substitution ───────────
@@ -153,7 +154,7 @@ func (s *Server) buildPermissionLoader() PermissionLoader {
 // AppContext slot. The proto-backed impl imports workspacepb (illegal in
 // espyna), so the block (entydad, D2) sets it; here we type-assert it. Returns
 // nil (sidebar workspace switcher disabled) when unset.
-func (s *Server) assertWorkspaceLoader(appCtx *pyeza.AppContext) WorkspaceLoader {
+func (s *Server) assertWorkspaceLoader(appCtx *consumerapp.AppContext) WorkspaceLoader {
 	if appCtx.WorkspaceLoader == nil {
 		log.Printf("  WorkspaceLoader: disabled (no block provided one)")
 		return nil

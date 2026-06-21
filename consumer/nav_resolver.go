@@ -13,7 +13,7 @@ package consumer
 import (
 	"strings"
 
-	"github.com/erniealice/pyeza-golang/compose"
+	compose "github.com/erniealice/espyna-golang/consumer/compose"
 	"github.com/erniealice/pyeza-golang/types"
 )
 

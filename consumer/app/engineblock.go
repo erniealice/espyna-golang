@@ -1,16 +1,18 @@
-// Package compose provides the shared engine-block assembly helpers every
-// domain block package (entydad, centymo, fycha, fayna, cyta) calls from its
-// exported EngineBlock(opts...) pyeza.AppOption.
+package app
+
+// engineblock.go — the shared engine-block assembly helpers every domain block
+// package (entydad, centymo, fycha, fayna, cyta) calls from its exported
+// EngineBlock(opts...) AppOption.
 //
-// These helpers were app-side (service-admin/internal/composition/
-// adapters_shared.go: requireUseCases / assembleEngineBlock) until Wave B D2a.
-// They are pure compose-engine glue — they assert ctx.UseCases /
-// ctx.Translations, build a compose.Engine, Assemble, log, and MergeFrom into
-// ctx.ComposeResult — so they take no app/domain-view import and can live in
-// ONE shared location all five block packages import (espyna imports
-// pyeza/compose + lyngua + its own consumer; no cycle since espyna/consumer
-// imports none of the domain block packages).
-package compose
+// MOVED from consumer/compose (Phase A): these helpers reference AppContext, so
+// they belong in the composition CONTRACT package (consumer/app), not the pure
+// engine (consumer/compose). The engine stays AppContext-free. The helpers take
+// no app/domain-view import — they assert ctx.UseCases / ctx.Translations, build
+// a compose.Engine, Assemble, log, and MergeFrom into ctx.ComposeResult — so
+// they can live in ONE shared location all five block packages import
+// (consumer/app imports consumer + consumer/compose + lyngua; no cycle, because
+// consumer never imports any domain block package and the engine never imports
+// consumer/app).
 
 import (
 	"fmt"
@@ -18,14 +20,13 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/consumer"
+	compose "github.com/erniealice/espyna-golang/consumer/compose"
 	lynguaV1 "github.com/erniealice/lyngua/golang/v1"
-	"github.com/erniealice/pyeza-golang"
-	"github.com/erniealice/pyeza-golang/compose"
 )
 
 // RequireUseCases asserts ctx.UseCases to *consumer.UseCases and returns a
 // descriptive error on failure. Every engine block calls this first.
-func RequireUseCases(ctx *pyeza.AppContext, block string) (*consumer.UseCases, error) {
+func RequireUseCases(ctx *AppContext, block string) (*consumer.UseCases, error) {
 	uc, ok := ctx.UseCases.(*consumer.UseCases)
 	if !ok || uc == nil {
 		return nil, fmt.Errorf("%s: ctx.UseCases must be *consumer.UseCases", block)
@@ -51,7 +52,7 @@ func RequireUseCases(ctx *pyeza.AppContext, block string) (*consumer.UseCases, e
 // because the entydad EngineBlock registers auth DIRECTLY and INDEPENDENTLY of
 // AllUnits → AssembleEngineBlock (the auth path is decoupled from the entity
 // overlay; preserve that decoupling — do not conflate).
-func AssembleEngineBlock(name string, units []compose.Unit, ctx *pyeza.AppContext) error {
+func AssembleEngineBlock(name string, units []compose.Unit, ctx *AppContext) error {
 	translations, ok := ctx.Translations.(*lynguaV1.TranslationProvider)
 	if !ok || translations == nil {
 		return fmt.Errorf("%s: ctx.Translations must be *lynguaV1.TranslationProvider", name)

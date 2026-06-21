@@ -17,6 +17,7 @@ import (
 	"html/template"
 	"net/http"
 
+	consumerapp "github.com/erniealice/espyna-golang/consumer/app"
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	"github.com/erniealice/pyeza-golang"
 	pyezatypes "github.com/erniealice/pyeza-golang/types"
@@ -25,7 +26,7 @@ import (
 // fluentReferenceChain is the compile-only proof. A no-op block keeps the
 // WithBlocks(...pyeza.AppOption) arm exercised.
 func fluentReferenceChain() *Container {
-	noopBlock := func(*pyeza.AppContext) error { return nil }
+	noopBlock := func(*consumerapp.AppContext) error { return nil }
 	srv, err := NewServer()
 	if err != nil {
 		return nil
@@ -53,7 +54,7 @@ func fluentReferenceChain() *Container {
 //	    WithBlocks(...).MustBuild()
 //
 // type-checks against the real method signatures, INCLUDING the new WithUI(...)
-// option that seeds the COMPLETE app-supplied *pyeza.AppUIBundle. The bundle's
+// option that seeds the COMPLETE app-supplied *consumerapp.AppUIBundle. The bundle's
 // fields are populated with values whose concrete types match what the must*
 // asserts in finalize.go expect (renderer / common+table labels / messages /
 // renderIcon / sidebar / bottom-nav / portal map / translations / route
@@ -61,7 +62,7 @@ func fluentReferenceChain() *Container {
 // those concrete types. The body is NEVER executed (MustNewServer boots
 // infra/DB); referencing it from a package-level var is enough.
 func fluentReferenceChainWithUI() *Container {
-	noopBlock := func(*pyeza.AppContext) error { return nil }
+	noopBlock := func(*consumerapp.AppContext) error { return nil }
 	ui := buildReferenceUIBundle()
 	return MustNewServer().
 		WithApp(AppConfig{
@@ -80,25 +81,27 @@ func fluentReferenceChainWithUI() *Container {
 		MustBuild()
 }
 
-// buildReferenceUIBundle constructs an *pyeza.AppUIBundle whose any-typed fields
+// buildReferenceUIBundle constructs an *consumerapp.AppUIBundle whose any-typed fields
 // carry the concrete types the finalize.go must* asserts expect. Compile-only —
 // the values are zero/empty placeholders (the renderer field is left as a typed
 // nil *pyeza.HTMLRenderer only to gate the type, never dereferenced here).
-func buildReferenceUIBundle() *pyeza.AppUIBundle {
+func buildReferenceUIBundle() *consumerapp.AppUIBundle {
 	var renderer *pyeza.HTMLRenderer // typed; never dereferenced in this compile-only proof
-	return &pyeza.AppUIBundle{
-		Renderer:         renderer,
-		RenderIcon:       func(string) template.HTML { return "" },
-		CommonLabels:     pyeza.CommonLabels{},
-		TableLabels:      pyezatypes.TableLabels{},
-		Messages:         map[string]string{},
-		Translations:     struct{}{}, // any non-nil value satisfies the non-nil translations guard
-		SidebarBuilder:   func(activeNav, activeSubNav string) any { return nil },
-		BottomNavBuilder: func(activeNav string) ([]pyezatypes.BottomNavTab, []pyezatypes.AppGridItem, []pyezatypes.AppGridGroup) { return nil, nil, nil },
-		PortalSidebars:   map[PrincipalType]SidebarBuilder(nil),
-		ExtLabels:        struct{}{},
-		RouteRewriter:    func(ctx context.Context) context.Context { return ctx },
-		AuthLabels:       struct{}{},
+	return &consumerapp.AppUIBundle{
+		Renderer:       renderer,
+		RenderIcon:     func(string) template.HTML { return "" },
+		CommonLabels:   pyeza.CommonLabels{},
+		TableLabels:    pyezatypes.TableLabels{},
+		Messages:       map[string]string{},
+		Translations:   struct{}{}, // any non-nil value satisfies the non-nil translations guard
+		SidebarBuilder: func(activeNav, activeSubNav string) any { return nil },
+		BottomNavBuilder: func(activeNav string) ([]pyezatypes.BottomNavTab, []pyezatypes.AppGridItem, []pyezatypes.AppGridGroup) {
+			return nil, nil, nil
+		},
+		PortalSidebars: map[PrincipalType]SidebarBuilder(nil),
+		ExtLabels:      struct{}{},
+		RouteRewriter:  func(ctx context.Context) context.Context { return ctx },
+		AuthLabels:     struct{}{},
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	evaluationTemplateItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_template_item"
 	jobUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job"
 	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_activity"
+	jobOutcomeLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_line"
 	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary"
 	jobPhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_phase"
 	jobTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_task"
@@ -21,6 +22,12 @@ import (
 	jobTemplateTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_task"
 	outcomeCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/outcome_criteria"
 	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/phase_outcome_summary"
+	reportingCheckpointUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/reporting_checkpoint"
+	scoreScaleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/score_scale"
+	scoreScaleBandUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/score_scale_band"
+	scoringComponentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/scoring_component"
+	scoringComponentCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/scoring_component_criteria"
+	scoringSchemeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/scoring_scheme"
 	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome"
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome_check"
 	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/template_task_criteria"
@@ -42,6 +49,7 @@ import (
 	evaluationtemplateitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template_item"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
+	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
@@ -51,6 +59,12 @@ import (
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
+	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
+	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
+	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
+	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
+	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
+	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
@@ -99,6 +113,15 @@ type OperationRepositories struct {
 	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
 	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
 
+	// Education grading (20260616 v1). Single-repo CRUD entities.
+	ScoringScheme            scoringschemepb.ScoringSchemeDomainServiceServer
+	ScoringComponent         scoringcomponentpb.ScoringComponentDomainServiceServer
+	ScoringComponentCriteria scoringcomponentcriteriapb.ScoringComponentCriteriaDomainServiceServer
+	ScoreScale               scorescalepb.ScoreScaleDomainServiceServer
+	ScoreScaleBand           scorescalebandpb.ScoreScaleBandDomainServiceServer
+	JobOutcomeLine           joboutcomelinepb.JobOutcomeLineDomainServiceServer
+	ReportingCheckpoint      reportingcheckpointpb.ReportingCheckpointDomainServiceServer
+
 	// Performance Evaluation (20260604 v1).
 	Evaluation             evaluationpb.EvaluationDomainServiceServer
 	EvaluationResponse     evaluationresponsepb.EvaluationResponseDomainServiceServer
@@ -144,6 +167,15 @@ type OperationUseCases struct {
 	TaskOutcomeCheck     *taskOutcomeCheckUseCases.UseCases
 	PhaseOutcomeSummary  *phaseOutcomeSummaryUseCases.UseCases
 	JobOutcomeSummary    *jobOutcomeSummaryUseCases.UseCases
+
+	// Education grading (20260616 v1). Single-repo CRUD entities.
+	ScoringScheme            *scoringSchemeUseCases.UseCases
+	ScoringComponent         *scoringComponentUseCases.UseCases
+	ScoringComponentCriteria *scoringComponentCriteriaUseCases.UseCases
+	ScoreScale               *scoreScaleUseCases.UseCases
+	ScoreScaleBand           *scoreScaleBandUseCases.UseCases
+	JobOutcomeLine           *jobOutcomeLineUseCases.UseCases
+	ReportingCheckpoint      *reportingCheckpointUseCases.UseCases
 
 	// Performance Evaluation (20260604 v1).
 	Evaluation             *evaluationUseCases.UseCases
@@ -351,6 +383,84 @@ func NewUseCases(
 		},
 	)
 
+	// Education grading (20260616 v1) — single-repo CRUD entities.
+	scoringSchemeUC := scoringSchemeUseCases.NewUseCases(
+		scoringSchemeUseCases.Repositories{ScoringScheme: repos.ScoringScheme},
+		scoringSchemeUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	scoringComponentUC := scoringComponentUseCases.NewUseCases(
+		scoringComponentUseCases.Repositories{ScoringComponent: repos.ScoringComponent},
+		scoringComponentUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	scoringComponentCriteriaUC := scoringComponentCriteriaUseCases.NewUseCases(
+		scoringComponentCriteriaUseCases.Repositories{ScoringComponentCriteria: repos.ScoringComponentCriteria},
+		scoringComponentCriteriaUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	scoreScaleUC := scoreScaleUseCases.NewUseCases(
+		scoreScaleUseCases.Repositories{ScoreScale: repos.ScoreScale},
+		scoreScaleUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	scoreScaleBandUC := scoreScaleBandUseCases.NewUseCases(
+		scoreScaleBandUseCases.Repositories{ScoreScaleBand: repos.ScoreScaleBand},
+		scoreScaleBandUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	jobOutcomeLineUC := jobOutcomeLineUseCases.NewUseCases(
+		jobOutcomeLineUseCases.Repositories{JobOutcomeLine: repos.JobOutcomeLine},
+		jobOutcomeLineUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	reportingCheckpointUC := reportingCheckpointUseCases.NewUseCases(
+		reportingCheckpointUseCases.Repositories{ReportingCheckpoint: repos.ReportingCheckpoint},
+		reportingCheckpointUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
 	// Performance Evaluation (20260604 v1).
 	evaluationUC := evaluationUseCases.NewUseCases(
 		evaluationUseCases.EvaluationRepositories{
@@ -454,6 +564,14 @@ func NewUseCases(
 		TaskOutcomeCheck:     taskOutcomeCheckUC,
 		PhaseOutcomeSummary:  phaseOutcomeSummaryUC,
 		JobOutcomeSummary:    jobOutcomeSummaryUC,
+
+		ScoringScheme:            scoringSchemeUC,
+		ScoringComponent:         scoringComponentUC,
+		ScoringComponentCriteria: scoringComponentCriteriaUC,
+		ScoreScale:               scoreScaleUC,
+		ScoreScaleBand:           scoreScaleBandUC,
+		JobOutcomeLine:           jobOutcomeLineUC,
+		ReportingCheckpoint:      reportingCheckpointUC,
 
 		Evaluation:             evaluationUC,
 		EvaluationResponse:     evaluationResponseUC,

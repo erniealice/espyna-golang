@@ -33,6 +33,14 @@ func InitializeOperation(
 		JobTemplateRelation: repos.JobTemplateRelation,
 		JobActivity:         repos.JobActivity,
 		OutcomeCriteria:     repos.OutcomeCriteria,
+		// Education grading (20260616 v1).
+		ScoringScheme:            repos.ScoringScheme,
+		ScoringComponent:         repos.ScoringComponent,
+		ScoringComponentCriteria: repos.ScoringComponentCriteria,
+		ScoreScale:               repos.ScoreScale,
+		ScoreScaleBand:           repos.ScoreScaleBand,
+		JobOutcomeLine:           repos.JobOutcomeLine,
+		ReportingCheckpoint:      repos.ReportingCheckpoint,
 		// Performance Evaluation (20260604 v1).
 		Evaluation:             repos.Evaluation,
 		EvaluationResponse:     repos.EvaluationResponse,

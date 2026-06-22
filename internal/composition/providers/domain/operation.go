@@ -18,6 +18,7 @@ import (
 	evaluationtemplateitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template_item"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
+	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
@@ -27,6 +28,12 @@ import (
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
+	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
+	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
+	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
+	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
+	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
+	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
@@ -56,6 +63,15 @@ type OperationRepositories struct {
 	TaskOutcomeCheck     taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
 	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
 	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
+
+	// Education grading (20260616 v1). Single-repo CRUD entities.
+	ScoringScheme            scoringschemepb.ScoringSchemeDomainServiceServer
+	ScoringComponent         scoringcomponentpb.ScoringComponentDomainServiceServer
+	ScoringComponentCriteria scoringcomponentcriteriapb.ScoringComponentCriteriaDomainServiceServer
+	ScoreScale               scorescalepb.ScoreScaleDomainServiceServer
+	ScoreScaleBand           scorescalebandpb.ScoreScaleBandDomainServiceServer
+	JobOutcomeLine           joboutcomelinepb.JobOutcomeLineDomainServiceServer
+	ReportingCheckpoint      reportingcheckpointpb.ReportingCheckpointDomainServiceServer
 
 	// Performance Evaluation (20260604 v1). Optional: when an adapter is not
 	// registered (e.g. mock-only tests) the field stays nil and the use cases
@@ -187,6 +203,42 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		return nil, fmt.Errorf("failed to create job_outcome_summary repository: %w", err)
 	}
 
+	// Education grading (20260616 v1) — single-repo CRUD entities.
+	scoringSchemeRepo, err := repoCreator.CreateRepository(entityid.ScoringScheme, conn, tableConfig.TableName(entityid.ScoringScheme))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create scoring_scheme repository: %w", err)
+	}
+
+	scoringComponentRepo, err := repoCreator.CreateRepository(entityid.ScoringComponent, conn, tableConfig.TableName(entityid.ScoringComponent))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create scoring_component repository: %w", err)
+	}
+
+	scoringComponentCriteriaRepo, err := repoCreator.CreateRepository(entityid.ScoringComponentCriteria, conn, tableConfig.TableName(entityid.ScoringComponentCriteria))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create scoring_component_criteria repository: %w", err)
+	}
+
+	scoreScaleRepo, err := repoCreator.CreateRepository(entityid.ScoreScale, conn, tableConfig.TableName(entityid.ScoreScale))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create score_scale repository: %w", err)
+	}
+
+	scoreScaleBandRepo, err := repoCreator.CreateRepository(entityid.ScoreScaleBand, conn, tableConfig.TableName(entityid.ScoreScaleBand))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create score_scale_band repository: %w", err)
+	}
+
+	jobOutcomeLineRepo, err := repoCreator.CreateRepository(entityid.JobOutcomeLine, conn, tableConfig.TableName(entityid.JobOutcomeLine))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create job_outcome_line repository: %w", err)
+	}
+
+	reportingCheckpointRepo, err := repoCreator.CreateRepository(entityid.ReportingCheckpoint, conn, tableConfig.TableName(entityid.ReportingCheckpoint))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reporting_checkpoint repository: %w", err)
+	}
+
 	// Performance Evaluation (20260604 v1) — best-effort: nil when no adapter is
 	// registered (mock/firestore builds), mirroring JobTemplateRelation.
 	var evaluationServer evaluationpb.EvaluationDomainServiceServer
@@ -264,6 +316,14 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		TaskOutcomeCheck:     taskOutcomeCheckRepo.(taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer),
 		PhaseOutcomeSummary:  phaseOutcomeSummaryRepo.(phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer),
 		JobOutcomeSummary:    jobOutcomeSummaryRepo.(joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer),
+
+		ScoringScheme:            scoringSchemeRepo.(scoringschemepb.ScoringSchemeDomainServiceServer),
+		ScoringComponent:         scoringComponentRepo.(scoringcomponentpb.ScoringComponentDomainServiceServer),
+		ScoringComponentCriteria: scoringComponentCriteriaRepo.(scoringcomponentcriteriapb.ScoringComponentCriteriaDomainServiceServer),
+		ScoreScale:               scoreScaleRepo.(scorescalepb.ScoreScaleDomainServiceServer),
+		ScoreScaleBand:           scoreScaleBandRepo.(scorescalebandpb.ScoreScaleBandDomainServiceServer),
+		JobOutcomeLine:           jobOutcomeLineRepo.(joboutcomelinepb.JobOutcomeLineDomainServiceServer),
+		ReportingCheckpoint:      reportingCheckpointRepo.(reportingcheckpointpb.ReportingCheckpointDomainServiceServer),
 
 		Evaluation:             evaluationServer,
 		EvaluationResponse:     evaluationResponseServer,

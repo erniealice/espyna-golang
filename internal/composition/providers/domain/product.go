@@ -13,6 +13,9 @@ import (
 
 	// Protobuf domain services - Product domain
 	linepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line"
+	lineworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line_workspace_user"
+	plangrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/plan_group"
+	plangroupplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/plan_group_plan"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
@@ -21,6 +24,7 @@ import (
 	productoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option"
 	productoptionvaluepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option_value"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
 	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
 	productvariantoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_option"
@@ -42,6 +46,10 @@ type ProductRepositories struct {
 	ProductVariantImage  productvariantimagepb.ProductVariantImageDomainServiceServer
 	ProductVariantOption productvariantoptionpb.ProductVariantOptionDomainServiceServer
 	Resource             resourcepb.ResourceDomainServiceServer
+	PlanGroup            plangrouppb.PlanGroupDomainServiceServer
+	PlanGroupPlan        plangroupplanpb.PlanGroupPlanDomainServiceServer
+	ProductPlanStaff     productplanstaffpb.ProductPlanStaffDomainServiceServer
+	LineWorkspaceUser    lineworkspaceuserpb.LineWorkspaceUserDomainServiceServer
 	// Cross-domain dependency from Common domain (optional — nil if adapter not available)
 	Attribute attributepb.AttributeDomainServiceServer
 }
@@ -125,6 +133,26 @@ func NewProductRepositories(dbProvider contracts.Provider, tableConfig *registry
 		return nil, fmt.Errorf("failed to create resource repository: %w", err)
 	}
 
+	planGroupRepo, err := repoCreator.CreateRepository(entityid.PlanGroup, conn, tableConfig.TableName(entityid.PlanGroup))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plan_group repository: %w", err)
+	}
+
+	planGroupPlanRepo, err := repoCreator.CreateRepository(entityid.PlanGroupPlan, conn, tableConfig.TableName(entityid.PlanGroupPlan))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plan_group_plan repository: %w", err)
+	}
+
+	productPlanStaffRepo, err := repoCreator.CreateRepository(entityid.ProductPlanStaff, conn, tableConfig.TableName(entityid.ProductPlanStaff))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product_plan_staff repository: %w", err)
+	}
+
+	lineWorkspaceUserRepo, err := repoCreator.CreateRepository(entityid.LineWorkspaceUser, conn, tableConfig.TableName(entityid.LineWorkspaceUser))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create line_workspace_user repository: %w", err)
+	}
+
 	// Cross-domain repository - Attribute from Common domain (optional)
 	var attributeServer attributepb.AttributeDomainServiceServer
 	attributeRepo, err := repoCreator.CreateRepository(entityid.Attribute, conn, tableConfig.TableName(entityid.Attribute))
@@ -149,6 +177,10 @@ func NewProductRepositories(dbProvider contracts.Provider, tableConfig *registry
 		ProductVariantImage:  productVariantImageRepo.(productvariantimagepb.ProductVariantImageDomainServiceServer),
 		ProductVariantOption: productVariantOptionRepo.(productvariantoptionpb.ProductVariantOptionDomainServiceServer),
 		Resource:             resourceRepo.(resourcepb.ResourceDomainServiceServer),
+		PlanGroup:            planGroupRepo.(plangrouppb.PlanGroupDomainServiceServer),
+		PlanGroupPlan:        planGroupPlanRepo.(plangroupplanpb.PlanGroupPlanDomainServiceServer),
+		ProductPlanStaff:     productPlanStaffRepo.(productplanstaffpb.ProductPlanStaffDomainServiceServer),
+		LineWorkspaceUser:    lineWorkspaceUserRepo.(lineworkspaceuserpb.LineWorkspaceUserDomainServiceServer),
 		Attribute:            attributeServer,
 	}, nil
 }

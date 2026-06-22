@@ -3,6 +3,9 @@ package product
 import (
 	// Product use cases
 	lineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/line"
+	lineWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/line_workspace_user"
+	planGroupUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/plan_group"
+	planGroupPlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/plan_group_plan"
 	priceListUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/price_list"
 	priceProductUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/price_product"
 	productUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product"
@@ -11,6 +14,7 @@ import (
 	productOptionUC "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product_option"
 	productOptionValueUC "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product_option_value"
 	productPlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product_plan"
+	productPlanStaffUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product_plan_staff"
 	productVariantUC "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product_variant"
 	productVariantImageUC "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product_variant_image"
 	productVariantOptionUC "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product/product_variant_option"
@@ -22,6 +26,9 @@ import (
 
 	// Protobuf domain services for product repositories
 	linepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line"
+	lineworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line_workspace_user"
+	plangrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/plan_group"
+	plangroupplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/plan_group_plan"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
@@ -30,6 +37,7 @@ import (
 	productoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option"
 	productoptionvaluepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option_value"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
 	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
 	productvariantoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_option"
@@ -54,6 +62,10 @@ type ProductRepositories struct {
 	ProductVariantImage  productvariantimagepb.ProductVariantImageDomainServiceServer
 	ProductVariantOption productvariantoptionpb.ProductVariantOptionDomainServiceServer
 	Resource             resourcepb.ResourceDomainServiceServer
+	PlanGroup            plangrouppb.PlanGroupDomainServiceServer
+	PlanGroupPlan        plangroupplanpb.PlanGroupPlanDomainServiceServer
+	ProductPlanStaff     productplanstaffpb.ProductPlanStaffDomainServiceServer
+	LineWorkspaceUser    lineworkspaceuserpb.LineWorkspaceUserDomainServiceServer
 	// Cross-domain dependency
 	Attribute attributepb.AttributeDomainServiceServer
 }
@@ -73,6 +85,10 @@ type ProductUseCases struct {
 	ProductVariantImage  *productVariantImageUC.UseCases
 	ProductVariantOption *productVariantOptionUC.UseCases
 	Resource             *resourceUseCases.UseCases
+	PlanGroup            *planGroupUseCases.UseCases
+	PlanGroupPlan        *planGroupPlanUseCases.UseCases
+	ProductPlanStaff     *productPlanStaffUseCases.UseCases
+	LineWorkspaceUser    *lineWorkspaceUserUseCases.UseCases
 
 	// Dashboard field retired 2026-05-21 (Wave C P1.C.11 Product) — the
 	// dashboard now lives under `service.Dashboard.Product` per Q-SDM-
@@ -268,6 +284,58 @@ func NewUseCases(
 		},
 	)
 
+	planGroupUC := planGroupUseCases.NewUseCases(
+		planGroupUseCases.Repositories{
+			PlanGroup: repos.PlanGroup,
+		},
+		planGroupUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	planGroupPlanUC := planGroupPlanUseCases.NewUseCases(
+		planGroupPlanUseCases.Repositories{
+			PlanGroupPlan: repos.PlanGroupPlan,
+		},
+		planGroupPlanUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	productPlanStaffUC := productPlanStaffUseCases.NewUseCases(
+		productPlanStaffUseCases.Repositories{
+			ProductPlanStaff: repos.ProductPlanStaff,
+		},
+		productPlanStaffUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	lineWorkspaceUserUC := lineWorkspaceUserUseCases.NewUseCases(
+		lineWorkspaceUserUseCases.Repositories{
+			LineWorkspaceUser: repos.LineWorkspaceUser,
+		},
+		lineWorkspaceUserUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
 	// Product dashboard wiring retired 2026-05-21 (Wave C P1.C.11) — the
 	// type-assertion + factory wiring now lives in the service-layer
 	// initializer at `internal/composition/core/initializers/service.go`
@@ -287,5 +355,9 @@ func NewUseCases(
 		ProductVariantImage:  productVariantImageUseCases,
 		ProductVariantOption: productVariantOptionUseCases,
 		Resource:             resourceUC,
+		PlanGroup:            planGroupUC,
+		PlanGroupPlan:        planGroupPlanUC,
+		ProductPlanStaff:     productPlanStaffUC,
+		LineWorkspaceUser:    lineWorkspaceUserUC,
 	}
 }

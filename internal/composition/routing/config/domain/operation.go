@@ -9,8 +9,15 @@ import (
 	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
 	evaluationtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
+	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
+	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
+	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
+	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
+	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 )
 
 // ConfigureOperationDomain configures routes for the Operation domain.
@@ -266,6 +273,379 @@ func ConfigureOperationDomain(operationUseCases *operationuc.OperationUseCases) 
 
 	// WorkRequest routes (20260604-requests-workflow v1) — wired when use cases land.
 	// WorkRequestType routes (20260604-requests-workflow v1) — wired when use cases land.
+
+	// Education grading (20260616 v1) — single-repo CRUD entities.
+
+	// ScoringScheme routes.
+	if operationUseCases.ScoringScheme != nil {
+		if operationUseCases.ScoringScheme.CreateScoringScheme != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-scheme/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringScheme.CreateScoringScheme, &scoringschemepb.CreateScoringSchemeRequest{}),
+			})
+		}
+		if operationUseCases.ScoringScheme.ReadScoringScheme != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-scheme/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringScheme.ReadScoringScheme, &scoringschemepb.ReadScoringSchemeRequest{}),
+			})
+		}
+		if operationUseCases.ScoringScheme.UpdateScoringScheme != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-scheme/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringScheme.UpdateScoringScheme, &scoringschemepb.UpdateScoringSchemeRequest{}),
+			})
+		}
+		if operationUseCases.ScoringScheme.DeleteScoringScheme != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-scheme/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringScheme.DeleteScoringScheme, &scoringschemepb.DeleteScoringSchemeRequest{}),
+			})
+		}
+		if operationUseCases.ScoringScheme.ListScoringSchemes != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-scheme/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringScheme.ListScoringSchemes, &scoringschemepb.ListScoringSchemesRequest{}),
+			})
+		}
+		if operationUseCases.ScoringScheme.GetScoringSchemeListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-scheme/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringScheme.GetScoringSchemeListPageData, &scoringschemepb.GetScoringSchemeListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.ScoringScheme.GetScoringSchemeItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-scheme/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringScheme.GetScoringSchemeItemPageData, &scoringschemepb.GetScoringSchemeItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// ScoringComponent routes.
+	if operationUseCases.ScoringComponent != nil {
+		if operationUseCases.ScoringComponent.CreateScoringComponent != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponent.CreateScoringComponent, &scoringcomponentpb.CreateScoringComponentRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponent.ReadScoringComponent != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponent.ReadScoringComponent, &scoringcomponentpb.ReadScoringComponentRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponent.UpdateScoringComponent != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponent.UpdateScoringComponent, &scoringcomponentpb.UpdateScoringComponentRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponent.DeleteScoringComponent != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponent.DeleteScoringComponent, &scoringcomponentpb.DeleteScoringComponentRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponent.ListScoringComponents != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponent.ListScoringComponents, &scoringcomponentpb.ListScoringComponentsRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponent.GetScoringComponentListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponent.GetScoringComponentListPageData, &scoringcomponentpb.GetScoringComponentListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponent.GetScoringComponentItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponent.GetScoringComponentItemPageData, &scoringcomponentpb.GetScoringComponentItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// ScoringComponentCriteria routes.
+	if operationUseCases.ScoringComponentCriteria != nil {
+		if operationUseCases.ScoringComponentCriteria.CreateScoringComponentCriteria != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component-criteria/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponentCriteria.CreateScoringComponentCriteria, &scoringcomponentcriteriapb.CreateScoringComponentCriteriaRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponentCriteria.ReadScoringComponentCriteria != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component-criteria/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponentCriteria.ReadScoringComponentCriteria, &scoringcomponentcriteriapb.ReadScoringComponentCriteriaRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponentCriteria.UpdateScoringComponentCriteria != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component-criteria/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponentCriteria.UpdateScoringComponentCriteria, &scoringcomponentcriteriapb.UpdateScoringComponentCriteriaRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponentCriteria.DeleteScoringComponentCriteria != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component-criteria/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponentCriteria.DeleteScoringComponentCriteria, &scoringcomponentcriteriapb.DeleteScoringComponentCriteriaRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponentCriteria.ListScoringComponentCriterias != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component-criteria/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponentCriteria.ListScoringComponentCriterias, &scoringcomponentcriteriapb.ListScoringComponentCriteriasRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponentCriteria.GetScoringComponentCriteriaListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component-criteria/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponentCriteria.GetScoringComponentCriteriaListPageData, &scoringcomponentcriteriapb.GetScoringComponentCriteriaListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.ScoringComponentCriteria.GetScoringComponentCriteriaItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/scoring-component-criteria/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoringComponentCriteria.GetScoringComponentCriteriaItemPageData, &scoringcomponentcriteriapb.GetScoringComponentCriteriaItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// ScoreScale routes.
+	if operationUseCases.ScoreScale != nil {
+		if operationUseCases.ScoreScale.CreateScoreScale != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScale.CreateScoreScale, &scorescalepb.CreateScoreScaleRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScale.ReadScoreScale != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScale.ReadScoreScale, &scorescalepb.ReadScoreScaleRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScale.UpdateScoreScale != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScale.UpdateScoreScale, &scorescalepb.UpdateScoreScaleRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScale.DeleteScoreScale != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScale.DeleteScoreScale, &scorescalepb.DeleteScoreScaleRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScale.ListScoreScales != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScale.ListScoreScales, &scorescalepb.ListScoreScalesRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScale.GetScoreScaleListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScale.GetScoreScaleListPageData, &scorescalepb.GetScoreScaleListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScale.GetScoreScaleItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScale.GetScoreScaleItemPageData, &scorescalepb.GetScoreScaleItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// ScoreScaleBand routes.
+	if operationUseCases.ScoreScaleBand != nil {
+		if operationUseCases.ScoreScaleBand.CreateScoreScaleBand != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale-band/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScaleBand.CreateScoreScaleBand, &scorescalebandpb.CreateScoreScaleBandRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScaleBand.ReadScoreScaleBand != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale-band/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScaleBand.ReadScoreScaleBand, &scorescalebandpb.ReadScoreScaleBandRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScaleBand.UpdateScoreScaleBand != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale-band/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScaleBand.UpdateScoreScaleBand, &scorescalebandpb.UpdateScoreScaleBandRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScaleBand.DeleteScoreScaleBand != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale-band/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScaleBand.DeleteScoreScaleBand, &scorescalebandpb.DeleteScoreScaleBandRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScaleBand.ListScoreScaleBands != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale-band/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScaleBand.ListScoreScaleBands, &scorescalebandpb.ListScoreScaleBandsRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScaleBand.GetScoreScaleBandListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale-band/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScaleBand.GetScoreScaleBandListPageData, &scorescalebandpb.GetScoreScaleBandListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.ScoreScaleBand.GetScoreScaleBandItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/score-scale-band/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ScoreScaleBand.GetScoreScaleBandItemPageData, &scorescalebandpb.GetScoreScaleBandItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// JobOutcomeLine routes.
+	if operationUseCases.JobOutcomeLine != nil {
+		if operationUseCases.JobOutcomeLine.CreateJobOutcomeLine != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-line/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobOutcomeLine.CreateJobOutcomeLine, &joboutcomelinepb.CreateJobOutcomeLineRequest{}),
+			})
+		}
+		if operationUseCases.JobOutcomeLine.ReadJobOutcomeLine != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-line/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobOutcomeLine.ReadJobOutcomeLine, &joboutcomelinepb.ReadJobOutcomeLineRequest{}),
+			})
+		}
+		if operationUseCases.JobOutcomeLine.UpdateJobOutcomeLine != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-line/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobOutcomeLine.UpdateJobOutcomeLine, &joboutcomelinepb.UpdateJobOutcomeLineRequest{}),
+			})
+		}
+		if operationUseCases.JobOutcomeLine.DeleteJobOutcomeLine != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-line/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobOutcomeLine.DeleteJobOutcomeLine, &joboutcomelinepb.DeleteJobOutcomeLineRequest{}),
+			})
+		}
+		if operationUseCases.JobOutcomeLine.ListJobOutcomeLines != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-line/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobOutcomeLine.ListJobOutcomeLines, &joboutcomelinepb.ListJobOutcomeLinesRequest{}),
+			})
+		}
+		if operationUseCases.JobOutcomeLine.GetJobOutcomeLineListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-line/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobOutcomeLine.GetJobOutcomeLineListPageData, &joboutcomelinepb.GetJobOutcomeLineListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.JobOutcomeLine.GetJobOutcomeLineItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-line/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobOutcomeLine.GetJobOutcomeLineItemPageData, &joboutcomelinepb.GetJobOutcomeLineItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// ReportingCheckpoint routes.
+	if operationUseCases.ReportingCheckpoint != nil {
+		if operationUseCases.ReportingCheckpoint.CreateReportingCheckpoint != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/reporting-checkpoint/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.CreateReportingCheckpoint, &reportingcheckpointpb.CreateReportingCheckpointRequest{}),
+			})
+		}
+		if operationUseCases.ReportingCheckpoint.ReadReportingCheckpoint != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/reporting-checkpoint/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.ReadReportingCheckpoint, &reportingcheckpointpb.ReadReportingCheckpointRequest{}),
+			})
+		}
+		if operationUseCases.ReportingCheckpoint.UpdateReportingCheckpoint != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/reporting-checkpoint/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.UpdateReportingCheckpoint, &reportingcheckpointpb.UpdateReportingCheckpointRequest{}),
+			})
+		}
+		if operationUseCases.ReportingCheckpoint.DeleteReportingCheckpoint != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/reporting-checkpoint/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.DeleteReportingCheckpoint, &reportingcheckpointpb.DeleteReportingCheckpointRequest{}),
+			})
+		}
+		if operationUseCases.ReportingCheckpoint.ListReportingCheckpoints != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/reporting-checkpoint/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.ListReportingCheckpoints, &reportingcheckpointpb.ListReportingCheckpointsRequest{}),
+			})
+		}
+		if operationUseCases.ReportingCheckpoint.GetReportingCheckpointListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/reporting-checkpoint/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.GetReportingCheckpointListPageData, &reportingcheckpointpb.GetReportingCheckpointListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.ReportingCheckpoint.GetReportingCheckpointItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/reporting-checkpoint/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.GetReportingCheckpointItemPageData, &reportingcheckpointpb.GetReportingCheckpointItemPageDataRequest{}),
+			})
+		}
+	}
 
 	return contracts.DomainRouteConfiguration{
 		Domain:  "operation",

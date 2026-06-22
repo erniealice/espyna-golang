@@ -3,11 +3,15 @@ package domain
 import (
 	"fmt"
 
+	lineworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/line_workspace_user"
+	plangrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/plan_group"
+	plangroupplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/plan_group_plan"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 	productlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_line"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 
 	productuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/product"
@@ -255,6 +259,186 @@ func ConfigureProductDomain(productUseCases *productuc.ProductUseCases) contract
 			Method:  "POST",
 			Path:    "/api/product/product-plan/get-item-page-data",
 			Handler: contracts.NewGenericHandler(productUseCases.ProductPlan.GetProductPlanItemPageData, &productplanpb.GetProductPlanItemPageDataRequest{}),
+		})
+	}
+
+	// Plan Group module routes
+	if productUseCases.PlanGroup != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group/create",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroup.CreatePlanGroup, &plangrouppb.CreatePlanGroupRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group/read",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroup.ReadPlanGroup, &plangrouppb.ReadPlanGroupRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group/update",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroup.UpdatePlanGroup, &plangrouppb.UpdatePlanGroupRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group/delete",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroup.DeletePlanGroup, &plangrouppb.DeletePlanGroupRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group/list",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroup.ListPlanGroups, &plangrouppb.ListPlanGroupsRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group/get-list-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroup.GetPlanGroupListPageData, &plangrouppb.GetPlanGroupListPageDataRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group/get-item-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroup.GetPlanGroupItemPageData, &plangrouppb.GetPlanGroupItemPageDataRequest{}),
+		})
+	}
+
+	// Plan Group Plan module routes
+	if productUseCases.PlanGroupPlan != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group-plan/create",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroupPlan.CreatePlanGroupPlan, &plangroupplanpb.CreatePlanGroupPlanRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group-plan/read",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroupPlan.ReadPlanGroupPlan, &plangroupplanpb.ReadPlanGroupPlanRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group-plan/update",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroupPlan.UpdatePlanGroupPlan, &plangroupplanpb.UpdatePlanGroupPlanRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group-plan/delete",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroupPlan.DeletePlanGroupPlan, &plangroupplanpb.DeletePlanGroupPlanRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group-plan/list",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroupPlan.ListPlanGroupPlans, &plangroupplanpb.ListPlanGroupPlansRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group-plan/get-list-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroupPlan.GetPlanGroupPlanListPageData, &plangroupplanpb.GetPlanGroupPlanListPageDataRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/plan-group-plan/get-item-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.PlanGroupPlan.GetPlanGroupPlanItemPageData, &plangroupplanpb.GetPlanGroupPlanItemPageDataRequest{}),
+		})
+	}
+
+	// Product Plan Staff module routes
+	if productUseCases.ProductPlanStaff != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/product-plan-staff/create",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductPlanStaff.CreateProductPlanStaff, &productplanstaffpb.CreateProductPlanStaffRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/product-plan-staff/read",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductPlanStaff.ReadProductPlanStaff, &productplanstaffpb.ReadProductPlanStaffRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/product-plan-staff/update",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductPlanStaff.UpdateProductPlanStaff, &productplanstaffpb.UpdateProductPlanStaffRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/product-plan-staff/delete",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductPlanStaff.DeleteProductPlanStaff, &productplanstaffpb.DeleteProductPlanStaffRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/product-plan-staff/list",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductPlanStaff.ListProductPlanStaffs, &productplanstaffpb.ListProductPlanStaffsRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/product-plan-staff/get-list-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductPlanStaff.GetProductPlanStaffListPageData, &productplanstaffpb.GetProductPlanStaffListPageDataRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/product-plan-staff/get-item-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.ProductPlanStaff.GetProductPlanStaffItemPageData, &productplanstaffpb.GetProductPlanStaffItemPageDataRequest{}),
+		})
+	}
+
+	// Line Workspace User module routes
+	if productUseCases.LineWorkspaceUser != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/line-workspace-user/create",
+			Handler: contracts.NewGenericHandler(productUseCases.LineWorkspaceUser.CreateLineWorkspaceUser, &lineworkspaceuserpb.CreateLineWorkspaceUserRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/line-workspace-user/read",
+			Handler: contracts.NewGenericHandler(productUseCases.LineWorkspaceUser.ReadLineWorkspaceUser, &lineworkspaceuserpb.ReadLineWorkspaceUserRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/line-workspace-user/update",
+			Handler: contracts.NewGenericHandler(productUseCases.LineWorkspaceUser.UpdateLineWorkspaceUser, &lineworkspaceuserpb.UpdateLineWorkspaceUserRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/line-workspace-user/delete",
+			Handler: contracts.NewGenericHandler(productUseCases.LineWorkspaceUser.DeleteLineWorkspaceUser, &lineworkspaceuserpb.DeleteLineWorkspaceUserRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/line-workspace-user/list",
+			Handler: contracts.NewGenericHandler(productUseCases.LineWorkspaceUser.ListLineWorkspaceUsers, &lineworkspaceuserpb.ListLineWorkspaceUsersRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/line-workspace-user/get-list-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.LineWorkspaceUser.GetLineWorkspaceUserListPageData, &lineworkspaceuserpb.GetLineWorkspaceUserListPageDataRequest{}),
+		})
+
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/product/line-workspace-user/get-item-page-data",
+			Handler: contracts.NewGenericHandler(productUseCases.LineWorkspaceUser.GetLineWorkspaceUserItemPageData, &lineworkspaceuserpb.GetLineWorkspaceUserItemPageDataRequest{}),
 		})
 	}
 

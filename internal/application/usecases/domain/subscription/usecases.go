@@ -12,9 +12,14 @@ import (
 	planSettingsUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/plan_settings"
 	pricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/price_plan"
 	priceScheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/price_schedule"
+	priceScheduleWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/price_schedule_workspace_user"
 	productPricePlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/product_price_plan"
 	subscriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription"
 	subscriptionAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_attribute"
+	subscriptionGroupUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group"
+	subscriptionGroupMemberUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group_member"
+	subscriptionGroupProductPlanStaffUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group_product_plan_staff"
+	subscriptionGroupWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group_workspace_user"
 	subscriptionSeatUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_seat"
 	subscriptionWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_workspace_user"
 
@@ -37,9 +42,14 @@ import (
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	pricescheduleworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule_workspace_user"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
+	subscriptiongrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
+	subscriptiongroupmemberpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_member"
+	subscriptiongroupproductplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
+	subscriptiongroupworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_workspace_user"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 )
@@ -64,8 +74,14 @@ type SubscriptionRepositories struct {
 	// Outsourcing-vertical seat + servicing membership
 	SubscriptionSeat          subscriptionseatpb.SubscriptionSeatDomainServiceServer
 	SubscriptionWorkspaceUser subscriptionworkspaceuserpb.SubscriptionWorkspaceUserDomainServiceServer
-	ClientWorkspaceUser       clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer // cross-domain composite-FK pre-check
-	Attribute                 attributepb.AttributeDomainServiceServer
+	// Subscription-group membership + group-scoped staffing
+	SubscriptionGroup                 subscriptiongrouppb.SubscriptionGroupDomainServiceServer
+	SubscriptionGroupMember           subscriptiongroupmemberpb.SubscriptionGroupMemberDomainServiceServer
+	SubscriptionGroupWorkspaceUser    subscriptiongroupworkspaceuserpb.SubscriptionGroupWorkspaceUserDomainServiceServer
+	SubscriptionGroupProductPlanStaff subscriptiongroupproductplanstaffpb.SubscriptionGroupProductPlanStaffDomainServiceServer
+	PriceScheduleWorkspaceUser        pricescheduleworkspaceuserpb.PriceScheduleWorkspaceUserDomainServiceServer
+	ClientWorkspaceUser               clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer // cross-domain composite-FK pre-check
+	Attribute                         attributepb.AttributeDomainServiceServer
 }
 
 // SubscriptionUseCases contains all subscription-related use cases.
@@ -93,6 +109,12 @@ type SubscriptionUseCases struct {
 	// Outsourcing-vertical seat + servicing membership
 	SubscriptionSeat          *subscriptionSeatUseCases.UseCases
 	SubscriptionWorkspaceUser *subscriptionWorkspaceUserUseCases.UseCases
+	// Subscription-group membership + group-scoped staffing
+	SubscriptionGroup                 *subscriptionGroupUseCases.UseCases
+	SubscriptionGroupMember           *subscriptionGroupMemberUseCases.UseCases
+	SubscriptionGroupWorkspaceUser    *subscriptionGroupWorkspaceUserUseCases.UseCases
+	SubscriptionGroupProductPlanStaff *subscriptionGroupProductPlanStaffUseCases.UseCases
+	PriceScheduleWorkspaceUser        *priceScheduleWorkspaceUserUseCases.UseCases
 }
 
 // NewUseCases creates all subscription use cases with proper constructor injection.
@@ -319,6 +341,63 @@ func NewUseCases(
 		},
 	)
 
+	// Subscription-group membership + group-scoped staffing use cases (simple
+	// single-repo CRUD + page-data; no cross-entity deps).
+	subscriptionGroupUC := subscriptionGroupUseCases.NewUseCases(
+		subscriptionGroupUseCases.Repositories{SubscriptionGroup: repos.SubscriptionGroup},
+		subscriptionGroupUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	subscriptionGroupMemberUC := subscriptionGroupMemberUseCases.NewUseCases(
+		subscriptionGroupMemberUseCases.Repositories{SubscriptionGroupMember: repos.SubscriptionGroupMember},
+		subscriptionGroupMemberUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	subscriptionGroupWorkspaceUserUC := subscriptionGroupWorkspaceUserUseCases.NewUseCases(
+		subscriptionGroupWorkspaceUserUseCases.Repositories{SubscriptionGroupWorkspaceUser: repos.SubscriptionGroupWorkspaceUser},
+		subscriptionGroupWorkspaceUserUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	subscriptionGroupProductPlanStaffUC := subscriptionGroupProductPlanStaffUseCases.NewUseCases(
+		subscriptionGroupProductPlanStaffUseCases.Repositories{SubscriptionGroupProductPlanStaff: repos.SubscriptionGroupProductPlanStaff},
+		subscriptionGroupProductPlanStaffUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	priceScheduleWorkspaceUserUC := priceScheduleWorkspaceUserUseCases.NewUseCases(
+		priceScheduleWorkspaceUserUseCases.Repositories{PriceScheduleWorkspaceUser: repos.PriceScheduleWorkspaceUser},
+		priceScheduleWorkspaceUserUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
 	// Phase 3 F7 closure — wrap the raw BillingEvent DomainServiceServer in
 	// a Layer-7 use case sub-aggregate. Constructor is nil-safe when the
 	// adapter isn't registered.
@@ -333,20 +412,25 @@ func NewUseCases(
 	)
 
 	return &SubscriptionUseCases{
-		Balance:                   balanceUC,
-		BalanceAttribute:          balanceAttributeUC,
-		BillingEvent:              billingEventUC,
-		Invoice:                   invoiceUC,
-		InvoiceAttribute:          invoiceAttributeUC,
-		Plan:                      planUC,
-		PlanAttribute:             planAttributeUC,
-		PlanSettings:              planSettingsUC,
-		PricePlan:                 pricePlanUC,
-		PriceSchedule:             priceScheduleUC,
-		ProductPricePlan:          productPricePlanUC,
-		Subscription:              subscriptionUC,
-		SubscriptionAttribute:     subscriptionAttributeUC,
-		SubscriptionSeat:          subscriptionSeatUC,
-		SubscriptionWorkspaceUser: subscriptionWorkspaceUserUC,
+		Balance:                           balanceUC,
+		BalanceAttribute:                  balanceAttributeUC,
+		BillingEvent:                      billingEventUC,
+		Invoice:                           invoiceUC,
+		InvoiceAttribute:                  invoiceAttributeUC,
+		Plan:                              planUC,
+		PlanAttribute:                     planAttributeUC,
+		PlanSettings:                      planSettingsUC,
+		PricePlan:                         pricePlanUC,
+		PriceSchedule:                     priceScheduleUC,
+		ProductPricePlan:                  productPricePlanUC,
+		Subscription:                      subscriptionUC,
+		SubscriptionAttribute:             subscriptionAttributeUC,
+		SubscriptionSeat:                  subscriptionSeatUC,
+		SubscriptionWorkspaceUser:         subscriptionWorkspaceUserUC,
+		SubscriptionGroup:                 subscriptionGroupUC,
+		SubscriptionGroupMember:           subscriptionGroupMemberUC,
+		SubscriptionGroupWorkspaceUser:    subscriptionGroupWorkspaceUserUC,
+		SubscriptionGroupProductPlanStaff: subscriptionGroupProductPlanStaffUC,
+		PriceScheduleWorkspaceUser:        priceScheduleWorkspaceUserUC,
 	}
 }

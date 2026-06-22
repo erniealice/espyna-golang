@@ -14,9 +14,14 @@ import (
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	pricescheduleworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule_workspace_user"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
+	subscriptiongrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
+	subscriptiongroupmemberpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_member"
+	subscriptiongroupproductplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
+	subscriptiongroupworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_workspace_user"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 )
@@ -658,6 +663,201 @@ func ConfigureSubscriptionDomain(subscriptionUseCases *subscriptionuc.Subscripti
 			Method:  "POST",
 			Path:    "/api/subscription/subscription-workspace-user/get-item-page-data",
 			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionWorkspaceUser.GetSubscriptionWorkspaceUserItemPageData, &subscriptionworkspaceuserpb.GetSubscriptionWorkspaceUserItemPageDataRequest{}),
+		})
+	}
+
+	// Subscription Group module routes.
+	if subscriptionUseCases.SubscriptionGroup != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroup.CreateSubscriptionGroup, &subscriptiongrouppb.CreateSubscriptionGroupRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroup.ReadSubscriptionGroup, &subscriptiongrouppb.ReadSubscriptionGroupRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroup.UpdateSubscriptionGroup, &subscriptiongrouppb.UpdateSubscriptionGroupRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroup.DeleteSubscriptionGroup, &subscriptiongrouppb.DeleteSubscriptionGroupRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroup.ListSubscriptionGroups, &subscriptiongrouppb.ListSubscriptionGroupsRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroup.GetSubscriptionGroupListPageData, &subscriptiongrouppb.GetSubscriptionGroupListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroup.GetSubscriptionGroupItemPageData, &subscriptiongrouppb.GetSubscriptionGroupItemPageDataRequest{}),
+		})
+	}
+
+	// Subscription Group Member module routes.
+	if subscriptionUseCases.SubscriptionGroupMember != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-member/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupMember.CreateSubscriptionGroupMember, &subscriptiongroupmemberpb.CreateSubscriptionGroupMemberRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-member/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupMember.ReadSubscriptionGroupMember, &subscriptiongroupmemberpb.ReadSubscriptionGroupMemberRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-member/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupMember.UpdateSubscriptionGroupMember, &subscriptiongroupmemberpb.UpdateSubscriptionGroupMemberRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-member/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupMember.DeleteSubscriptionGroupMember, &subscriptiongroupmemberpb.DeleteSubscriptionGroupMemberRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-member/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupMember.ListSubscriptionGroupMembers, &subscriptiongroupmemberpb.ListSubscriptionGroupMembersRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-member/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupMember.GetSubscriptionGroupMemberListPageData, &subscriptiongroupmemberpb.GetSubscriptionGroupMemberListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-member/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupMember.GetSubscriptionGroupMemberItemPageData, &subscriptiongroupmemberpb.GetSubscriptionGroupMemberItemPageDataRequest{}),
+		})
+	}
+
+	// Subscription Group Workspace User module routes.
+	if subscriptionUseCases.SubscriptionGroupWorkspaceUser != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-workspace-user/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupWorkspaceUser.CreateSubscriptionGroupWorkspaceUser, &subscriptiongroupworkspaceuserpb.CreateSubscriptionGroupWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-workspace-user/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupWorkspaceUser.ReadSubscriptionGroupWorkspaceUser, &subscriptiongroupworkspaceuserpb.ReadSubscriptionGroupWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-workspace-user/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupWorkspaceUser.UpdateSubscriptionGroupWorkspaceUser, &subscriptiongroupworkspaceuserpb.UpdateSubscriptionGroupWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-workspace-user/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupWorkspaceUser.DeleteSubscriptionGroupWorkspaceUser, &subscriptiongroupworkspaceuserpb.DeleteSubscriptionGroupWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-workspace-user/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupWorkspaceUser.ListSubscriptionGroupWorkspaceUsers, &subscriptiongroupworkspaceuserpb.ListSubscriptionGroupWorkspaceUsersRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-workspace-user/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupWorkspaceUser.GetSubscriptionGroupWorkspaceUserListPageData, &subscriptiongroupworkspaceuserpb.GetSubscriptionGroupWorkspaceUserListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-workspace-user/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupWorkspaceUser.GetSubscriptionGroupWorkspaceUserItemPageData, &subscriptiongroupworkspaceuserpb.GetSubscriptionGroupWorkspaceUserItemPageDataRequest{}),
+		})
+	}
+
+	// Subscription Group Product Plan Staff module routes.
+	if subscriptionUseCases.SubscriptionGroupProductPlanStaff != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-product-plan-staff/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupProductPlanStaff.CreateSubscriptionGroupProductPlanStaff, &subscriptiongroupproductplanstaffpb.CreateSubscriptionGroupProductPlanStaffRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-product-plan-staff/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupProductPlanStaff.ReadSubscriptionGroupProductPlanStaff, &subscriptiongroupproductplanstaffpb.ReadSubscriptionGroupProductPlanStaffRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-product-plan-staff/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupProductPlanStaff.UpdateSubscriptionGroupProductPlanStaff, &subscriptiongroupproductplanstaffpb.UpdateSubscriptionGroupProductPlanStaffRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-product-plan-staff/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupProductPlanStaff.DeleteSubscriptionGroupProductPlanStaff, &subscriptiongroupproductplanstaffpb.DeleteSubscriptionGroupProductPlanStaffRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-product-plan-staff/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupProductPlanStaff.ListSubscriptionGroupProductPlanStaffs, &subscriptiongroupproductplanstaffpb.ListSubscriptionGroupProductPlanStaffsRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-product-plan-staff/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupProductPlanStaff.GetSubscriptionGroupProductPlanStaffListPageData, &subscriptiongroupproductplanstaffpb.GetSubscriptionGroupProductPlanStaffListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/subscription-group-product-plan-staff/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.SubscriptionGroupProductPlanStaff.GetSubscriptionGroupProductPlanStaffItemPageData, &subscriptiongroupproductplanstaffpb.GetSubscriptionGroupProductPlanStaffItemPageDataRequest{}),
+		})
+	}
+
+	// Price Schedule Workspace User module routes.
+	if subscriptionUseCases.PriceScheduleWorkspaceUser != nil {
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule-workspace-user/create",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceScheduleWorkspaceUser.CreatePriceScheduleWorkspaceUser, &pricescheduleworkspaceuserpb.CreatePriceScheduleWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule-workspace-user/read",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceScheduleWorkspaceUser.ReadPriceScheduleWorkspaceUser, &pricescheduleworkspaceuserpb.ReadPriceScheduleWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule-workspace-user/update",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceScheduleWorkspaceUser.UpdatePriceScheduleWorkspaceUser, &pricescheduleworkspaceuserpb.UpdatePriceScheduleWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule-workspace-user/delete",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceScheduleWorkspaceUser.DeletePriceScheduleWorkspaceUser, &pricescheduleworkspaceuserpb.DeletePriceScheduleWorkspaceUserRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule-workspace-user/list",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceScheduleWorkspaceUser.ListPriceScheduleWorkspaceUsers, &pricescheduleworkspaceuserpb.ListPriceScheduleWorkspaceUsersRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule-workspace-user/get-list-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceScheduleWorkspaceUser.GetPriceScheduleWorkspaceUserListPageData, &pricescheduleworkspaceuserpb.GetPriceScheduleWorkspaceUserListPageDataRequest{}),
+		})
+		routes = append(routes, contracts.RouteConfiguration{
+			Method:  "POST",
+			Path:    "/api/subscription/price-schedule-workspace-user/get-item-page-data",
+			Handler: contracts.NewGenericHandler(subscriptionUseCases.PriceScheduleWorkspaceUser.GetPriceScheduleWorkspaceUserItemPageData, &pricescheduleworkspaceuserpb.GetPriceScheduleWorkspaceUserItemPageDataRequest{}),
 		})
 	}
 

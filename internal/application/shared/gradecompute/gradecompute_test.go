@@ -98,11 +98,11 @@ func TestTransmuteRangeMap(t *testing.T) {
 	}{
 		{0, "1"},
 		{5.999, "1"},
-		{6, "2"},     // half-open boundary: 6 belongs to the NEXT band
+		{6, "2"}, // half-open boundary: 6 belongs to the NEXT band
 		{23, "5"},
 		{27.5, "6"},
-		{28, "7"},    // lower edge of top band
-		{32, "7"},    // perfect score lands via nil (unbounded) max
+		{28, "7"}, // lower edge of top band
+		{32, "7"}, // perfect score lands via nil (unbounded) max
 		{100, "7"},
 	}
 	for _, c := range cases {
@@ -151,10 +151,10 @@ func TestTransmuteExactMap(t *testing.T) {
 func TestRollUpCriteria(t *testing.T) {
 	// IB-MYP: four criteria, each with multiple assessments; MAX within, SUM across.
 	inputs := []CriterionInput{
-		{CriterionID: "A", Values: []float64{6, 8, 7}},  // MAX 8
-		{CriterionID: "B", Values: []float64{7, 5}},     // MAX 7
-		{CriterionID: "C", Values: []float64{6}},        // MAX 6
-		{CriterionID: "D", Values: []float64{7, 7, 4}},  // MAX 7
+		{CriterionID: "A", Values: []float64{6, 8, 7}}, // MAX 8
+		{CriterionID: "B", Values: []float64{7, 5}},    // MAX 7
+		{CriterionID: "C", Values: []float64{6}},       // MAX 6
+		{CriterionID: "D", Values: []float64{7, 7, 4}}, // MAX 7
 	}
 	r := RollUpCriteria(inputs)
 	if r.Composite != 28 {

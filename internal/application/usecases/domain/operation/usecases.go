@@ -10,6 +10,7 @@ import (
 	evaluationResponseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_response"
 	evaluationTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_template"
 	evaluationTemplateItemUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/evaluation_template_item"
+	gradeComputeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/grade_compute"
 	jobUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job"
 	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_activity"
 	jobOutcomeLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_line"
@@ -176,6 +177,11 @@ type OperationUseCases struct {
 	ScoreScaleBand           *scoreScaleBandUseCases.UseCases
 	JobOutcomeLine           *jobOutcomeLineUseCases.UseCases
 	ReportingCheckpoint      *reportingCheckpointUseCases.UseCases
+
+	// Grade roll-up orchestration (20260616 v1) — the "genuine build" that
+	// transmutes recorded task_outcomes into a report-card grade onto
+	// phase_outcome_summary via the pure gradecompute algorithm.
+	GradeCompute *gradeComputeUseCases.UseCases
 
 	// Performance Evaluation (20260604 v1).
 	Evaluation             *evaluationUseCases.UseCases
@@ -461,6 +467,29 @@ func NewUseCases(
 		},
 	)
 
+	// Grade roll-up orchestration (20260616 v1). Reads scheme/component/criteria
+	// config + recorded task_outcomes, runs the pure gradecompute math, and
+	// upserts the transmuted grade onto phase_outcome_summary.
+	gradeComputeUC := gradeComputeUseCases.NewUseCases(
+		gradeComputeUseCases.Repositories{
+			JobPhase:                 repos.JobPhase,
+			JobTemplatePhase:         repos.JobTemplatePhase,
+			ScoringScheme:            repos.ScoringScheme,
+			ScoringComponentCriteria: repos.ScoringComponentCriteria,
+			ScoreScale:               repos.ScoreScale,
+			ScoreScaleBand:           repos.ScoreScaleBand,
+			TaskOutcome:              repos.TaskOutcome,
+			PhaseOutcomeSummary:      repos.PhaseOutcomeSummary,
+		},
+		gradeComputeUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
 	// Performance Evaluation (20260604 v1).
 	evaluationUC := evaluationUseCases.NewUseCases(
 		evaluationUseCases.EvaluationRepositories{
@@ -572,6 +601,8 @@ func NewUseCases(
 		ScoreScaleBand:           scoreScaleBandUC,
 		JobOutcomeLine:           jobOutcomeLineUC,
 		ReportingCheckpoint:      reportingCheckpointUC,
+
+		GradeCompute: gradeComputeUC,
 
 		Evaluation:             evaluationUC,
 		EvaluationResponse:     evaluationResponseUC,

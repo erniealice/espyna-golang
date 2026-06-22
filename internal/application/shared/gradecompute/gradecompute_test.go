@@ -148,6 +148,42 @@ func TestTransmuteExactMap(t *testing.T) {
 	}
 }
 
+func TestRollUpCriteria(t *testing.T) {
+	// IB-MYP: four criteria, each with multiple assessments; MAX within, SUM across.
+	inputs := []CriterionInput{
+		{CriterionID: "A", Values: []float64{6, 8, 7}},  // MAX 8
+		{CriterionID: "B", Values: []float64{7, 5}},     // MAX 7
+		{CriterionID: "C", Values: []float64{6}},        // MAX 6
+		{CriterionID: "D", Values: []float64{7, 7, 4}},  // MAX 7
+	}
+	r := RollUpCriteria(inputs)
+	if r.Composite != 28 {
+		t.Fatalf("composite got %v want 28", r.Composite)
+	}
+	if r.Contributing != 4 {
+		t.Fatalf("contributing got %d want 4", r.Contributing)
+	}
+	if r.PerCriterion["A"] != 8 || r.PerCriterion["D"] != 7 {
+		t.Fatalf("per-criterion wrong: %v", r.PerCriterion)
+	}
+
+	// End-to-end: roll-up composite then transmute to the IB-MYP grade band.
+	scale := &scorescalepb.ScoreScale{ScaleKind: enumspb.ScaleKind_SCALE_KIND_RANGE_MAP}
+	band, err := Transmute(scale, ibMypBands(), r.Composite)
+	if err != nil || band.OutputLabel != "7" {
+		t.Fatalf("28 should transmute to grade 7, got (%v,%v)", band, err)
+	}
+
+	// A criterion with no recorded values does not contribute (not a zero).
+	sparse := RollUpCriteria([]CriterionInput{
+		{CriterionID: "A", Values: []float64{5}},
+		{CriterionID: "B", Values: nil},
+	})
+	if sparse.Contributing != 1 || sparse.Composite != 5 {
+		t.Fatalf("sparse roll-up got contributing=%d composite=%v want 1/5", sparse.Contributing, sparse.Composite)
+	}
+}
+
 func TestTransmuteSkipsInactiveBands(t *testing.T) {
 	scale := &scorescalepb.ScoreScale{ScaleKind: enumspb.ScaleKind_SCALE_KIND_RANGE_MAP}
 	bands := []*scorescalebandpb.ScoreScaleBand{

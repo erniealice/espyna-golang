@@ -81,6 +81,40 @@ func IsMaxAggregation(a enumspb.AggregationMethod) bool {
 	return a == enumspb.AggregationMethod_AGGREGATION_METHOD_MAXIMUM
 }
 
+// CriterionInput is the per-criterion bundle the roll-up consumes: every numeric
+// task_outcome value recorded against one criterion (across the phase's
+// assessments). Empty Values = the criterion had no recorded outcome.
+type CriterionInput struct {
+	CriterionID string
+	Values      []float64
+}
+
+// RollUp is the result of RollUpCriteria: the per-criterion best-fit values, the
+// summed composite (the IB-MYP /32), and the count of criteria that contributed.
+type RollUp struct {
+	PerCriterion map[string]float64 // criterion_id -> best-fit (MAX) value
+	Composite    float64            // SUM of the per-criterion best-fits
+	Contributing int                // criteria that had at least one value
+}
+
+// RollUpCriteria runs the within-criterion MAX (AGGREGATION_METHOD_MAXIMUM) then
+// the SUM composite (SCORING_METHOD_SUM): the canonical IB-MYP transform. A
+// criterion with no values contributes nothing (not a zero) — the §8 all-zero
+// suppression / scaffold-synthesis policy is the caller's, not the math's.
+func RollUpCriteria(inputs []CriterionInput) RollUp {
+	per := make(map[string]float64, len(inputs))
+	for _, in := range inputs {
+		if m, ok := MaxWithinCriterion(in.Values); ok {
+			per[in.CriterionID] = m
+		}
+	}
+	var composite float64
+	for _, v := range per {
+		composite += v
+	}
+	return RollUp{PerCriterion: per, Composite: composite, Contributing: len(per)}
+}
+
 // Transmute maps a raw composite score to its score_scale band per the scale's
 // kind. RANGE_MAP uses half-open intervals [input_min, input_max) (a nil bound
 // is unbounded: nil min = -inf, nil max = +inf — author the top band with a nil

@@ -205,9 +205,13 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 
 	query := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
 
-	row := p.getExecutor(ctx).QueryRowContext(ctx, query, id)
-
-	// Get column names
+	// Resolve column names FIRST. Under the transaction executor there is exactly
+	// one connection, and QueryRowContext holds it until Scan; issuing the
+	// getTableColumns introspection query while an unscanned *sql.Row is pending
+	// desyncs the lib/pq protocol stream ("unexpected Parse response 'C'"). On the
+	// pooled *sql.DB this is masked (a second idle connection serves the
+	// introspection), but inside a *sql.Tx it is fatal — so introspect before
+	// opening the row query.
 	resultColumns, err := p.getTableColumns(ctx, tableName)
 	if err != nil {
 		return nil, model.NewDatabaseError(
@@ -216,6 +220,8 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 			500,
 		)
 	}
+
+	row := p.getExecutor(ctx).QueryRowContext(ctx, query, id)
 
 	// Scan result
 	result, err := p.scanRowToMap(row, resultColumns)

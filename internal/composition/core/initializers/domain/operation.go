@@ -39,8 +39,17 @@ func InitializeOperation(
 		ScoringComponentCriteria: repos.ScoringComponentCriteria,
 		ScoreScale:               repos.ScoreScale,
 		ScoreScaleBand:           repos.ScoreScaleBand,
-		JobOutcomeLine:           repos.JobOutcomeLine,
-		ReportingCheckpoint:      repos.ReportingCheckpoint,
+		// TaskOutcome + PhaseOutcomeSummary back the grade roll-up
+		// (ComputePhaseOutcome reads recorded task_outcomes and upserts the
+		// phase_outcome_summary). Both are built by the provider but were not
+		// threaded through here, leaving GradeCompute's TaskOutcome /
+		// PhaseOutcomeSummary repos nil (a nil-deref the moment the roll-up
+		// lists outcomes). They also back the standalone TaskOutcome /
+		// PhaseOutcomeSummary CRUD use-cases.
+		TaskOutcome:         repos.TaskOutcome,
+		PhaseOutcomeSummary: repos.PhaseOutcomeSummary,
+		JobOutcomeLine:      repos.JobOutcomeLine,
+		ReportingCheckpoint: repos.ReportingCheckpoint,
 		// Performance Evaluation (20260604 v1).
 		Evaluation:             repos.Evaluation,
 		EvaluationResponse:     repos.EvaluationResponse,

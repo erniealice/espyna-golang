@@ -14,6 +14,7 @@ import (
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -56,6 +57,26 @@ func NewPostgresTaskOutcomeRepository(dbOps interfaces.DatabaseOperation, tableN
 		db:        db,
 		tableName: tableName,
 	}
+}
+
+// executor returns the transaction-aware SQL executor: the active *sql.Tx when
+// one is present on ctx (so raw-SQL reads participate in the use-case
+// transaction and see its uncommitted writes), else the pooled *sql.DB. The
+// workspace-aware dbOps exposes GetExecutor(ctx); we type-assert for it so this
+// works regardless of the concrete dbOps wrapping. Falls back to the stored
+// *sql.DB handle only if neither capability is available.
+func (r *PostgresTaskOutcomeRepository) executor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	if r.db != nil {
+		return r.db
+	}
+	return nil
 }
 
 // CreateTaskOutcome creates a new task_outcome record
@@ -441,7 +462,15 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 		ORDER BY to_.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobPhaseId)
+	// Use the transaction-aware executor so this JOIN read participates in an
+	// active *sql.Tx (and never nil-derefs a missing raw *sql.DB handle). The
+	// workspace-aware dbOps exposes GetExecutor(ctx); fall back to the stored
+	// pool only if that capability is somehow absent.
+	exec := r.executor(ctx)
+	if exec == nil {
+		return nil, fmt.Errorf("task_outcome ListByJobPhase: no SQL executor available")
+	}
+	rows, err := exec.QueryContext(ctx, query, req.JobPhaseId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task outcomes by job phase: %w", err)
 	}
@@ -513,20 +542,81 @@ func scanTOFields(scanFn func(dest ...any) error) (
 	revisionNumber int32, active bool,
 	dateCreated sql.NullInt64, dateModified sql.NullInt64, err error,
 ) {
+	// These four columns are NULL-able in the live schema (a recorded outcome
+	// may carry no determination yet, no determination_source, no recorded_by
+	// attribution, and no attachment_ids). Scan them as NullString and coalesce
+	// to the empty-string zero value the downstream builder already expects
+	// (empty determination → enum UNSPECIFIED; empty attachment_ids → no ids).
+	// Without this, a synthesized/back-filled task_outcome with NULL
+	// determination fails scanning ("converting NULL to string is unsupported").
+	var determinationNS, determinationSourceNS, recordedByNS, attachmentIdsNS sql.NullString
+	// Date columns are scanned through epochMillis so a timestamptz live column
+	// (e.g. a SQL-typed backfill) is accepted alongside the BIGINT unix-ms shape.
+	var recordedDateEM, reviewedDateEM, dateCreatedEM, dateModifiedEM epochMillis
 	err = scanFn(
 		&id, &jobTaskID, &criteriaVersionID,
 		&criteriaType, &isAdHoc,
 		&numericValue, &textValue,
 		&categoricalValue, &passFailValue,
-		&determination, &determinationSource,
+		&determinationNS, &determinationSourceNS,
 		&determinationNote, &autoProposedDetermination,
-		&recordedBy, &recordedDate,
-		&reviewedBy, &reviewedDate,
-		&attachmentIdsStr, &revisionOfId,
+		&recordedByNS, &recordedDateEM,
+		&reviewedBy, &reviewedDateEM,
+		&attachmentIdsNS, &revisionOfId,
 		&revisionNumber, &active,
-		&dateCreated, &dateModified,
+		&dateCreatedEM, &dateModifiedEM,
 	)
+	determination = determinationNS.String
+	determinationSource = determinationSourceNS.String
+	recordedBy = recordedByNS.String
+	attachmentIdsStr = attachmentIdsNS.String
+	recordedDate = recordedDateEM.asNullInt64()
+	reviewedDate = reviewedDateEM.asNullInt64()
+	dateCreated = dateCreatedEM.asNullInt64()
+	dateModified = dateModifiedEM.asNullInt64()
 	return
+}
+
+// epochMillis scans a date column that may be stored EITHER as BIGINT unix-ms
+// (the espyna timestamp convention buildTaskOutcome expects) OR as a
+// timestamp/timestamptz (the shape a SQL-typed backfill/migration may write).
+// It normalises both to int64 unix-ms, mirroring the generic operations
+// reader's TIMESTAMP→ms normalisation, so a row whose date columns are
+// timestamptz no longer fails scanning ("converting time.Time to int64").
+type epochMillis struct {
+	Valid bool
+	Ms    int64
+}
+
+func (e *epochMillis) Scan(src any) error {
+	switch v := src.(type) {
+	case nil:
+		e.Valid = false
+		e.Ms = 0
+	case time.Time:
+		e.Valid = true
+		e.Ms = v.UnixMilli()
+	case int64:
+		e.Valid = true
+		e.Ms = v
+	case int:
+		e.Valid = true
+		e.Ms = int64(v)
+	case []byte:
+		var n int64
+		if _, err := fmt.Sscan(string(v), &n); err != nil {
+			return fmt.Errorf("epochMillis: cannot parse %q: %w", string(v), err)
+		}
+		e.Valid = true
+		e.Ms = n
+	default:
+		return fmt.Errorf("epochMillis: unsupported source type %T", src)
+	}
+	return nil
+}
+
+func (e epochMillis) asNullInt64() sql.NullInt64 {
+	return sql.NullInt64{Int64: e.Ms, Valid: e.Valid}
 }
 
 // scanTaskOutcomeRows scans multiple rows into TaskOutcome protos

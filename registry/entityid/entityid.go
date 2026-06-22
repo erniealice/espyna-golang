@@ -128,6 +128,13 @@ const (
 	ProductVariantImage  = "product_variant_image"
 	ProductVariantOption = "product_variant_option"
 	Resource             = "resource"
+	// Education-grading R5 (2026-06-22): the plan-group taxonomy pair + the
+	// staff-eligibility edge + the pre-existing line servicing grant (its proto
+	// existed but the entity-id const was missing — added so it scaffolds).
+	PlanGroup         = "plan_group"
+	PlanGroupPlan     = "plan_group_plan"
+	ProductPlanStaff  = "product_plan_staff"
+	LineWorkspaceUser = "line_workspace_user"
 )
 
 // Revenue domain
@@ -189,6 +196,13 @@ const (
 	// Outsourcing-vertical seat + servicing membership (subscription domain)
 	SubscriptionSeat          = "subscription_seat"
 	SubscriptionWorkspaceUser = "subscription_workspace_user"
+	// Education-grading R5 (2026-06-22): the section cohort triplet + the class
+	// edge (teacher-of-record) + the year-coordinator grant (5th *_workspace_user).
+	SubscriptionGroup                 = "subscription_group"
+	SubscriptionGroupMember           = "subscription_group_member"
+	SubscriptionGroupWorkspaceUser    = "subscription_group_workspace_user"
+	SubscriptionGroupProductPlanStaff = "subscription_group_product_plan_staff"
+	PriceScheduleWorkspaceUser        = "price_schedule_workspace_user"
 )
 
 // Treasury domain
@@ -252,6 +266,21 @@ const (
 	TaskOutcomeCheck     = "task_outcome_check"
 	PhaseOutcomeSummary  = "phase_outcome_summary"
 	JobOutcomeSummary    = "job_outcome_summary"
+)
+
+// Operation domain — Grading scoring-primitives (education-grading R5 — 2026-06-22)
+//
+// The composite-grading config (scheme + components + the component↔criteria
+// junction + the transmutation scale/bands), the per-subject transcript line on
+// a report card, and the data-driven reporting-checkpoint catalog (interim/final).
+const (
+	ScoringScheme            = "scoring_scheme"
+	ScoringComponent         = "scoring_component"
+	ScoringComponentCriteria = "scoring_component_criteria"
+	ScoreScale               = "score_scale"
+	ScoreScaleBand           = "score_scale_band"
+	JobOutcomeLine           = "job_outcome_line"
+	ReportingCheckpoint      = "reporting_checkpoint"
 )
 
 // Operation domain — Performance Evaluation (20260604-performance-evaluation v1)
@@ -393,6 +422,8 @@ var ProductEntities = []string{
 	ProductOption, ProductOptionValue,
 	ProductPlan, ProductVariant, ProductVariantImage, ProductVariantOption,
 	Resource,
+	// Education-grading R5 (2026-06-22)
+	PlanGroup, PlanGroupPlan, ProductPlanStaff, LineWorkspaceUser,
 }
 
 // RevenueEntities lists all entity IDs in the Revenue domain.
@@ -429,6 +460,9 @@ var SubscriptionEntities = []string{
 	PricePlan, PriceSchedule, ProductPricePlan,
 	Subscription, SubscriptionAttribute,
 	SubscriptionSeat, SubscriptionWorkspaceUser,
+	// Education-grading R5 (2026-06-22)
+	SubscriptionGroup, SubscriptionGroupMember, SubscriptionGroupWorkspaceUser,
+	SubscriptionGroupProductPlanStaff, PriceScheduleWorkspaceUser,
 }
 
 // TreasuryEntities lists all entity IDs in the Treasury domain.
@@ -474,6 +508,9 @@ var OperationOutcomeEntities = []string{
 	TemplateTaskCriteria,
 	TaskOutcome, TaskOutcomeCheck,
 	PhaseOutcomeSummary, JobOutcomeSummary,
+	// Grading scoring-primitives (R5 — 2026-06-22)
+	ScoringScheme, ScoringComponent, ScoringComponentCriteria,
+	ScoreScale, ScoreScaleBand, JobOutcomeLine, ReportingCheckpoint,
 }
 
 // LedgerAccountingEntities lists all entity IDs in the Ledger accounting domain.

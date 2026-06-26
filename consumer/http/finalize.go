@@ -51,8 +51,20 @@ func (s *Server) finalizeHTTPAdapter(appCtx *consumerapp.AppContext, routes *rou
 	// The renderer's {{route}} / {{routeWith}} template functions read the
 	// merged RouteMap (Nav Phase 4 — single source of truth). The renderer is
 	// app-supplied; we feed it the Server-merged route map.
+	//
+	// We ALSO install the workspace-form signer here, from the SAME secret the
+	// ActionGuard VERIFIER is built from (s.resolveSecurity().secret, the source
+	// of agCfg.Secret in finalizePreset). The signer is the symmetric render-side
+	// half of the request-side guard: wiring both from one secret in the shared
+	// Server means the {{actionForm}} signature and the guard verifier can NEVER
+	// drift. Previously only school-admin wired the signer (per-app), so a
+	// service-admin password+secret deploy rendered an empty _workspace_id and
+	// every guarded /action/* POST 409'd. Pass-through-on-empty matches the guard.
 	if r := mustRenderer(ui.Renderer); r != nil {
 		r.SetRouteMap(cr.RouteMap)
+		if signer := buildWorkspaceFormSigner(string(s.resolveSecurity().secret)); signer != nil {
+			r.SetWorkspaceFormSigner(signer)
+		}
 	}
 
 	// ── Loaders (Server-built, generic — no app/domain template FS) ──────

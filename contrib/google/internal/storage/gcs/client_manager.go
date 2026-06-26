@@ -1,4 +1,4 @@
-package google
+package gcs
 
 import (
 	"context"
@@ -11,45 +11,45 @@ import (
 	"github.com/erniealice/espyna-golang/contrib/google/internal/common/gcp"
 )
 
-// GoogleClientManager manages Google Cloud clients
+// GCSClientManager manages Google Cloud Storage clients
 //
 // This replaces the previous singleton pattern with explicit dependency injection,
 // making the code more testable and easier to reason about.
-type GoogleClientManager struct {
+type GCSClientManager struct {
 	storageClient *storage.Client
 	config        *gcp.CredentialConfig
 }
 
-// GoogleConfig holds Google-specific configuration
-type GoogleConfig struct {
+// GCSClientConfig holds GCS-specific configuration
+type GCSClientConfig struct {
 	StorageTimeout time.Duration
 }
 
-// DefaultGoogleConfig returns default Google configuration from environment
-func DefaultGoogleConfig() *GoogleConfig {
+// DefaultGCSConfig returns default GCS configuration from environment
+func DefaultGCSConfig() *GCSClientConfig {
 	timeout := 30 * time.Second
-	if timeoutStr := os.Getenv("GOOGLE_STORAGE_TIMEOUT"); timeoutStr != "" {
+	if timeoutStr := os.Getenv("STORAGE_GCS_TIMEOUT"); timeoutStr != "" {
 		if parsedTimeout, err := time.ParseDuration(timeoutStr); err == nil {
 			timeout = parsedTimeout
 		}
 	}
 
-	return &GoogleConfig{
+	return &GCSClientConfig{
 		StorageTimeout: timeout,
 	}
 }
 
-// NewGoogleClientManager creates a new Google client manager
+// NewGCSClientManager creates a new GCS client manager
 //
-// This initializes all Google Cloud clients needed for the application.
+// This initializes the Google Cloud Storage client needed for the application.
 // It uses the shared gcp.CredentialConfig for authentication.
-func NewGoogleClientManager(ctx context.Context, config *GoogleConfig) (*GoogleClientManager, error) {
+func NewGCSClientManager(ctx context.Context, config *GCSClientConfig) (*GCSClientManager, error) {
 	if config == nil {
-		config = DefaultGoogleConfig()
+		config = DefaultGCSConfig()
 	}
 
-	// Get credential configuration using shared package
-	credConfig := gcp.DefaultCredentialConfig("GOOGLE_")
+	// Get credential configuration using shared package (STORAGE/gcs concern).
+	credConfig := gcp.DefaultCredentialConfig("STORAGE_GCS_")
 
 	// Validate credential config
 	if err := credConfig.Validate(); err != nil {
@@ -81,24 +81,24 @@ func NewGoogleClientManager(ctx context.Context, config *GoogleConfig) (*GoogleC
 
 	log.Println("✅ Google Cloud Storage client initialized successfully")
 
-	return &GoogleClientManager{
+	return &GCSClientManager{
 		storageClient: storageClient,
 		config:        credConfig,
 	}, nil
 }
 
 // GetStorageClient returns the Google Cloud Storage client
-func (m *GoogleClientManager) GetStorageClient() *storage.Client {
+func (m *GCSClientManager) GetStorageClient() *storage.Client {
 	return m.storageClient
 }
 
 // GetProjectID returns the GCP project ID
-func (m *GoogleClientManager) GetProjectID() string {
+func (m *GCSClientManager) GetProjectID() string {
 	return m.config.ProjectID
 }
 
 // Close closes all Google Cloud clients
-func (m *GoogleClientManager) Close() error {
+func (m *GCSClientManager) Close() error {
 	if m.storageClient != nil {
 		return m.storageClient.Close()
 	}

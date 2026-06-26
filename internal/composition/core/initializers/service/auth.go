@@ -57,11 +57,11 @@ func initServiceAuth(
 	return serviceauth.NewUseCases(repos, services)
 }
 
-// sessionExpiryFromEnv reads PASSWORD_AUTH_SESSION_EXPIRY (Go duration
+// sessionExpiryFromEnv reads AUTH_PASSWORD_SESSION_EXPIRY (Go duration
 // format, e.g. "168h"). A missing or malformed value leaves Duration at
 // zero, which asks IssueSession to fall back to its package default.
 func sessionExpiryFromEnv() serviceauth.SessionExpiryConfig {
-	raw := os.Getenv("PASSWORD_AUTH_SESSION_EXPIRY")
+	raw := os.Getenv("AUTH_PASSWORD_SESSION_EXPIRY")
 	if raw == "" {
 		return serviceauth.SessionExpiryConfig{}
 	}

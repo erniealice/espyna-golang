@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
@@ -34,6 +35,7 @@ import (
 	permissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/permission"
 	roleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role"
 	rolePermissionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/role_permission"
+	sessionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/session"
 	staffUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/staff"
 	staffAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/staff_attribute"
 	supplierUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity/supplier"
@@ -57,6 +59,7 @@ func InitializeEntity(
 	i18nSvc ports.Translator,
 	idSvc ports.IDGenerator,
 	actionGate *actiongate.ActionGatekeeper,
+	authIdP infraports.AuthService,
 ) (*entity.EntityUseCases, error) {
 	svc := func() entityServices {
 		return entityServices{authSvc, txSvc, i18nSvc, actionGate, idSvc}
@@ -293,9 +296,31 @@ func InitializeEntity(
 	}
 
 	if repos.User != nil {
+		s := svc()
 		result.User = userUseCases.NewUseCases(
 			userUseCases.UserRepositories{User: repos.User},
-			userUseCases.UserServices(svc()),
+			userUseCases.UserServices{
+				Authorizer:       s.Authorizer,
+				Transactor:       s.Transactor,
+				Translator:       s.Translator,
+				ActionGatekeeper: s.ActionGatekeeper,
+				IDGenerator:      s.IDGenerator,
+				AuthService:      authIdP,
+			},
+		)
+	}
+
+	if repos.Session != nil {
+		s := svc()
+		result.Session = sessionUseCases.NewUseCases(
+			sessionUseCases.SessionRepositories{Session: repos.Session},
+			sessionUseCases.SessionServices{
+				Authorizer:       s.Authorizer,
+				Transactor:       s.Transactor,
+				Translator:       s.Translator,
+				ActionGatekeeper: s.ActionGatekeeper,
+				AuthService:      authIdP,
+			},
 		)
 	}
 

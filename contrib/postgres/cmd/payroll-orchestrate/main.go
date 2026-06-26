@@ -114,14 +114,14 @@ func main() {
 }
 
 func buildDSN() string {
-	host := getenv("POSTGRES_HOST", "127.0.0.1")
-	port := getenv("POSTGRES_PORT", "5432")
-	user := getenv("POSTGRES_USER", "")
-	pass := getenv("POSTGRES_PASSWORD", "")
-	dbname := getenv("POSTGRES_NAME", "professional1")
-	sslmode := getenv("POSTGRES_SSL_MODE", "disable")
+	host := getenv("DATABASE_POSTGRES_HOST", "127.0.0.1")
+	port := getenv("DATABASE_POSTGRES_PORT", "5432")
+	user := getenv("DATABASE_POSTGRES_USER", "")
+	pass := getenv("DATABASE_POSTGRES_PASSWORD", "")
+	dbname := getenv("DATABASE_POSTGRES_DBNAME", "professional1")
+	sslmode := getenv("DATABASE_POSTGRES_SSLMODE", "disable")
 	if user == "" {
-		log.Fatal("POSTGRES_USER must be set")
+		log.Fatal("DATABASE_POSTGRES_USER must be set")
 	}
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, pass, dbname, sslmode)

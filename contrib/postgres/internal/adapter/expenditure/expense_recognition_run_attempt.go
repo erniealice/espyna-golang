@@ -25,7 +25,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_run"
 )

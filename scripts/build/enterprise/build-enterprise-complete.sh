@@ -261,7 +261,7 @@ if ./scripts/build/build-with-tags.sh "${BUILD_ARGS[@]}"; then
     echo ""
     echo -e "${WHITE}  # Database Connections${NC}"
     echo -e "${GRAY}  DATABASE_URL=postgres://...${NC}"
-    echo -e "${GRAY}  FIRESTORE_PROJECT_ID=backup-project${NC}"
+    echo -e "${GRAY}  DATABASE_FIRESTORE_PROJECT_ID=backup-project${NC}"
     echo ""
     echo -e "${WHITE}  # Development/Testing${NC}"
     echo -e "${GRAY}  MOCK_MODE=true${NC}"

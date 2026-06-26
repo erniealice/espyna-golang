@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/erniealice/espyna-golang/shared/identity"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/model"
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/model"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -602,8 +602,22 @@ func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) sqlexec.DBEx
 // getWorkspaceID extracts the workspace_id from the request context.
 // Returns an empty string if no workspace is present (e.g. service-to-service
 // calls or unauthenticated contexts), which disables all workspace injection.
+//
+// MUST be a SOFT read (identity.FromContext), not identity.Must: legitimate
+// UNAUTHENTICATED contexts — most importantly LOGIN, where the user is resolved
+// by email/credential BEFORE any identity exists (firebase ResolveUserByEmail,
+// password lookups) — have no RequestIdentity, and the documented contract above
+// is to return "" (unscoped) there, NOT to panic. Using identity.Must here
+// contradicted that contract and 500'd `POST /auth/firebase` at the email
+// lookup (and was the same root cause behind the post-login slug-resolver
+// crash). Authenticated requests always carry identity (the session middleware
+// injects it), so they still get correct workspace scoping; only genuinely
+// identity-less contexts fall through to the unscoped "" the contract promises.
 func (w *WorkspaceAwareOperations) getWorkspaceID(ctx context.Context) string {
-	return identity.Must(ctx).WorkspaceID
+	if id, ok := identity.FromContext(ctx); ok {
+		return id.WorkspaceID
+	}
+	return ""
 }
 
 // tableHasWorkspaceColumn reports whether tableName has a workspace_id column.

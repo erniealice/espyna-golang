@@ -10,7 +10,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
@@ -155,7 +155,19 @@ func (r *PostgresSessionRepository) ReadSession(ctx context.Context, req *sessio
 		return nil, fmt.Errorf("session id or token is required")
 	}
 
-	wsID := identity.Must(ctx).WorkspaceID
+	// SOFT identity read (NOT identity.Must): session validation runs BEFORE
+	// identity is established — you read the session row precisely TO learn the
+	// user/workspace — and the /auth/* pre-auth paths (chooser, firebase login)
+	// have no identity at all. identity.Must here panic-500'd EVERY protected
+	// request in firebase mode, whose Layer-0 session path is
+	// AuthenticateSession -> this ReadSession. The query already handles an empty
+	// wsID (the `$2::text = '' OR workspace_id = $2` branch): a session token is a
+	// globally-unique unguessable credential, so a by-token read is correctly
+	// unscoped; once identity exists, the workspace filter re-applies.
+	wsID := ""
+	if id, ok := identity.FromContext(ctx); ok {
+		wsID = id.WorkspaceID
+	}
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, arg, wsID)
 

@@ -31,6 +31,7 @@ import (
 
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	provider "github.com/erniealice/espyna-golang/contrib/http/provider"
+	pyeza "github.com/erniealice/pyeza-golang"
 )
 
 // buildChain assembles the full fixed-order net/http middleware chain from the
@@ -55,4 +56,22 @@ func buildChain(p consumermw.Preset, inner http.Handler) http.Handler {
 // isolation without depending on the full chain assembly.
 func buildWorkspacePath(cfg consumermw.WorkspacePathConfig) func(http.Handler) http.Handler {
 	return provider.BuildWorkspacePath(cfg)
+}
+
+// buildWorkspaceFormSigner builds the render-side {{actionForm}} signer from the
+// SAME guard secret the ActionGuard verifier uses, returning it as the agnostic
+// pyeza.WorkspaceFormSigner interface so finalizeHTTPAdapter can install it on
+// the app-supplied renderer. This is the symmetric half of provider.BuildActionGuard
+// (which builds the verifier from the same secret), so signer and verifier can
+// NEVER drift. Returns nil on an empty secret (guard disabled → renderer needs
+// no signer), mirroring the guard's pass-through-on-empty. Crosses the build-tag
+// boundary into contrib/http/provider, the ONE place consumer/http may reach it.
+func buildWorkspaceFormSigner(secret string) pyeza.WorkspaceFormSigner {
+	s := provider.NewWorkspaceFormSigner(secret)
+	if s == nil {
+		// Return an explicit nil interface, not a typed-nil pointer, so callers
+		// can compare == nil reliably.
+		return nil
+	}
+	return s
 }

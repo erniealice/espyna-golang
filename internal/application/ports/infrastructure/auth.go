@@ -52,6 +52,34 @@ type AuthService interface {
 	// oldPassword must match the stored hash; newPassword is validated and hashed.
 	// The caller's current session is preserved — only the password_hash is updated.
 	ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error
+
+	// Admin user-lifecycle effects at the IdP. Each is provider-config-driven:
+	// the firebase adapter performs the Admin SDK effect; the password adapter
+	// treats the DB (user.active / password_hash / session rows) as authoritative
+	// and no-ops where the IdP is not the source of truth; mock no-ops.
+	// userID is the DB user id; the firebase adapter resolves DB-uid→firebase by email.
+
+	// DisableUserAtProvider disables the account at the IdP (firebase: UpdateUser{Disabled:true}).
+	DisableUserAtProvider(ctx context.Context, userID string) error
+
+	// EnableUserAtProvider re-enables the account at the IdP (firebase: UpdateUser{Disabled:false}).
+	EnableUserAtProvider(ctx context.Context, userID string) error
+
+	// UpdateEmailAtProvider syncs the account email at the IdP (firebase: UpdateUser{Email}).
+	UpdateEmailAtProvider(ctx context.Context, userID, newEmail string) error
+
+	// AdminSetPassword sets a new password without the old one (admin reset).
+	// firebase: UpdateUser{Password}; password: bcrypt + write user.password_hash.
+	AdminSetPassword(ctx context.Context, userID, newPassword string) error
+
+	// GeneratePasswordResetLink returns a provider-issued reset link for the user
+	// (firebase: PasswordResetLink(email)). password: returns "" + error (use AdminSetPassword).
+	GeneratePasswordResetLink(ctx context.Context, userID string) (string, error)
+
+	// RevokeUserTokens revokes the user's outstanding refresh tokens at the IdP
+	// (firebase: RevokeRefreshTokens(uid)). password: no-op (the user.active guard
+	// and session rows are authoritative).
+	RevokeUserTokens(ctx context.Context, userID string) error
 }
 
 // Error codes for authentication errors (for backward compatibility)

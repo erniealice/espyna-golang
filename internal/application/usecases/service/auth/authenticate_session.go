@@ -105,6 +105,22 @@ func (uc *AuthenticateSessionUseCase) Execute(
 	}
 	user := userResp.Data[0]
 
+	// DEFENSIBILITY (mid-session disable) — the keystone per-request guard. The
+	// user row is ALREADY read above, so this costs one boolean compare and zero
+	// extra queries. Without it, a DISABLED user (user.active=false) keeps full
+	// authenticated access until the session row is explicitly invalidated or the
+	// ~7-day TTL elapses: disable would be an account-state change with NO session
+	// effect (the only thing blocked is a NEW login). This single chokepoint makes
+	// disable take effect on the very next request regardless of which path
+	// disabled the user (DB or, for firebase, the IdP — provided the disable
+	// mirrors user.active in our DB). Fail CLOSED with the generic session-invalid
+	// message — do not disclose "disabled" vs "expired".
+	if !user.GetActive() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+			ctx, uc.services.Translator,
+			"auth.errors.session_invalid", "Invalid or expired session [DEFAULT]"))
+	}
+
 	identity := &authpb.AuthIdentity{
 		UserId:          sess.UserId,
 		Email:           user.EmailAddress,

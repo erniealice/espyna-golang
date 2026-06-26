@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 )
 
 // write_helpers.go hoists the two direct-SQL write shapes that domain adapters

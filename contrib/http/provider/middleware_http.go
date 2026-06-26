@@ -164,6 +164,23 @@ func IssueWorkspaceCSRFCookie(w http.ResponseWriter, secret []byte, sessionToken
 	return cmw.IssueWorkspaceCSRFCookie(w, secret, sessionToken, workspaceID)
 }
 
+// NewWorkspaceFormSigner re-exports the impl signer constructor so consumer/http
+// can install the SAME signer the ActionGuard VERIFIER uses (built from the same
+// secret here, in BuildActionGuard) onto the app-supplied renderer — keeping the
+// render-side {{actionForm}} signer and the request-side guard verifier from
+// ever drifting. consumer/http cannot import contrib/http/internal/... directly
+// (Go internal/ visibility), so this re-export is the seam. Returns nil for an
+// empty secret to match BuildActionGuard's pass-through-on-empty (the guard is
+// then disabled, so the renderer needs no signer). The returned
+// *cmw.WorkspaceFormSigner satisfies pyeza's WorkspaceFormSigner interface via
+// its SignFields method.
+func NewWorkspaceFormSigner(secret string) *cmw.WorkspaceFormSigner {
+	if secret == "" {
+		return nil
+	}
+	return cmw.NewWorkspaceFormSigner(secret)
+}
+
 // mapWorkspaceBindingErr translates the agnostic sentinel errors a
 // BindingResolver may return into the impl's sentinels, so the impl's
 // errors.Is branch selection (ambiguous -> picker, none -> unified-not-found)

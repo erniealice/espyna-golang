@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	dbinterfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
+	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
@@ -38,24 +38,24 @@ func init() {
 }
 
 // buildFromEnv creates a PasswordAuthAdapter from environment variables.
-// It reads PASSWORD_AUTH_RESET_TOKEN_SECRET, PASSWORD_AUTH_MAX_ATTEMPTS, and
-// PASSWORD_AUTH_LOCKOUT_MINUTES but does NOT open a database connection —
+// It reads AUTH_PASSWORD_RESET_TOKEN_SECRET, AUTH_PASSWORD_MAX_ATTEMPTS, and
+// AUTH_PASSWORD_LOCKOUT_MINUTES but does NOT open a database connection —
 // the connection is injected later via SetOperations (Phase 2 refactor).
 func buildFromEnv() (ports.AuthProvider, error) {
-	secret := os.Getenv("PASSWORD_AUTH_RESET_TOKEN_SECRET")
+	secret := os.Getenv("AUTH_PASSWORD_RESET_TOKEN_SECRET")
 	if secret == "" {
-		panic("FATAL: password provider requires PASSWORD_AUTH_RESET_TOKEN_SECRET to be set")
+		panic("FATAL: password provider requires AUTH_PASSWORD_RESET_TOKEN_SECRET to be set")
 	}
 
 	maxAttempts := defaultMaxAttempts
-	if v := os.Getenv("PASSWORD_AUTH_MAX_ATTEMPTS"); v != "" {
+	if v := os.Getenv("AUTH_PASSWORD_MAX_ATTEMPTS"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
 			maxAttempts = parsed
 		}
 	}
 
 	lockoutMinutes := defaultLockoutMinutes
-	if v := os.Getenv("PASSWORD_AUTH_LOCKOUT_MINUTES"); v != "" {
+	if v := os.Getenv("AUTH_PASSWORD_LOCKOUT_MINUTES"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
 			lockoutMinutes = parsed
 		}
@@ -147,9 +147,9 @@ func (a *PasswordAuthAdapter) Initialize(config *authpb.ProviderConfig) error {
 	a.enabled = config.Enabled
 
 	if a.resetSecret == "" {
-		secret := os.Getenv("PASSWORD_AUTH_RESET_TOKEN_SECRET")
+		secret := os.Getenv("AUTH_PASSWORD_RESET_TOKEN_SECRET")
 		if secret == "" {
-			panic("FATAL: password provider requires PASSWORD_AUTH_RESET_TOKEN_SECRET to be set")
+			panic("FATAL: password provider requires AUTH_PASSWORD_RESET_TOKEN_SECRET to be set")
 		}
 		a.resetSecret = secret
 	}
@@ -636,6 +636,82 @@ func (a *PasswordAuthAdapter) ChangePassword(ctx context.Context, userID, oldPas
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
+	return nil
+}
+
+// =============================================================================
+// Admin user-lifecycle effects at the IdP (§4 adapter matrix — password column)
+// =============================================================================
+//
+// For the password provider the DATABASE is the source of truth: account
+// status (user.active), credentials (user.password_hash) and session validity
+// (the session table + the per-request user.active guard) all live in Postgres
+// and are mutated by the domain use cases directly. The IdP-effect methods are
+// therefore no-ops here, EXCEPT AdminSetPassword, which is the password
+// provider's actual reset mechanism (bcrypt + write user.password_hash).
+
+// DisableUserAtProvider is a no-op for the password provider: the use case sets
+// user.active=false in the DB, which the per-request guard enforces. There is no
+// external IdP to update.
+func (a *PasswordAuthAdapter) DisableUserAtProvider(ctx context.Context, userID string) error {
+	return nil
+}
+
+// EnableUserAtProvider is a no-op for the password provider: the use case sets
+// user.active=true in the DB. No external IdP to update.
+func (a *PasswordAuthAdapter) EnableUserAtProvider(ctx context.Context, userID string) error {
+	return nil
+}
+
+// UpdateEmailAtProvider is a no-op for the password provider: the DB user.email_address
+// updated by the use case is authoritative. No external IdP to sync.
+func (a *PasswordAuthAdapter) UpdateEmailAtProvider(ctx context.Context, userID, newEmail string) error {
+	return nil
+}
+
+// AdminSetPassword sets a new password WITHOUT the old one (admin-initiated reset).
+// This is the password provider's real reset path: validate strength, bcrypt-hash,
+// and write user.password_hash. Existing sessions are NOT invalidated here — the
+// use case orchestrates session revocation separately (RevokeUserSessionsUseCase),
+// matching ChangePassword's session-preserving contract.
+func (a *PasswordAuthAdapter) AdminSetPassword(ctx context.Context, userID, newPassword string) error {
+	if a.ops == nil {
+		return fmt.Errorf("password: database operations not initialised")
+	}
+
+	row, err := a.ops.Read(ctx, "user", userID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve user: %w", err)
+	}
+	if row == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	newHash, err := a.passwordService.HashPassword(newPassword)
+	if err != nil {
+		// HashPassword enforces minimum length / strength.
+		return err
+	}
+
+	if _, err := a.ops.Update(ctx, "user", userID, map[string]any{
+		"password_hash": newHash,
+	}); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	return nil
+}
+
+// GeneratePasswordResetLink is not supported by the password provider: there is
+// no external IdP to issue a link. Admins reset directly via AdminSetPassword,
+// and self-service users use RequestPasswordReset (HMAC token). Returns "" + err.
+func (a *PasswordAuthAdapter) GeneratePasswordResetLink(ctx context.Context, userID string) (string, error) {
+	return "", fmt.Errorf("password provider does not issue reset links; use AdminSetPassword (admin) or RequestPasswordReset (self-service)")
+}
+
+// RevokeUserTokens is a no-op for the password provider: there are no IdP refresh
+// tokens. Session rows (invalidated by the session use case) and the per-request
+// user.active guard are authoritative.
+func (a *PasswordAuthAdapter) RevokeUserTokens(ctx context.Context, userID string) error {
 	return nil
 }
 

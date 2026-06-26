@@ -13,7 +13,6 @@ import (
 
 	"google.golang.org/api/sheets/v4"
 
-	"github.com/erniealice/espyna-golang/contrib/google/internal/common/google"
 	"github.com/erniealice/espyna-golang/ports/integration"
 	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -37,13 +36,13 @@ func init() {
 
 // buildFromEnv creates and initializes a Google Sheets provider from environment variables
 func buildFromEnv() (integration.TabularSourceProvider, error) {
-	delegateEmail := os.Getenv("LEAPFOR_INTEGRATION_TABULAR_GOOGLESHEETS_DELEGATE_EMAIL")
-	serviceAccountKeyPath := os.Getenv("LEAPFOR_INTEGRATION_TABULAR_GOOGLESHEETS_SERVICE_ACCOUNT_KEY_PATH")
-	projectID := os.Getenv("LEAPFOR_INTEGRATION_TABULAR_GOOGLESHEETS_PROJECT_ID")
-	secretManagerPath := os.Getenv("LEAPFOR_INTEGRATION_TABULAR_GOOGLESHEETS_SECRET_MANAGER_PATH")
-	useSecretManager := os.Getenv("LEAPFOR_INTEGRATION_TABULAR_GOOGLESHEETS_USE_SECRET_MANAGER") == "true"
+	delegateEmail := os.Getenv("TABULAR_GOOGLESHEETS_DELEGATE_EMAIL")
+	serviceAccountKeyPath := os.Getenv("TABULAR_GOOGLESHEETS_CREDENTIALS_FILE")
+	projectID := os.Getenv("TABULAR_GOOGLESHEETS_PROJECT_ID")
+	secretManagerPath := os.Getenv("TABULAR_GOOGLESHEETS_SECRET_MANAGER_PATH")
+	useSecretManager := os.Getenv("TABULAR_GOOGLESHEETS_USE_SECRET_MANAGER") == "true"
 
-	timeoutStr := os.Getenv("LEAPFOR_INTEGRATION_TABULAR_GOOGLESHEETS_TIMEOUT")
+	timeoutStr := os.Getenv("TABULAR_GOOGLESHEETS_TIMEOUT")
 	timeout := 30
 	if timeoutStr != "" {
 		if t, err := strconv.Atoi(timeoutStr); err == nil {
@@ -129,7 +128,7 @@ type GoogleSheetsProvider struct {
 	mu            sync.RWMutex
 	enabled       bool
 	config        *tabularpb.TabularProviderConfig
-	clientManager *google.SheetsClientManager
+	clientManager *SheetsClientManager
 	timeout       time.Duration
 	logger        *slog.Logger
 }
@@ -170,20 +169,20 @@ func (p *GoogleSheetsProvider) Initialize(config *tabularpb.TabularProviderConfi
 	}
 
 	// Create SheetsConfig for the client manager
-	sheetsConfig := &google.SheetsConfig{
-		ProjectID:             gsAuth.ProjectId,
-		DelegateEmail:         gsAuth.DelegatedEmail,
-		ServiceAccountKeyPath: gsAuth.ServiceAccountKey,
-		SecretManagerPath:     gsAuth.SecretManagerPath,
-		UseSecretManager:      gsAuth.UseSecretManager,
-		Timeout:               p.timeout,
+	sheetsConfig := &SheetsConfig{
+		ProjectID:         gsAuth.ProjectId,
+		DelegateEmail:     gsAuth.DelegatedEmail,
+		CredentialsFile:   gsAuth.ServiceAccountKey,
+		SecretManagerPath: gsAuth.SecretManagerPath,
+		UseSecretManager:  gsAuth.UseSecretManager,
+		Timeout:           p.timeout,
 	}
 
 	// Initialize the client manager
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
 
-	clientManager, err := google.NewSheetsClientManager(ctx, sheetsConfig)
+	clientManager, err := NewSheetsClientManager(ctx, sheetsConfig)
 	if err != nil {
 		return fmt.Errorf("googlesheets: failed to create client manager: %w", err)
 	}

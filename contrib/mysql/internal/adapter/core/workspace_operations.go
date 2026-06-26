@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/erniealice/espyna-golang/shared/identity"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/model"
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/model"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 

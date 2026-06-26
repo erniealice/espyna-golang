@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 )
 
 // executorProvider is a local interface satisfied by

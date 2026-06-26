@@ -22,14 +22,14 @@ func SetupTestEnvironment(providerName string) {
 		os.Setenv("BUSINESS_TYPE", "education")
 	case "postgresql":
 		os.Setenv("CONFIG_DATABASE_PROVIDER", "postgresql")
-		os.Setenv("POSTGRES_HOST", getEnvWithDefault("TEST_POSTGRES_HOST", "localhost"))
-		os.Setenv("POSTGRES_PORT", getEnvWithDefault("TEST_POSTGRES_PORT", "5432"))
-		os.Setenv("POSTGRES_NAME", getEnvWithDefault("TEST_POSTGRES_DB", "espyna_test"))
-		os.Setenv("POSTGRES_USER", getEnvWithDefault("TEST_POSTGRES_USER", "postgres"))
-		os.Setenv("POSTGRES_PASSWORD", getEnvWithDefault("TEST_POSTGRES_PASSWORD", ""))
+		os.Setenv("DATABASE_POSTGRES_HOST", getEnvWithDefault("TEST_POSTGRES_HOST", "localhost"))
+		os.Setenv("DATABASE_POSTGRES_PORT", getEnvWithDefault("TEST_POSTGRES_PORT", "5432"))
+		os.Setenv("DATABASE_POSTGRES_DBNAME", getEnvWithDefault("TEST_POSTGRES_DB", "espyna_test"))
+		os.Setenv("DATABASE_POSTGRES_USER", getEnvWithDefault("TEST_POSTGRES_USER", "postgres"))
+		os.Setenv("DATABASE_POSTGRES_PASSWORD", getEnvWithDefault("TEST_POSTGRES_PASSWORD", ""))
 	case "firestore":
 		os.Setenv("CONFIG_DATABASE_PROVIDER", "firestore")
-		os.Setenv("FIRESTORE_PROJECT_ID", getEnvWithDefault("TEST_FIRESTORE_PROJECT", "espyna-test"))
+		os.Setenv("DATABASE_FIRESTORE_PROJECT_ID", getEnvWithDefault("TEST_FIRESTORE_PROJECT", "espyna-test"))
 	default:
 		panic(fmt.Sprintf("Unknown provider: %s", providerName))
 	}

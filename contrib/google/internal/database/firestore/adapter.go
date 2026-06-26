@@ -8,10 +8,11 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
+	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -32,10 +33,10 @@ func init() {
 	registry.RegisterDatabaseTableConfigBuilder("firestore", buildTableConfig)
 }
 
-// buildTableConfig creates table config from FIRESTORE_TABLE_* environment variables.
+// buildTableConfig creates table config from DATABASE_FIRESTORE_TABLE_* environment variables.
 // This allows Firestore-specific collection naming without the container knowing about it.
 func buildTableConfig() *registry.TableConfig {
-	prefix := os.Getenv("FIRESTORE_TABLE_PREFIX")
+	prefix := os.Getenv("DATABASE_FIRESTORE_TABLE_PREFIX")
 	overrides := make(map[string]string)
 
 	// Map of entityid constant → env var suffix → default value
@@ -127,15 +128,10 @@ func buildTableConfig() *registry.TableConfig {
 	return registry.NewTableConfig(prefix, overrides)
 }
 
-// getFirestoreTableEnv reads collection name from environment variables.
-// Checks in order: LEAPFOR_DATABASE_FIRESTORE_COLLECTION_{suffix} (legacy), FIRESTORE_TABLE_{suffix} (new)
+// getFirestoreTableEnv reads collection name from the DATABASE_FIRESTORE_TABLE_{suffix}
+// environment variable, falling back to defaultValue.
 func getFirestoreTableEnv(suffix, defaultValue string) string {
-	// Check legacy env var first (used by existing apps like tph-unlock-golang-v2)
-	if value := os.Getenv("LEAPFOR_DATABASE_FIRESTORE_COLLECTION_" + suffix); value != "" {
-		return value
-	}
-	// Check new env var format
-	if value := os.Getenv("FIRESTORE_TABLE_" + suffix); value != "" {
+	if value := os.Getenv("DATABASE_FIRESTORE_TABLE_" + suffix); value != "" {
 		return value
 	}
 	return defaultValue
@@ -144,16 +140,16 @@ func getFirestoreTableEnv(suffix, defaultValue string) string {
 // buildFromEnv creates and initializes a Firestore adapter from environment variables.
 //
 // Environment variables:
-//   - FIRESTORE_PROJECT_ID (required)
-//   - FIRESTORE_CREDENTIALS_PATH (optional, uses ADC if not set)
-//   - FIRESTORE_DATABASE (optional, defaults to "(default)")
+//   - DATABASE_FIRESTORE_PROJECT_ID (required)
+//   - DATABASE_FIRESTORE_CREDENTIALS_FILE (optional, uses ADC if not set)
+//   - DATABASE_FIRESTORE_DATABASE (optional, defaults to "(default)")
 func buildFromEnv() (ports.DatabaseProvider, error) {
-	projectID := os.Getenv("FIRESTORE_PROJECT_ID")
-	credentialsPath := os.Getenv("FIRESTORE_CREDENTIALS_PATH")
-	databaseID := os.Getenv("FIRESTORE_DATABASE")
+	projectID := os.Getenv("DATABASE_FIRESTORE_PROJECT_ID")
+	credentialsPath := os.Getenv("DATABASE_FIRESTORE_CREDENTIALS_FILE")
+	databaseID := os.Getenv("DATABASE_FIRESTORE_DATABASE")
 
 	if projectID == "" {
-		return nil, fmt.Errorf("firestore: FIRESTORE_PROJECT_ID is required")
+		return nil, fmt.Errorf("firestore: DATABASE_FIRESTORE_PROJECT_ID is required")
 	}
 
 	protoConfig := &dbpb.DatabaseProviderConfig{
@@ -247,21 +243,24 @@ func (a *FirestoreAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error
 	var client *firestore.Client
 	var err error
 
+	// Build per-concern client options. The credentials file is passed DIRECTLY to
+	// the SDK; never write the process-global GOOGLE_APPLICATION_CREDENTIALS (that
+	// would let one concern's credentials clobber another's — the per-concern
+	// {CONCERN}_{PROVIDER}_ split forbids it).
+	var clientOpts []option.ClientOption
 	if fsConfig.CredentialsPath != "" {
 		log.Printf("📄 Using Firestore credentials from: %s", fsConfig.CredentialsPath)
-		if err := os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", fsConfig.CredentialsPath); err != nil {
-			return fmt.Errorf("failed to set Google credentials: %w", err)
-		}
+		clientOpts = append(clientOpts, option.WithCredentialsFile(fsConfig.CredentialsPath))
 	} else {
 		log.Printf("🔑 Using Application Default Credentials for Firestore")
 	}
 
 	if databaseID != "" && databaseID != "(default)" {
 		log.Printf("🔥 Connecting to named Firestore database: %s (project: %s)", databaseID, projectID)
-		client, err = firestore.NewClientWithDatabase(ctx, projectID, databaseID)
+		client, err = firestore.NewClientWithDatabase(ctx, projectID, databaseID, clientOpts...)
 	} else {
 		log.Printf("🔥 Connecting to (default) Firestore database (project: %s)", projectID)
-		client, err = firestore.NewClient(ctx, projectID)
+		client, err = firestore.NewClient(ctx, projectID, clientOpts...)
 	}
 
 	if err != nil {

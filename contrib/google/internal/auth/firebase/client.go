@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"firebase.google.com/go/v4/auth"
-	firebaseCommon "github.com/erniealice/espyna-golang/contrib/google/internal/common/firebase"
 )
 
 // AuthService provides Firebase Authentication operations
 type AuthService struct {
 	client        *auth.Client
-	clientManager *firebaseCommon.FirebaseClientManager
+	clientManager *FirebaseClientManager
 }
 
 // AuthServiceInterface defines the authentication operations
@@ -49,7 +48,7 @@ type AuthServiceInterface interface {
 // NewAuthService creates a new Firebase Auth service instance
 func NewAuthService(ctx context.Context) (AuthServiceInterface, error) {
 	// Create Firebase client manager
-	manager, err := firebaseCommon.NewFirebaseClientManager(ctx, "")
+	manager, err := NewFirebaseClientManager(ctx)
 	if err != nil {
 		return nil, err
 	}

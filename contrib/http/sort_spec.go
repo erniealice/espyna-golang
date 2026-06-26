@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/erniealice/espyna-golang/tableparams"
+	"github.com/erniealice/espyna-golang/shared/tableparams"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 

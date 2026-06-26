@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/model"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/model"
 	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )

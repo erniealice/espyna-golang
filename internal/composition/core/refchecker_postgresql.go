@@ -12,7 +12,7 @@ import (
 	// the parent package's init().
 	_ "github.com/erniealice/espyna-golang/contrib/postgres"
 	pgref "github.com/erniealice/espyna-golang/contrib/postgres/reference"
-	"github.com/erniealice/espyna-golang/reference"
+	"github.com/erniealice/espyna-golang/ports"
 )
 
 // RefChecker returns the postgres-backed reference checker resolved from the
@@ -21,7 +21,7 @@ import (
 //
 // Returns nil when the database provider is not available or does not expose a
 // *sql.DB connection (e.g. firestore).
-func (c *Container) RefChecker() reference.Checker {
+func (c *Container) RefChecker() ports.Checker {
 	dbProvider := c.GetDatabaseProvider()
 	if dbProvider == nil {
 		return nil

@@ -62,10 +62,10 @@ const (
 
 	// EnvKeyWorkspaceFormHMAC is the canonical env var for the action
 	// guard's HMAC secret.
-	EnvKeyWorkspaceFormHMAC = "WORKSPACE_FORM_HMAC_KEY"
+	EnvKeyWorkspaceFormHMAC = "SECURITY_WORKSPACEFORM_HMAC_KEY"
 
 	// EnvKeyFallbackHMAC is the fallback env var for dev/test.
-	EnvKeyFallbackHMAC = "PASSWORD_AUTH_RESET_TOKEN_SECRET"
+	EnvKeyFallbackHMAC = "AUTH_PASSWORD_RESET_TOKEN_SECRET"
 
 	// nonceBytes is the per-form nonce length in bytes. 16 bytes = 128 bits.
 	nonceBytes = 16
@@ -88,13 +88,13 @@ type WorkspaceFormSigner struct {
 // Panics if key is empty.
 func NewWorkspaceFormSigner(key string) *WorkspaceFormSigner {
 	if key == "" {
-		panic("action_workspace_guard: HMAC key required (set WORKSPACE_FORM_HMAC_KEY)")
+		panic("action_workspace_guard: HMAC key required (set SECURITY_WORKSPACEFORM_HMAC_KEY)")
 	}
 	return &WorkspaceFormSigner{key: []byte(key)}
 }
 
 // SecretFromEnv resolves the HMAC secret from the environment, applying
-// the fallback chain (WORKSPACE_FORM_HMAC_KEY -> PASSWORD_AUTH_RESET_TOKEN_SECRET).
+// the fallback chain (SECURITY_WORKSPACEFORM_HMAC_KEY -> AUTH_PASSWORD_RESET_TOKEN_SECRET).
 // Returns "" when neither var is set.
 func SecretFromEnv(getenv func(string) string) string {
 	if v := getenv(EnvKeyWorkspaceFormHMAC); v != "" {

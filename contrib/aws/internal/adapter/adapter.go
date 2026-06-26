@@ -24,7 +24,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
-	storagecommon "github.com/erniealice/espyna-golang/storage/helpers"
+	storagecommon "github.com/erniealice/espyna-golang/shared/storage"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
@@ -50,14 +50,29 @@ func init() {
 // EndpointUrl/UsePathStyle/credentials/UseIamRole (see adapter.go below); only this
 // buildFromEnv was missing the plumbing. The fix is buildFromEnv-only.
 //
-// Env key scheme (ST-M2): the canonical keys converge on STORAGE_S3_<KEY>. The
-// legacy STORAGE_BUCKET_NAME / AWS_REGION keys remain accepted fallbacks for one
-// release so existing deploys do not break.
+// Env key scheme — {CONCERN}_{PROVIDER}_{FIELD} (LOCKED): every key reads from the
+// single canonical STORAGE_S3_<FIELD> namespace. No legacy fallbacks, no precedence
+// chains — exactly one source per setting (the no-precedence rule).
+//
+// Per-concern AWS IAM principle: each AWS-backed concern scopes its OWN credentials
+// via {CONCERN}_{PROVIDER}_ACCESS_KEY_ID / _SECRET_ACCESS_KEY (or _USE_IAM_ROLE for
+// the IMDS instance-role path). Storage's creds are STORAGE_S3_ACCESS_KEY_ID/SECRET/
+// SESSION_TOKEN / STORAGE_S3_USE_IAM_ROLE. The global AWS_* SDK chain (AWS_REGION,
+// AWS_ACCESS_KEY_ID, ...) is a SHARED process identity and last-resort-only — it is
+// NEVER the multi-concern isolation mechanism. espyna therefore does NOT read AWS_*
+// explicitly here; only STORAGE_S3_REGION is consulted. (The AWS SDK's own default
+// config chain may still pick up AWS_REGION as a true last resort when
+// STORAGE_S3_REGION is unset — that is the SDK's behavior and out of scope.)
+//
+// When a 2nd AWS concern is added (e.g. SES email, EMAIL_SES_*), extract a
+// contrib/aws/internal/common/ AWS-credential primitive mirroring
+// contrib/google/internal/common/gcp (a prefix-injected config shape + an
+// aws.Config builder keyed off {CONCERN}_{PROVIDER}_). Not needed today — S3 is the
+// only AWS concern, so per YAGNI the creds are read inline below.
 func buildFromEnv() (ports.StorageProvider, error) {
-	// Bucket + region: prefer the standardized STORAGE_S3_* keys, fall back to the
-	// legacy keys for one release.
-	bucketName := firstNonEmpty(os.Getenv("STORAGE_S3_BUCKET_NAME"), os.Getenv("STORAGE_BUCKET_NAME"))
-	region := firstNonEmpty(os.Getenv("STORAGE_S3_REGION"), os.Getenv("AWS_REGION"))
+	// Bucket + region: single canonical STORAGE_S3_* source, no legacy fallback.
+	bucketName := os.Getenv("STORAGE_S3_BUCKET")
+	region := os.Getenv("STORAGE_S3_REGION")
 
 	// S3-compatible endpoint + path-style (MinIO/Spaces/R2/Wasabi). Initialize sets
 	// awsConfig.BaseEndpoint from EndpointUrl and o.UsePathStyle from UsePathStyle.
@@ -91,16 +106,6 @@ func buildFromEnv() (ports.StorageProvider, error) {
 		return nil, fmt.Errorf("s3: failed to initialize: %w", err)
 	}
 	return p, nil
-}
-
-// firstNonEmpty returns the first non-empty string among its arguments, or "".
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 // transformConfig converts raw config map to S3 storage proto config.

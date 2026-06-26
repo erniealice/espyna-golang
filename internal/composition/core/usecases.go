@@ -30,6 +30,7 @@ import (
 
 	// Application ports (for service interfaces)
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 
@@ -382,9 +383,21 @@ func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*
 	}
 	fmt.Printf("✅ Got services (auth: %v, tx: %v, i18n: %v, id: %v)\n", authSvc != nil, txSvc != nil, i18nSvc != nil, idSvc != nil)
 
+	// Resolve the inward AuthService IdP port (used by the admin user-lifecycle
+	// use cases: disable/enable/reset-password/revoke + update-user email sync).
+	// The auth provider adapter exposes it via GetAuthService(); nil is fine —
+	// the use cases skip the provider-side effect when it is absent.
+	var authIdP infraports.AuthService
+	if authProvider := uci.providerManager.GetAuthProvider(); authProvider != nil {
+		if ap, ok := authProvider.(infraports.AuthProvider); ok {
+			authIdP = ap.GetAuthService()
+		}
+	}
+	fmt.Printf("🔐 Auth IdP service for user-lifecycle use cases: %v\n", authIdP != nil)
+
 	// Use composition initializer to wire everything together
 	entityUseCases, err := domain.InitializeEntity(repos, authSvc, txSvc, i18nSvc, idSvc,
-		actiongate.NewActionGatekeeper(authSvc, i18nSvc))
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc), authIdP)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize entity use cases: %v\n", err)
 		return nil, err

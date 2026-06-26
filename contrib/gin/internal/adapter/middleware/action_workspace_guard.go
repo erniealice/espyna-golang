@@ -22,7 +22,7 @@ package middleware
 //   - WorkspaceFormSigner for sign-at-render (SignFields method)
 //   - NewActionWorkspaceGuardMiddleware(cfg ActionWorkspaceGuardConfig) gin.HandlerFunc
 //
-// HMAC key hierarchy: WORKSPACE_FORM_HMAC_KEY -> PASSWORD_AUTH_RESET_TOKEN_SECRET
+// HMAC key hierarchy: SECURITY_WORKSPACEFORM_HMAC_KEY -> AUTH_PASSWORD_RESET_TOKEN_SECRET
 //
 // Blocked on: Server API — requires the HMAC secret, workspace_id context
 // accessor, and form parser to be wired through the Gin adapter.

@@ -19,18 +19,18 @@ CONFIG_DATABASE_PROVIDER=firestore        Google Cloud Firestore
 BUSINESS_TYPE=education                   Business type for mock data (default: education)
 
 🐘 POSTGRESQL (postgresql):
-POSTGRES_HOST=localhost                   Database host (default: localhost)
-POSTGRES_PORT=5432                        Database port (default: 5432)
-POSTGRES_NAME=espyna                      Database name (default: espyna)
-POSTGRES_USER=postgres                    Database user (default: postgres)
-POSTGRES_PASSWORD=                        Database password (required)
-POSTGRES_URL=                             Full connection URL (optional)
-POSTGRES_SSL_MODE=disable                 SSL mode (default: disable)
+DATABASE_POSTGRES_HOST=localhost          Database host (default: localhost)
+DATABASE_POSTGRES_PORT=5432               Database port (default: 5432)
+DATABASE_POSTGRES_DBNAME=espyna           Database name (default: espyna)
+DATABASE_POSTGRES_USER=postgres           Database user (default: postgres)
+DATABASE_POSTGRES_PASSWORD=               Database password (required)
+DATABASE_POSTGRES_URL=                    Full connection URL (optional)
+DATABASE_POSTGRES_SSLMODE=disable         SSL mode (default: disable)
 
 🔥 FIRESTORE (firestore):
-FIRESTORE_PROJECT_ID=your-project-id      Google Cloud project ID (required)
-FIRESTORE_CREDENTIALS_PATH=/path/to/creds.json Service account credentials file path
-FIRESTORE_DATABASE=                       Firestore database name (optional)
+DATABASE_FIRESTORE_PROJECT_ID=your-project-id      Google Cloud project ID (required)
+DATABASE_FIRESTORE_CREDENTIALS_FILE=/path/to/creds.json Service account credentials file path
+DATABASE_FIRESTORE_DATABASE=              Firestore database name (optional)
 
 ═══════════════════════════════════════════════════════════════════════════
 🔐 AUTHENTICATION PROVIDERS:
@@ -62,7 +62,7 @@ CONFIG_STORAGE_PROVIDER=mock_storage      (default) Mock storage for development
 CONFIG_STORAGE_PROVIDER=local             Local file system storage
 
 🏠 LOCAL STORAGE (local):
-STORAGE_BASE_PATH=./storage               Base path for local storage (default: ./storage)
+STORAGE_LOCAL_BASE_PATH=./storage         Base path for local storage (default: ./storage)
 
 ═══════════════════════════════════════════════════════════════════════════
 🖥️  SERVER CONFIGURATION:
@@ -93,15 +93,15 @@ export BUSINESS_TYPE=education
 # Production with PostgreSQL and Firebase Auth:
 export CONFIG_DATABASE_PROVIDER=postgresql
 export CONFIG_AUTH_PROVIDER=firebase_auth
-export POSTGRES_HOST=your-db-host
-export POSTGRES_PASSWORD=your-password
+export DATABASE_POSTGRES_HOST=your-db-host
+export DATABASE_POSTGRES_PASSWORD=your-password
 export FIREBASE_AUTH_PROJECT_ID=your-project
 
 # Production with Firestore and Firebase Auth:
 export CONFIG_DATABASE_PROVIDER=firestore
 export CONFIG_AUTH_PROVIDER=firebase_auth
-export FIRESTORE_PROJECT_ID=your-project
-export FIRESTORE_CREDENTIALS_PATH=/path/to/creds.json
+export DATABASE_FIRESTORE_PROJECT_ID=your-project
+export DATABASE_FIRESTORE_CREDENTIALS_FILE=/path/to/creds.json
 
 ═══════════════════════════════════════════════════════════════════════════
 */

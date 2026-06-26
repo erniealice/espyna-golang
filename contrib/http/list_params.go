@@ -3,8 +3,8 @@ package espynahttp
 import (
 	"time"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/tableparams"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/tableparams"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 

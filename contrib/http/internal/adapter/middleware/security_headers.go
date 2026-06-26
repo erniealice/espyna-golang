@@ -62,14 +62,31 @@ const (
 
 // buildCSP builds the Content-Security-Policy value for a single request,
 // appending the per-request nonce to the script-src directive.
-func buildCSP(nonce string) string {
+//
+// fbAuthDomain, when non-empty (firebase auth provider), widens script-src /
+// connect-src / frame-src to permit the Firebase JS SDK (gstatic) and the
+// Identity-Platform sign-in popup/iframe (the authDomain + the Google/Microsoft
+// OAuth endpoints). Empty = no Firebase widening (password/mock builds keep the
+// strict baseline). Additive only — every other directive is unchanged.
+func buildCSP(nonce, fbAuthDomain string) string {
 	scriptSrc := "script-src 'self' 'nonce-" + nonce + "'"
+	connectSrc := "connect-src 'self'"
+	frameSrc := "frame-src 'self'"
+	if fbAuthDomain != "" {
+		// Firebase JS SDK host + Identity Platform sign-in (popup uses a hidden
+		// iframe to <authDomain>/__/auth/iframe; the federated OAuth providers
+		// for Microsoft/Google live on their own origins).
+		scriptSrc += " https://www.gstatic.com https://apis.google.com"
+		connectSrc += " https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://" + fbAuthDomain
+		frameSrc += " https://" + fbAuthDomain + " https://apis.google.com https://accounts.google.com https://login.microsoftonline.com https://login.live.com"
+	}
 	return "default-src 'self'; " +
 		scriptSrc + "; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: blob:; " +
 		"font-src 'self'; " +
-		"connect-src 'self'; " +
+		connectSrc + "; " +
+		frameSrc + "; " +
 		"frame-ancestors 'none'; " +
 		"base-uri 'self'; " +
 		"form-action 'self'; " +
@@ -97,6 +114,11 @@ type SecurityHeadersConfig struct {
 	// CSPEnforce flips the CSP from REPORT-ONLY (default, false) to ENFORCING
 	// (true). DEFAULT IS REPORT-ONLY.
 	CSPEnforce bool
+
+	// FirebaseAuthDomain, when non-empty, widens the CSP to permit the Firebase
+	// JS SDK + sign-in popup/iframe. Resolved from FIREBASE_AUTH_DOMAIN only when
+	// CONFIG_AUTH_PROVIDER=firebase. Empty for password/mock builds.
+	FirebaseAuthDomain string
 }
 
 // cspEnforceEnabled returns true only for an explicit truthy value.
@@ -113,9 +135,14 @@ func cspEnforceEnabled(v string) bool {
 // HSTS is OFF by default. CSP is REPORT-ONLY by default.
 func SecurityHeadersConfigFromEnv(getenv func(string) string) SecurityHeadersConfig {
 	v := getenv(EnvKeyHSTSEnabled)
+	fbAuthDomain := ""
+	if getenv("CONFIG_AUTH_PROVIDER") == "firebase" {
+		fbAuthDomain = getenv("FIREBASE_AUTH_DOMAIN")
+	}
 	return SecurityHeadersConfig{
-		HSTSEnabled: v == "true" || v == "1",
-		CSPEnforce:  cspEnforceEnabled(getenv(EnvKeyCSPEnforce)),
+		HSTSEnabled:        v == "true" || v == "1",
+		CSPEnforce:         cspEnforceEnabled(getenv(EnvKeyCSPEnforce)),
+		FirebaseAuthDomain: fbAuthDomain,
 	}
 }
 
@@ -156,9 +183,9 @@ func SecurityHeaders(cfg SecurityHeadersConfig) func(http.Handler) http.Handler 
 
 			// CSP enforce/report-only gated behind CONFIG_SECURITY_CSP_ENFORCE.
 			if cfg.CSPEnforce {
-				h.Set("Content-Security-Policy", buildCSP(nonce))
+				h.Set("Content-Security-Policy", buildCSP(nonce, cfg.FirebaseAuthDomain))
 			} else {
-				h.Set("Content-Security-Policy-Report-Only", buildCSP(nonce))
+				h.Set("Content-Security-Policy-Report-Only", buildCSP(nonce, cfg.FirebaseAuthDomain))
 			}
 			// Declare the named reporting endpoint (both modes).
 			h.Set("Reporting-Endpoints", cspReportToGroup+`="`+cspReportPath+`"`)

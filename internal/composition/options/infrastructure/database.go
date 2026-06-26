@@ -110,21 +110,21 @@ func (c MockDatabaseConfig) ToMap() map[string]any {
 
 func createPostgresConfigFromEnv() PostgresDatabaseConfig {
 	return PostgresDatabaseConfig{
-		Host:     GetEnv("POSTGRES_HOST", "localhost"),
-		Port:     ParseInt(GetEnv("POSTGRES_PORT", "5432")),
-		Name:     GetEnv("POSTGRES_NAME", "espyna"),
-		User:     GetEnv("POSTGRES_USER", "postgres"),
-		Password: GetEnv("POSTGRES_PASSWORD", ""),
-		URL:      GetEnv("POSTGRES_URL", ""),
-		SSLMode:  GetEnv("POSTGRES_SSL_MODE", "disable"),
+		Host:     GetEnv("DATABASE_POSTGRES_HOST", "localhost"),
+		Port:     ParseInt(GetEnv("DATABASE_POSTGRES_PORT", "5432")),
+		Name:     GetEnv("DATABASE_POSTGRES_DBNAME", "espyna"),
+		User:     GetEnv("DATABASE_POSTGRES_USER", "postgres"),
+		Password: GetEnv("DATABASE_POSTGRES_PASSWORD", ""),
+		URL:      GetEnv("DATABASE_POSTGRES_URL", ""),
+		SSLMode:  GetEnv("DATABASE_POSTGRES_SSLMODE", "disable"),
 	}
 }
 
 func createFirestoreConfigFromEnv() FirestoreDatabaseConfig {
 	return FirestoreDatabaseConfig{
-		ProjectID:       GetEnv("FIRESTORE_PROJECT_ID", ""),
-		CredentialsPath: GetEnv("FIRESTORE_CREDENTIALS_PATH", ""),
-		DatabaseID:      GetEnv("FIRESTORE_DATABASE", ""),
+		ProjectID:       GetEnv("DATABASE_FIRESTORE_PROJECT_ID", ""),
+		CredentialsPath: GetEnv("DATABASE_FIRESTORE_CREDENTIALS_FILE", ""),
+		DatabaseID:      GetEnv("DATABASE_FIRESTORE_DATABASE", ""),
 	}
 }
 

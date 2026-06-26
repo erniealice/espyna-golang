@@ -13,11 +13,11 @@ $env:CONFIG_STORAGE_PROVIDER = "gcp_storage"
 $env:BUSINESS_TYPE = "education"
 
 # Set PostgreSQL connection details
-$env:POSTGRES_HOST = "localhost"
-$env:POSTGRES_PORT = "5432"
-$env:POSTGRES_NAME = "espyna_dev"
-$env:POSTGRES_USER = "postgres"
-$env:POSTGRES_PASSWORD = "password123"
+$env:DATABASE_POSTGRES_HOST = "localhost"
+$env:DATABASE_POSTGRES_PORT = "5432"
+$env:DATABASE_POSTGRES_DBNAME = "espyna_dev"
+$env:DATABASE_POSTGRES_USER = "postgres"
+$env:DATABASE_POSTGRES_PASSWORD = "password123"
 
 # Set Firebase Auth details
 $env:FIREBASE_AUTH_PROJECT_ID = "your-project-id"

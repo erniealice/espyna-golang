@@ -151,6 +151,44 @@ func (p *NoOpAuthAdapter) ChangePassword(ctx context.Context, userID, oldPasswor
 	return fmt.Errorf("change password not supported by noop auth provider")
 }
 
+// =============================================================================
+// Admin user-lifecycle effects at the IdP (§4 adapter matrix)
+// The no-op provider fails closed: it never authenticates (VerifyToken returns
+// unauthorized), so it never participates in a real admin-lifecycle flow. The
+// methods return "not supported" for interface conformance, mirroring the
+// ChangePassword stub above.
+// =============================================================================
+
+// DisableUserAtProvider is unsupported by the no-op auth provider.
+func (p *NoOpAuthAdapter) DisableUserAtProvider(ctx context.Context, userID string) error {
+	return fmt.Errorf("disable user not supported by noop auth provider")
+}
+
+// EnableUserAtProvider is unsupported by the no-op auth provider.
+func (p *NoOpAuthAdapter) EnableUserAtProvider(ctx context.Context, userID string) error {
+	return fmt.Errorf("enable user not supported by noop auth provider")
+}
+
+// UpdateEmailAtProvider is unsupported by the no-op auth provider.
+func (p *NoOpAuthAdapter) UpdateEmailAtProvider(ctx context.Context, userID, newEmail string) error {
+	return fmt.Errorf("update email not supported by noop auth provider")
+}
+
+// AdminSetPassword is unsupported by the no-op auth provider.
+func (p *NoOpAuthAdapter) AdminSetPassword(ctx context.Context, userID, newPassword string) error {
+	return fmt.Errorf("admin set password not supported by noop auth provider")
+}
+
+// GeneratePasswordResetLink is unsupported by the no-op auth provider.
+func (p *NoOpAuthAdapter) GeneratePasswordResetLink(ctx context.Context, userID string) (string, error) {
+	return "", fmt.Errorf("password reset link not supported by noop auth provider")
+}
+
+// RevokeUserTokens is unsupported by the no-op auth provider.
+func (p *NoOpAuthAdapter) RevokeUserTokens(ctx context.Context, userID string) error {
+	return fmt.Errorf("revoke user tokens not supported by noop auth provider")
+}
+
 // Compile-time checks that NoOpAuthAdapter implements both interfaces
 var _ ports.AuthProvider = (*NoOpAuthAdapter)(nil)
 var _ ports.AuthService = (*NoOpAuthAdapter)(nil)

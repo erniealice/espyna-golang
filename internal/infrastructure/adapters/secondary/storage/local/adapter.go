@@ -39,7 +39,7 @@ func init() {
 
 // buildFromEnv creates and initializes a local storage provider from environment variables.
 func buildFromEnv() (ports.StorageProvider, error) {
-	basePath := os.Getenv("STORAGE_BASE_PATH")
+	basePath := os.Getenv("STORAGE_LOCAL_BASE_PATH")
 	if basePath == "" {
 		basePath = "./storage"
 	}

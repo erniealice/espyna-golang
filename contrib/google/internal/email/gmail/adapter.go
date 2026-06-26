@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	googleclient "github.com/erniealice/espyna-golang/contrib/google/internal/common/google"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -41,17 +40,17 @@ func init() {
 
 // buildFromEnv creates and initializes a Gmail email provider from environment variables.
 func buildFromEnv() (ports.EmailProvider, error) {
-	delegateEmail := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_DELEGATE_EMAIL")
-	fromEmail := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_FROM_EMAIL")
-	fromName := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_FROM_NAME")
-	replyToEmail := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_REPLY_TO_EMAIL")
-	serviceAccountKeyPath := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_SERVICE_ACCOUNT_KEY_PATH")
-	secretManagerPath := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_SECRET_MANAGER_PATH")
-	useSecretManager := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_USE_SECRET_MANAGER") == "true"
-	timeoutStr := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_GMAIL_TIMEOUT")
+	delegateEmail := os.Getenv("EMAIL_GMAIL_DELEGATE_EMAIL")
+	fromEmail := os.Getenv("EMAIL_GMAIL_FROM_EMAIL")
+	fromName := os.Getenv("EMAIL_GMAIL_FROM_NAME")
+	replyToEmail := os.Getenv("EMAIL_GMAIL_REPLY_TO_EMAIL")
+	serviceAccountKeyPath := os.Getenv("EMAIL_GMAIL_CREDENTIALS_FILE")
+	secretManagerPath := os.Getenv("EMAIL_GMAIL_SECRET_MANAGER_PATH")
+	useSecretManager := os.Getenv("EMAIL_GMAIL_USE_SECRET_MANAGER") == "true"
+	timeoutStr := os.Getenv("EMAIL_GMAIL_TIMEOUT")
 
 	if delegateEmail == "" {
-		return nil, fmt.Errorf("gmail: LEAPFOR_INTEGRATION_EMAIL_GMAIL_DELEGATE_EMAIL is required")
+		return nil, fmt.Errorf("gmail: EMAIL_GMAIL_DELEGATE_EMAIL is required")
 	}
 	if fromEmail == "" {
 		fromEmail = delegateEmail
@@ -148,7 +147,7 @@ func transformConfig(rawConfig map[string]any) (*emailpb.EmailProviderConfig, er
 // GoogleEmailProvider implements Google Gmail API email provider using service account delegation
 type GoogleEmailProvider struct {
 	enabled       bool
-	clientManager *googleclient.GmailClientManager
+	clientManager *GmailClientManager
 	timeout       time.Duration
 }
 
@@ -216,7 +215,7 @@ func (p *GoogleEmailProvider) Initialize(config *emailpb.EmailProviderConfig) er
 	ctx := context.Background()
 
 	// Build Gmail config from proto or use defaults from environment
-	gmailConfig := googleclient.DefaultGmailConfig()
+	gmailConfig := DefaultGmailConfig()
 
 	// Override with provided proto config values
 	if config != nil {
@@ -236,7 +235,7 @@ func (p *GoogleEmailProvider) Initialize(config *emailpb.EmailProviderConfig) er
 				gmailConfig.DelegateEmail = oauth2.DelegatedEmail
 			}
 			if oauth2.ServiceAccountKey != "" {
-				gmailConfig.ServiceAccountKeyPath = oauth2.ServiceAccountKey
+				gmailConfig.CredentialsFile = oauth2.ServiceAccountKey
 			}
 		}
 
@@ -259,7 +258,7 @@ func (p *GoogleEmailProvider) Initialize(config *emailpb.EmailProviderConfig) er
 	}
 
 	// Create the client manager
-	clientManager, err := googleclient.NewGmailClientManager(ctx, gmailConfig)
+	clientManager, err := NewGmailClientManager(ctx, gmailConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create Gmail client manager: %w", err)
 	}

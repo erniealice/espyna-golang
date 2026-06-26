@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/erniealice/espyna-golang/tableparams"
+	"github.com/erniealice/espyna-golang/shared/tableparams"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	"google.golang.org/protobuf/encoding/protojson"
 )

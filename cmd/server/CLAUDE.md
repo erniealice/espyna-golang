@@ -97,8 +97,8 @@ Create a `.env` file in `packages/espyna/cmd/server/`:
 ```bash
 # Database Configuration
 CONFIG_DATABASE_PROVIDER=firestore
-FIRESTORE_PROJECT_ID=your-project-id
-FIRESTORE_CREDENTIALS_PATH=./path/to/service-account-key.json
+DATABASE_FIRESTORE_PROJECT_ID=your-project-id
+DATABASE_FIRESTORE_CREDENTIALS_FILE=./path/to/service-account-key.json
 
 # Collection Names (optional - defaults shown)
 LEAPFOR_DATABASE_FIRESTORE_COLLECTION_CLIENT=client_v1
@@ -213,20 +213,20 @@ No additional configuration needed - uses default table names.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `POSTGRES_HOST` | `localhost` | Database host |
-| `POSTGRES_PORT` | `5432` | Database port |
-| `POSTGRES_NAME` | `espyna` | Database name |
-| `POSTGRES_USER` | `postgres` | Database user |
-| `POSTGRES_PASSWORD` | - | Database password |
-| `POSTGRES_URL` | - | Full connection URL (overrides above) |
+| `DATABASE_POSTGRES_HOST` | `localhost` | Database host |
+| `DATABASE_POSTGRES_PORT` | `5432` | Database port |
+| `DATABASE_POSTGRES_DBNAME` | `espyna` | Database name |
+| `DATABASE_POSTGRES_USER` | `postgres` | Database user |
+| `DATABASE_POSTGRES_PASSWORD` | - | Database password |
+| `DATABASE_POSTGRES_URL` | - | Full connection URL (overrides above) |
 
 ### Firestore Database
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FIRESTORE_PROJECT_ID` | - | Google Cloud project ID (required) |
-| `FIRESTORE_CREDENTIALS_PATH` | - | Path to service account JSON |
-| `FIRESTORE_DATABASE` | `(default)` | Firestore database name |
+| `DATABASE_FIRESTORE_PROJECT_ID` | - | Google Cloud project ID (required) |
+| `DATABASE_FIRESTORE_CREDENTIALS_FILE` | - | Path to service account JSON |
+| `DATABASE_FIRESTORE_DATABASE` | `(default)` | Firestore database name |
 
 ### Collection/Table Name Overrides
 
@@ -412,7 +412,7 @@ credentials: could not find default credentials
 **Solution:**
 Set the credentials path in your `.env` file:
 ```bash
-FIRESTORE_CREDENTIALS_PATH=./service-account-key.json
+DATABASE_FIRESTORE_CREDENTIALS_FILE=./service-account-key.json
 ```
 
 And ensure the file exists in that location.
@@ -444,8 +444,8 @@ tail -f server.log
 # Create .env file with Firestore config
 cat > .env <<EOF
 CONFIG_DATABASE_PROVIDER=firestore
-FIRESTORE_PROJECT_ID=my-project
-FIRESTORE_CREDENTIALS_PATH=./creds.json
+DATABASE_FIRESTORE_PROJECT_ID=my-project
+DATABASE_FIRESTORE_CREDENTIALS_FILE=./creds.json
 CONFIG_AUTH_PROVIDER=firebase_auth
 CONFIG_STORAGE_PROVIDER=gcs
 EOF

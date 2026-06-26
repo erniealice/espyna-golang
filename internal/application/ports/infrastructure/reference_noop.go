@@ -1,4 +1,4 @@
-package reference
+package infrastructure
 
 import "context"
 
@@ -6,6 +6,8 @@ import "context"
 // Useful as a sane default in non-postgres providers and tests that don't
 // care about reference checks.
 func NewNoOp() Checker { return &noOp{} }
+
+var _ Checker = (*noOp)(nil)
 
 type noOp struct{}
 

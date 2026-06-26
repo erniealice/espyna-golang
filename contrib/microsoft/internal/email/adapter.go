@@ -43,33 +43,33 @@ func buildFromEnv() (ports.EmailProvider, error) {
 	provider := NewMicrosoftGraphProvider()
 
 	// Read required environment variables
-	tenantID := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TENANT_ID")
+	tenantID := os.Getenv("EMAIL_MICROSOFT_TENANT_ID")
 	if tenantID == "" {
-		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TENANT_ID is required")
+		return nil, fmt.Errorf("microsoft_email: EMAIL_MICROSOFT_TENANT_ID is required")
 	}
 
-	clientID := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_ID")
+	clientID := os.Getenv("EMAIL_MICROSOFT_CLIENT_ID")
 	if clientID == "" {
-		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_ID is required")
+		return nil, fmt.Errorf("microsoft_email: EMAIL_MICROSOFT_CLIENT_ID is required")
 	}
 
-	clientSecret := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_SECRET")
+	clientSecret := os.Getenv("EMAIL_MICROSOFT_CLIENT_SECRET")
 	if clientSecret == "" {
-		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_CLIENT_SECRET is required")
+		return nil, fmt.Errorf("microsoft_email: EMAIL_MICROSOFT_CLIENT_SECRET is required")
 	}
 
-	delegateEmail := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_DELEGATE_EMAIL")
+	delegateEmail := os.Getenv("EMAIL_MICROSOFT_DELEGATE_EMAIL")
 	if delegateEmail == "" {
-		return nil, fmt.Errorf("microsoft_email: LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_DELEGATE_EMAIL is required")
+		return nil, fmt.Errorf("microsoft_email: EMAIL_MICROSOFT_DELEGATE_EMAIL is required")
 	}
 
 	// Optional environment variables
-	fromEmail := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_FROM_EMAIL")
+	fromEmail := os.Getenv("EMAIL_MICROSOFT_FROM_EMAIL")
 	if fromEmail == "" {
 		fromEmail = delegateEmail
 	}
 
-	fromName := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_FROM_NAME")
+	fromName := os.Getenv("EMAIL_MICROSOFT_FROM_NAME")
 
 	// Build protobuf config
 	config := &emailpb.EmailProviderConfig{
@@ -93,22 +93,22 @@ func buildFromEnv() (ports.EmailProvider, error) {
 	}
 
 	// Optional settings
-	if redirectURL := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_REDIRECT_URL"); redirectURL != "" {
+	if redirectURL := os.Getenv("EMAIL_MICROSOFT_REDIRECT_URL"); redirectURL != "" {
 		config.GetOauth2Auth().RedirectUrl = redirectURL
 	}
-	if accessToken := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_ACCESS_TOKEN"); accessToken != "" {
+	if accessToken := os.Getenv("EMAIL_MICROSOFT_ACCESS_TOKEN"); accessToken != "" {
 		config.GetOauth2Auth().AccessToken = accessToken
 	}
-	if refreshToken := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_REFRESH_TOKEN"); refreshToken != "" {
+	if refreshToken := os.Getenv("EMAIL_MICROSOFT_REFRESH_TOKEN"); refreshToken != "" {
 		config.GetOauth2Auth().RefreshToken = refreshToken
 	}
-	if tokenType := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TOKEN_TYPE"); tokenType != "" {
+	if tokenType := os.Getenv("EMAIL_MICROSOFT_TOKEN_TYPE"); tokenType != "" {
 		config.Settings["token_type"] = tokenType
 	}
-	if tokenExpiry := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TOKEN_EXPIRY"); tokenExpiry != "" {
+	if tokenExpiry := os.Getenv("EMAIL_MICROSOFT_TOKEN_EXPIRY"); tokenExpiry != "" {
 		config.Settings["token_expiry"] = tokenExpiry
 	}
-	if timeout := os.Getenv("LEAPFOR_INTEGRATION_EMAIL_MICROSOFT_TIMEOUT"); timeout != "" {
+	if timeout := os.Getenv("EMAIL_MICROSOFT_TIMEOUT"); timeout != "" {
 		if duration, err := time.ParseDuration(timeout); err == nil {
 			config.TimeoutSeconds = int32(duration.Seconds())
 		}
@@ -176,6 +176,11 @@ type MicrosoftGraphProvider struct {
 	enabled   bool
 	userEmail string
 	timeout   time.Duration
+
+	// client is this provider's OWN per-instance Azure-AD token client.
+	// It is NOT a package singleton — each provider holds its own EMAIL_MICROSOFT_
+	// Azure app and token cache.
+	client *microsoftclient.Client
 }
 
 // Microsoft Graph API response structures
@@ -272,20 +277,26 @@ func (p *MicrosoftGraphProvider) Initialize(config *emailpb.EmailProviderConfig)
 		return fmt.Errorf("user_email (or delegated_email) cannot be empty")
 	}
 
-	// Initialize Microsoft common client with simple Client Credentials flow
+	// Initialize Microsoft common client with simple Client Credentials flow.
+	// This builds a PER-INSTANCE Azure-AD token client (no package singleton):
+	// the EMAIL concern owns its own *common.Client holding its own EMAIL_MICROSOFT_
+	// Azure app credentials + token cache. Credentials here come from the proto
+	// config (which buildFromEnv populated from the EMAIL_MICROSOFT_ prefix via
+	// common.FromEnv-style reads); a future SharePoint STORAGE concern would build
+	// its OWN, independent client via common.NewClient(common.FromEnv("STORAGE_SHAREPOINT_")).
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
 
-	microsoftConfig := &microsoftclient.MicrosoftConfig{
+	client, err := microsoftclient.NewClient(microsoftclient.Config{
 		TenantID:     oauth2.TenantId,
 		ClientID:     oauth2.ClientId,
 		ClientSecret: oauth2.ClientSecret,
 		Timeout:      p.timeout,
-	}
-
-	if err := microsoftclient.InitializeMicrosoftClient(ctx, microsoftConfig); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("failed to initialize Microsoft Graph client: %w", err)
 	}
+	p.client = client
 
 	p.enabled = config.Enabled
 
@@ -300,7 +311,10 @@ func (p *MicrosoftGraphProvider) Initialize(config *emailpb.EmailProviderConfig)
 
 // testGraphAccess tests if we can access Microsoft Graph API
 func (p *MicrosoftGraphProvider) testGraphAccess(ctx context.Context) error {
-	return microsoftclient.TestConnection(ctx)
+	if p.client == nil {
+		return fmt.Errorf("Microsoft Graph client is not initialized")
+	}
+	return p.client.TestConnection(ctx)
 }
 
 // sendEmailLegacy sends an email message using Microsoft Graph API (legacy method)
@@ -324,7 +338,7 @@ func (p *MicrosoftGraphProvider) sendEmailLegacy(ctx context.Context, message po
 	}
 
 	// Get authenticated client
-	client, err := microsoftclient.GetAuthenticatedClient(ctx)
+	client, err := p.client.GetAuthenticatedClient(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get authenticated client: %w", err)
 	}
@@ -430,7 +444,7 @@ func (p *MicrosoftGraphProvider) getInboxMessagesLegacy(ctx context.Context, opt
 	}
 
 	// Get authenticated client
-	client, err := microsoftclient.GetAuthenticatedClient(ctx)
+	client, err := p.client.GetAuthenticatedClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get authenticated client: %w", err)
 	}
@@ -481,7 +495,7 @@ func (p *MicrosoftGraphProvider) getMessageLegacy(ctx context.Context, messageID
 	}
 
 	// Get authenticated client
-	client, err := microsoftclient.GetAuthenticatedClient(ctx)
+	client, err := p.client.GetAuthenticatedClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get authenticated client: %w", err)
 	}
@@ -608,7 +622,10 @@ func (p *MicrosoftGraphProvider) IsHealthy(ctx context.Context) error {
 // Close cleans up Microsoft Graph provider resources
 func (p *MicrosoftGraphProvider) Close() error {
 	p.enabled = false
-	return microsoftclient.Close()
+	if p.client == nil {
+		return nil
+	}
+	return p.client.Close()
 }
 
 // IsEnabled returns whether this provider is currently enabled

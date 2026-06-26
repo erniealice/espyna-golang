@@ -78,7 +78,7 @@ type Services struct {
 	ActionGatekeeper *actiongate.ActionGatekeeper
 	IDGenerator ports.IDGenerator
 	// SessionExpiry is the default time-to-live for a newly issued session.
-	// Callers typically source this from PASSWORD_AUTH_SESSION_EXPIRY.
+	// Callers typically source this from AUTH_PASSWORD_SESSION_EXPIRY.
 	// A zero value means IssueSession falls back to defaultSessionExpiry.
 	SessionExpiry SessionExpiryConfig
 }

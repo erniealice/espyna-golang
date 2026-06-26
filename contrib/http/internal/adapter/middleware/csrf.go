@@ -10,7 +10,7 @@
 //	v1.<base64url(sessionToken|workspaceID|nonce)>.<base64url(HMAC-SHA256)>
 //
 // The HMAC key follows the same env-var hierarchy as action_workspace_guard:
-// WORKSPACE_FORM_HMAC_KEY -> PASSWORD_AUTH_RESET_TOKEN_SECRET.
+// SECURITY_WORKSPACEFORM_HMAC_KEY -> AUTH_PASSWORD_RESET_TOKEN_SECRET.
 // An empty key disables claim validation (legacy opaque-token mode only).
 //
 // Middleware chain position:

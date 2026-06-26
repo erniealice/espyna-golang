@@ -4,8 +4,8 @@
 //
 // init() registers three things with the espyna registry:
 //   - Provider factory (NewPostgresAdapter)
-//   - BuildFromEnv builder (reads POSTGRES_* env vars, returns initialized adapter)
-//   - TableConfigBuilder (buildPgTableConfig — scans POSTGRES_TABLE_* env vars via entityid.All)
+//   - BuildFromEnv builder (reads DATABASE_POSTGRES_* env vars, returns initialized adapter)
+//   - TableConfigBuilder (buildPgTableConfig — scans DATABASE_POSTGRES_TABLE_* env vars via entityid.All)
 //
 // The 145+ entity adapters in subdirectories (entity/, product/, revenue/, etc.)
 // each have their own init() that calls registry.RegisterRepositoryFactory to
@@ -17,7 +17,7 @@
 //  3. Blank-import the adapter package in the consumer binary so init() fires.
 //
 // Table name resolution: buildPgTableConfig() iterates entityid.All, checking
-// POSTGRES_TABLE_{ENTITY} env vars for overrides, and stores them in TableConfig.
+// DATABASE_POSTGRES_TABLE_{ENTITY} env vars for overrides, and stores them in TableConfig.
 //
 // Import order matters: adapter packages must be blank-imported in the consumer
 // binary for their init() registrations to execute.
@@ -34,7 +34,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -63,13 +63,13 @@ func init() {
 	registry.RegisterSchemaValidator("postgresql", core.ValidateSchema)
 }
 
-// buildPgTableConfig creates table config from POSTGRES_TABLE_* environment variables.
+// buildPgTableConfig creates table config from DATABASE_POSTGRES_TABLE_* environment variables.
 // This allows PostgreSQL-specific table naming without the container knowing about it.
 func buildPgTableConfig() *registry.TableConfig {
-	prefix := getEnv("POSTGRES_TABLE_PREFIX", "")
+	prefix := getEnv("DATABASE_POSTGRES_TABLE_PREFIX", "")
 	overrides := make(map[string]string)
 	for _, entity := range entityid.All {
-		envKey := "POSTGRES_TABLE_" + toEnvKey(entity)
+		envKey := "DATABASE_POSTGRES_TABLE_" + toEnvKey(entity)
 		if val := os.Getenv(envKey); val != "" {
 			overrides[entity] = val
 		}
@@ -82,9 +82,9 @@ func toEnvKey(entity string) string {
 	return strings.ToUpper(entity)
 }
 
-// getPostgresTableEnv reads POSTGRES_TABLE_{suffix} or returns the default.
+// getPostgresTableEnv reads DATABASE_POSTGRES_TABLE_{suffix} or returns the default.
 func getPostgresTableEnv(suffix, defaultValue string) string {
-	if value := os.Getenv("POSTGRES_TABLE_" + suffix); value != "" {
+	if value := os.Getenv("DATABASE_POSTGRES_TABLE_" + suffix); value != "" {
 		return value
 	}
 	return defaultValue
@@ -92,19 +92,19 @@ func getPostgresTableEnv(suffix, defaultValue string) string {
 
 // buildFromEnv creates and initializes a PostgreSQL adapter from environment variables.
 func buildFromEnv() (ports.DatabaseProvider, error) {
-	host := getEnv("POSTGRES_HOST", "localhost")
-	port := getEnv("POSTGRES_PORT", "5432")
-	name := getEnv("POSTGRES_NAME", "espyna")
-	user := getEnv("POSTGRES_USER", "postgres")
-	password := getEnv("POSTGRES_PASSWORD", "")
-	sslMode := getEnv("POSTGRES_SSL_MODE", "disable")
-	maxConns := getEnvInt("POSTGRES_MAX_CONNECTIONS", 25)
+	host := getEnv("DATABASE_POSTGRES_HOST", "localhost")
+	port := getEnv("DATABASE_POSTGRES_PORT", "5432")
+	name := getEnv("DATABASE_POSTGRES_DBNAME", "espyna")
+	user := getEnv("DATABASE_POSTGRES_USER", "postgres")
+	password := getEnv("DATABASE_POSTGRES_PASSWORD", "")
+	sslMode := getEnv("DATABASE_POSTGRES_SSLMODE", "disable")
+	maxConns := getEnvInt("DATABASE_POSTGRES_MAX_CONNECTIONS", 25)
 
 	if host == "" {
-		return nil, fmt.Errorf("postgresql: POSTGRES_HOST is required")
+		return nil, fmt.Errorf("postgresql: DATABASE_POSTGRES_HOST is required")
 	}
 	if user == "" {
-		return nil, fmt.Errorf("postgresql: POSTGRES_USER is required")
+		return nil, fmt.Errorf("postgresql: DATABASE_POSTGRES_USER is required")
 	}
 
 	protoConfig := &dbpb.DatabaseProviderConfig{

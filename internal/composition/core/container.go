@@ -23,7 +23,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	orchcontracts "github.com/erniealice/espyna-golang/internal/orchestration/contracts"
 	workflowregistry "github.com/erniealice/espyna-golang/internal/orchestration/workflow"
-	"github.com/erniealice/espyna-golang/schema"
+	"github.com/erniealice/espyna-golang/shared/database/schema"
 )
 
 // RouteManager defines the interface for route management to avoid import cycles

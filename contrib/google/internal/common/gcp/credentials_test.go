@@ -7,9 +7,9 @@ import (
 
 func TestDefaultCredentialConfig(t *testing.T) {
 	// Set up test environment
-	os.Setenv("GOOGLE_CLOUD_PROJECT_ID", "test-project")
+	os.Setenv("GOOGLE_PROJECT_ID", "test-project")
 	os.Setenv("GOOGLE_USE_SERVICE_ACCOUNT", "true")
-	defer os.Unsetenv("GOOGLE_CLOUD_PROJECT_ID")
+	defer os.Unsetenv("GOOGLE_PROJECT_ID")
 	defer os.Unsetenv("GOOGLE_USE_SERVICE_ACCOUNT")
 
 	config := DefaultCredentialConfig("GOOGLE_")
@@ -30,16 +30,16 @@ func TestDefaultCredentialConfig(t *testing.T) {
 func TestGetServiceAccountJSON(t *testing.T) {
 	// Set up test service account environment
 	testEnv := map[string]string{
-		"TEST_TYPE":                   "service_account",
-		"TEST_PROJECT_ID":             "test-project",
-		"TEST_PRIVATE_KEY_ID":         "key123",
-		"TEST_PRIVATE_KEY":            "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
-		"TEST_CLIENT_EMAIL":           "test@test-project.iam.gserviceaccount.com",
-		"TEST_CLIENT_ID":              "12345",
-		"TEST_AUTH_URI":               "https://accounts.google.com/o/oauth2/auth",
-		"TEST_TOKEN_URI":              "https://oauth2.googleapis.com/token",
-		"TEST_AUTH_PROVIDER_CERT_URL": "https://www.googleapis.com/oauth2/v1/certs",
-		"TEST_CLIENT_CERT_URL":        "https://www.googleapis.com/robot/v1/metadata/x509/test",
+		"TEST_SA_TYPE":                   "service_account",
+		"TEST_SA_PROJECT_ID":             "test-project",
+		"TEST_SA_PRIVATE_KEY_ID":         "key123",
+		"TEST_SA_PRIVATE_KEY":            "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+		"TEST_SA_CLIENT_EMAIL":           "test@test-project.iam.gserviceaccount.com",
+		"TEST_SA_CLIENT_ID":              "12345",
+		"TEST_SA_AUTH_URI":               "https://accounts.google.com/o/oauth2/auth",
+		"TEST_SA_TOKEN_URI":              "https://oauth2.googleapis.com/token",
+		"TEST_SA_AUTH_PROVIDER_CERT_URL": "https://www.googleapis.com/oauth2/v1/certs",
+		"TEST_SA_CLIENT_CERT_URL":        "https://www.googleapis.com/robot/v1/metadata/x509/test",
 	}
 
 	for key, value := range testEnv {

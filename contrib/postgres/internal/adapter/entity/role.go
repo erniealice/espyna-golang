@@ -14,7 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -115,7 +115,9 @@ func (r *PostgresRoleRepository) ReadRole(ctx context.Context, req *rolepb.ReadR
 		return nil, fmt.Errorf("failed to read role: %w", err)
 	}
 
-	// Convert result to protobuf using protojson
+	// Convert result back to protobuf using protojson. The generic normalizeValue
+	// path now converts the applicable_principal_types Postgres integer[] column
+	// into a real JSON array, which protojson accepts for the repeated enum field.
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -155,7 +157,8 @@ func (r *PostgresRoleRepository) UpdateRole(ctx context.Context, req *rolepb.Upd
 		return nil, fmt.Errorf("failed to update role: %w", err)
 	}
 
-	// Convert result back to protobuf using protojson
+	// Convert result back to protobuf using protojson (see ReadRole — the
+	// applicable_principal_types int[] is now array-decoded generically).
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -213,18 +216,18 @@ func (r *PostgresRoleRepository) ListRoles(ctx context.Context, req *rolepb.List
 		return nil, fmt.Errorf("failed to list roles: %w", err)
 	}
 
-	// Convert results to protobuf slice using protojson
+	// Convert results to protobuf slice using protojson. The generic
+	// normalizeValue path now decodes the applicable_principal_types int[]
+	// column into a JSON array, so protojson handles the repeated enum field.
 	var roles []*rolepb.Role
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			// Log error and continue with next item
+			// Skip an individual unconvertible row rather than failing the list.
 			continue
 		}
-
 		role := &rolepb.Role{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, role); err != nil {
-			// Log error and continue with next item
 			continue
 		}
 		roles = append(roles, role)

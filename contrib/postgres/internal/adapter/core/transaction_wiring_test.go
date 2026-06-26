@@ -11,9 +11,9 @@ import (
 	_ "github.com/lib/pq"
 
 	ports "github.com/erniealice/espyna-golang/internal/application/ports"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/operations"
-	txbridge "github.com/erniealice/espyna-golang/database/transactions"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
+	txbridge "github.com/erniealice/espyna-golang/shared/database/transactions"
 )
 
 // TestWiredTransactorIsRealAndSupportsTransactions proves the boot wiring's

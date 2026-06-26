@@ -17,6 +17,7 @@ import (
 	"net/http"
 
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
+	pyeza "github.com/erniealice/pyeza-golang"
 )
 
 // buildChain (no-http stub): returns the inner handler unwrapped. See
@@ -33,4 +34,13 @@ func buildChain(_ consumermw.Preset, inner http.Handler) http.Handler { return i
 // Retained for build-tag-twin symmetry with middleware_dispatch_http.go.
 func buildWorkspacePath(cfg consumermw.WorkspacePathConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler { return next }
+}
+
+// buildWorkspaceFormSigner (no-http stub): no contrib/http provider is compiled,
+// so no signer can be built. Returns nil — the renderer then renders an empty
+// {{actionForm}}, which is consistent with the chain being a no-op pass-through
+// under this build (no ActionGuard verifier either). Tag-twin of the http
+// forwarder for build symmetry.
+func buildWorkspaceFormSigner(secret string) pyeza.WorkspaceFormSigner {
+	return nil
 }

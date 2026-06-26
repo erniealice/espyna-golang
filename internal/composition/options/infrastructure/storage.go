@@ -79,9 +79,9 @@ func createLocalStorageConfigFromEnv() LocalStorageConfig {
 
 func createGCSConfigFromEnv() GCSConfig {
 	return GCSConfig{
-		BucketName:      GetEnv("GOOGLE_CLOUD_STORAGE_BUCKET_NAME", ""),
-		CredentialsPath: GetEnv("GOOGLE_APPLICATION_CREDENTIALS", ""),
-		ProjectID:       GetEnv("GOOGLE_CLOUD_PROJECT_ID", ""),
+		BucketName:      GetEnv("STORAGE_GCS_BUCKET", ""),
+		CredentialsPath: GetEnv("STORAGE_GCS_CREDENTIALS_FILE", ""),
+		ProjectID:       GetEnv("STORAGE_GCS_PROJECT_ID", ""),
 	}
 }
 

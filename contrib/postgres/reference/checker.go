@@ -8,14 +8,14 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/shared/identity"
-	topref "github.com/erniealice/espyna-golang/reference"
+	"github.com/erniealice/espyna-golang/ports"
 	"github.com/lib/pq"
 )
 
 // Compile-time guarantee that *Checker satisfies the top-level public
 // reference.Checker interface. This assertion covers the full 21-method
 // contract so any new method added to the interface is caught at build time.
-var _ topref.Checker = (*Checker)(nil)
+var _ ports.Checker = (*Checker)(nil)
 
 // Checker provides batch FK reference checking for deletable state.
 // Each method returns a map where true = ID is in use and should NOT be deleted.

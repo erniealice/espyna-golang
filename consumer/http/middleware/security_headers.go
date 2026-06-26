@@ -22,13 +22,18 @@ const (
 // SecurityHeadersConfig configures the security-header middleware. It is the
 // declarative slot the Preset carries; the contrib SecurityHeaders impl takes a
 // structurally-identical type, which the chain assembler converts to. Keeping
-// these two in lockstep is a contract: {HSTSEnabled, CSPEnforce}.
+// these two in lockstep is a contract: {HSTSEnabled, CSPEnforce, FirebaseAuthDomain}.
 type SecurityHeadersConfig struct {
 	// HSTSEnabled, when true, emits Strict-Transport-Security. Leave false for
 	// local http dev.
 	HSTSEnabled bool
 	// CSPEnforce flips the CSP from REPORT-ONLY (default, false) to ENFORCING.
 	CSPEnforce bool
+	// FirebaseAuthDomain, when non-empty, widens the CSP to permit the Firebase
+	// JS SDK + sign-in popup/iframe. Set only under CONFIG_AUTH_PROVIDER=firebase.
+	// Field order MUST match the contrib SecurityHeadersConfig (struct-converted
+	// in chain_http.go).
+	FirebaseAuthDomain string
 }
 
 // cspEnforceEnabled returns true only for an explicit truthy value.
@@ -45,9 +50,14 @@ func cspEnforceEnabled(v string) bool {
 // HSTS is OFF by default. CSP is REPORT-ONLY by default.
 func SecurityHeadersConfigFromEnv(getenv func(string) string) SecurityHeadersConfig {
 	v := getenv(EnvKeyHSTSEnabled)
+	fbAuthDomain := ""
+	if getenv("CONFIG_AUTH_PROVIDER") == "firebase" {
+		fbAuthDomain = getenv("FIREBASE_AUTH_DOMAIN")
+	}
 	return SecurityHeadersConfig{
-		HSTSEnabled: v == "true" || v == "1",
-		CSPEnforce:  cspEnforceEnabled(getenv(EnvKeyCSPEnforce)),
+		HSTSEnabled:        v == "true" || v == "1",
+		CSPEnforce:         cspEnforceEnabled(getenv(EnvKeyCSPEnforce)),
+		FirebaseAuthDomain: fbAuthDomain,
 	}
 }
 

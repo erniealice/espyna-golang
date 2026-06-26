@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/erniealice/espyna-golang/schema"
+	"github.com/erniealice/espyna-golang/shared/database/schema"
 )
 
 // buildRegistry ensures schema.Global is populated for the reconcile tests. In

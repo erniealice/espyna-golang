@@ -8,7 +8,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	"github.com/erniealice/espyna-golang/database/operations"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 

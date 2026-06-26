@@ -173,6 +173,15 @@ func GetSessionTokenFromContext(ctx context.Context) string {
 // --- Internal helpers ---
 
 func (m *SessionMiddleware) isExcluded(path string) bool {
+	// /auth/change-password is a POST-AUTH flow: the user MUST be logged in to
+	// change their own password, and the handler reads the acting userID from the
+	// session identity. The broad "/auth/" exclude (for the PRE-auth flows —
+	// login/signup/reset/firebase/select-workspace-role) would strip that
+	// identity, so the handler 303'd every authenticated request back to login.
+	// Validate it like any protected route (unauthenticated → bounce to login).
+	if path == "/auth/change-password" {
+		return false
+	}
 	for _, prefix := range m.ExcludePrefixes {
 		if strings.HasPrefix(path, prefix) {
 			return true

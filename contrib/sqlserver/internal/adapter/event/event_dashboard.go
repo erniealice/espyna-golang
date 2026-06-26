@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/database/operations"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 

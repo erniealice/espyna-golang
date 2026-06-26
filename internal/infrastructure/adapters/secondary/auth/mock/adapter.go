@@ -233,6 +233,41 @@ func (p *MockAuthAdapter) ChangePassword(ctx context.Context, userID, oldPasswor
 	return nil
 }
 
+// =============================================================================
+// Admin user-lifecycle effects at the IdP (§4 adapter matrix — mock column)
+// All no-ops: mock has no IdP to mutate; the DB use cases own the real effect.
+// =============================================================================
+
+// DisableUserAtProvider is a no-op in mock mode.
+func (p *MockAuthAdapter) DisableUserAtProvider(ctx context.Context, userID string) error {
+	return nil
+}
+
+// EnableUserAtProvider is a no-op in mock mode.
+func (p *MockAuthAdapter) EnableUserAtProvider(ctx context.Context, userID string) error {
+	return nil
+}
+
+// UpdateEmailAtProvider is a no-op in mock mode.
+func (p *MockAuthAdapter) UpdateEmailAtProvider(ctx context.Context, userID, newEmail string) error {
+	return nil
+}
+
+// AdminSetPassword is a no-op in mock mode.
+func (p *MockAuthAdapter) AdminSetPassword(ctx context.Context, userID, newPassword string) error {
+	return nil
+}
+
+// GeneratePasswordResetLink returns "" in mock mode.
+func (p *MockAuthAdapter) GeneratePasswordResetLink(ctx context.Context, userID string) (string, error) {
+	return "", nil
+}
+
+// RevokeUserTokens is a no-op in mock mode.
+func (p *MockAuthAdapter) RevokeUserTokens(ctx context.Context, userID string) error {
+	return nil
+}
+
 // Compile-time checks that MockAuthAdapter implements both interfaces
 var _ ports.AuthProvider = (*MockAuthAdapter)(nil)
 var _ ports.AuthService = (*MockAuthAdapter)(nil)

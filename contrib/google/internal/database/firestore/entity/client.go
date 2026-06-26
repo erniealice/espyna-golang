@@ -7,8 +7,8 @@ import (
 
 	"cloud.google.com/go/firestore"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/operations"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -47,7 +47,7 @@ func NewFirestoreClientRepository(dbOps interfaces.DatabaseOperation, collection
 
 	// Get user collection name from environment for enrichment
 	// Falls back to "user" if not set
-	userCollectionName := os.Getenv("LEAPFOR_DATABASE_FIRESTORE_COLLECTION_USER")
+	userCollectionName := os.Getenv("DATABASE_FIRESTORE_TABLE_USER")
 	if userCollectionName == "" {
 		userCollectionName = "user"
 	}

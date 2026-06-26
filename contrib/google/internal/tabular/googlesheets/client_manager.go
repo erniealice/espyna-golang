@@ -1,4 +1,4 @@
-package google
+package googlesheets
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 )
 
 // SheetsEnvPrefix is the environment variable prefix for Google Sheets configuration
-const SheetsEnvPrefix = "LEAPFOR_INTEGRATION_DATASHEET_GOOGLESHEETS_"
+const SheetsEnvPrefix = "TABULAR_GOOGLESHEETS_"
 
 // SheetsClientManager manages Google Sheets API client with service account delegation
 type SheetsClientManager struct {
@@ -34,8 +34,8 @@ type SheetsConfig struct {
 	// DelegateEmail is the email to impersonate (domain-wide delegation)
 	DelegateEmail string
 
-	// ServiceAccountKeyPath is the path to the service account JSON file
-	ServiceAccountKeyPath string
+	// CredentialsFile is the path to the service account JSON file
+	CredentialsFile string
 
 	// SecretManagerPath is the Secret Manager resource path (for production)
 	// Format: projects/PROJECT_ID/secrets/SECRET_NAME/versions/VERSION
@@ -49,7 +49,7 @@ type SheetsConfig struct {
 }
 
 // DefaultSheetsConfig creates SheetsConfig from environment variables
-// Uses prefix: LEAPFOR_INTEGRATION_DATASHEET_GOOGLESHEETS_
+// Uses prefix: TABULAR_GOOGLESHEETS_
 func DefaultSheetsConfig() *SheetsConfig {
 	timeout := 30 * time.Second
 	if timeoutStr := os.Getenv(SheetsEnvPrefix + "TIMEOUT"); timeoutStr != "" {
@@ -59,12 +59,12 @@ func DefaultSheetsConfig() *SheetsConfig {
 	}
 
 	return &SheetsConfig{
-		ProjectID:             os.Getenv(SheetsEnvPrefix + "PROJECT_ID"),
-		DelegateEmail:         os.Getenv(SheetsEnvPrefix + "DELEGATE_EMAIL"),
-		ServiceAccountKeyPath: os.Getenv(SheetsEnvPrefix + "SERVICE_ACCOUNT_KEY_PATH"),
-		SecretManagerPath:     os.Getenv(SheetsEnvPrefix + "SECRET_MANAGER_PATH"),
-		UseSecretManager:      os.Getenv(SheetsEnvPrefix+"USE_SECRET_MANAGER") == "true",
-		Timeout:               timeout,
+		ProjectID:         os.Getenv(SheetsEnvPrefix + "PROJECT_ID"),
+		DelegateEmail:     os.Getenv(SheetsEnvPrefix + "DELEGATE_EMAIL"),
+		CredentialsFile:   os.Getenv(SheetsEnvPrefix + "CREDENTIALS_FILE"),
+		SecretManagerPath: os.Getenv(SheetsEnvPrefix + "SECRET_MANAGER_PATH"),
+		UseSecretManager:  os.Getenv(SheetsEnvPrefix+"USE_SECRET_MANAGER") == "true",
+		Timeout:           timeout,
 	}
 }
 
@@ -75,8 +75,8 @@ func (c *SheetsConfig) Validate() error {
 	}
 
 	// Must have either service account key path or secret manager path
-	if !c.UseSecretManager && c.ServiceAccountKeyPath == "" {
-		return fmt.Errorf("service account key path is required when not using Secret Manager (%sSERVICE_ACCOUNT_KEY_PATH)", SheetsEnvPrefix)
+	if !c.UseSecretManager && c.CredentialsFile == "" {
+		return fmt.Errorf("service account key path is required when not using Secret Manager (%sCREDENTIALS_FILE)", SheetsEnvPrefix)
 	}
 
 	if c.UseSecretManager && c.SecretManagerPath == "" {
@@ -138,7 +138,7 @@ func getSheetsServiceAccountKey(ctx context.Context, config *SheetsConfig) ([]by
 	}
 
 	// Read from file
-	serviceAccountKey, err := os.ReadFile(config.ServiceAccountKeyPath)
+	serviceAccountKey, err := os.ReadFile(config.CredentialsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read service account key file: %w", err)
 	}

@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/schema"
+	"github.com/erniealice/espyna-golang/shared/database/schema"
 )
 
 // schema_validator.go is the postgresql boot-shot schema validator (Plan 2,

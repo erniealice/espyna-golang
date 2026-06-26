@@ -7,7 +7,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	integrationPorts "github.com/erniealice/espyna-golang/ports/integration"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"

@@ -2,8 +2,6 @@ package messaging
 
 import (
 	"fmt"
-	"os"
-	"strings"
 )
 
 // =============================================================================
@@ -79,68 +77,16 @@ func (c MicrosoftConfig) Validate() error {
 }
 
 // =============================================================================
-// ENVIRONMENT CONFIGURATION LOADERS
-// =============================================================================
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func createGmailConfigFromEnv() GmailConfig {
-	return GmailConfig{
-		DelegateEmail:         getEnv("GMAIL_DELEGATE_EMAIL", ""),
-		FromEmail:             getEnv("GMAIL_FROM_EMAIL", ""),
-		FromName:              getEnv("GMAIL_FROM_NAME", ""),
-		ReplyToEmail:          getEnv("GMAIL_REPLY_TO_EMAIL", ""),
-		ServiceAccountKeyPath: getEnv("GMAIL_SERVICE_ACCOUNT_KEY_PATH", ""),
-		SecretManagerPath:     getEnv("GMAIL_SECRET_MANAGER_PATH", ""),
-		UseSecretManager:      getEnv("GMAIL_USE_SECRET_MANAGER", "false") == "true",
-		Timeout:               getEnv("GMAIL_TIMEOUT", "30s"),
-	}
-}
-
-func createMicrosoftConfigFromEnv() MicrosoftConfig {
-	return MicrosoftConfig{
-		ClientID:     getEnv("MICROSOFT_CLIENT_ID", ""),
-		ClientSecret: getEnv("MICROSOFT_CLIENT_SECRET", ""),
-		TenantID:     getEnv("MICROSOFT_TENANT_ID", ""),
-		FromEmail:    getEnv("MICROSOFT_FROM_EMAIL", ""),
-		FromName:     getEnv("MICROSOFT_FROM_NAME", ""),
-	}
-}
-
-// =============================================================================
 // EMAIL PROVIDER OPTIONS
 // =============================================================================
-
-// WithEmailFromEnv dynamically selects email provider based on CONFIG_EMAIL_PROVIDER
-func WithEmailFromEnv() ContainerOption {
-	return func(c Container) error {
-		emailProvider := strings.ToLower(getEnv("CONFIG_EMAIL_PROVIDER", ""))
-
-		switch emailProvider {
-		case "google_email":
-			return WithGmail(createGmailConfigFromEnv())(c)
-		case "microsoft_email":
-			return WithMicrosoft(createMicrosoftConfigFromEnv())(c)
-		case "mock_email":
-			return WithMockEmail()(c)
-		case "gmail":
-			return fmt.Errorf("email provider 'gmail' is retired - use CONFIG_EMAIL_PROVIDER=google_email")
-		case "microsoft":
-			return fmt.Errorf("email provider 'microsoft' is retired - use CONFIG_EMAIL_PROVIDER=microsoft_email")
-		case "mock":
-			return fmt.Errorf("email provider 'mock' is retired - use CONFIG_EMAIL_PROVIDER=mock_email")
-		case "":
-			return fmt.Errorf("CONFIG_EMAIL_PROVIDER is empty - set it explicitly (mock_email, google_email, microsoft_email)")
-		default:
-			return fmt.Errorf("unsupported email provider: %s (canonical: mock_email, google_email, microsoft_email)", emailProvider)
-		}
-	}
-}
+//
+// NOTE: The legacy WithEmailFromEnv loader (which read un-prefixed GMAIL_*/
+// MICROSOFT_* env vars) has been removed. It had no live caller — the live
+// email path is providers/integration/email.go CreateEmailProvider ->
+// registry.BuildEmailProviderFromEnv -> each adapter's buildFromEnv, which
+// reads the CONCERN-prefixed EMAIL_GMAIL_*/EMAIL_MICROSOFT_* env vars in the
+// contrib adapters. The EmailConfig/GmailConfig/MicrosoftConfig types below
+// are retained because options/config.go still references messaging.EmailConfig.
 
 // WithGmail configures Gmail as email provider
 func WithGmail(config GmailConfig) ContainerOption {

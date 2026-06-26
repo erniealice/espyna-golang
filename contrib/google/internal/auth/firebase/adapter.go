@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
+	"firebase.google.com/go/v4/auth"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	firebaseCommon "github.com/erniealice/espyna-golang/contrib/google/internal/common/firebase"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
 )
@@ -32,7 +33,7 @@ func init() {
 
 // buildFromEnv creates and initializes a Firebase auth provider from environment variables.
 func buildFromEnv() (ports.AuthProvider, error) {
-	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT_ID")
+	projectID := os.Getenv("AUTH_FIREBASE_PROJECT_ID")
 	protoConfig := &authpb.ProviderConfig{
 		Enabled:     true,
 		Provider:    authpb.Provider_PROVIDER_GCP,
@@ -76,7 +77,7 @@ type FirebaseAuthAdapter struct {
 	config        *authpb.ProviderConfig
 	enabled       bool
 	timeout       time.Duration
-	clientManager *firebaseCommon.FirebaseClientManager
+	clientManager *FirebaseClientManager
 }
 
 // NewAdapter creates a new Firebase auth adapter
@@ -114,7 +115,7 @@ func (p *FirebaseAuthAdapter) Initialize(config *authpb.ProviderConfig) error {
 	defer cancel()
 
 	// Create Firebase client manager
-	manager, err := firebaseCommon.NewFirebaseClientManager(ctx, "")
+	manager, err := NewFirebaseClientManager(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Firebase client manager: %w", err)
 	}
@@ -290,9 +291,217 @@ func (p *FirebaseAuthAdapter) GetProviderName() string {
 	return "firebase"
 }
 
+// VerifyIDTokenWithProvider verifies a Firebase ID token and returns the
+// signed-in user's email plus the `firebase.sign_in_provider` claim (e.g.
+// "microsoft.com", "google.com", "password"). This is the Layer-5 enforcement
+// support path: the web login endpoint checks the returned method against the
+// configured allow-list. Email is sourced from the standard `email` claim;
+// the provider is nested under the `firebase` claim object.
+func (p *FirebaseAuthAdapter) VerifyIDTokenWithProvider(ctx context.Context, idToken string) (email, signInProvider string, err error) {
+	if !p.enabled || p.clientManager == nil {
+		return "", "", fmt.Errorf("firebase auth provider is not enabled")
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if authClient == nil {
+		return "", "", fmt.Errorf("firebase auth client not available")
+	}
+	// CheckRevoked (not plain VerifyIDToken): rejects tokens whose user has been
+	// disabled or whose sessions were revoked, within the token's 1h validity —
+	// a Defensibility hardening over signature+expiry alone. One extra call, at
+	// LOGIN only (never per-request), so the cost is negligible.
+	token, err := authClient.VerifyIDTokenAndCheckRevoked(ctx, idToken)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid, expired, or revoked token: %w", err)
+	}
+	if fb, ok := token.Claims["firebase"].(map[string]interface{}); ok {
+		signInProvider = getStringClaim(fb, "sign_in_provider")
+	}
+	email = getStringClaim(token.Claims, "email")
+	// DEFENSIBILITY (account-takeover guard): the email is the join key to the DB
+	// user, so an UNVERIFIED email must NEVER match. Federated providers
+	// (microsoft.com / google.com) set email_verified=true by construction;
+	// a self-registered Firebase email/password account claiming someone else's
+	// address has email_verified=false and is rejected here. Return the provider
+	// for the caller's log, but no email — so the login fails closed as "invalid".
+	verified, _ := token.Claims["email_verified"].(bool)
+	if !verified {
+		if requireVerifiedEmail() {
+			return "", signInProvider, fmt.Errorf("email not verified (provider=%s, email=%s)", signInProvider, email)
+		}
+		log.Printf("[AUTH] WARNING: accepting UNVERIFIED email %s (provider=%s) — AUTH_FIREBASE_VERIFIED_EMAILS_ONLY=false (INSECURE escape hatch; re-opens the email-match account-takeover surface — use only with a trusted/closed user set, e.g. bootstrap)", email, signInProvider)
+	}
+	return email, signInProvider, nil
+}
+
+// requireVerifiedEmail reports whether an unverified token email must be
+// REJECTED. Defaults to TRUE (secure): the email is the DB join key, so an
+// unverified address is an account-takeover surface. Set
+// AUTH_FIREBASE_VERIFIED_EMAILS_ONLY=false ONLY as a temporary escape hatch —
+// e.g. an Azure/Microsoft tenant whose tokens carry email_verified=false — and
+// pair it with a trusted, closed user set. Unset/any-other value ⇒ secure.
+func requireVerifiedEmail() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_FIREBASE_VERIFIED_EMAILS_ONLY"))) {
+	case "false", "0", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
 // ChangePassword is not supported by the Firebase adapter; password updates flow through Firebase Auth SDK directly.
 func (p *FirebaseAuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
 	return fmt.Errorf("change password not supported by firebase auth provider; use Firebase Admin SDK")
+}
+
+// =============================================================================
+// Admin user-lifecycle effects at the IdP (§4 adapter matrix — firebase column)
+// =============================================================================
+//
+// The DB user row carries NO firebase UID — the DB↔firebase join key is the
+// email address (the login flow in VerifyIDTokenWithProvider keys on `email`).
+// The firebase adapter therefore resolves the firebase UserRecord by email.
+// The use case (the DB-owning caller) passes the user's email_address as the
+// `userID` argument for firebase-backed deployments; resolveFirebaseUID also
+// tolerates a raw firebase UID (it tries GetUser first, then GetUserByEmail),
+// so the adapter is correct whichever identifier the caller supplies.
+
+// resolveFirebaseUID maps the caller-supplied identifier to a firebase UID.
+// If the identifier looks like an email (contains '@') it resolves via
+// GetUserByEmail; otherwise it tries GetUser(identifier) (already a firebase
+// UID) and falls back to GetUserByEmail. Returns the canonical firebase UID
+// and the record's email (used by PasswordResetLink).
+func (p *FirebaseAuthAdapter) resolveFirebaseUID(ctx context.Context, identifier string) (uid, email string, err error) {
+	if !p.enabled || p.clientManager == nil {
+		return "", "", fmt.Errorf("firebase auth provider is not enabled")
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if authClient == nil {
+		return "", "", fmt.Errorf("firebase auth client not available")
+	}
+
+	if strings.Contains(identifier, "@") {
+		rec, gerr := authClient.GetUserByEmail(ctx, identifier)
+		if gerr != nil {
+			return "", "", fmt.Errorf("firebase: resolve user by email %q: %w", identifier, gerr)
+		}
+		return rec.UID, rec.Email, nil
+	}
+
+	// Not an email — try as a firebase UID first, then fall back to email lookup.
+	if rec, gerr := authClient.GetUser(ctx, identifier); gerr == nil {
+		return rec.UID, rec.Email, nil
+	}
+	rec, gerr := authClient.GetUserByEmail(ctx, identifier)
+	if gerr != nil {
+		return "", "", fmt.Errorf("firebase: resolve user %q (not a known UID or email): %w", identifier, gerr)
+	}
+	return rec.UID, rec.Email, nil
+}
+
+// DisableUserAtProvider disables the firebase account (UpdateUser{Disabled:true}).
+func (p *FirebaseAuthAdapter) DisableUserAtProvider(ctx context.Context, userID string) error {
+	uid, _, err := p.resolveFirebaseUID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if _, err := authClient.UpdateUser(ctx, uid, (&auth.UserToUpdate{}).Disabled(true)); err != nil {
+		return fmt.Errorf("firebase: disable user %s: %w", uid, err)
+	}
+	return nil
+}
+
+// EnableUserAtProvider re-enables the firebase account (UpdateUser{Disabled:false}).
+func (p *FirebaseAuthAdapter) EnableUserAtProvider(ctx context.Context, userID string) error {
+	uid, _, err := p.resolveFirebaseUID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if _, err := authClient.UpdateUser(ctx, uid, (&auth.UserToUpdate{}).Disabled(false)); err != nil {
+		return fmt.Errorf("firebase: enable user %s: %w", uid, err)
+	}
+	return nil
+}
+
+// UpdateEmailAtProvider syncs the firebase account email (UpdateUser{Email}).
+// Resolving by the OLD email is correct: the use case updates the DB then calls
+// this with the prior identifier, and the firebase record still carries the old
+// address until this write lands.
+func (p *FirebaseAuthAdapter) UpdateEmailAtProvider(ctx context.Context, userID, newEmail string) error {
+	uid, _, err := p.resolveFirebaseUID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if _, err := authClient.UpdateUser(ctx, uid, (&auth.UserToUpdate{}).Email(newEmail)); err != nil {
+		return fmt.Errorf("firebase: update email for user %s: %w", uid, err)
+	}
+	return nil
+}
+
+// AdminSetPassword sets a new password at firebase (UpdateUser{Password}).
+func (p *FirebaseAuthAdapter) AdminSetPassword(ctx context.Context, userID, newPassword string) error {
+	uid, _, err := p.resolveFirebaseUID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if _, err := authClient.UpdateUser(ctx, uid, (&auth.UserToUpdate{}).Password(newPassword)); err != nil {
+		return fmt.Errorf("firebase: set password for user %s: %w", uid, err)
+	}
+	return nil
+}
+
+// GeneratePasswordResetLink returns a firebase-issued reset link (PasswordResetLink(email)).
+func (p *FirebaseAuthAdapter) GeneratePasswordResetLink(ctx context.Context, userID string) (string, error) {
+	_, email, err := p.resolveFirebaseUID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	link, err := authClient.PasswordResetLink(ctx, email)
+	if err != nil {
+		return "", fmt.Errorf("firebase: generate password reset link for %s: %w", email, err)
+	}
+	return link, nil
+}
+
+// RevokeUserTokens revokes the user's outstanding refresh tokens (RevokeRefreshTokens(uid)).
+func (p *FirebaseAuthAdapter) RevokeUserTokens(ctx context.Context, userID string) error {
+	uid, _, err := p.resolveFirebaseUID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if err := authClient.RevokeRefreshTokens(ctx, uid); err != nil {
+		return fmt.Errorf("firebase: revoke tokens for user %s: %w", uid, err)
+	}
+	return nil
 }
 
 // Helper function to safely extract string claims

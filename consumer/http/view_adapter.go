@@ -278,71 +278,93 @@ func getUserIDFromContext(ctx context.Context) string {
 	return consumer.ExtractUserIDFromContext(ctx)
 }
 
-// Adapt creates an http.HandlerFunc that delegates to the given view
-func (a *ViewAdapter) Adapt(v view.View) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+// injectRequestContext runs the per-request workspace route rewrite and loads
+// the acting user's permissions into the request context, returning the
+// updated request. It is the shared front-half of both Adapt (view routes) and
+// WrapHandler (raw JSON/handler routes) so that raw http.HandlerFunc routes —
+// e.g. the workspace_user_role search-roles autocomplete JSON endpoint —
+// observe the same RBAC permission context as view routes. Without this, a raw
+// handler's view.GetUserPermissions(ctx) returns empty perms and any
+// perms.Can(...) gate fails closed with a spurious 403.
+func (a *ViewAdapter) injectRequestContext(r *http.Request) *http.Request {
+	ctx := r.Context()
 
-		// Phase P6 — per-request workspace route rewrite.
-		if a.workspaceRouteRewriter != nil {
-			ctx = a.workspaceRouteRewriter(ctx)
-			r = r.WithContext(ctx)
-		}
+	// Phase P6 — per-request workspace route rewrite.
+	if a.workspaceRouteRewriter != nil {
+		ctx = a.workspaceRouteRewriter(ctx)
+		r = r.WithContext(ctx)
+	}
 
-		// Load permissions into context BEFORE view execution.
-		if a.permLoader != nil && a.permLoader.IsEnabled() {
-			if userID := getUserIDFromContext(ctx); userID != "" {
-				workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
-				var hint PermissionBindingHint
-				if a.principalLookup != nil {
-					hint = a.principalLookup(r)
-					ctx = consumer.WithActingAsClientID(ctx, hint.ActingAsClientID)
+	// Load permissions into context BEFORE handler execution.
+	if a.permLoader != nil && a.permLoader.IsEnabled() {
+		if userID := getUserIDFromContext(ctx); userID != "" {
+			workspaceID := consumer.GetWorkspaceIDFromContext(ctx)
+			var hint PermissionBindingHint
+			if a.principalLookup != nil {
+				hint = a.principalLookup(r)
+				ctx = consumer.WithActingAsClientID(ctx, hint.ActingAsClientID)
+				r = r.WithContext(ctx)
+				if hint.Empty() {
+					ctx = view.WithUserPermissions(ctx, types.NewEmptyUserPermissions())
 					r = r.WithContext(ctx)
-					if hint.Empty() {
-						ctx = view.WithUserPermissions(ctx, types.NewEmptyUserPermissions())
-						r = r.WithContext(ctx)
-						log.Printf("[rbac] uid=%s no-session-binding-hint path=%s — installed empty perms (fail-closed)",
-							userID, r.URL.Path)
-					} else {
-						codes, err := a.permLoader.GetUserPermissionCodes(ctx, userID, workspaceID,
-							hint.Kind, hint.BindingID,
-							hint.ActingAsClientID, hint.ActingAsSupplierID)
-						if err == nil {
-							perms := types.NewUserPermissions(codes)
-							ctx = view.WithUserPermissions(ctx, perms)
-							r = r.WithContext(ctx)
-							log.Printf("[rbac] uid=%s perms=%d path=%s binding=%s/%s acting=(%s,%s)",
-								userID, len(codes), r.URL.Path, hint.Kind, hint.BindingID,
-								hint.ActingAsClientID, hint.ActingAsSupplierID)
-						} else {
-							log.Printf("[rbac] uid=%s perm-load-error=%v path=%s", userID, err, r.URL.Path)
-						}
-					}
+					log.Printf("[rbac] uid=%s no-session-binding-hint path=%s — installed empty perms (fail-closed)",
+						userID, r.URL.Path)
 				} else {
 					codes, err := a.permLoader.GetUserPermissionCodes(ctx, userID, workspaceID,
-						PrincipalTypeUnspecified, "", "", "")
+						hint.Kind, hint.BindingID,
+						hint.ActingAsClientID, hint.ActingAsSupplierID)
 					if err == nil {
 						perms := types.NewUserPermissions(codes)
 						ctx = view.WithUserPermissions(ctx, perms)
 						r = r.WithContext(ctx)
-						log.Printf("[rbac] uid=%s perms=%d path=%s (no principalLookup wired — legacy path)",
-							userID, len(codes), r.URL.Path)
+						log.Printf("[rbac] uid=%s perms=%d path=%s binding=%s/%s acting=(%s,%s)",
+							userID, len(codes), r.URL.Path, hint.Kind, hint.BindingID,
+							hint.ActingAsClientID, hint.ActingAsSupplierID)
 					} else {
 						log.Printf("[rbac] uid=%s perm-load-error=%v path=%s", userID, err, r.URL.Path)
 					}
 				}
 			} else {
-				log.Printf("[rbac] no uid in context, skipping permissions path=%s", r.URL.Path)
+				codes, err := a.permLoader.GetUserPermissionCodes(ctx, userID, workspaceID,
+					PrincipalTypeUnspecified, "", "", "")
+				if err == nil {
+					perms := types.NewUserPermissions(codes)
+					ctx = view.WithUserPermissions(ctx, perms)
+					r = r.WithContext(ctx)
+					log.Printf("[rbac] uid=%s perms=%d path=%s (no principalLookup wired — legacy path)",
+						userID, len(codes), r.URL.Path)
+				} else {
+					log.Printf("[rbac] uid=%s perm-load-error=%v path=%s", userID, err, r.URL.Path)
+				}
 			}
+		} else {
+			log.Printf("[rbac] no uid in context, skipping permissions path=%s", r.URL.Path)
 		}
+	}
 
-		// P4 safety net: guarantee non-nil UserPermissions before any view runs.
-		ctx = pyezarender.EnsureUserPermissionsInContext(ctx, r.URL.Path, a.pipeline.DevMode)
-		r = r.WithContext(ctx)
+	// P4 safety net: guarantee non-nil UserPermissions before any handler runs.
+	ctx = pyezarender.EnsureUserPermissionsInContext(ctx, r.URL.Path, a.pipeline.DevMode)
+	return r.WithContext(ctx)
+}
 
+// Adapt creates an http.HandlerFunc that delegates to the given view
+func (a *ViewAdapter) Adapt(v view.View) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r = a.injectRequestContext(r)
 		viewCtx := a.buildViewContext(r)
-		result := v.Handle(ctx, viewCtx)
+		result := v.Handle(r.Context(), viewCtx)
 		a.handleResult(w, r, result)
+	}
+}
+
+// WrapHandler wraps a raw http.HandlerFunc with the same workspace-route-rewrite
+// and RBAC permission-injection front-half that Adapt applies to view routes.
+// Used for non-view routes (e.g. JSON autocomplete endpoints) that still gate on
+// view.GetUserPermissions(ctx).
+func (a *ViewAdapter) WrapHandler(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r = a.injectRequestContext(r)
+		h(w, r)
 	}
 }
 

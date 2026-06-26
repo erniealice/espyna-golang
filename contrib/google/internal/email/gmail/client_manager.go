@@ -1,4 +1,4 @@
-package google
+package gmail
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 )
 
 // GmailEnvPrefix is the environment variable prefix for Gmail configuration
-const GmailEnvPrefix = "LEAPFOR_INTEGRATION_EMAIL_GMAIL_"
+const GmailEnvPrefix = "EMAIL_GMAIL_"
 
 // GmailClientManager manages Gmail API client with service account delegation
 type GmailClientManager struct {
@@ -43,8 +43,8 @@ type GmailConfig struct {
 	// ReplyToEmail is the default reply-to address
 	ReplyToEmail string
 
-	// ServiceAccountKeyPath is the path to the service account JSON file
-	ServiceAccountKeyPath string
+	// CredentialsFile is the path to the service account JSON file
+	CredentialsFile string
 
 	// SecretManagerPath is the Secret Manager resource path (for production)
 	// Format: projects/PROJECT_ID/secrets/SECRET_NAME/versions/VERSION
@@ -58,7 +58,7 @@ type GmailConfig struct {
 }
 
 // DefaultGmailConfig creates GmailConfig from environment variables
-// Uses prefix: LEAPFOR_INTEGRATION_EMAIL_GMAIL_
+// Uses prefix: EMAIL_GMAIL_
 func DefaultGmailConfig() *GmailConfig {
 	timeout := 30 * time.Second
 	if timeoutStr := os.Getenv(GmailEnvPrefix + "TIMEOUT"); timeoutStr != "" {
@@ -68,15 +68,15 @@ func DefaultGmailConfig() *GmailConfig {
 	}
 
 	return &GmailConfig{
-		ProjectID:             os.Getenv(GmailEnvPrefix + "PROJECT_ID"),
-		DelegateEmail:         os.Getenv(GmailEnvPrefix + "DELEGATE_EMAIL"),
-		FromEmail:             os.Getenv(GmailEnvPrefix + "FROM_EMAIL"),
-		FromName:              os.Getenv(GmailEnvPrefix + "FROM_NAME"),
-		ReplyToEmail:          os.Getenv(GmailEnvPrefix + "REPLY_TO_EMAIL"),
-		ServiceAccountKeyPath: os.Getenv(GmailEnvPrefix + "SERVICE_ACCOUNT_KEY_PATH"),
-		SecretManagerPath:     os.Getenv(GmailEnvPrefix + "SECRET_MANAGER_PATH"),
-		UseSecretManager:      os.Getenv(GmailEnvPrefix+"USE_SECRET_MANAGER") == "true",
-		Timeout:               timeout,
+		ProjectID:         os.Getenv(GmailEnvPrefix + "PROJECT_ID"),
+		DelegateEmail:     os.Getenv(GmailEnvPrefix + "DELEGATE_EMAIL"),
+		FromEmail:         os.Getenv(GmailEnvPrefix + "FROM_EMAIL"),
+		FromName:          os.Getenv(GmailEnvPrefix + "FROM_NAME"),
+		ReplyToEmail:      os.Getenv(GmailEnvPrefix + "REPLY_TO_EMAIL"),
+		CredentialsFile:   os.Getenv(GmailEnvPrefix + "CREDENTIALS_FILE"),
+		SecretManagerPath: os.Getenv(GmailEnvPrefix + "SECRET_MANAGER_PATH"),
+		UseSecretManager:  os.Getenv(GmailEnvPrefix+"USE_SECRET_MANAGER") == "true",
+		Timeout:           timeout,
 	}
 }
 
@@ -87,8 +87,8 @@ func (c *GmailConfig) Validate() error {
 	}
 
 	// Must have either service account key path or secret manager path
-	if !c.UseSecretManager && c.ServiceAccountKeyPath == "" {
-		return fmt.Errorf("service account key path is required when not using Secret Manager (%sSERVICE_ACCOUNT_KEY_PATH)", GmailEnvPrefix)
+	if !c.UseSecretManager && c.CredentialsFile == "" {
+		return fmt.Errorf("service account key path is required when not using Secret Manager (%sCREDENTIALS_FILE)", GmailEnvPrefix)
 	}
 
 	if c.UseSecretManager && c.SecretManagerPath == "" {
@@ -147,7 +147,7 @@ func getGmailServiceAccountKey(ctx context.Context, config *GmailConfig) ([]byte
 	}
 
 	// Read from file
-	serviceAccountKey, err := os.ReadFile(config.ServiceAccountKeyPath)
+	serviceAccountKey, err := os.ReadFile(config.CredentialsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read service account key file: %w", err)
 	}

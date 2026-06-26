@@ -4,7 +4,7 @@
 //
 // The constant value IS the default table/collection name. No separate table
 // config struct is needed — registry.TableConfig derives defaults from these
-// values and only stores overrides (e.g., from POSTGRES_TABLE_* env vars).
+// values and only stores overrides (e.g., from DATABASE_POSTGRES_TABLE_* env vars).
 //
 // # Adding a new entity
 //
@@ -647,6 +647,13 @@ const (
 	ActionDelete = "delete"
 	ActionList   = "list"
 	ActionManage = "manage"
+
+	// Admin user-lifecycle verbs (provider-abstracted; see
+	// docs/plan/20260624-contractor-firebase-grade-sheet/auth-admin-design.md §5).
+	ActionDisable       = "disable"        // user:disable
+	ActionEnable        = "enable"         // user:enable
+	ActionResetPassword = "reset-password" // user:reset-password
+	ActionRevoke        = "revoke"         // session:revoke
 )
 
 // EntityPermission builds a permission code from an entity name and action verb.

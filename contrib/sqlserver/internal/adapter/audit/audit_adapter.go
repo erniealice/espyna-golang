@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/database/operations"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 )
 

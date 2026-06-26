@@ -12,9 +12,9 @@ import (
 
 	_ "github.com/lib/pq"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/operations"
-	"github.com/erniealice/espyna-golang/schema"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
+	"github.com/erniealice/espyna-golang/shared/database/schema"
 
 	// fulfillment is the representative entity for the Phase-2 shadow-agreement
 	// test: it carries all four column-kind edge cases (int64 audit-millis,

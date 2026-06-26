@@ -105,8 +105,8 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 GCS_BUCKET_NAME=your-storage-bucket
 
 # Optional configuration
-FIRESTORE_EMULATOR_HOST=localhost:8080  # Development
-FIRESTORE_DATABASE_ID=(default)         # Multi-database projects
+FIRESTORE_EMULATOR_HOST=localhost:8080  # Development (SDK-standard var)
+DATABASE_FIRESTORE_DATABASE=(default)   # Multi-database projects
 ```
 
 ### Microsoft Azure

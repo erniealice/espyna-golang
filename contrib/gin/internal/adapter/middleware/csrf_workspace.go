@@ -11,7 +11,7 @@ package middleware
 // Token format: v1.<base64url(sessionToken|workspaceID|nonce)>.<base64url(HMAC-SHA256)>
 //
 // The HMAC key follows the same env-var hierarchy as action_workspace_guard:
-// WORKSPACE_FORM_HMAC_KEY -> PASSWORD_AUTH_RESET_TOKEN_SECRET.
+// SECURITY_WORKSPACEFORM_HMAC_KEY -> AUTH_PASSWORD_RESET_TOKEN_SECRET.
 //
 // Middleware chain position:
 //   session -> workspace_path -> CSRF -> action_workspace_guard -> timezone -> mux

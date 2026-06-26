@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/operations"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 )
 
 // PostgreSQLTransactionManager implements interfaces.TransactionManager for PostgreSQL

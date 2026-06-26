@@ -32,7 +32,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/composition/core"
-	"github.com/erniealice/espyna-golang/reference"
+	"github.com/erniealice/espyna-golang/ports"
 
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -80,7 +80,7 @@ type BlockContext struct {
 	EmailAdapter *consumer.EmailAdapter
 
 	// RefChecker provides reference checking for deletable-state validation.
-	RefChecker reference.Checker
+	RefChecker ports.Checker
 
 	// Config holds application configuration read from env vars.
 	Config *ServerConfig
@@ -128,7 +128,7 @@ type Server struct {
 	authAdapter    *consumer.AuthAdapter
 	storageAdapter *consumer.StorageAdapter
 	emailAdapter   *consumer.EmailAdapter
-	refChecker     reference.Checker
+	refChecker     ports.Checker
 	sessionMw      *consumer.SessionMiddleware
 	config         *ServerConfig
 
@@ -273,9 +273,14 @@ func NewServer() (*Server, error) {
 		log.Printf("  Email: disabled")
 	}
 
-	// 3. Session middleware (password provider only)
+	// 3. Session middleware (server-side session providers: password + firebase).
+	// Both manage server-side sessions (password = DB-backed session; firebase =
+	// session cookie minted after VerifyIDToken), so both need the real
+	// SessionMiddleware. mock uses its own NewMockSessionMiddleware path below.
+	// entydad.EngineBlock FATALs on a nil session manager, so any auth provider
+	// booted alongside it MUST wire one here.
 	var sessionMw *consumer.SessionMiddleware
-	if os.Getenv("CONFIG_AUTH_PROVIDER") == "password" && authAdapter != nil {
+	if ap := os.Getenv("CONFIG_AUTH_PROVIDER"); (ap == "password" || ap == "firebase") && authAdapter != nil {
 		sessionMw = consumer.NewSessionMiddleware(authAdapter)
 		// Wave B D2c — COOKIE FIX: stamp the resolved Secure-flag policy from env
 		// onto the session middleware so the ichizen_session cookie carries the
@@ -294,8 +299,8 @@ func NewServer() (*Server, error) {
 	// 4. Use cases
 	useCases := espynaContainer.GetUseCases()
 	if useCases == nil || useCases.Entity == nil || useCases.Entity.User == nil || useCases.Entity.Client == nil {
-		log.Fatalf("Entity use cases not initialized -- check database connection (POSTGRES_HOST=%s POSTGRES_PORT=%s POSTGRES_NAME=%s)",
-			os.Getenv("POSTGRES_HOST"), os.Getenv("POSTGRES_PORT"), os.Getenv("POSTGRES_NAME"))
+		log.Fatalf("Entity use cases not initialized -- check database connection (DATABASE_POSTGRES_HOST=%s DATABASE_POSTGRES_PORT=%s DATABASE_POSTGRES_DBNAME=%s)",
+			os.Getenv("DATABASE_POSTGRES_HOST"), os.Getenv("DATABASE_POSTGRES_PORT"), os.Getenv("DATABASE_POSTGRES_DBNAME"))
 	}
 
 	// 5. Reference checker
@@ -587,7 +592,7 @@ func (s *Server) EmailAdapter() *consumer.EmailAdapter {
 }
 
 // RefChecker returns the reference checker.
-func (s *Server) RefChecker() reference.Checker {
+func (s *Server) RefChecker() ports.Checker {
 	return s.refChecker
 }
 

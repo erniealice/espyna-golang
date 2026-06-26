@@ -13,10 +13,9 @@ import (
 	"cloud.google.com/go/storage"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/erniealice/espyna-golang/contrib/google/internal/common/google"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
-	storagecommon "github.com/erniealice/espyna-golang/storage/helpers"
+	storagecommon "github.com/erniealice/espyna-golang/shared/storage"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
@@ -39,8 +38,8 @@ func init() {
 
 // buildFromEnv creates and initializes a GCS storage provider from environment variables.
 func buildFromEnv() (ports.StorageProvider, error) {
-	bucketName := os.Getenv("GOOGLE_CLOUD_STORAGE_BUCKET_NAME")
-	projectId := os.Getenv("GOOGLE_CLOUD_PROJECT_ID")
+	bucketName := os.Getenv("STORAGE_GCS_BUCKET")
+	projectId := os.Getenv("STORAGE_GCS_PROJECT_ID")
 
 	protoConfig := &pb.StorageProviderConfig{
 		Provider: pb.StorageProvider_STORAGE_PROVIDER_GCP,
@@ -75,7 +74,7 @@ type GCSStorageProvider struct {
 	projectID     string
 	enabled       bool
 	timeout       time.Duration
-	clientManager *google.GoogleClientManager
+	clientManager *GCSClientManager
 }
 
 // NewGCSStorageProvider creates a new Google Cloud Storage provider
@@ -115,8 +114,8 @@ func (p *GCSStorageProvider) Initialize(config *pb.StorageProviderConfig) error 
 		return fmt.Errorf("default_bucket cannot be empty")
 	}
 
-	// Initialize Google client manager
-	googleConfig := &google.GoogleConfig{
+	// Initialize GCS client manager
+	clientCfg := &GCSClientConfig{
 		StorageTimeout: p.timeout,
 	}
 
@@ -124,7 +123,7 @@ func (p *GCSStorageProvider) Initialize(config *pb.StorageProviderConfig) error 
 	defer cancel()
 
 	// Create new client manager (replaces singleton pattern)
-	manager, err := google.NewGoogleClientManager(ctx, googleConfig)
+	manager, err := NewGCSClientManager(ctx, clientCfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Google storage client: %w", err)
 	}

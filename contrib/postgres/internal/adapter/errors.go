@@ -3,7 +3,7 @@
 package postgres
 
 import (
-	"github.com/erniealice/espyna-golang/database/model"
+	"github.com/erniealice/espyna-golang/shared/database/model"
 	"github.com/lib/pq"
 )
 

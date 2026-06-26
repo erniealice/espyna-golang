@@ -208,7 +208,7 @@ try {
         Write-Host ""
         Write-Host "  # Database Connections" -ForegroundColor White
         Write-Host "  DATABASE_URL=postgres://..." -ForegroundColor Gray
-        Write-Host "  FIRESTORE_PROJECT_ID=backup-project" -ForegroundColor Gray
+        Write-Host "  DATABASE_FIRESTORE_PROJECT_ID=backup-project" -ForegroundColor Gray
         Write-Host ""
         Write-Host "  # Development/Testing" -ForegroundColor White
         Write-Host "  MOCK_MODE=true" -ForegroundColor Gray

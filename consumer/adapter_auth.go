@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	dbinterfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	serviceauthuc "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
+	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/ports"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
+	svcauthpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
 
 // authProviderOperations is an alias for ports.AuthProvider so the consumer
@@ -176,6 +178,40 @@ func (a *AuthAdapter) VerifyTokenProto(ctx context.Context, req *authpb.Validate
 	return a.service.VerifyToken(ctx, req)
 }
 
+// signInProviderVerifier is the optional surface a provider implements to
+// expose the federated sign-in method (firebase.sign_in_provider claim)
+// alongside the verified email. Satisfied by the Firebase adapter.
+type signInProviderVerifier interface {
+	VerifyIDTokenWithProvider(ctx context.Context, idToken string) (email, signInProvider string, err error)
+}
+
+// VerifyTokenWithSignInProvider verifies an ID token and returns the signed-in
+// email plus the sign-in method (e.g. "microsoft.com"). When the active
+// provider does not expose the richer surface it falls back to VerifyToken and
+// returns an empty signInProvider (enforcement then no-ops for that token).
+// Used by the Firebase web-login endpoint for the allow-list check (Layer 5).
+func (a *AuthAdapter) VerifyTokenWithSignInProvider(ctx context.Context, idToken string) (email, signInProvider string, err error) {
+	if v, ok := a.service.(signInProviderVerifier); ok && a.service != nil {
+		return v.VerifyIDTokenWithProvider(ctx, idToken)
+	}
+	if v, ok := a.provider.(signInProviderVerifier); ok && a.provider != nil {
+		return v.VerifyIDTokenWithProvider(ctx, idToken)
+	}
+	// Fallback: standard verification, email only, no method claim.
+	resp, vErr := a.VerifyToken(ctx, idToken)
+	if vErr != nil {
+		return "", "", vErr
+	}
+	if resp == nil || !resp.IsValid || resp.Identity == nil {
+		msg := "token validation failed"
+		if resp != nil && resp.ErrorMessage != "" {
+			msg = resp.ErrorMessage
+		}
+		return "", "", fmt.Errorf("%s", msg)
+	}
+	return resp.Identity.GetEmail(), "", nil
+}
+
 // IsHealthy checks if the auth provider is healthy and available.
 func (a *AuthAdapter) IsHealthy(ctx context.Context) error {
 	if a.provider == nil {
@@ -285,34 +321,81 @@ func (a *AuthAdapter) ExecutePasswordReset(ctx context.Context, token, newPasswo
 	return dbAuth.ExecutePasswordReset(ctx, token, newPassword)
 }
 
-// CreateSession creates a new session for the given user.
-// Only supported by password provider.
-func (a *AuthAdapter) CreateSession(ctx context.Context, userID string) (string, error) {
-	dbAuth, ok := a.provider.(databaseAuthOperations)
-	if !ok {
-		return "", fmt.Errorf("session management not supported by %s provider", a.Name())
+// sessionFallbackUC returns the provider-AGNOSTIC service-auth session use
+// cases (the same ones MockSessionMiddleware drives), or nil when they are
+// unavailable. Consulted ONLY for providers that do NOT implement
+// databaseAuthOperations (e.g. firebase): the password provider keeps its own
+// DB-backed SessionService, so for it the fallback is never reached. This is
+// what makes server-side sessions provider-independent — a Firebase user (who
+// authenticated by ID-token verification, with no DB password) still gets a
+// real opaque session row in the SAME `session` table, created/validated/
+// invalidated through the espyna application use cases.
+func (a *AuthAdapter) sessionFallbackUC() *serviceauthuc.UseCases {
+	if a.container == nil {
+		return nil
 	}
-	return dbAuth.CreateSession(ctx, userID)
+	uc := a.container.GetUseCases()
+	if uc == nil || uc.Service == nil {
+		return nil
+	}
+	return uc.Service.Auth
+}
+
+// CreateSession creates a new session for the given user.
+// Password provider mints via its own SessionService; every other provider
+// (firebase) mints through the agnostic IssueSession use case (same table).
+func (a *AuthAdapter) CreateSession(ctx context.Context, userID string) (string, error) {
+	if dbAuth, ok := a.provider.(databaseAuthOperations); ok {
+		return dbAuth.CreateSession(ctx, userID)
+	}
+	uc := a.sessionFallbackUC()
+	if uc == nil || uc.IssueSession == nil {
+		return "", fmt.Errorf("session management not available for %s provider", a.Name())
+	}
+	resp, err := uc.IssueSession.Execute(ctx, &svcauthpb.IssueSessionRequest{UserId: userID})
+	if err != nil {
+		return "", err
+	}
+	if resp == nil || resp.GetToken() == "" {
+		return "", fmt.Errorf("issue session: empty token")
+	}
+	return resp.GetToken(), nil
 }
 
 // ValidateSession checks if a session token is valid and returns the user ID.
-// Only supported by password provider.
+// Password provider validates via its own SessionService; every other provider
+// (firebase) validates through the agnostic AuthenticateSession use case.
 func (a *AuthAdapter) ValidateSession(ctx context.Context, token string) (string, error) {
-	dbAuth, ok := a.provider.(databaseAuthOperations)
-	if !ok {
-		return "", fmt.Errorf("session management not supported by %s provider", a.Name())
+	if dbAuth, ok := a.provider.(databaseAuthOperations); ok {
+		return dbAuth.ValidateSession(ctx, token)
 	}
-	return dbAuth.ValidateSession(ctx, token)
+	uc := a.sessionFallbackUC()
+	if uc == nil || uc.AuthenticateSession == nil {
+		return "", fmt.Errorf("session management not available for %s provider", a.Name())
+	}
+	resp, err := uc.AuthenticateSession.Execute(ctx, &svcauthpb.AuthenticateSessionRequest{Token: token})
+	if err != nil {
+		return "", err
+	}
+	if resp == nil || resp.GetIdentity() == nil || resp.GetIdentity().GetUserId() == "" {
+		return "", fmt.Errorf("invalid session")
+	}
+	return resp.GetIdentity().GetUserId(), nil
 }
 
 // InvalidateSession marks a session as inactive.
-// Only supported by password provider.
+// Password provider invalidates via its own SessionService; every other
+// provider (firebase) invalidates through the agnostic InvalidateSession use case.
 func (a *AuthAdapter) InvalidateSession(ctx context.Context, token string) error {
-	dbAuth, ok := a.provider.(databaseAuthOperations)
-	if !ok {
-		return fmt.Errorf("session management not supported by %s provider", a.Name())
+	if dbAuth, ok := a.provider.(databaseAuthOperations); ok {
+		return dbAuth.InvalidateSession(ctx, token)
 	}
-	return dbAuth.InvalidateSession(ctx, token)
+	uc := a.sessionFallbackUC()
+	if uc == nil || uc.InvalidateSession == nil {
+		return fmt.Errorf("session management not available for %s provider", a.Name())
+	}
+	_, err := uc.InvalidateSession.Execute(ctx, &svcauthpb.InvalidateSessionRequest{Token: token})
+	return err
 }
 
 // HashPassword hashes a plaintext password using bcrypt.
@@ -342,13 +425,24 @@ func (a *AuthAdapter) ChangePassword(ctx context.Context, userID, oldPassword, n
 }
 
 // GetSessionWorkspaceContext returns the workspace_user_id and workspace_id stored on the session.
-// Only supported by password provider. Returns empty strings for other providers.
+// Password provider reads via its own SessionService; every other provider
+// (firebase) reads through the agnostic AuthenticateSession use case. Returns
+// empty strings when the token does not name a valid session (NOT an error —
+// a valid session with no workspace selected yet also returns empties).
 func (a *AuthAdapter) GetSessionWorkspaceContext(ctx context.Context, token string) (wsUserID, wsID string) {
-	dbAuth, ok := a.provider.(databaseAuthOperations)
-	if !ok {
+	if dbAuth, ok := a.provider.(databaseAuthOperations); ok {
+		return dbAuth.GetSessionWorkspaceContext(ctx, token)
+	}
+	uc := a.sessionFallbackUC()
+	if uc == nil || uc.AuthenticateSession == nil {
 		return "", ""
 	}
-	return dbAuth.GetSessionWorkspaceContext(ctx, token)
+	resp, err := uc.AuthenticateSession.Execute(ctx, &svcauthpb.AuthenticateSessionRequest{Token: token})
+	if err != nil || resp == nil || resp.GetIdentity() == nil {
+		return "", ""
+	}
+	id := resp.GetIdentity()
+	return id.GetWorkspaceUserId(), id.GetWorkspaceId()
 }
 
 // SessionIdentity is the coherent identity snapshot resolved from a single

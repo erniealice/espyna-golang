@@ -11,14 +11,16 @@ import (
 
 // CredentialConfig holds GCP credential configuration
 type CredentialConfig struct {
-	// EnvPrefix is the environment variable prefix ("GOOGLE_" or "FIREBASE_")
+	// EnvPrefix is the fully-explicit {CONCERN}_{PROVIDER}_ environment-variable
+	// prefix for this credential set (e.g. "AUTH_FIREBASE_" or "STORAGE_GCS_").
+	// Every field below is read as EnvPrefix+FIELD — no shared/global names.
 	EnvPrefix string
 
 	// ProjectID is the GCP project ID
 	ProjectID string
 
-	// CredentialsPath is the path to credentials file
-	// (from GOOGLE_APPLICATION_CREDENTIALS)
+	// CredentialsPath is the path to the service-account JSON file
+	// (from EnvPrefix+"CREDENTIALS_FILE", e.g. AUTH_FIREBASE_CREDENTIALS_FILE)
 	CredentialsPath string
 
 	// UseServiceAccountJSON determines if service account JSON should be
@@ -30,12 +32,21 @@ type CredentialConfig struct {
 }
 
 // DefaultCredentialConfig creates a CredentialConfig from environment variables
-// with the given prefix (e.g., "GOOGLE_" or "FIREBASE_")
+// with the given fully-explicit prefix (e.g., "AUTH_FIREBASE_" or "STORAGE_GCS_").
 func DefaultCredentialConfig(envPrefix string) *CredentialConfig {
+	// ProjectID falls back to the service-account's own project_id
+	// ({prefix}SA_PROJECT_ID) when {prefix}PROJECT_ID is not set — providing a
+	// service-account JSON (which embeds its project) is sufficient; you don't
+	// have to also repeat the project id in a separate var. Same-concern derive,
+	// not a cross-concern fallback.
+	projectID := os.Getenv(envPrefix + "PROJECT_ID")
+	if projectID == "" {
+		projectID = os.Getenv(envPrefix + "SA_PROJECT_ID")
+	}
 	return &CredentialConfig{
 		EnvPrefix:             envPrefix,
-		ProjectID:             os.Getenv(envPrefix + "CLOUD_PROJECT_ID"),
-		CredentialsPath:       os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"),
+		ProjectID:             projectID,
+		CredentialsPath:       os.Getenv(envPrefix + "CREDENTIALS_FILE"),
 		UseServiceAccountJSON: os.Getenv(envPrefix+"USE_SERVICE_ACCOUNT") == "true",
 		ServiceAccountKeyPath: os.Getenv(envPrefix + "SERVICE_ACCOUNT_KEY_PATH"),
 	}
@@ -62,16 +73,16 @@ func GetServiceAccountJSON(config *CredentialConfig) ([]byte, error) {
 
 	// Construct service account key from environment variables
 	key := ServiceAccountKey{
-		Type:                    os.Getenv(prefix + "TYPE"),
-		ProjectID:               os.Getenv(prefix + "PROJECT_ID"),
-		PrivateKeyID:            os.Getenv(prefix + "PRIVATE_KEY_ID"),
-		PrivateKey:              strings.ReplaceAll(os.Getenv(prefix+"PRIVATE_KEY"), "\\n", "\n"),
-		ClientEmail:             os.Getenv(prefix + "CLIENT_EMAIL"),
-		ClientID:                os.Getenv(prefix + "CLIENT_ID"),
-		AuthURI:                 os.Getenv(prefix + "AUTH_URI"),
-		TokenURI:                os.Getenv(prefix + "TOKEN_URI"),
-		AuthProviderX509CertURL: os.Getenv(prefix + "AUTH_PROVIDER_CERT_URL"),
-		ClientX509CertURL:       os.Getenv(prefix + "CLIENT_CERT_URL"),
+		Type:                    os.Getenv(prefix + "SA_TYPE"),
+		ProjectID:               os.Getenv(prefix + "SA_PROJECT_ID"),
+		PrivateKeyID:            os.Getenv(prefix + "SA_PRIVATE_KEY_ID"),
+		PrivateKey:              strings.ReplaceAll(os.Getenv(prefix+"SA_PRIVATE_KEY"), "\\n", "\n"),
+		ClientEmail:             os.Getenv(prefix + "SA_CLIENT_EMAIL"),
+		ClientID:                os.Getenv(prefix + "SA_CLIENT_ID"),
+		AuthURI:                 os.Getenv(prefix + "SA_AUTH_URI"),
+		TokenURI:                os.Getenv(prefix + "SA_TOKEN_URI"),
+		AuthProviderX509CertURL: os.Getenv(prefix + "SA_AUTH_PROVIDER_CERT_URL"),
+		ClientX509CertURL:       os.Getenv(prefix + "SA_CLIENT_CERT_URL"),
 	}
 
 	// Validate required fields
@@ -110,14 +121,12 @@ func GetClientOption(config *CredentialConfig) (option.ClientOption, error) {
 		return option.WithCredentialsFile(config.CredentialsPath), nil
 	}
 
-	// Scenario 3: Use service account key file
+	// Scenario 3: Use service account key file.
+	// Pass the scoped path DIRECTLY to the SDK; never write the process-global
+	// GOOGLE_APPLICATION_CREDENTIALS (that would let one concern's credentials
+	// clobber another's — the per-concern {CONCERN}_{PROVIDER}_ split forbids it).
 	if config.ServiceAccountKeyPath != "" {
-		// Set environment variable for Google libraries
-		err := os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", config.ServiceAccountKeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to set GOOGLE_APPLICATION_CREDENTIALS: %w", err)
-		}
-		return nil, nil // Will use default credentials (from env var)
+		return option.WithCredentialsFile(config.ServiceAccountKeyPath), nil
 	}
 
 	// Scenario 4: Use Application Default Credentials

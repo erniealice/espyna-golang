@@ -22,10 +22,10 @@ type PasswordService struct {
 }
 
 // NewPasswordService creates a new PasswordService.
-// Reads PASSWORD_AUTH_BCRYPT_COST from environment (default: 12).
+// Reads AUTH_PASSWORD_BCRYPT_COST from environment (default: 12).
 func NewPasswordService() *PasswordService {
 	cost := defaultBcryptCost
-	if envCost := os.Getenv("PASSWORD_AUTH_BCRYPT_COST"); envCost != "" {
+	if envCost := os.Getenv("AUTH_PASSWORD_BCRYPT_COST"); envCost != "" {
 		if parsed, err := strconv.Atoi(envCost); err == nil && parsed >= bcrypt.MinCost && parsed <= bcrypt.MaxCost {
 			cost = parsed
 		}

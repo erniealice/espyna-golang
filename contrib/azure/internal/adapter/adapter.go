@@ -21,7 +21,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
-	storagecommon "github.com/erniealice/espyna-golang/storage/helpers"
+	storagecommon "github.com/erniealice/espyna-golang/shared/storage"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
 
@@ -69,8 +69,8 @@ func init() {
 
 // buildFromEnv creates and initializes an Azure storage provider from environment variables.
 func buildFromEnv() (ports.StorageProvider, error) {
-	accountName := os.Getenv("AZURE_STORAGE_ACCOUNT")
-	containerName := os.Getenv("AZURE_CONTAINER_NAME")
+	accountName := os.Getenv("STORAGE_AZURE_ACCOUNT")
+	containerName := os.Getenv("STORAGE_AZURE_CONTAINER")
 
 	protoConfig := &pb.StorageProviderConfig{
 		Provider: pb.StorageProvider_STORAGE_PROVIDER_AZURE,

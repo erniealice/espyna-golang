@@ -2,8 +2,8 @@
 
 package core
 
-import "github.com/erniealice/espyna-golang/reference"
+import "github.com/erniealice/espyna-golang/ports"
 
 // RefChecker fallback for non-postgres builds. Returns nil — callers that
 // require actual checks are excluded from non-postgres deployments.
-func (c *Container) RefChecker() reference.Checker { return nil }
+func (c *Container) RefChecker() ports.Checker { return nil }

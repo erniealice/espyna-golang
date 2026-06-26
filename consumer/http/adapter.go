@@ -110,7 +110,10 @@ func (a *HTTPAdapter) RegisterRoutes(routes []RouteConfig) {
 		if route.View != nil {
 			handler = a.viewAdapter.Adapt(route.View)
 		} else if route.Handler != nil {
-			handler = route.Handler
+			// Raw handlers (e.g. JSON autocomplete endpoints) still gate on
+			// view.GetUserPermissions(ctx); wrap them so they observe the same
+			// RBAC permission context as view routes (else they fail closed 403).
+			handler = a.viewAdapter.WrapHandler(route.Handler)
 		} else {
 			continue
 		}

@@ -5,7 +5,7 @@ package tenancy
 import (
 	"context"
 
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 )
 
 // executorProvider provides a transaction-aware database executor.

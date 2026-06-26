@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 )
 
 // DBExecutor is the shared executor abstraction over *sql.DB and *sql.Tx.

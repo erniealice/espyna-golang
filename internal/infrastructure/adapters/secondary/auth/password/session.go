@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	dbinterfaces "github.com/erniealice/espyna-golang/database/interfaces"
+	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/google/uuid"
 )
 
@@ -27,10 +27,10 @@ type SessionService struct {
 }
 
 // NewSessionService creates a new SessionService.
-// Reads PASSWORD_AUTH_SESSION_EXPIRY from environment (default: 168h).
+// Reads AUTH_PASSWORD_SESSION_EXPIRY from environment (default: 168h).
 func NewSessionService(ops dbinterfaces.DatabaseOperation) *SessionService {
 	expiry := defaultSessionExpiry
-	if envExpiry := os.Getenv("PASSWORD_AUTH_SESSION_EXPIRY"); envExpiry != "" {
+	if envExpiry := os.Getenv("AUTH_PASSWORD_SESSION_EXPIRY"); envExpiry != "" {
 		if parsed, err := time.ParseDuration(envExpiry); err == nil && parsed > 0 {
 			expiry = parsed
 		}
@@ -159,6 +159,23 @@ func (s *SessionService) ValidateSession(ctx context.Context, token string) (str
 	userID, _ := row["user_id"].(string)
 	if userID == "" {
 		return "", fmt.Errorf("session has no associated user")
+	}
+
+	// DEFENSIBILITY (mid-session disable): reject a DISABLED user's EXISTING
+	// session immediately — not only at next login. Mirrors the agnostic
+	// AuthenticateSession guard so disable takes effect on the very next request
+	// under the password provider too. Reuses the same proven active=true
+	// predicate as the session query above (no value coercion); a nil row means
+	// disabled-or-missing → fail closed.
+	urow, err := s.ops.QueryOne(ctx, "user",
+		dbinterfaces.NewQueryBuilder().
+			WhereEqualTo("id", userID).
+			WhereEqualTo("active", true))
+	if err != nil {
+		return "", fmt.Errorf("failed to validate session user: %w", err)
+	}
+	if urow == nil {
+		return "", fmt.Errorf("invalid or expired session")
 	}
 	return userID, nil
 }

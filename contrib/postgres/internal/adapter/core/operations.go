@@ -13,13 +13,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	interfaces "github.com/erniealice/espyna-golang/database/interfaces"
-	"github.com/erniealice/espyna-golang/database/model"
-	sqlexec "github.com/erniealice/espyna-golang/database/sqlexec"
-	"github.com/erniealice/espyna-golang/database/operations"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/model"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
-	"github.com/erniealice/espyna-golang/schema"
+	"github.com/erniealice/espyna-golang/shared/database/schema"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	_ "github.com/lib/pq"
 )
@@ -1552,15 +1552,139 @@ func normalizeValue(v any) any {
 		return t.UnixMilli()
 	case []byte:
 		// jsonb columns: unmarshal to native Go types so json.Marshal
-		// produces proper JSON instead of base64-encoded strings
+		// produces proper JSON instead of base64-encoded strings.
 		var parsed any
 		if err := json.Unmarshal(t, &parsed); err == nil {
 			return parsed
 		}
+		// Postgres array columns (int[]/text[]/enum[]) come back from lib/pq as
+		// the literal text "{1,2}" / "{CLIENT,WORKSPACE}", which is NOT JSON, so
+		// the json.Unmarshal above fails. Detect a PG array literal and convert
+		// it to a native []any so the downstream json.Marshal emits a real JSON
+		// array [...] that protojson can decode into a repeated proto field.
+		if arr, ok := parsePGArrayLiteral(string(t)); ok {
+			return arr
+		}
 		return string(t)
+	case string:
+		// A string-typed array literal can also reach here (some drivers/paths
+		// surface array columns as string rather than []byte). Only treat it as
+		// a PG array when it is NOT valid JSON (a JSON object/array would have
+		// arrived already decoded), mirroring the []byte branch above.
+		var parsed any
+		if err := json.Unmarshal([]byte(t), &parsed); err == nil {
+			return v
+		}
+		if arr, ok := parsePGArrayLiteral(t); ok {
+			return arr
+		}
+		return v
 	default:
 		return v
 	}
+}
+
+// parsePGArrayLiteral parses a Postgres array literal as surfaced by lib/pq for
+// an array column read via the generic scan path — e.g. "{1,2}" (int[]),
+// "{CLIENT,WORKSPACE}" (text[]/enum[]), or "{}" (empty). It returns a native
+// []any of the scalar elements so a subsequent json.Marshal emits a real JSON
+// array [...] that protojson accepts for repeated proto fields. Integer-looking
+// elements become json.Number (preserved exactly by json.Marshal, accepted by
+// protojson for both int and enum repeated fields); everything else is returned
+// as an unquoted/unescaped string. The bool result is false when the value is
+// not a PG array literal (so the caller falls back to its string handling).
+//
+// Callers must guard JSON-vs-array ambiguity upstream: a JSON object/array also
+// starts with '{'/'['. normalizeValue only reaches here AFTER json.Unmarshal has
+// already failed, so anything that gets here is genuinely a PG array literal.
+func parsePGArrayLiteral(s string) ([]any, bool) {
+	trimmed := strings.TrimSpace(s)
+	if len(trimmed) < 2 || trimmed[0] != '{' || trimmed[len(trimmed)-1] != '}' {
+		return nil, false
+	}
+
+	inner := trimmed[1 : len(trimmed)-1]
+	if strings.TrimSpace(inner) == "" {
+		// Empty array literal "{}" → empty JSON array [].
+		return []any{}, true
+	}
+
+	out := make([]any, 0)
+	var buf strings.Builder
+	inQuotes := false
+	escaped := false
+	quotedElem := false // this element was double-quoted (always a string)
+
+	flush := func() {
+		raw := buf.String()
+		buf.Reset()
+		if !quotedElem {
+			t := strings.TrimSpace(raw)
+			// Unquoted NULL → nil element.
+			if t == "NULL" {
+				out = append(out, nil)
+				quotedElem = false
+				return
+			}
+			// Integer-looking → json.Number so json.Marshal emits a bare number.
+			if isPGInteger(t) {
+				out = append(out, json.Number(t))
+				quotedElem = false
+				return
+			}
+			out = append(out, t)
+			quotedElem = false
+			return
+		}
+		out = append(out, raw)
+		quotedElem = false
+	}
+
+	for i := 0; i < len(inner); i++ {
+		c := inner[i]
+		if escaped {
+			buf.WriteByte(c)
+			escaped = false
+			continue
+		}
+		switch {
+		case c == '\\':
+			// PG escapes \" and \\ inside quoted elements.
+			escaped = true
+		case c == '"':
+			inQuotes = !inQuotes
+			quotedElem = true
+		case c == ',' && !inQuotes:
+			flush()
+		default:
+			buf.WriteByte(c)
+		}
+	}
+	flush()
+
+	return out, true
+}
+
+// isPGInteger reports whether s is a plain base-10 integer (optionally signed),
+// used to decide whether an unquoted PG array element should be emitted as a
+// JSON number rather than a JSON string.
+func isPGInteger(s string) bool {
+	if s == "" {
+		return false
+	}
+	i := 0
+	if s[0] == '-' || s[0] == '+' {
+		i = 1
+		if len(s) == 1 {
+			return false
+		}
+	}
+	for ; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // generateUUID generates a simple UUID (simplified implementation)

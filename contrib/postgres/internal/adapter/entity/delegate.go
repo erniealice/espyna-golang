@@ -95,6 +95,31 @@ func (r *PostgresDelegateRepository) ReadDelegate(ctx context.Context, req *dele
 		return nil, fmt.Errorf("delegate ID is required")
 	}
 
+	// IDOR gate (FAIL-CLOSED): the delegate table has no workspace_id, so a generic
+	// Read would return any tenant's delegate by ID. Only proceed if the delegate has
+	// an active junction (client OR supplier) in the session workspace; an empty
+	// session WorkspaceID matches no junction and yields not-found.
+	wsID := identity.Must(ctx).WorkspaceID
+	gateExec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	var inWorkspace bool
+	if gateErr := gateExec.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM delegate_client dc
+			INNER JOIN client c ON dc.client_id = c.id
+			WHERE dc.delegate_id = $1 AND dc.active = true AND c.active = true
+				AND COALESCE(dc.workspace_id, c.workspace_id) = $2::text
+			UNION ALL
+			SELECT 1 FROM delegate_supplier ds
+			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			WHERE ds.delegate_id = $1 AND ds.active = true
+				AND COALESCE(ds.workspace_id, s.workspace_id) = $2::text
+		)`, req.Data.Id, wsID).Scan(&inWorkspace); gateErr != nil {
+		return nil, fmt.Errorf("failed to verify delegate workspace: %w", gateErr)
+	}
+	if !inWorkspace {
+		return nil, fmt.Errorf("delegate not found")
+	}
+
 	// Read document using common operations
 	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
 	if err != nil {
@@ -175,31 +200,55 @@ func (r *PostgresDelegateRepository) DeleteDelegate(ctx context.Context, req *de
 
 // ListDelegates lists delegates using common PostgreSQL operations
 func (r *PostgresDelegateRepository) ListDelegates(ctx context.Context, req *delegatepb.ListDelegatesRequest) (*delegatepb.ListDelegatesResponse, error) {
-	// List documents using common operations
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
-	}
-	listResult, err := r.dbOps.List(ctx, r.tableName, params)
+	// IDOR gate (FAIL-CLOSED): the delegate table has no workspace_id, so a generic
+	// List would enumerate every tenant's delegates. Scope to delegates that have an
+	// active junction (client OR supplier) in the session workspace; an empty session
+	// WorkspaceID matches no junction and returns an empty list. (The generic Filters
+	// are intentionally not applied here — the workspace-scoped GetDelegateListPageData
+	// is the search/sort/paginate surface; this generic List only needs to be
+	// tenant-safe.)
+	wsID := identity.Must(ctx).WorkspaceID
+	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	rows, err := exec.QueryContext(ctx, `
+		SELECT d.id, d.user_id, d.active, d.date_created, d.date_modified
+		FROM delegate d
+		WHERE d.active = true
+			AND EXISTS (
+				SELECT 1 FROM delegate_client dc
+				INNER JOIN client c ON dc.client_id = c.id
+				WHERE dc.delegate_id = d.id AND dc.active = true AND c.active = true
+					AND COALESCE(dc.workspace_id, c.workspace_id) = $1::text
+				UNION ALL
+				SELECT 1 FROM delegate_supplier ds
+				LEFT JOIN supplier s ON ds.supplier_id = s.id
+				WHERE ds.delegate_id = d.id AND ds.active = true
+					AND COALESCE(ds.workspace_id, s.workspace_id) = $1::text
+			)
+		ORDER BY d.date_created DESC`, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list delegates: %w", err)
 	}
+	defer rows.Close()
 
-	// Convert results to protobuf slice using protojson
 	var delegates []*delegatepb.Delegate
-	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			// Log error and continue with next item
-			continue
+	for rows.Next() {
+		var id, userID string
+		var active bool
+		var dateCreated, dateModified sql.NullInt64
+		if err := rows.Scan(&id, &userID, &active, &dateCreated, &dateModified); err != nil {
+			return nil, fmt.Errorf("failed to scan delegate row: %w", err)
 		}
-
-		delegate := &delegatepb.Delegate{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, delegate); err != nil {
-			// Log error and continue with next item
-			continue
+		delegate := &delegatepb.Delegate{Id: id, UserId: userID, Active: active}
+		if dateCreated.Valid {
+			delegate.DateCreated = &dateCreated.Int64
+		}
+		if dateModified.Valid {
+			delegate.DateModified = &dateModified.Int64
 		}
 		delegates = append(delegates, delegate)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating delegate rows: %w", err)
 	}
 
 	return &delegatepb.ListDelegatesResponse{
@@ -260,8 +309,10 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 
 	// Tenancy: scope the delegate list on the delegate_client / delegate_supplier
 	// junction workspace_id (the Delegate parent has no workspace_id column). $ws
-	// comes from the session identity, never the request. Empty wsID =
-	// service-to-service call -> no scoping (mirror client_workspace_user).
+	// comes from the session identity, never the request. FAIL-CLOSED: an empty
+	// session WorkspaceID (e.g. a pre-workspace-selection operator) matches no
+	// junction and returns zero rows — we deliberately do NOT use an empty-string
+	// escape here (that would leak every tenant; see delegate_idor_guard_test.go).
 	wsID := identity.Must(ctx).WorkspaceID
 
 	// Build the CTE query following the translation plan pattern
@@ -303,7 +354,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			INNER JOIN client c ON dc.client_id = c.id
 			LEFT JOIN "user" cu ON c.user_id = cu.id
 			WHERE dc.active = true AND c.active = true
-				AND ($6::text = '' OR COALESCE(dc.workspace_id, c.workspace_id) = $6::text)
+				AND COALESCE(dc.workspace_id, c.workspace_id) = $6::text
 		),
 		-- CTE 1a-outer: aggregate into ordered jsonb array; ORDER BY dc_id (stable PK)
 		delegate_clients_agg AS (
@@ -340,7 +391,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			FROM delegate_supplier ds
 			LEFT JOIN supplier s ON ds.supplier_id = s.id
 			WHERE ds.active = true
-				AND ($6::text = '' OR ds.workspace_id = $6::text)
+				AND COALESCE(ds.workspace_id, s.workspace_id) = $6::text
 		),
 		-- CTE 1b-outer: aggregate into ordered jsonb array; ORDER BY ds_id (stable PK)
 		delegate_suppliers_agg AS (
@@ -357,18 +408,20 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			FROM delegate d
 			LEFT JOIN "user" u ON d.user_id = u.id
 			WHERE d.active = true
-				-- IDOR gate: a delegate is visible to this workspace only if it has
-				-- an active in-workspace junction (client OR supplier).
-				AND ($6::text = '' OR EXISTS (
+				-- IDOR gate (FAIL-CLOSED): a delegate is visible only if it has an
+				-- active junction (client OR supplier) in THIS session workspace.
+				-- An empty $6 matches no junction -> the delegate is excluded.
+				AND EXISTS (
 					SELECT 1 FROM delegate_client dcx
 					INNER JOIN client cx ON dcx.client_id = cx.id
 					WHERE dcx.delegate_id = d.id AND dcx.active = true AND cx.active = true
 						AND COALESCE(dcx.workspace_id, cx.workspace_id) = $6::text
 					UNION ALL
 					SELECT 1 FROM delegate_supplier dsx
+					LEFT JOIN supplier sx ON dsx.supplier_id = sx.id
 					WHERE dsx.delegate_id = d.id AND dsx.active = true
-						AND dsx.workspace_id = $6::text
-				))
+						AND COALESCE(dsx.workspace_id, sx.workspace_id) = $6::text
+				)
 				AND ($1::text = '' OR
 					u.first_name ILIKE $1 OR
 					u.last_name ILIKE $1 OR
@@ -579,9 +632,10 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		return nil, fmt.Errorf("delegate ID is required")
 	}
 
-	// Tenancy: scope on the delegate_client / delegate_supplier junction
-	// workspace_id (the Delegate parent has no workspace_id). $ws from session
-	// identity, never the request. Empty wsID = service-to-service -> no scoping.
+	// Tenancy: scope on the delegate_client / delegate_supplier junction workspace_id
+	// (the Delegate parent has no workspace_id). $ws from session identity, never the
+	// request. FAIL-CLOSED: an empty session WorkspaceID matches no junction and the
+	// delegate is reported not-found (no empty-string escape — that would leak tenants).
 	wsID := identity.Must(ctx).WorkspaceID
 
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_delegate_id ON delegate(id);
@@ -628,7 +682,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			INNER JOIN client c ON dc.client_id = c.id
 			LEFT JOIN "user" cu ON c.user_id = cu.id
 			WHERE dc.delegate_id = $1 AND dc.active = true AND c.active = true
-				AND ($2::text = '' OR COALESCE(dc.workspace_id, c.workspace_id) = $2::text)
+				AND COALESCE(dc.workspace_id, c.workspace_id) = $2::text
 		),
 		-- CTE 1a-outer: aggregate into ordered jsonb array; ORDER BY dc_id (stable PK)
 		delegate_clients_agg AS (
@@ -665,7 +719,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			FROM delegate_supplier ds
 			LEFT JOIN supplier s ON ds.supplier_id = s.id
 			WHERE ds.delegate_id = $1 AND ds.active = true
-				AND ($2::text = '' OR ds.workspace_id = $2::text)
+				AND COALESCE(ds.workspace_id, s.workspace_id) = $2::text
 		),
 		-- CTE 1b-outer: aggregate into ordered jsonb array; ORDER BY ds_id (stable PK)
 		delegate_suppliers_agg AS (
@@ -702,18 +756,20 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		LEFT JOIN delegate_clients_agg dca ON d.id = dca.delegate_id
 		LEFT JOIN delegate_suppliers_agg dsa ON d.id = dsa.delegate_id
 		WHERE d.id = $1 AND d.active = true
-			-- IDOR gate: the delegate must have an active in-workspace junction
-			-- (client OR supplier) or this workspace cannot see it.
-			AND ($2::text = '' OR EXISTS (
+			-- IDOR gate (FAIL-CLOSED): the delegate must have an active junction
+			-- (client OR supplier) in THIS session workspace or it is not visible.
+			-- An empty $2 matches no junction -> not-found.
+			AND EXISTS (
 				SELECT 1 FROM delegate_client dcx
 				INNER JOIN client cx ON dcx.client_id = cx.id
 				WHERE dcx.delegate_id = d.id AND dcx.active = true AND cx.active = true
 					AND COALESCE(dcx.workspace_id, cx.workspace_id) = $2::text
 				UNION ALL
 				SELECT 1 FROM delegate_supplier dsx
+				LEFT JOIN supplier sx ON dsx.supplier_id = sx.id
 				WHERE dsx.delegate_id = d.id AND dsx.active = true
-					AND dsx.workspace_id = $2::text
-			))
+					AND COALESCE(dsx.workspace_id, sx.workspace_id) = $2::text
+			)
 	`
 
 	// Execute query

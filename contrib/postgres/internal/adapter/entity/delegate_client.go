@@ -267,10 +267,11 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "delegate_client", delegateClientSortableSQLCols)
 	}
 
-	// Tenancy: scope on the junction's own workspace_id (IDOR defense — mirror
-	// client_workspace_user). $ws from session identity; '' = service-to-service.
+	// Tenancy: scope on the junction's own workspace_id (IDOR defense). $ws from
+	// session identity. FAIL-CLOSED: an empty WorkspaceID matches no row (no
+	// empty-string escape — that would leak every tenant).
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified, role_id, granted_by_user_id, workspace_id FROM delegate_client WHERE active = true AND ($4::text = '' OR workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified, role_id, granted_by_user_id, workspace_id FROM delegate_client WHERE active = true AND workspace_id = $4::text AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
@@ -328,9 +329,9 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientItemPageData(ctx con
 		return nil, fmt.Errorf("delegate client ID required")
 	}
 	// Tenancy: scope on the junction's own workspace_id (IDOR defense). $ws from
-	// session identity; '' = service-to-service call -> no scoping.
+	// session identity. FAIL-CLOSED: an empty WorkspaceID matches no row.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
+	query := `SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE id = $1 AND active = true AND workspace_id = $2::text`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.DelegateClientId, wsID)
 	var id, delegateId, clientId string

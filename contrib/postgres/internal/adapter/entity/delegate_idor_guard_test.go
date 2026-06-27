@@ -26,6 +26,8 @@ func TestDelegatePageDataWorkspaceScoped(t *testing.T) {
 	}{
 		{"delegate.go", "GetDelegateListPageData"},
 		{"delegate.go", "GetDelegateItemPageData"},
+		{"delegate.go", "ListDelegates"},
+		{"delegate.go", "ReadDelegate"},
 		{"delegate_client.go", "GetDelegateClientListPageData"},
 		{"delegate_client.go", "GetDelegateClientItemPageData"},
 	}
@@ -46,6 +48,20 @@ func TestDelegatePageDataWorkspaceScoped(t *testing.T) {
 		}
 		if !strings.Contains(body, "workspace_id") {
 			t.Errorf("%s.%s: missing workspace_id predicate — cross-tenant IDOR scoping dropped", c.file, c.method)
+		}
+	}
+
+	// Fail-closed guard: the workspace predicate must NOT use an empty-string escape
+	// ('' OR <ws> = $n), which would return every tenant when the session WorkspaceID
+	// is empty (a real pre-workspace-selection operator state — adversarial finding
+	// 2026-06-27). The search filter's "$1::text = '' OR <ilike>" is intentionally
+	// allowed; only the workspace-scoping escapes are banned.
+	forbidden := []string{"'' OR COALESCE(", "'' OR EXISTS (", "'' OR workspace_id"}
+	for file, src := range srcCache {
+		for _, bad := range forbidden {
+			if strings.Contains(src, bad) {
+				t.Errorf("%s: contains a fail-OPEN workspace empty-escape %q — workspace scoping must be strict (fail-closed on empty WorkspaceID)", file, bad)
+			}
 		}
 	}
 }

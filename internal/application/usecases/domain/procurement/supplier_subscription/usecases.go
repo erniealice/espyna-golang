@@ -42,39 +42,39 @@ func NewUseCases(repos Repositories, svcs Services) *UseCases {
 	return &UseCases{
 		CreateSupplierSubscription: NewCreateSupplierSubscriptionUseCase(
 			CreateSupplierSubscriptionRepositories{SupplierSubscription: repos.SupplierSubscription, CostPlan: repos.CostPlan, Workspace: repos.Workspace},
-			CreateSupplierSubscriptionServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
+			CreateSupplierSubscriptionServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
 		),
 		ReadSupplierSubscription: NewReadSupplierSubscriptionUseCase(
 			ReadSupplierSubscriptionRepositories{SupplierSubscription: repos.SupplierSubscription},
-			ReadSupplierSubscriptionServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			ReadSupplierSubscriptionServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		UpdateSupplierSubscription: NewUpdateSupplierSubscriptionUseCase(
 			UpdateSupplierSubscriptionRepositories{SupplierSubscription: repos.SupplierSubscription},
-			UpdateSupplierSubscriptionServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			UpdateSupplierSubscriptionServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		DeleteSupplierSubscription: NewDeleteSupplierSubscriptionUseCase(
 			DeleteSupplierSubscriptionRepositories{SupplierSubscription: repos.SupplierSubscription},
-			DeleteSupplierSubscriptionServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			DeleteSupplierSubscriptionServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		ListSupplierSubscriptions: NewListSupplierSubscriptionsUseCase(
 			ListSupplierSubscriptionsRepositories{SupplierSubscription: repos.SupplierSubscription},
-			ListSupplierSubscriptionsServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			ListSupplierSubscriptionsServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierSubscriptionListPageData: NewGetSupplierSubscriptionListPageDataUseCase(
 			GetSupplierSubscriptionListPageDataRepositories{SupplierSubscription: repos.SupplierSubscription},
-			GetSupplierSubscriptionListPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			GetSupplierSubscriptionListPageDataServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierSubscriptionItemPageData: NewGetSupplierSubscriptionItemPageDataUseCase(
 			GetSupplierSubscriptionItemPageDataRepositories{SupplierSubscription: repos.SupplierSubscription},
-			GetSupplierSubscriptionItemPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			GetSupplierSubscriptionItemPageDataServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		CountActiveBySupplierIds: NewCountActiveBySupplierIdsUseCase(
 			CountActiveBySupplierIdsRepositories{SupplierSubscription: repos.SupplierSubscription},
-			CountActiveBySupplierIdsServices{Authorizer: svcs.Authorizer, Translator: svcs.Translator},
+			CountActiveBySupplierIdsServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Translator: svcs.Translator},
 		),
 		ListSupplierSubscriptionsByCostPlan: NewListSupplierSubscriptionsByCostPlanUseCase(
 			ListSupplierSubscriptionsByCostPlanRepositories{SupplierSubscription: repos.SupplierSubscription},
-			ListSupplierSubscriptionsByCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			ListSupplierSubscriptionsByCostPlanServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 	}
 }

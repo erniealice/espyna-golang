@@ -34,6 +34,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateSecurityDepositRepositories(repositories)
 	createServices := CreateSecurityDepositServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -42,6 +43,7 @@ func NewUseCases(
 
 	listRepos := ListSecurityDepositsRepositories(repositories)
 	listServices := ListSecurityDepositsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -49,6 +51,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetSecurityDepositListPageDataRepositories(repositories)
 	getListPageDataServices := GetSecurityDepositListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

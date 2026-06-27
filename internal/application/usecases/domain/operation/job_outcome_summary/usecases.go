@@ -41,6 +41,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	createServices := CreateJobOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -51,6 +52,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	readServices := ReadJobOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -60,6 +62,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	updateServices := UpdateJobOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -69,6 +72,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	deleteServices := DeleteJobOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -78,6 +82,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	listServices := ListJobOutcomeSummariesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -87,6 +92,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	listPageDataServices := GetJobOutcomeSummaryListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -96,6 +102,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	itemPageDataServices := GetJobOutcomeSummaryItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -105,6 +112,7 @@ func NewUseCases(
 		JobOutcomeSummary: repositories.JobOutcomeSummary,
 	}
 	getByJobServices := GetByJobServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

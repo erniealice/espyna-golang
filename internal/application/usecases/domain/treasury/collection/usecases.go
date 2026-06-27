@@ -49,6 +49,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateCollectionRepositories(repositories)
 	createServices := CreateCollectionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -57,6 +58,7 @@ func NewUseCases(
 
 	readRepos := ReadCollectionRepositories(repositories)
 	readServices := ReadCollectionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -64,6 +66,7 @@ func NewUseCases(
 
 	updateRepos := UpdateCollectionRepositories(repositories)
 	updateServices := UpdateCollectionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -71,6 +74,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteCollectionRepositories(repositories)
 	deleteServices := DeleteCollectionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -78,6 +82,7 @@ func NewUseCases(
 
 	listRepos := ListCollectionsRepositories(repositories)
 	listServices := ListCollectionsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -87,6 +92,7 @@ func NewUseCases(
 		Collection: repositories.Collection,
 	}
 	listByClientServices := ListByClientServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
 	}

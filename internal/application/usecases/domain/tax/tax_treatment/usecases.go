@@ -32,6 +32,7 @@ func NewUseCases(repositories TaxTreatmentRepositories, services TaxTreatmentSer
 		ReadTaxTreatment: NewReadTaxTreatmentUseCase(
 			ReadTaxTreatmentRepositories{TaxTreatment: repositories.TaxTreatment},
 			ReadTaxTreatmentServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -39,6 +40,7 @@ func NewUseCases(repositories TaxTreatmentRepositories, services TaxTreatmentSer
 		ListTaxTreatments: NewListTaxTreatmentsUseCase(
 			ListTaxTreatmentsRepositories{TaxTreatment: repositories.TaxTreatment},
 			ListTaxTreatmentsServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

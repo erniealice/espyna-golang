@@ -33,6 +33,7 @@ func NewUseCases(repositories TaxRateRepositories, services TaxRateServices) *Us
 		ReadTaxRate: NewReadTaxRateUseCase(
 			ReadTaxRateRepositories{TaxRate: repositories.TaxRate},
 			ReadTaxRateServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -40,6 +41,7 @@ func NewUseCases(repositories TaxRateRepositories, services TaxRateServices) *Us
 		ListTaxRates: NewListTaxRatesUseCase(
 			ListTaxRatesRepositories{TaxRate: repositories.TaxRate},
 			ListTaxRatesServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -47,6 +49,7 @@ func NewUseCases(repositories TaxRateRepositories, services TaxRateServices) *Us
 		FindApplicableTaxRate: NewFindApplicableTaxRateUseCase(
 			FindApplicableTaxRateRepositories{TaxRate: repositories.TaxRate},
 			FindApplicableTaxRateServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

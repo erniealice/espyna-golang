@@ -33,6 +33,7 @@ func NewUseCases(repositories TaxRegistrationKindRepositories, services TaxRegis
 		ReadTaxRegistrationKind: NewReadTaxRegistrationKindUseCase(
 			ReadTaxRegistrationKindRepositories{TaxRegistrationKind: repositories.TaxRegistrationKind},
 			ReadTaxRegistrationKindServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -40,6 +41,7 @@ func NewUseCases(repositories TaxRegistrationKindRepositories, services TaxRegis
 		ListTaxRegistrationKinds: NewListTaxRegistrationKindsUseCase(
 			ListTaxRegistrationKindsRepositories{TaxRegistrationKind: repositories.TaxRegistrationKind},
 			ListTaxRegistrationKindsServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -47,6 +49,7 @@ func NewUseCases(repositories TaxRegistrationKindRepositories, services TaxRegis
 		FindByPartyTypeTaxRegistrationKind: NewFindByPartyTypeTaxRegistrationKindUseCase(
 			FindByPartyTypeTaxRegistrationKindRepositories{TaxRegistrationKind: repositories.TaxRegistrationKind},
 			FindByPartyTypeTaxRegistrationKindServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

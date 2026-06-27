@@ -41,6 +41,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	createServices := CreateCriteriaThresholdServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -51,6 +52,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	readServices := ReadCriteriaThresholdServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -60,6 +62,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	updateServices := UpdateCriteriaThresholdServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -69,6 +72,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	deleteServices := DeleteCriteriaThresholdServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -78,6 +82,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	listServices := ListCriteriaThresholdsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -87,6 +92,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	listPageDataServices := GetCriteriaThresholdListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -96,6 +102,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	itemPageDataServices := GetCriteriaThresholdItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -105,6 +112,7 @@ func NewUseCases(
 		CriteriaThreshold: repositories.CriteriaThreshold,
 	}
 	listByCriteriaServices := ListByCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

@@ -48,6 +48,7 @@ func NewUseCases(
 				ClientWorkspaceUser:       repositories.ClientWorkspaceUser,
 			},
 			CreateSubscriptionWorkspaceUserServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -57,6 +58,7 @@ func NewUseCases(
 		ReadSubscriptionWorkspaceUser: NewReadSubscriptionWorkspaceUserUseCase(
 			ReadSubscriptionWorkspaceUserRepositories{SubscriptionWorkspaceUser: repositories.SubscriptionWorkspaceUser},
 			ReadSubscriptionWorkspaceUserServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -65,6 +67,7 @@ func NewUseCases(
 		UpdateSubscriptionWorkspaceUser: NewUpdateSubscriptionWorkspaceUserUseCase(
 			UpdateSubscriptionWorkspaceUserRepositories{SubscriptionWorkspaceUser: repositories.SubscriptionWorkspaceUser},
 			UpdateSubscriptionWorkspaceUserServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -73,6 +76,7 @@ func NewUseCases(
 		DeleteSubscriptionWorkspaceUser: NewDeleteSubscriptionWorkspaceUserUseCase(
 			DeleteSubscriptionWorkspaceUserRepositories{SubscriptionWorkspaceUser: repositories.SubscriptionWorkspaceUser},
 			DeleteSubscriptionWorkspaceUserServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -81,6 +85,7 @@ func NewUseCases(
 		ListSubscriptionWorkspaceUsers: NewListSubscriptionWorkspaceUsersUseCase(
 			ListSubscriptionWorkspaceUsersRepositories{SubscriptionWorkspaceUser: repositories.SubscriptionWorkspaceUser},
 			ListSubscriptionWorkspaceUsersServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -89,6 +94,7 @@ func NewUseCases(
 		GetSubscriptionWorkspaceUserListPageData: NewGetSubscriptionWorkspaceUserListPageDataUseCase(
 			GetSubscriptionWorkspaceUserListPageDataRepositories{SubscriptionWorkspaceUser: repositories.SubscriptionWorkspaceUser},
 			GetSubscriptionWorkspaceUserListPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -97,6 +103,7 @@ func NewUseCases(
 		GetSubscriptionWorkspaceUserItemPageData: NewGetSubscriptionWorkspaceUserItemPageDataUseCase(
 			GetSubscriptionWorkspaceUserItemPageDataRepositories{SubscriptionWorkspaceUser: repositories.SubscriptionWorkspaceUser},
 			GetSubscriptionWorkspaceUserItemPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,

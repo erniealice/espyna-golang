@@ -36,6 +36,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateInventorySerialHistoryRepositories(repositories)
 	createServices := CreateInventorySerialHistoryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -44,6 +45,7 @@ func NewUseCases(
 
 	readRepos := ReadInventorySerialHistoryRepositories(repositories)
 	readServices := ReadInventorySerialHistoryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -51,6 +53,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteInventorySerialHistoryRepositories(repositories)
 	deleteServices := DeleteInventorySerialHistoryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -58,6 +61,7 @@ func NewUseCases(
 
 	listRepos := ListInventorySerialHistoryRepositories(repositories)
 	listServices := ListInventorySerialHistoryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

@@ -41,21 +41,6 @@ func NewReadAttributeUseCase(
 	}
 }
 
-// NewReadAttributeUseCaseUngrouped creates a new ReadAttributeUseCase
-// Deprecated: Use NewReadAttributeUseCase with grouped parameters instead
-func NewReadAttributeUseCaseUngrouped(attributeRepo attributepb.AttributeDomainServiceServer) *ReadAttributeUseCase {
-	// Build grouped parameters internally for backward compatibility
-	repositories := ReadAttributeRepositories{
-		Attribute: attributeRepo,
-	}
-
-	services := ReadAttributeServices{
-		Transactor: ports.NewNoOpTransactor(),
-	}
-
-	return NewReadAttributeUseCase(repositories, services)
-}
-
 // Execute performs the read attribute operation
 func (uc *ReadAttributeUseCase) Execute(ctx context.Context, req *attributepb.ReadAttributeRequest) (*attributepb.ReadAttributeResponse, error) {
 	// Authorization check

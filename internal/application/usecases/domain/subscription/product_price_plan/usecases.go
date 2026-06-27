@@ -85,6 +85,7 @@ func NewUseCases(
 		ProductPlan:      repositories.ProductPlan,
 	}
 	createServices := CreateProductPricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -95,6 +96,7 @@ func NewUseCases(
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	readServices := ReadProductPricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -106,6 +108,7 @@ func NewUseCases(
 		ProductPlan:      repositories.ProductPlan,
 	}
 	updateServices := UpdateProductPricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -115,6 +118,7 @@ func NewUseCases(
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	deleteServices := DeleteProductPricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -124,6 +128,7 @@ func NewUseCases(
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	listServices := ListProductPricePlansServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -133,6 +138,7 @@ func NewUseCases(
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	listPageDataServices := GetProductPricePlanListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -142,6 +148,7 @@ func NewUseCases(
 		ProductPricePlan: repositories.ProductPricePlan,
 	}
 	itemPageDataServices := GetProductPricePlanItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

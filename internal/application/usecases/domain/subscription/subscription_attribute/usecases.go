@@ -44,6 +44,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateSubscriptionAttributeRepositories(repositories)
 	createServices := CreateSubscriptionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -54,6 +55,7 @@ func NewUseCases(
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	readServices := ReadSubscriptionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -64,6 +66,7 @@ func NewUseCases(
 		Attribute:             repositories.Attribute,
 	}
 	updateServices := UpdateSubscriptionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -72,6 +75,7 @@ func NewUseCases(
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	deleteServices := DeleteSubscriptionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -80,6 +84,7 @@ func NewUseCases(
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	listServices := ListSubscriptionAttributesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -88,6 +93,7 @@ func NewUseCases(
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	getListPageDataServices := GetSubscriptionAttributeListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -96,6 +102,7 @@ func NewUseCases(
 		SubscriptionAttribute: repositories.SubscriptionAttribute,
 	}
 	getItemPageDataServices := GetSubscriptionAttributeItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

@@ -36,6 +36,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateFiscalPeriodRepositories(repositories)
 	createServices := CreateFiscalPeriodServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -44,6 +45,7 @@ func NewUseCases(
 
 	readRepos := ReadFiscalPeriodRepositories(repositories)
 	readServices := ReadFiscalPeriodServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -51,6 +53,7 @@ func NewUseCases(
 
 	listRepos := ListFiscalPeriodsRepositories(repositories)
 	listServices := ListFiscalPeriodsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -58,6 +61,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetFiscalPeriodListPageDataRepositories(repositories)
 	getListPageDataServices := GetFiscalPeriodListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -65,6 +69,7 @@ func NewUseCases(
 
 	closeRepos := CloseFiscalPeriodRepositories(repositories)
 	closeServices := CloseFiscalPeriodServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

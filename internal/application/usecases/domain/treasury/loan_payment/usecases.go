@@ -33,6 +33,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateLoanPaymentRepositories(repositories)
 	createServices := CreateLoanPaymentServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -41,6 +42,7 @@ func NewUseCases(
 
 	listRepos := ListLoanPaymentsRepositories(repositories)
 	listServices := ListLoanPaymentsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

@@ -48,6 +48,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateDisbursementRepositories(repositories)
 	createServices := CreateDisbursementServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -56,6 +57,7 @@ func NewUseCases(
 
 	readRepos := ReadDisbursementRepositories(repositories)
 	readServices := ReadDisbursementServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -63,6 +65,7 @@ func NewUseCases(
 
 	updateRepos := UpdateDisbursementRepositories(repositories)
 	updateServices := UpdateDisbursementServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -70,6 +73,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteDisbursementRepositories(repositories)
 	deleteServices := DeleteDisbursementServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -77,6 +81,7 @@ func NewUseCases(
 
 	listRepos := ListDisbursementsRepositories(repositories)
 	listServices := ListDisbursementsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

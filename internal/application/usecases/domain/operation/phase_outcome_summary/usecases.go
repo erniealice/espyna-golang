@@ -42,6 +42,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	createServices := CreatePhaseOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -52,6 +53,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	readServices := ReadPhaseOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +63,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	updateServices := UpdatePhaseOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -70,6 +73,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	deleteServices := DeletePhaseOutcomeSummaryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -79,6 +83,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	listServices := ListPhaseOutcomeSummariesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -88,6 +93,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	listPageDataServices := GetPhaseOutcomeSummaryListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -97,6 +103,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	itemPageDataServices := GetPhaseOutcomeSummaryItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -106,6 +113,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	getByJobPhaseServices := GetByJobPhaseServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -115,6 +123,7 @@ func NewUseCases(
 		PhaseOutcomeSummary: repositories.PhaseOutcomeSummary,
 	}
 	listByJobServices := ListByJobServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

@@ -32,6 +32,7 @@ func NewUseCases(
 ) *UseCases {
 	listRepos := ListDisbursementSchedulesRepositories(repositories)
 	listSvcs := ListDisbursementSchedulesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

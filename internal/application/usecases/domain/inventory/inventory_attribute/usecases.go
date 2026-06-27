@@ -36,6 +36,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateInventoryAttributeRepositories(repositories)
 	createServices := CreateInventoryAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -44,6 +45,7 @@ func NewUseCases(
 
 	readRepos := ReadInventoryAttributeRepositories(repositories)
 	readServices := ReadInventoryAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -51,6 +53,7 @@ func NewUseCases(
 
 	updateRepos := UpdateInventoryAttributeRepositories(repositories)
 	updateServices := UpdateInventoryAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -58,6 +61,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteInventoryAttributeRepositories(repositories)
 	deleteServices := DeleteInventoryAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -65,6 +69,7 @@ func NewUseCases(
 
 	listRepos := ListInventoryAttributesRepositories(repositories)
 	listServices := ListInventoryAttributesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

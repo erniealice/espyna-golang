@@ -103,6 +103,7 @@ func NewUseCases(
 		PaymentTerm: repositories.PaymentTerm,
 	}
 	createServices := CreateRevenueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -113,6 +114,7 @@ func NewUseCases(
 		Revenue: repositories.Revenue,
 	}
 	readServices := ReadRevenueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -122,6 +124,7 @@ func NewUseCases(
 		Revenue: repositories.Revenue,
 	}
 	updateServices := UpdateRevenueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -131,6 +134,7 @@ func NewUseCases(
 		Revenue: repositories.Revenue,
 	}
 	deleteServices := DeleteRevenueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -140,6 +144,7 @@ func NewUseCases(
 		Revenue: repositories.Revenue,
 	}
 	listServices := ListRevenuesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -149,6 +154,7 @@ func NewUseCases(
 		Revenue: repositories.Revenue,
 	}
 	getListPageDataServices := GetRevenueListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -168,6 +174,7 @@ func NewUseCases(
 		JobTemplatePhase: repositories.JobTemplatePhase,
 	}
 	recognizeServices := RecognizeRevenueFromSubscriptionServices{
+		ActionGatekeeper:                        services.ActionGatekeeper,
 		Authorizer:                             services.Authorizer,
 		Transactor:                             services.Transactor,
 		Translator:                             services.Translator,
@@ -187,6 +194,7 @@ func NewUseCases(
 	// Plan B Phase 5a — thread TreasuryCollection through for the advance branch.
 	listCandidatesRepos.TreasuryCollection = repositories.TreasuryCollection
 	listCandidatesServices := ListRevenueRunCandidatesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
 	}
@@ -198,6 +206,7 @@ func NewUseCases(
 		Workspace:    repositories.Workspace,
 	}
 	generateRunServices := GenerateRevenueRunServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -207,6 +216,7 @@ func NewUseCases(
 	recomputeTaxesUC := NewRecomputeTaxesUseCase(
 		RecomputeTaxesRepositories{Revenue: repositories.Revenue},
 		RecomputeTaxesServices{
+			ActionGatekeeper: services.ActionGatekeeper,
 			Authorizer: services.Authorizer,
 			Translator: services.Translator,
 		},

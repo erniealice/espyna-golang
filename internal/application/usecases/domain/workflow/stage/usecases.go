@@ -45,6 +45,7 @@ func NewUseCases(
 		StageTemplate: repositories.StageTemplate,
 	}
 	createServices := CreateStageServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -54,6 +55,7 @@ func NewUseCases(
 		Stage: repositories.Stage,
 	}
 	readServices := ReadStageServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -63,6 +65,7 @@ func NewUseCases(
 		Stage: repositories.Stage,
 	}
 	updateServices := UpdateStageServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -72,6 +75,7 @@ func NewUseCases(
 		Stage: repositories.Stage,
 	}
 	deleteServices := DeleteStageServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -81,6 +85,7 @@ func NewUseCases(
 		Stage: repositories.Stage,
 	}
 	listServices := ListStagesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

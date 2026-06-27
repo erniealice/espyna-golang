@@ -37,6 +37,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateProductOptionValueRepositories(repositories)
 	createServices := CreateProductOptionValueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -45,6 +46,7 @@ func NewUseCases(
 
 	readRepos := ReadProductOptionValueRepositories(repositories)
 	readServices := ReadProductOptionValueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -52,6 +54,7 @@ func NewUseCases(
 
 	updateRepos := UpdateProductOptionValueRepositories(repositories)
 	updateServices := UpdateProductOptionValueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -59,6 +62,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteProductOptionValueRepositories(repositories)
 	deleteServices := DeleteProductOptionValueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -66,6 +70,7 @@ func NewUseCases(
 
 	listRepos := ListProductOptionValuesRepositories(repositories)
 	listServices := ListProductOptionValuesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

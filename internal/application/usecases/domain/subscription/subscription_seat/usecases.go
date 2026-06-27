@@ -48,6 +48,7 @@ func NewUseCases(
 				Subscription:     repositories.Subscription,
 			},
 			CreateSubscriptionSeatServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -57,6 +58,7 @@ func NewUseCases(
 		ReadSubscriptionSeat: NewReadSubscriptionSeatUseCase(
 			ReadSubscriptionSeatRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			ReadSubscriptionSeatServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -65,6 +67,7 @@ func NewUseCases(
 		UpdateSubscriptionSeat: NewUpdateSubscriptionSeatUseCase(
 			UpdateSubscriptionSeatRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			UpdateSubscriptionSeatServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -73,6 +76,7 @@ func NewUseCases(
 		DeleteSubscriptionSeat: NewDeleteSubscriptionSeatUseCase(
 			DeleteSubscriptionSeatRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			DeleteSubscriptionSeatServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -81,6 +85,7 @@ func NewUseCases(
 		ListSubscriptionSeats: NewListSubscriptionSeatsUseCase(
 			ListSubscriptionSeatsRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			ListSubscriptionSeatsServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -89,6 +94,7 @@ func NewUseCases(
 		GetSubscriptionSeatListPageData: NewGetSubscriptionSeatListPageDataUseCase(
 			GetSubscriptionSeatListPageDataRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			GetSubscriptionSeatListPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -97,6 +103,7 @@ func NewUseCases(
 		GetSubscriptionSeatItemPageData: NewGetSubscriptionSeatItemPageDataUseCase(
 			GetSubscriptionSeatItemPageDataRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			GetSubscriptionSeatItemPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -105,6 +112,7 @@ func NewUseCases(
 		ReplaceSubscriptionSeat: NewReplaceSubscriptionSeatUseCase(
 			ReplaceSubscriptionSeatRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			ReplaceSubscriptionSeatServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -114,6 +122,7 @@ func NewUseCases(
 		SetSubscriptionSeatStatus: NewSetSubscriptionSeatStatusUseCase(
 			SetSubscriptionSeatStatusRepositories{SubscriptionSeat: repositories.SubscriptionSeat},
 			SetSubscriptionSeatStatusServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,

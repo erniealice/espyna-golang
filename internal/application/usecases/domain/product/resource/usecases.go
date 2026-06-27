@@ -39,6 +39,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateResourceRepositories(repositories)
 	createServices := CreateResourceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -49,6 +50,7 @@ func NewUseCases(
 		Resource: repositories.Resource,
 	}
 	readServices := ReadResourceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -56,6 +58,7 @@ func NewUseCases(
 
 	updateRepos := UpdateResourceRepositories(repositories)
 	updateServices := UpdateResourceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -65,6 +68,7 @@ func NewUseCases(
 		Resource: repositories.Resource,
 	}
 	deleteServices := DeleteResourceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -74,6 +78,7 @@ func NewUseCases(
 		Resource: repositories.Resource,
 	}
 	listServices := ListResourcesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

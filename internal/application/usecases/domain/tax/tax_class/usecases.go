@@ -33,6 +33,7 @@ func NewUseCases(repositories TaxClassRepositories, services TaxClassServices) *
 		ReadTaxClass: NewReadTaxClassUseCase(
 			ReadTaxClassRepositories{TaxClass: repositories.TaxClass},
 			ReadTaxClassServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -40,6 +41,7 @@ func NewUseCases(repositories TaxClassRepositories, services TaxClassServices) *
 		ListTaxClasses: NewListTaxClassesUseCase(
 			ListTaxClassesRepositories{TaxClass: repositories.TaxClass},
 			ListTaxClassesServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -47,6 +49,7 @@ func NewUseCases(repositories TaxClassRepositories, services TaxClassServices) *
 		FindByCodeTaxClass: NewFindByCodeTaxClassUseCase(
 			FindByCodeTaxClassRepositories{TaxClass: repositories.TaxClass},
 			FindByCodeTaxClassServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

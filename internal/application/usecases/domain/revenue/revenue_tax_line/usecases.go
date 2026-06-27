@@ -36,6 +36,7 @@ func NewUseCases(repositories RevenueTaxLineRepositories, services RevenueTaxLin
 		ReadRevenueTaxLine: NewReadRevenueTaxLineUseCase(
 			ReadRevenueTaxLineRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			ReadRevenueTaxLineServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -43,6 +44,7 @@ func NewUseCases(repositories RevenueTaxLineRepositories, services RevenueTaxLin
 		ListRevenueTaxLines: NewListRevenueTaxLinesUseCase(
 			ListRevenueTaxLinesRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			ListRevenueTaxLinesServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -50,6 +52,7 @@ func NewUseCases(repositories RevenueTaxLineRepositories, services RevenueTaxLin
 		CreateRevenueTaxLine: NewCreateRevenueTaxLineUseCase(
 			CreateRevenueTaxLineRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			CreateRevenueTaxLineServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Translator:  services.Translator,
 				IDGenerator: services.IDGenerator,
@@ -58,6 +61,7 @@ func NewUseCases(repositories RevenueTaxLineRepositories, services RevenueTaxLin
 		ListByRevenueRevenueTaxLine: NewListByRevenueRevenueTaxLineUseCase(
 			ListByRevenueRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			ListByRevenueServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -65,6 +69,7 @@ func NewUseCases(repositories RevenueTaxLineRepositories, services RevenueTaxLin
 		DeleteByRevenueRevenueTaxLine: NewDeleteByRevenueRevenueTaxLineUseCase(
 			DeleteByRevenueRepositories{RevenueTaxLine: repositories.RevenueTaxLine},
 			DeleteByRevenueServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

@@ -47,6 +47,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateRevenuePaymentRepositories(repositories)
 	createServices := CreateRevenuePaymentServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -55,6 +56,7 @@ func NewUseCases(
 
 	readRepos := ReadRevenuePaymentRepositories(repositories)
 	readServices := ReadRevenuePaymentServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -62,6 +64,7 @@ func NewUseCases(
 
 	updateRepos := UpdateRevenuePaymentRepositories(repositories)
 	updateServices := UpdateRevenuePaymentServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -69,6 +72,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteRevenuePaymentRepositories(repositories)
 	deleteServices := DeleteRevenuePaymentServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -76,6 +80,7 @@ func NewUseCases(
 
 	listRepos := ListRevenuePaymentsRepositories(repositories)
 	listServices := ListRevenuePaymentsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -83,6 +88,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetRevenuePaymentListPageDataRepositories(repositories)
 	getListPageDataServices := GetRevenuePaymentListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -90,6 +96,7 @@ func NewUseCases(
 
 	getItemPageDataRepos := GetRevenuePaymentItemPageDataRepositories(repositories)
 	getItemPageDataServices := GetRevenuePaymentItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

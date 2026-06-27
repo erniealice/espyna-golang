@@ -34,6 +34,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := newCreatePayrollRemittanceRepositories(repositories)
 	createServices := CreatePayrollRemittanceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -42,6 +43,7 @@ func NewUseCases(
 
 	listRepos := newListPayrollRemittancesRepositories(repositories)
 	listServices := ListPayrollRemittancesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -49,6 +51,7 @@ func NewUseCases(
 
 	getListPageDataRepos := newGetPayrollRemittanceListPageDataRepositories(repositories)
 	getListPageDataServices := GetPayrollRemittanceListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

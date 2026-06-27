@@ -39,6 +39,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateBalanceRepositories(repositories)
 	createServices := CreateBalanceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -47,6 +48,7 @@ func NewUseCases(
 
 	readRepos := ReadBalanceRepositories(repositories)
 	readServices := ReadBalanceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -54,6 +56,7 @@ func NewUseCases(
 
 	updateRepos := UpdateBalanceRepositories(repositories)
 	updateServices := UpdateBalanceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +64,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteBalanceRepositories(repositories)
 	deleteServices := DeleteBalanceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -68,6 +72,7 @@ func NewUseCases(
 
 	listRepos := ListBalancesRepositories(repositories)
 	listServices := ListBalancesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -75,12 +80,14 @@ func NewUseCases(
 
 	getListPageDataRepos := GetBalanceListPageDataRepositories(repositories)
 	getListPageDataServices := GetBalanceListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
 
 	getItemPageDataRepos := GetBalanceItemPageDataRepositories(repositories)
 	getItemPageDataServices := GetBalanceItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

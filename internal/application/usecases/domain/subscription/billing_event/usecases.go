@@ -44,6 +44,7 @@ func NewUseCases(
 		ListBySubscription: NewListBillingEventsBySubscriptionUseCase(
 			ListBillingEventsBySubscriptionRepositories{BillingEvent: repositories.BillingEvent},
 			ListBillingEventsBySubscriptionServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -51,6 +52,7 @@ func NewUseCases(
 		SetStatus: NewSetBillingEventStatusUseCase(
 			SetBillingEventStatusRepositories{BillingEvent: repositories.BillingEvent},
 			SetBillingEventStatusServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,

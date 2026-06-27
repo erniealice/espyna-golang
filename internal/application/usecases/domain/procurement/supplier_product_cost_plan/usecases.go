@@ -32,31 +32,31 @@ func NewUseCases(repos Repositories, svcs Services) *UseCases {
 	return &UseCases{
 		CreateSupplierProductCostPlan: NewCreateSupplierProductCostPlanUseCase(
 			CreateSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			CreateSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
+			CreateSupplierProductCostPlanServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
 		),
 		ReadSupplierProductCostPlan: NewReadSupplierProductCostPlanUseCase(
 			ReadSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			ReadSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			ReadSupplierProductCostPlanServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		UpdateSupplierProductCostPlan: NewUpdateSupplierProductCostPlanUseCase(
 			UpdateSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			UpdateSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			UpdateSupplierProductCostPlanServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		DeleteSupplierProductCostPlan: NewDeleteSupplierProductCostPlanUseCase(
 			DeleteSupplierProductCostPlanRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			DeleteSupplierProductCostPlanServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			DeleteSupplierProductCostPlanServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		ListSupplierProductCostPlans: NewListSupplierProductCostPlansUseCase(
 			ListSupplierProductCostPlansRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			ListSupplierProductCostPlansServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			ListSupplierProductCostPlansServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierProductCostPlanListPageData: NewGetSupplierProductCostPlanListPageDataUseCase(
 			GetSupplierProductCostPlanListPageDataRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			GetSupplierProductCostPlanListPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			GetSupplierProductCostPlanListPageDataServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetSupplierProductCostPlanItemPageData: NewGetSupplierProductCostPlanItemPageDataUseCase(
 			GetSupplierProductCostPlanItemPageDataRepositories{SupplierProductCostPlan: repos.SupplierProductCostPlan},
-			GetSupplierProductCostPlanItemPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			GetSupplierProductCostPlanItemPageDataServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 	}
 }

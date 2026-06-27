@@ -44,6 +44,7 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	createServices := CreatePriceProductServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor:  services.Transactor,
 		Authorizer:  services.Authorizer,
 		Translator:  services.Translator,
@@ -54,6 +55,7 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	readServices := ReadPriceProductServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -63,6 +65,7 @@ func NewUseCases(
 		Product:      repositories.Product,
 	}
 	updateServices := UpdatePriceProductServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -71,6 +74,7 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	deleteServices := DeletePriceProductServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -79,6 +83,7 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	listServices := ListPriceProductsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -88,6 +93,7 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	listPageDataServices := GetPriceProductListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -96,6 +102,7 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	itemPageDataServices := GetPriceProductItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

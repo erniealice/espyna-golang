@@ -41,6 +41,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	createServices := CreateJobTemplateTaskServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -51,6 +52,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	readServices := ReadJobTemplateTaskServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -60,6 +62,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	updateServices := UpdateJobTemplateTaskServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -69,6 +72,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	deleteServices := DeleteJobTemplateTaskServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -78,6 +82,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	listServices := ListJobTemplateTasksServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -87,6 +92,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	listPageDataServices := GetJobTemplateTaskListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -96,6 +102,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	itemPageDataServices := GetJobTemplateTaskItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -105,6 +112,7 @@ func NewUseCases(
 		JobTemplateTask: repositories.JobTemplateTask,
 	}
 	listByPhaseServices := ListByPhaseServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

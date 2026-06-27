@@ -47,6 +47,7 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	createServices := CreateProductAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -57,6 +58,7 @@ func NewUseCases(
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	readServices := ReadProductAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -68,6 +70,7 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	updateServices := UpdateProductAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -77,6 +80,7 @@ func NewUseCases(
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	deleteServices := DeleteProductAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -86,6 +90,7 @@ func NewUseCases(
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	listServices := ListProductAttributesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -95,6 +100,7 @@ func NewUseCases(
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	listPageDataServices := GetProductAttributeListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -103,6 +109,7 @@ func NewUseCases(
 		ProductAttribute: repositories.ProductAttribute,
 	}
 	itemPageDataServices := GetProductAttributeItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

@@ -43,6 +43,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreatePlanAttributeRepositories(repositories)
 	createServices := CreatePlanAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -53,6 +54,7 @@ func NewUseCases(
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	readServices := ReadPlanAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -63,6 +65,7 @@ func NewUseCases(
 		Attribute:     repositories.Attribute,
 	}
 	updateServices := UpdatePlanAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -71,6 +74,7 @@ func NewUseCases(
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	deleteServices := DeletePlanAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -79,6 +83,7 @@ func NewUseCases(
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	listServices := ListPlanAttributesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -87,6 +92,7 @@ func NewUseCases(
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	getListPageDataServices := GetPlanAttributeListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -95,6 +101,7 @@ func NewUseCases(
 		PlanAttribute: repositories.PlanAttribute,
 	}
 	getItemPageDataServices := GetPlanAttributeItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

@@ -44,39 +44,39 @@ func NewUseCases(repositories EvaluationRepositories, services EvaluationService
 	return &UseCases{
 		CreateEvaluation: NewCreateEvaluationUseCase(
 			CreateEvaluationRepositories{Evaluation: repositories.Evaluation, SubscriptionSeat: repositories.SubscriptionSeat},
-			CreateEvaluationServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator, IDGenerator: services.IDGenerator},
+			CreateEvaluationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator, IDGenerator: services.IDGenerator},
 		),
 		ReadEvaluation: NewReadEvaluationUseCase(
 			ReadEvaluationRepositories{Evaluation: repositories.Evaluation},
-			ReadEvaluationServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			ReadEvaluationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 		UpdateEvaluation: NewUpdateEvaluationUseCase(
 			UpdateEvaluationRepositories{Evaluation: repositories.Evaluation},
-			UpdateEvaluationServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			UpdateEvaluationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 		DeleteEvaluation: NewDeleteEvaluationUseCase(
 			DeleteEvaluationRepositories{Evaluation: repositories.Evaluation},
-			DeleteEvaluationServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			DeleteEvaluationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 		ListEvaluations: NewListEvaluationsUseCase(
 			ListEvaluationsRepositories{Evaluation: repositories.Evaluation},
-			ListEvaluationsServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			ListEvaluationsServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 		GetEvaluationListPageData: NewGetEvaluationListPageDataUseCase(
 			ListEvaluationsRepositories{Evaluation: repositories.Evaluation},
-			ListEvaluationsServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			ListEvaluationsServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 		GetEvaluationItemPageData: NewGetEvaluationItemPageDataUseCase(
 			ListEvaluationsRepositories{Evaluation: repositories.Evaluation},
-			ListEvaluationsServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			ListEvaluationsServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 		SubmitEvaluation: NewSubmitEvaluationUseCase(
 			SubmitEvaluationRepositories{Evaluation: repositories.Evaluation, EvaluationResponse: repositories.EvaluationResponse, OutcomeCriteria: repositories.OutcomeCriteria},
-			SubmitEvaluationServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			SubmitEvaluationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 		SignOffEvaluation: NewSignOffEvaluationUseCase(
 			SignOffEvaluationRepositories{Evaluation: repositories.Evaluation},
-			SignOffEvaluationServices{Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
+			SignOffEvaluationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: services.Transactor, Translator: services.Translator},
 		),
 	}
 }

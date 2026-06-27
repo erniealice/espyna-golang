@@ -39,6 +39,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateJournalEntryRepositories(repositories)
 	createServices := CreateJournalEntryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -47,6 +48,7 @@ func NewUseCases(
 
 	readRepos := ReadJournalEntryRepositories(repositories)
 	readServices := ReadJournalEntryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -54,6 +56,7 @@ func NewUseCases(
 
 	updateRepos := UpdateJournalEntryRepositories(repositories)
 	updateServices := UpdateJournalEntryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +64,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteJournalEntryRepositories(repositories)
 	deleteServices := DeleteJournalEntryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -68,6 +72,7 @@ func NewUseCases(
 
 	listRepos := ListJournalEntriesRepositories(repositories)
 	listServices := ListJournalEntriesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -75,6 +80,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetJournalEntryListPageDataRepositories(repositories)
 	getListPageDataServices := GetJournalEntryListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -82,6 +88,7 @@ func NewUseCases(
 
 	postRepos := PostJournalEntryRepositories(repositories)
 	postServices := PostJournalEntryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -89,6 +96,7 @@ func NewUseCases(
 
 	reverseRepos := ReverseJournalEntryRepositories(repositories)
 	reverseServices := ReverseJournalEntryServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,

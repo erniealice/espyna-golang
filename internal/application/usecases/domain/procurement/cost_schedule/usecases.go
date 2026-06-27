@@ -37,35 +37,35 @@ func NewUseCases(repos Repositories, svcs Services) *UseCases {
 	return &UseCases{
 		CreateCostSchedule: NewCreateCostScheduleUseCase(
 			CreateCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			CreateCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
+			CreateCostScheduleServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator, IDGenerator: svcs.IDGenerator},
 		),
 		ReadCostSchedule: NewReadCostScheduleUseCase(
 			ReadCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			ReadCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			ReadCostScheduleServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		UpdateCostSchedule: NewUpdateCostScheduleUseCase(
 			UpdateCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			UpdateCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			UpdateCostScheduleServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		DeleteCostSchedule: NewDeleteCostScheduleUseCase(
 			DeleteCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			DeleteCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			DeleteCostScheduleServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		ListCostSchedules: NewListCostSchedulesUseCase(
 			ListCostSchedulesRepositories{CostSchedule: repos.CostSchedule},
-			ListCostSchedulesServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			ListCostSchedulesServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetCostScheduleListPageData: NewGetCostScheduleListPageDataUseCase(
 			GetCostScheduleListPageDataRepositories{CostSchedule: repos.CostSchedule},
-			GetCostScheduleListPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			GetCostScheduleListPageDataServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		GetCostScheduleItemPageData: NewGetCostScheduleItemPageDataUseCase(
 			GetCostScheduleItemPageDataRepositories{CostSchedule: repos.CostSchedule},
-			GetCostScheduleItemPageDataServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			GetCostScheduleItemPageDataServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 		FindApplicableCostSchedule: NewFindApplicableCostScheduleUseCase(
 			FindApplicableCostScheduleRepositories{CostSchedule: repos.CostSchedule},
-			FindApplicableCostScheduleServices{Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
+			FindApplicableCostScheduleServices{ActionGatekeeper: svcs.ActionGatekeeper, Authorizer: svcs.Authorizer, Transactor: svcs.Transactor, Translator: svcs.Translator},
 		),
 	}
 }

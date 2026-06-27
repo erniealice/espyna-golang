@@ -77,6 +77,7 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 	}
 	createServices := CreateSubscriptionServices{
+		ActionGatekeeper:        services.ActionGatekeeper,
 		Authorizer:              services.Authorizer,
 		Transactor:              services.Transactor,
 		Translator:              services.Translator,
@@ -88,6 +89,7 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	readServices := ReadSubscriptionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -99,6 +101,7 @@ func NewUseCases(
 		PricePlan:    repositories.PricePlan,
 	}
 	updateServices := UpdateSubscriptionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -108,6 +111,7 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	deleteServices := DeleteSubscriptionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -117,6 +121,7 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	listServices := ListSubscriptionsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -126,6 +131,7 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	listPageDataServices := GetSubscriptionListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -135,6 +141,7 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	itemPageDataServices := GetSubscriptionItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -144,6 +151,7 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	countActiveServices := CountActiveByClientIdsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
 	}
@@ -152,6 +160,7 @@ func NewUseCases(
 		Subscription: repositories.Subscription,
 	}
 	listByPricePlanServices := ListSubscriptionsByPricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

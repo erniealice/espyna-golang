@@ -44,7 +44,7 @@ func NewUseCases(
 ) *UseCases {
 	notify := NewNotifyConversationPostUseCase(
 		NotifyConversationPostRepositories{Conversation: repositories.Conversation},
-		NotifyConversationPostServices{Translator: services.Translator, Email: services.Email},
+		NotifyConversationPostServices{ActionGatekeeper: services.ActionGatekeeper, Translator: services.Translator, Email: services.Email},
 	)
 
 	return &UseCases{

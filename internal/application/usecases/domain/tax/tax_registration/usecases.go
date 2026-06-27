@@ -48,6 +48,7 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 				TaxRegistrationKind: repositories.TaxRegistrationKind,
 			},
 			CreateTaxRegistrationServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -57,6 +58,7 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 		ReadTaxRegistration: NewReadTaxRegistrationUseCase(
 			ReadTaxRegistrationRepositories{TaxRegistration: repositories.TaxRegistration},
 			ReadTaxRegistrationServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -67,6 +69,7 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 				TaxRegistrationKind: repositories.TaxRegistrationKind,
 			},
 			SupersedeTaxRegistrationServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -76,6 +79,7 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 		RevokeTaxRegistration: NewRevokeTaxRegistrationUseCase(
 			RevokeTaxRegistrationRepositories{TaxRegistration: repositories.TaxRegistration},
 			RevokeTaxRegistrationServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -84,6 +88,7 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 		FindActiveTaxRegistration: NewFindActiveTaxRegistrationUseCase(
 			FindActiveTaxRegistrationRepositories{TaxRegistration: repositories.TaxRegistration},
 			FindActiveTaxRegistrationServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -91,6 +96,7 @@ func NewUseCases(repositories TaxRegistrationRepositories, services TaxRegistrat
 		ListTaxRegistrations: NewListTaxRegistrationsUseCase(
 			ListTaxRegistrationsRepositories{TaxRegistration: repositories.TaxRegistration},
 			ListTaxRegistrationsServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

@@ -43,6 +43,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	createServices := CreateOutcomeCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -53,6 +54,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	readServices := ReadOutcomeCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -62,6 +64,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	updateServices := UpdateOutcomeCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -71,6 +74,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	deleteServices := DeleteOutcomeCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -80,6 +84,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listServices := ListOutcomeCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -89,6 +94,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listPageDataServices := GetOutcomeCriteriaListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -98,6 +104,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	itemPageDataServices := GetOutcomeCriteriaItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -107,6 +114,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listByGroupServices := ListByGroupServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -116,6 +124,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	getCurrentPublishedServices := GetCurrentPublishedServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -125,6 +134,7 @@ func NewUseCases(
 		OutcomeCriteria: repositories.OutcomeCriteria,
 	}
 	listByScopeServices := ListByScopeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

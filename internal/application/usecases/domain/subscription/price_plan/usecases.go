@@ -50,6 +50,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreatePricePlanRepositories(repositories)
 	createServices := CreatePricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -60,6 +61,7 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	readServices := ReadPricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -67,6 +69,7 @@ func NewUseCases(
 
 	updateRepos := UpdatePricePlanRepositories(repositories)
 	updateServices := UpdatePricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:       services.Authorizer,
 		Transactor:       services.Transactor,
 		Translator:       services.Translator,
@@ -78,6 +81,7 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	deleteServices := DeletePricePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -87,6 +91,7 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	listServices := ListPricePlansServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -96,6 +101,7 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	listPageDataServices := GetPricePlanListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -105,6 +111,7 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	itemPageDataServices := GetPricePlanItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

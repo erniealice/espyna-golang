@@ -36,6 +36,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateRevenueLineItemRepositories(repositories)
 	createServices := CreateRevenueLineItemServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -44,6 +45,7 @@ func NewUseCases(
 
 	readRepos := ReadRevenueLineItemRepositories(repositories)
 	readServices := ReadRevenueLineItemServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -51,6 +53,7 @@ func NewUseCases(
 
 	updateRepos := UpdateRevenueLineItemRepositories(repositories)
 	updateServices := UpdateRevenueLineItemServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -58,6 +61,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteRevenueLineItemRepositories(repositories)
 	deleteServices := DeleteRevenueLineItemServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -65,6 +69,7 @@ func NewUseCases(
 
 	listRepos := ListRevenueLineItemsRepositories(repositories)
 	listServices := ListRevenueLineItemsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

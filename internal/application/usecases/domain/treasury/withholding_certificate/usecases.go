@@ -37,6 +37,7 @@ func NewUseCases(repositories WithholdingCertificateRepositories, services Withh
 		CreateWithholdingCertificate: NewCreateWithholdingCertificateUseCase(
 			CreateWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			CreateWithholdingCertificateServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -46,6 +47,7 @@ func NewUseCases(repositories WithholdingCertificateRepositories, services Withh
 		ReadWithholdingCertificate: NewReadWithholdingCertificateUseCase(
 			ReadWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			ReadWithholdingCertificateServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -53,6 +55,7 @@ func NewUseCases(repositories WithholdingCertificateRepositories, services Withh
 		UpdateWithholdingCertificate: NewUpdateWithholdingCertificateUseCase(
 			UpdateWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			UpdateWithholdingCertificateServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -60,6 +63,7 @@ func NewUseCases(repositories WithholdingCertificateRepositories, services Withh
 		DeleteWithholdingCertificate: NewDeleteWithholdingCertificateUseCase(
 			DeleteWithholdingCertificateRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			DeleteWithholdingCertificateServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -67,6 +71,7 @@ func NewUseCases(repositories WithholdingCertificateRepositories, services Withh
 		ListWithholdingCertificates: NewListWithholdingCertificatesUseCase(
 			ListWithholdingCertificatesRepositories{WithholdingCertificate: repositories.WithholdingCertificate},
 			ListWithholdingCertificatesServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

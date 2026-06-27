@@ -60,6 +60,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreatePlanRepositories{Plan: repositories.Plan}
 	createServices := CreatePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -68,6 +69,7 @@ func NewUseCases(
 
 	readRepos := ReadPlanRepositories{Plan: repositories.Plan}
 	readServices := ReadPlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -78,6 +80,7 @@ func NewUseCases(
 		PricePlan: repositories.PricePlan,
 	}
 	updateServices := UpdatePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:       services.Authorizer,
 		Transactor:       services.Transactor,
 		Translator:       services.Translator,
@@ -86,6 +89,7 @@ func NewUseCases(
 
 	deleteRepos := DeletePlanRepositories{Plan: repositories.Plan}
 	deleteServices := DeletePlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -93,6 +97,7 @@ func NewUseCases(
 
 	listRepos := ListPlansRepositories{Plan: repositories.Plan}
 	listServices := ListPlansServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -102,6 +107,7 @@ func NewUseCases(
 		Plan: repositories.Plan,
 	}
 	listPageDataServices := GetPlanListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -111,6 +117,7 @@ func NewUseCases(
 		Plan: repositories.Plan,
 	}
 	itemPageDataServices := GetPlanItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -120,6 +127,7 @@ func NewUseCases(
 		Plan: repositories.Plan,
 	}
 	searchByNameServices := SearchPlansByNameServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -135,6 +143,7 @@ func NewUseCases(
 		Client:           repositories.Client,
 	}
 	customizeServices := CustomizePlanForClientServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,

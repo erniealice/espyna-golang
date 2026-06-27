@@ -34,6 +34,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreatePettyCashFundRepositories(repositories)
 	createServices := CreatePettyCashFundServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -42,6 +43,7 @@ func NewUseCases(
 
 	listRepos := ListPettyCashFundsRepositories(repositories)
 	listServices := ListPettyCashFundsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -49,6 +51,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetPettyCashFundListPageDataRepositories(repositories)
 	getListPageDataServices := GetPettyCashFundListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

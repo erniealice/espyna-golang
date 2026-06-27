@@ -42,6 +42,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	createServices := CreateTemplateTaskCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -52,6 +53,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	readServices := ReadTemplateTaskCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +63,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	updateServices := UpdateTemplateTaskCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -70,6 +73,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	deleteServices := DeleteTemplateTaskCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -79,6 +83,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listServices := ListTemplateTaskCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -88,6 +93,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listPageDataServices := GetTemplateTaskCriteriaListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -97,6 +103,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	itemPageDataServices := GetTemplateTaskCriteriaItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -106,6 +113,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listByTemplateTaskServices := ListByTemplateTaskServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -115,6 +123,7 @@ func NewUseCases(
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
 	}
 	listByCriteriaServices := ListByCriteriaServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

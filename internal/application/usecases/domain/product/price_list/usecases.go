@@ -44,6 +44,7 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	createServices := CreatePriceListServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor:  services.Transactor,
 		Authorizer:  services.Authorizer,
 		Translator:  services.Translator,
@@ -54,6 +55,7 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	readServices := ReadPriceListServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
@@ -63,6 +65,7 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	updateServices := UpdatePriceListServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
@@ -72,6 +75,7 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	deleteServices := DeletePriceListServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
@@ -81,6 +85,7 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	listServices := ListPriceListsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
@@ -90,6 +95,7 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	listPageDataServices := GetPriceListListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
@@ -100,6 +106,7 @@ func NewUseCases(
 		PriceProduct: repositories.PriceProduct,
 	}
 	itemPageDataServices := GetPriceListItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
@@ -109,6 +116,7 @@ func NewUseCases(
 		PriceList: repositories.PriceList,
 	}
 	findApplicableServices := FindApplicablePriceListServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,

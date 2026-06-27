@@ -43,6 +43,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateInvoiceAttributeRepositories(repositories)
 	createServices := CreateInvoiceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -53,6 +54,7 @@ func NewUseCases(
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	readServices := ReadInvoiceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -63,6 +65,7 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	updateServices := UpdateInvoiceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -71,6 +74,7 @@ func NewUseCases(
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	deleteServices := DeleteInvoiceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -79,6 +83,7 @@ func NewUseCases(
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	listServices := ListInvoiceAttributesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -87,6 +92,7 @@ func NewUseCases(
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	getListPageDataServices := GetInvoiceAttributeListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -95,6 +101,7 @@ func NewUseCases(
 		InvoiceAttribute: repositories.InvoiceAttribute,
 	}
 	getItemPageDataServices := GetInvoiceAttributeItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

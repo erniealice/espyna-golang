@@ -41,6 +41,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	createServices := CreateTaskOutcomeCheckServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -51,6 +52,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	readServices := ReadTaskOutcomeCheckServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -60,6 +62,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	updateServices := UpdateTaskOutcomeCheckServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -69,6 +72,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	deleteServices := DeleteTaskOutcomeCheckServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -78,6 +82,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	listServices := ListTaskOutcomeChecksServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -87,6 +92,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	listPageDataServices := GetTaskOutcomeCheckListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -96,6 +102,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	itemPageDataServices := GetTaskOutcomeCheckItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -105,6 +112,7 @@ func NewUseCases(
 		TaskOutcomeCheck: repositories.TaskOutcomeCheck,
 	}
 	listByTaskOutcomeServices := ListByTaskOutcomeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

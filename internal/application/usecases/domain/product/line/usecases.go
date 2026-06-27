@@ -40,6 +40,7 @@ type UseCases struct {
 func NewUseCases(repositories LineRepositories, services LineServices) *UseCases {
 	createRepos := CreateLineRepositories{Line: repositories.Line}
 	createServices := CreateLineServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -48,6 +49,7 @@ func NewUseCases(repositories LineRepositories, services LineServices) *UseCases
 
 	readRepos := ReadLineRepositories{Line: repositories.Line}
 	readServices := ReadLineServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -55,6 +57,7 @@ func NewUseCases(repositories LineRepositories, services LineServices) *UseCases
 
 	updateRepos := UpdateLineRepositories{Line: repositories.Line}
 	updateServices := UpdateLineServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -62,6 +65,7 @@ func NewUseCases(repositories LineRepositories, services LineServices) *UseCases
 
 	deleteRepos := DeleteLineRepositories{Line: repositories.Line}
 	deleteServices := DeleteLineServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -69,6 +73,7 @@ func NewUseCases(repositories LineRepositories, services LineServices) *UseCases
 
 	listRepos := ListLinesRepositories{Line: repositories.Line}
 	listServices := ListLinesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

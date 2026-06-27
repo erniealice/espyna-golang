@@ -43,6 +43,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateBalanceAttributeRepositories(repositories)
 	createServices := CreateBalanceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -53,6 +54,7 @@ func NewUseCases(
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	readServices := ReadBalanceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -63,6 +65,7 @@ func NewUseCases(
 		Attribute:        repositories.Attribute,
 	}
 	updateServices := UpdateBalanceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -71,6 +74,7 @@ func NewUseCases(
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	deleteServices := DeleteBalanceAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -79,6 +83,7 @@ func NewUseCases(
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	listServices := ListBalanceAttributesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -87,6 +92,7 @@ func NewUseCases(
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	getListPageDataServices := GetBalanceAttributeListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -95,6 +101,7 @@ func NewUseCases(
 		BalanceAttribute: repositories.BalanceAttribute,
 	}
 	getItemPageDataServices := GetBalanceAttributeItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

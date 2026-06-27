@@ -46,39 +46,39 @@ func NewUseCases(
 	return &UseCases{
 		CreateConversation: NewCreateConversationUseCase(
 			CreateConversationRepositories(repositories),
-			CreateConversationServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator, IDGenerator: services.IDGenerator},
+			CreateConversationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator, IDGenerator: services.IDGenerator},
 		),
 		ReadConversation: NewReadConversationUseCase(
 			ReadConversationRepositories(repositories),
-			ReadConversationServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			ReadConversationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 		UpdateConversation: NewUpdateConversationUseCase(
 			UpdateConversationRepositories(repositories),
-			UpdateConversationServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			UpdateConversationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 		DeleteConversation: NewDeleteConversationUseCase(
 			DeleteConversationRepositories(repositories),
-			DeleteConversationServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			DeleteConversationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 		ListConversations: NewListConversationsUseCase(
 			ListConversationsRepositories(repositories),
-			ListConversationsServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			ListConversationsServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 		GetConversationListPageData: NewGetConversationListPageDataUseCase(
 			GetConversationListPageDataRepositories{Conversation: repositories.Conversation},
-			GetConversationListPageDataServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			GetConversationListPageDataServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 		GetConversationItemPageData: NewGetConversationItemPageDataUseCase(
 			GetConversationItemPageDataRepositories{Conversation: repositories.Conversation},
-			GetConversationItemPageDataServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			GetConversationItemPageDataServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 		SetConversationStatus: NewSetConversationStatusUseCase(
 			SetConversationStatusRepositories(repositories),
-			SetConversationStatusServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			SetConversationStatusServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 		AssignConversation: NewAssignConversationUseCase(
 			AssignConversationRepositories(repositories),
-			AssignConversationServices{Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
+			AssignConversationServices{ActionGatekeeper: services.ActionGatekeeper, Authorizer: services.Authorizer, Transactor: transactionService, Translator: services.Translator},
 		),
 	}
 }

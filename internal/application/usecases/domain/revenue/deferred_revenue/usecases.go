@@ -34,6 +34,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateDeferredRevenueRepositories(repositories)
 	createServices := CreateDeferredRevenueServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -42,6 +43,7 @@ func NewUseCases(
 
 	listRepos := ListDeferredRevenuesRepositories(repositories)
 	listServices := ListDeferredRevenuesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -49,6 +51,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetDeferredRevenueListPageDataRepositories(repositories)
 	getListPageDataServices := GetDeferredRevenueListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

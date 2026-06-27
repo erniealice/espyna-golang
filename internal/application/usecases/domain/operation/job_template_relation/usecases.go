@@ -40,6 +40,7 @@ func NewUseCases(
 		ListByParent: NewListByParentUseCase(
 			ListByParentRepositories{JobTemplateRelation: repositories.JobTemplateRelation},
 			ListByParentServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

@@ -161,6 +161,7 @@ func (uc *FindOrCreateClientUseCase) Execute(ctx context.Context, req *clientpb.
 			User:   uc.repositories.User,
 		},
 		CreateClientServices{
+			ActionGatekeeper: uc.services.ActionGatekeeper,
 			Authorizer:  uc.services.Authorizer,
 			Transactor:  uc.services.Transactor,
 			Translator:  uc.services.Translator,

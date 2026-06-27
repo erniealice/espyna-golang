@@ -73,6 +73,7 @@ func NewUseCases(
 		CreateJob: &CreateJobUseCase{
 			repositories: CreateJobRepositories{Job: repositories.Job},
 			services: CreateJobServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -82,6 +83,7 @@ func NewUseCases(
 		ReadJob: &ReadJobUseCase{
 			repositories: ReadJobRepositories{Job: repositories.Job},
 			services: ReadJobServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -89,6 +91,7 @@ func NewUseCases(
 		UpdateJob: &UpdateJobUseCase{
 			repositories: UpdateJobRepositories{Job: repositories.Job},
 			services: UpdateJobServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -96,6 +99,7 @@ func NewUseCases(
 		DeleteJob: &DeleteJobUseCase{
 			repositories: DeleteJobRepositories{Job: repositories.Job},
 			services: DeleteJobServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -103,6 +107,7 @@ func NewUseCases(
 		ListJobs: &ListJobsUseCase{
 			repositories: ListJobsRepositories{Job: repositories.Job},
 			services: ListJobsServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -110,6 +115,7 @@ func NewUseCases(
 		GetJobListPageData: &GetJobListPageDataUseCase{
 			repositories: GetJobListPageDataRepositories{Job: repositories.Job},
 			services: GetJobListPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -117,6 +123,7 @@ func NewUseCases(
 		GetJobItemPageData: &GetJobItemPageDataUseCase{
 			repositories: GetJobItemPageDataRepositories{Job: repositories.Job},
 			services: GetJobItemPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -124,6 +131,7 @@ func NewUseCases(
 		GetJobsByClient: &GetJobsByClientUseCase{
 			repositories: GetJobsByClientRepositories{Job: repositories.Job},
 			services: GetJobsByClientServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -131,6 +139,7 @@ func NewUseCases(
 		GetJobsByOrigin: &GetJobsByOriginUseCase{
 			repositories: GetJobsByOriginRepositories{Job: repositories.Job},
 			services: GetJobsByOriginServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -138,6 +147,7 @@ func NewUseCases(
 		UpdateJobStatus: &UpdateJobStatusUseCase{
 			repositories: UpdateJobStatusRepositories{Job: repositories.Job},
 			services: UpdateJobStatusServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Transactor: services.Transactor,
 				Translator: services.Translator,
@@ -154,6 +164,7 @@ func NewUseCases(
 				ProductPricePlan: repositories.ProductPricePlan,
 			},
 			MaterializeBillingEventsForJobServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,

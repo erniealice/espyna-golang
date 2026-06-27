@@ -45,6 +45,7 @@ func NewUseCases(
 		ActivityTemplate: repositories.ActivityTemplate,
 	}
 	createServices := CreateActivityServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -54,6 +55,7 @@ func NewUseCases(
 		Activity: repositories.Activity,
 	}
 	readServices := ReadActivityServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -63,6 +65,7 @@ func NewUseCases(
 		Activity: repositories.Activity,
 	}
 	updateServices := UpdateActivityServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -72,6 +75,7 @@ func NewUseCases(
 		Activity: repositories.Activity,
 	}
 	deleteServices := DeleteActivityServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -81,6 +85,7 @@ func NewUseCases(
 		Activity: repositories.Activity,
 	}
 	listServices := ListActivitiesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

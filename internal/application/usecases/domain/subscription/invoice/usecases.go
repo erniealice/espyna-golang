@@ -39,6 +39,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateInvoiceRepositories(repositories)
 	createServices := CreateInvoiceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -47,6 +48,7 @@ func NewUseCases(
 
 	readRepos := ReadInvoiceRepositories(repositories)
 	readServices := ReadInvoiceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -54,6 +56,7 @@ func NewUseCases(
 
 	updateRepos := UpdateInvoiceRepositories(repositories)
 	updateServices := UpdateInvoiceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +64,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteInvoiceRepositories(repositories)
 	deleteServices := DeleteInvoiceServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -68,6 +72,7 @@ func NewUseCases(
 
 	listRepos := ListInvoicesRepositories(repositories)
 	listServices := ListInvoicesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -77,6 +82,7 @@ func NewUseCases(
 		Invoice: repositories.Invoice,
 	}
 	listPageDataServices := GetInvoiceListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -86,6 +92,7 @@ func NewUseCases(
 		Invoice: repositories.Invoice,
 	}
 	itemPageDataServices := GetInvoiceItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

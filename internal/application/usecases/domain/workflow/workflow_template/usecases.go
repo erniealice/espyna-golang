@@ -41,6 +41,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateWorkflowTemplateRepositories(repositories)
 	createServices := CreateWorkflowTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -49,6 +50,7 @@ func NewUseCases(
 
 	readRepos := ReadWorkflowTemplateRepositories(repositories)
 	readServices := ReadWorkflowTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -56,6 +58,7 @@ func NewUseCases(
 
 	updateRepos := UpdateWorkflowTemplateRepositories(repositories)
 	updateServices := UpdateWorkflowTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -63,6 +66,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteWorkflowTemplateRepositories(repositories)
 	deleteServices := DeleteWorkflowTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -70,6 +74,7 @@ func NewUseCases(
 
 	listRepos := ListWorkflowTemplatesRepositories(repositories)
 	listServices := ListWorkflowTemplatesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -79,6 +84,7 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getListPageDataServices := GetWorkflowTemplateListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -87,6 +93,7 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getItemPageDataServices := GetWorkflowTemplateItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

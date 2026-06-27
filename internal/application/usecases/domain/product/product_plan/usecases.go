@@ -82,6 +82,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateProductPlanRepositories(repositories)
 	createServices := CreateProductPlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -92,6 +93,7 @@ func NewUseCases(
 		ProductPlan: repositories.ProductPlan,
 	}
 	readServices := ReadProductPlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -99,6 +101,7 @@ func NewUseCases(
 
 	updateRepos := UpdateProductPlanRepositories(repositories)
 	updateServices := UpdateProductPlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -108,6 +111,7 @@ func NewUseCases(
 		ProductPlan: repositories.ProductPlan,
 	}
 	deleteServices := DeleteProductPlanServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -117,6 +121,7 @@ func NewUseCases(
 		ProductPlan: repositories.ProductPlan,
 	}
 	listServices := ListProductPlansServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -126,6 +131,7 @@ func NewUseCases(
 		ProductPlan: repositories.ProductPlan,
 	}
 	listPageDataServices := GetProductPlanListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -135,6 +141,7 @@ func NewUseCases(
 		ProductPlan: repositories.ProductPlan,
 	}
 	itemPageDataServices := GetProductPlanItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

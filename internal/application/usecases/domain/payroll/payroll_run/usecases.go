@@ -45,6 +45,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := newCreatePayrollRunRepositories(repositories)
 	createServices := CreatePayrollRunServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -53,6 +54,7 @@ func NewUseCases(
 
 	readRepos := newReadPayrollRunRepositories(repositories)
 	readServices := ReadPayrollRunServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -60,6 +62,7 @@ func NewUseCases(
 
 	listRepos := newListPayrollRunsRepositories(repositories)
 	listServices := ListPayrollRunsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -67,6 +70,7 @@ func NewUseCases(
 
 	getListPageDataRepos := newGetPayrollRunListPageDataRepositories(repositories)
 	getListPageDataServices := GetPayrollRunListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

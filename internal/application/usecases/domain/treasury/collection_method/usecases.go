@@ -39,14 +39,16 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateCollectionMethodRepositories(repositories)
 	createServices := CreateCollectionMethodServices{
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadCollectionMethodRepositories(repositories)
 	readServices := ReadCollectionMethodServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -54,6 +56,7 @@ func NewUseCases(
 
 	updateRepos := UpdateCollectionMethodRepositories(repositories)
 	updateServices := UpdateCollectionMethodServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +64,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteCollectionMethodRepositories(repositories)
 	deleteServices := DeleteCollectionMethodServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -68,6 +72,7 @@ func NewUseCases(
 
 	listRepos := ListCollectionMethodsRepositories(repositories)
 	listServices := ListCollectionMethodsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -75,6 +80,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetCollectionMethodListPageDataRepositories(repositories)
 	getListPageDataServices := GetCollectionMethodListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -82,6 +88,7 @@ func NewUseCases(
 
 	getItemPageDataRepos := GetCollectionMethodItemPageDataRepositories(repositories)
 	getItemPageDataServices := GetCollectionMethodItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

@@ -43,6 +43,7 @@ func NewUseCases(
 		Plan:         repositories.Plan,
 	}
 	createServices := CreatePlanSettingsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -53,6 +54,7 @@ func NewUseCases(
 		PlanSettings: repositories.PlanSettings,
 	}
 	readServices := ReadPlanSettingsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -63,6 +65,7 @@ func NewUseCases(
 		Plan:         repositories.Plan,
 	}
 	updateServices := UpdatePlanSettingsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -72,6 +75,7 @@ func NewUseCases(
 		PlanSettings: repositories.PlanSettings,
 	}
 	deleteServices := DeletePlanSettingsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -81,6 +85,7 @@ func NewUseCases(
 		PlanSettings: repositories.PlanSettings,
 	}
 	listServices := ListPlanSettingsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

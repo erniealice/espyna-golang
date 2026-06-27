@@ -50,6 +50,7 @@ func NewUseCases(
 		CreateJobTask: &CreateJobTaskUseCase{
 			repositories: CreateJobTaskRepositories{JobTask: repositories.JobTask},
 			services: CreateJobTaskServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer:  services.Authorizer,
 				Transactor:  services.Transactor,
 				Translator:  services.Translator,
@@ -59,6 +60,7 @@ func NewUseCases(
 		ReadJobTask: &ReadJobTaskUseCase{
 			repositories: ReadJobTaskRepositories{JobTask: repositories.JobTask},
 			services: ReadJobTaskServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -66,6 +68,7 @@ func NewUseCases(
 		UpdateJobTask: &UpdateJobTaskUseCase{
 			repositories: UpdateJobTaskRepositories{JobTask: repositories.JobTask},
 			services: UpdateJobTaskServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -73,6 +76,7 @@ func NewUseCases(
 		DeleteJobTask: &DeleteJobTaskUseCase{
 			repositories: DeleteJobTaskRepositories{JobTask: repositories.JobTask},
 			services: DeleteJobTaskServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -80,6 +84,7 @@ func NewUseCases(
 		ListJobTasks: &ListJobTasksUseCase{
 			repositories: ListJobTasksRepositories{JobTask: repositories.JobTask},
 			services: ListJobTasksServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -87,6 +92,7 @@ func NewUseCases(
 		GetJobTaskListPageData: &GetJobTaskListPageDataUseCase{
 			repositories: GetJobTaskListPageDataRepositories{JobTask: repositories.JobTask},
 			services: GetJobTaskListPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -94,6 +100,7 @@ func NewUseCases(
 		GetJobTaskItemPageData: &GetJobTaskItemPageDataUseCase{
 			repositories: GetJobTaskItemPageDataRepositories{JobTask: repositories.JobTask},
 			services: GetJobTaskItemPageDataServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -101,6 +108,7 @@ func NewUseCases(
 		ListByPhase: &ListByPhaseUseCase{
 			repositories: ListByPhaseRepositories{JobTask: repositories.JobTask},
 			services: ListByPhaseServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -108,6 +116,7 @@ func NewUseCases(
 		ListByAssignee: &ListByAssigneeUseCase{
 			repositories: ListByAssigneeRepositories{JobTask: repositories.JobTask},
 			services: ListByAssigneeServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

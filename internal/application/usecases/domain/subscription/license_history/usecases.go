@@ -2,6 +2,7 @@ package licensehistory
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 )
 
@@ -12,10 +13,11 @@ type LicenseHistoryRepositories struct {
 
 // LicenseHistoryServices groups all business service dependencies for license history use cases
 type LicenseHistoryServices struct {
-	Authorizer  ports.Authorizer  // RBAC and permissions
-	Transactor  ports.Transactor  // Database transactions
-	Translator  ports.Translator  // i18n error messages
-	IDGenerator ports.IDGenerator // UUID generation
+	Authorizer       ports.Authorizer             // RBAC and permissions
+	Transactor       ports.Transactor             // Database transactions
+	Translator       ports.Translator             // i18n error messages
+	IDGenerator      ports.IDGenerator            // UUID generation
+	ActionGatekeeper *actiongate.ActionGatekeeper // Action-level gate checks
 }
 
 // UseCases contains all license history-related use cases
@@ -34,30 +36,34 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateLicenseHistoryRepositories(repositories)
 	createServices := CreateLicenseHistoryServices{
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadLicenseHistoryRepositories(repositories)
 	readServices := ReadLicenseHistoryServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListLicenseHistoryRepositories(repositories)
 	listServices := ListLicenseHistoryServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	getListPageDataRepos := GetLicenseHistoryListPageDataRepositories(repositories)
 	getListPageDataServices := GetLicenseHistoryListPageDataServices{
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{

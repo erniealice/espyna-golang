@@ -39,6 +39,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateJobTemplateRepositories{JobTemplate: repositories.JobTemplate}
 	createServices := CreateJobTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -47,6 +48,7 @@ func NewUseCases(
 
 	readRepos := ReadJobTemplateRepositories{JobTemplate: repositories.JobTemplate}
 	readServices := ReadJobTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -54,6 +56,7 @@ func NewUseCases(
 
 	updateRepos := UpdateJobTemplateRepositories{JobTemplate: repositories.JobTemplate}
 	updateServices := UpdateJobTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +64,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteJobTemplateRepositories{JobTemplate: repositories.JobTemplate}
 	deleteServices := DeleteJobTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -68,6 +72,7 @@ func NewUseCases(
 
 	listRepos := ListJobTemplatesRepositories{JobTemplate: repositories.JobTemplate}
 	listServices := ListJobTemplatesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -75,6 +80,7 @@ func NewUseCases(
 
 	listPageDataRepos := GetJobTemplateListPageDataRepositories{JobTemplate: repositories.JobTemplate}
 	listPageDataServices := GetJobTemplateListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -82,6 +88,7 @@ func NewUseCases(
 
 	itemPageDataRepos := GetJobTemplateItemPageDataRepositories{JobTemplate: repositories.JobTemplate}
 	itemPageDataServices := GetJobTemplateItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

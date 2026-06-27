@@ -42,6 +42,7 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateActivityTemplateRepositories(repositories)
 	createServices := CreateActivityTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -52,6 +53,7 @@ func NewUseCases(
 		ActivityTemplate: repositories.ActivityTemplate,
 	}
 	readServices := ReadActivityTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -62,6 +64,7 @@ func NewUseCases(
 		StageTemplate:    repositories.StageTemplate,
 	}
 	updateServices := UpdateActivityTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -71,6 +74,7 @@ func NewUseCases(
 		ActivityTemplate: repositories.ActivityTemplate,
 	}
 	deleteServices := DeleteActivityTemplateServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -80,6 +84,7 @@ func NewUseCases(
 		ActivityTemplate: repositories.ActivityTemplate,
 	}
 	listServices := ListActivityTemplatesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -90,6 +95,7 @@ func NewUseCases(
 		StageTemplate:    repositories.StageTemplate,
 	}
 	getListPageDataServices := GetActivityTemplateListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -99,6 +105,7 @@ func NewUseCases(
 		StageTemplate:    repositories.StageTemplate,
 	}
 	getItemPageDataServices := GetActivityTemplateItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

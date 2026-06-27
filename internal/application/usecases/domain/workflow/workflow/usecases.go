@@ -54,6 +54,8 @@ func NewUseCases(
 
 	createServices := CreateWorkflowServices{
 
+		ActionGatekeeper: services.ActionGatekeeper,
+
 		Authorizer: services.Authorizer,
 
 		Transactor: services.Transactor,
@@ -67,6 +69,8 @@ func NewUseCases(
 
 	readServices := ReadWorkflowServices{
 
+		ActionGatekeeper: services.ActionGatekeeper,
+
 		Authorizer: services.Authorizer,
 
 		Transactor: services.Transactor,
@@ -77,6 +81,8 @@ func NewUseCases(
 	updateRepos := UpdateWorkflowRepositories(repositories)
 
 	updateServices := UpdateWorkflowServices{
+
+		ActionGatekeeper: services.ActionGatekeeper,
 
 		Authorizer: services.Authorizer,
 
@@ -89,6 +95,8 @@ func NewUseCases(
 
 	deleteServices := DeleteWorkflowServices{
 
+		ActionGatekeeper: services.ActionGatekeeper,
+
 		Authorizer: services.Authorizer,
 
 		Transactor: services.Transactor,
@@ -99,6 +107,8 @@ func NewUseCases(
 	listRepos := ListWorkflowsRepositories(repositories)
 
 	listServices := ListWorkflowsServices{
+
+		ActionGatekeeper: services.ActionGatekeeper,
 
 		Authorizer: services.Authorizer,
 
@@ -114,6 +124,8 @@ func NewUseCases(
 
 	getListPageDataServices := GetWorkflowListPageDataServices{
 
+		ActionGatekeeper: services.ActionGatekeeper,
+
 		Transactor: services.Transactor,
 
 		Translator: services.Translator,
@@ -125,6 +137,8 @@ func NewUseCases(
 	}
 
 	getItemPageDataServices := GetWorkflowItemPageDataServices{
+
+		ActionGatekeeper: services.ActionGatekeeper,
 
 		Transactor: services.Transactor,
 

@@ -34,6 +34,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateEquityTransactionRepositories(repositories)
 	createServices := CreateEquityTransactionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -42,6 +43,7 @@ func NewUseCases(
 
 	listRepos := ListEquityTransactionsRepositories(repositories)
 	listServices := ListEquityTransactionsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -49,6 +51,7 @@ func NewUseCases(
 
 	getListPageDataRepos := GetEquityTransactionListPageDataRepositories(repositories)
 	getListPageDataServices := GetEquityTransactionListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,

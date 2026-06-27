@@ -32,6 +32,7 @@ func NewUseCases(repositories TaxAuthorityRepositories, services TaxAuthoritySer
 		ReadTaxAuthority: NewReadTaxAuthorityUseCase(
 			ReadTaxAuthorityRepositories{TaxAuthority: repositories.TaxAuthority},
 			ReadTaxAuthorityServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},
@@ -39,6 +40,7 @@ func NewUseCases(repositories TaxAuthorityRepositories, services TaxAuthoritySer
 		ListTaxAuthorities: NewListTaxAuthoritiesUseCase(
 			ListTaxAuthoritiesRepositories{TaxAuthority: repositories.TaxAuthority},
 			ListTaxAuthoritiesServices{
+				ActionGatekeeper: services.ActionGatekeeper,
 				Authorizer: services.Authorizer,
 				Translator: services.Translator,
 			},

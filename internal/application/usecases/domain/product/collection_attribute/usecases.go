@@ -47,6 +47,7 @@ func NewUseCases(
 		Attribute:           repositories.Attribute,
 	}
 	createServices := CreateCollectionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -57,6 +58,7 @@ func NewUseCases(
 		CollectionAttribute: repositories.CollectionAttribute,
 	}
 	readServices := ReadCollectionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -68,6 +70,7 @@ func NewUseCases(
 		Attribute:           repositories.Attribute,
 	}
 	updateServices := UpdateCollectionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -77,6 +80,7 @@ func NewUseCases(
 		CollectionAttribute: repositories.CollectionAttribute,
 	}
 	deleteServices := DeleteCollectionAttributeServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -86,6 +90,7 @@ func NewUseCases(
 		CollectionAttribute: repositories.CollectionAttribute,
 	}
 	listServices := ListCollectionAttributesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -95,6 +100,7 @@ func NewUseCases(
 		CollectionAttribute: repositories.CollectionAttribute,
 	}
 	listPageDataServices := GetCollectionAttributeListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}
@@ -103,6 +109,7 @@ func NewUseCases(
 		CollectionAttribute: repositories.CollectionAttribute,
 	}
 	itemPageDataServices := GetCollectionAttributeItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 	}

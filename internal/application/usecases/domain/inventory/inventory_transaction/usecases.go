@@ -37,6 +37,7 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateInventoryTransactionRepositories(repositories)
 	createServices := CreateInventoryTransactionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -45,6 +46,7 @@ func NewUseCases(
 
 	readRepos := ReadInventoryTransactionRepositories(repositories)
 	readServices := ReadInventoryTransactionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -52,6 +54,7 @@ func NewUseCases(
 
 	updateRepos := UpdateInventoryTransactionRepositories(repositories)
 	updateServices := UpdateInventoryTransactionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -59,6 +62,7 @@ func NewUseCases(
 
 	deleteRepos := DeleteInventoryTransactionRepositories(repositories)
 	deleteServices := DeleteInventoryTransactionServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -66,6 +70,7 @@ func NewUseCases(
 
 	listRepos := ListInventoryTransactionsRepositories(repositories)
 	listServices := ListInventoryTransactionsServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -73,6 +78,7 @@ func NewUseCases(
 
 	movementsRepos := GetInventoryMovementsListPageDataRepositories(repositories)
 	movementsSvcs := GetInventoryMovementsListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,
 	}

@@ -42,19 +42,21 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreateStageTemplateRepositories(repositories)
 	createServices := CreateStageTemplateServices{
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadStageTemplateRepositories{
 		StageTemplate: repositories.StageTemplate,
 	}
 	readServices := ReadStageTemplateServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdateStageTemplateRepositories{
@@ -62,27 +64,30 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	updateServices := UpdateStageTemplateServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	deleteRepos := DeleteStageTemplateRepositories{
 		StageTemplate: repositories.StageTemplate,
 	}
 	deleteServices := DeleteStageTemplateServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListStageTemplatesRepositories{
 		StageTemplate: repositories.StageTemplate,
 	}
 	listServices := ListStageTemplatesServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	getListPageDataRepos := GetStageTemplateListPageDataRepositories{
@@ -90,8 +95,9 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getListPageDataServices := GetStageTemplateListPageDataServices{
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	getItemPageDataRepos := GetStageTemplateItemPageDataRepositories{
@@ -99,8 +105,9 @@ func NewUseCases(
 		WorkflowTemplate: repositories.WorkflowTemplate,
 	}
 	getItemPageDataServices := GetStageTemplateItemPageDataServices{
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		ActionGatekeeper: services.ActionGatekeeper,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	// TODO: Implement when GetStageTemplatesByWorkflow use case is available

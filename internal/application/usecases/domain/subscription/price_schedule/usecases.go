@@ -42,6 +42,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	createServices := CreatePriceScheduleServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
 		Translator:  services.Translator,
@@ -52,6 +53,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	readServices := ReadPriceScheduleServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -61,6 +63,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	updateServices := UpdatePriceScheduleServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -70,6 +73,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	deleteServices := DeletePriceScheduleServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -79,6 +83,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	listServices := ListPriceSchedulesServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -88,6 +93,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	listPageDataServices := GetPriceScheduleListPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -97,6 +103,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	itemPageDataServices := GetPriceScheduleItemPageDataServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
@@ -106,6 +113,7 @@ func NewUseCases(
 		PriceSchedule: repositories.PriceSchedule,
 	}
 	findApplicableServices := FindApplicablePriceScheduleServices{
+		ActionGatekeeper: services.ActionGatekeeper,
 		Transactor: services.Transactor,
 		Authorizer: services.Authorizer,
 		Translator: services.Translator,

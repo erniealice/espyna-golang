@@ -9,9 +9,10 @@ import (
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
@@ -257,6 +258,12 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_user_email_trgm ON "user" USING gin(email_address gin_trgm_ops);
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_client_active ON client(active) WHERE active = true;
 
+	// Tenancy: scope the delegate list on the delegate_client / delegate_supplier
+	// junction workspace_id (the Delegate parent has no workspace_id column). $ws
+	// comes from the session identity, never the request. Empty wsID =
+	// service-to-service call -> no scoping (mirror client_workspace_user).
+	wsID := identity.Must(ctx).WorkspaceID
+
 	// Build the CTE query following the translation plan pattern
 	query := `
 		WITH
@@ -296,6 +303,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			INNER JOIN client c ON dc.client_id = c.id
 			LEFT JOIN "user" cu ON c.user_id = cu.id
 			WHERE dc.active = true AND c.active = true
+				AND ($6::text = '' OR COALESCE(dc.workspace_id, c.workspace_id) = $6::text)
 		),
 		-- CTE 1a-outer: aggregate into ordered jsonb array; ORDER BY dc_id (stable PK)
 		delegate_clients_agg AS (
@@ -332,6 +340,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			FROM delegate_supplier ds
 			LEFT JOIN supplier s ON ds.supplier_id = s.id
 			WHERE ds.active = true
+				AND ($6::text = '' OR ds.workspace_id = $6::text)
 		),
 		-- CTE 1b-outer: aggregate into ordered jsonb array; ORDER BY ds_id (stable PK)
 		delegate_suppliers_agg AS (
@@ -348,6 +357,18 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			FROM delegate d
 			LEFT JOIN "user" u ON d.user_id = u.id
 			WHERE d.active = true
+				-- IDOR gate: a delegate is visible to this workspace only if it has
+				-- an active in-workspace junction (client OR supplier).
+				AND ($6::text = '' OR EXISTS (
+					SELECT 1 FROM delegate_client dcx
+					INNER JOIN client cx ON dcx.client_id = cx.id
+					WHERE dcx.delegate_id = d.id AND dcx.active = true AND cx.active = true
+						AND COALESCE(dcx.workspace_id, cx.workspace_id) = $6::text
+					UNION ALL
+					SELECT 1 FROM delegate_supplier dsx
+					WHERE dsx.delegate_id = d.id AND dsx.active = true
+						AND dsx.workspace_id = $6::text
+				))
 				AND ($1::text = '' OR
 					u.first_name ILIKE $1 OR
 					u.last_name ILIKE $1 OR
@@ -421,6 +442,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 		offset,        // $3
 		sortField,     // $4
 		sortDirection, // $5
+		wsID,          // $6 (session workspace; '' = service-to-service)
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetDelegateListPageData query: %w", err)
@@ -557,6 +579,11 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		return nil, fmt.Errorf("delegate ID is required")
 	}
 
+	// Tenancy: scope on the delegate_client / delegate_supplier junction
+	// workspace_id (the Delegate parent has no workspace_id). $ws from session
+	// identity, never the request. Empty wsID = service-to-service -> no scoping.
+	wsID := identity.Must(ctx).WorkspaceID
+
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_delegate_id ON delegate(id);
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_delegate_user_id ON delegate(user_id);
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_delegate_client_delegate_id ON delegate_client(delegate_id);
@@ -601,6 +628,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			INNER JOIN client c ON dc.client_id = c.id
 			LEFT JOIN "user" cu ON c.user_id = cu.id
 			WHERE dc.delegate_id = $1 AND dc.active = true AND c.active = true
+				AND ($2::text = '' OR COALESCE(dc.workspace_id, c.workspace_id) = $2::text)
 		),
 		-- CTE 1a-outer: aggregate into ordered jsonb array; ORDER BY dc_id (stable PK)
 		delegate_clients_agg AS (
@@ -637,6 +665,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			FROM delegate_supplier ds
 			LEFT JOIN supplier s ON ds.supplier_id = s.id
 			WHERE ds.delegate_id = $1 AND ds.active = true
+				AND ($2::text = '' OR ds.workspace_id = $2::text)
 		),
 		-- CTE 1b-outer: aggregate into ordered jsonb array; ORDER BY ds_id (stable PK)
 		delegate_suppliers_agg AS (
@@ -673,6 +702,18 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		LEFT JOIN delegate_clients_agg dca ON d.id = dca.delegate_id
 		LEFT JOIN delegate_suppliers_agg dsa ON d.id = dsa.delegate_id
 		WHERE d.id = $1 AND d.active = true
+			-- IDOR gate: the delegate must have an active in-workspace junction
+			-- (client OR supplier) or this workspace cannot see it.
+			AND ($2::text = '' OR EXISTS (
+				SELECT 1 FROM delegate_client dcx
+				INNER JOIN client cx ON dcx.client_id = cx.id
+				WHERE dcx.delegate_id = d.id AND dcx.active = true AND cx.active = true
+					AND COALESCE(dcx.workspace_id, cx.workspace_id) = $2::text
+				UNION ALL
+				SELECT 1 FROM delegate_supplier dsx
+				WHERE dsx.delegate_id = d.id AND dsx.active = true
+					AND dsx.workspace_id = $2::text
+			))
 	`
 
 	// Execute query
@@ -690,7 +731,7 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 		delegateSuppliersJSON []byte
 	)
 
-	err := exec.QueryRowContext(ctx, query, req.DelegateId).Scan(
+	err := exec.QueryRowContext(ctx, query, req.DelegateId, wsID).Scan(
 		&id,
 		&userId,
 		&active,

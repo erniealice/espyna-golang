@@ -11,9 +11,10 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -266,9 +267,12 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "delegate_client", delegateClientSortableSQLCols)
 	}
 
-	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified, role_id, granted_by_user_id, workspace_id FROM delegate_client WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	// Tenancy: scope on the junction's own workspace_id (IDOR defense — mirror
+	// client_workspace_user). $ws from session identity; '' = service-to-service.
+	wsID := identity.Must(ctx).WorkspaceID
+	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified, role_id, granted_by_user_id, workspace_id FROM delegate_client WHERE active = true AND ($4::text = '' OR workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -323,9 +327,12 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientItemPageData(ctx con
 	if req == nil || req.DelegateClientId == "" {
 		return nil, fmt.Errorf("delegate client ID required")
 	}
-	query := `SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE id = $1 AND active = true`
+	// Tenancy: scope on the junction's own workspace_id (IDOR defense). $ws from
+	// session identity; '' = service-to-service call -> no scoping.
+	wsID := identity.Must(ctx).WorkspaceID
+	query := `SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	row := exec.QueryRowContext(ctx, query, req.DelegateClientId)
+	row := exec.QueryRowContext(ctx, query, req.DelegateClientId, wsID)
 	var id, delegateId, clientId string
 	var active bool
 	var dateCreated, dateModified time.Time

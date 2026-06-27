@@ -185,6 +185,13 @@ type signInProviderVerifier interface {
 	VerifyIDTokenWithProvider(ctx context.Context, idToken string) (email, signInProvider string, err error)
 }
 
+// authCapabilityProvider is the optional surface a provider implements to report
+// a user's sign-in methods (firebase ProviderUserInfo / password_hash presence).
+// Satisfied by the Firebase and Password adapters.
+type authCapabilityProvider interface {
+	GetUserAuthCapability(ctx context.Context, userID string) (ports.AuthCapability, error)
+}
+
 // VerifyTokenWithSignInProvider verifies an ID token and returns the signed-in
 // email plus the sign-in method (e.g. "microsoft.com"). When the active
 // provider does not expose the richer surface it falls back to VerifyToken and
@@ -210,6 +217,22 @@ func (a *AuthAdapter) VerifyTokenWithSignInProvider(ctx context.Context, idToken
 		return "", "", fmt.Errorf("%s", msg)
 	}
 	return resp.Identity.GetEmail(), "", nil
+}
+
+// GetUserAuthCapability reports the user's sign-in methods when the active
+// provider exposes the optional capability. When neither the service nor the
+// provider implements it (e.g. mock/noop), it fails CLOSED — HasPassword:false —
+// so the UI hides the local reset form and the handler guard rejects a reset for
+// a provider whose credential model is unknown. (DECISION: fail-closed default —
+// see MISMATCH M-5.)
+func (a *AuthAdapter) GetUserAuthCapability(ctx context.Context, userID string) (ports.AuthCapability, error) {
+	if v, ok := a.service.(authCapabilityProvider); ok && a.service != nil {
+		return v.GetUserAuthCapability(ctx, userID)
+	}
+	if v, ok := a.provider.(authCapabilityProvider); ok && a.provider != nil {
+		return v.GetUserAuthCapability(ctx, userID)
+	}
+	return ports.AuthCapability{HasPassword: false}, nil
 }
 
 // IsHealthy checks if the auth provider is healthy and available.

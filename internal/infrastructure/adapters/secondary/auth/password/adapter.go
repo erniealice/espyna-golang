@@ -715,6 +715,24 @@ func (a *PasswordAuthAdapter) RevokeUserTokens(ctx context.Context, userID strin
 	return nil
 }
 
+// GetUserAuthCapability reports whether the user has a local password credential.
+// HasPassword is (password_hash != ""); the password provider is always the
+// single "password" provider.
+func (a *PasswordAuthAdapter) GetUserAuthCapability(ctx context.Context, userID string) (ports.AuthCapability, error) {
+	if a.ops == nil {
+		return ports.AuthCapability{}, fmt.Errorf("password: database operations not initialised")
+	}
+	row, err := a.ops.Read(ctx, "user", userID)
+	if err != nil {
+		return ports.AuthCapability{}, fmt.Errorf("failed to retrieve user: %w", err)
+	}
+	if row == nil {
+		return ports.AuthCapability{}, fmt.Errorf("user not found")
+	}
+	hash, _ := row["password_hash"].(string)
+	return ports.AuthCapability{HasPassword: hash != "", Providers: []string{"password"}}, nil
+}
+
 // CreateSession creates a new session for the given user ID.
 func (a *PasswordAuthAdapter) CreateSession(ctx context.Context, userID string) (string, error) {
 	return a.sessionService.CreateSession(ctx, userID)

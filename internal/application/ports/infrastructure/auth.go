@@ -82,6 +82,15 @@ type AuthService interface {
 	RevokeUserTokens(ctx context.Context, userID string) error
 }
 
+// AuthCapability reports how a user authenticates, derived from the IdP as the
+// single source of truth (firebase ProviderUserInfo) or, for the password
+// provider, from the presence of a local password_hash. It is the return type
+// of the OPTIONAL GetUserAuthCapability capability (NOT part of AuthService).
+type AuthCapability struct {
+	HasPassword bool     // a local "password" credential exists (reset-here is valid)
+	Providers   []string // IdP provider ids: "password" / "google.com" / "microsoft.com"
+}
+
 // Error codes for authentication errors (for backward compatibility)
 const (
 	ErrCodeMissingToken = "AUTH_MISSING_TOKEN"

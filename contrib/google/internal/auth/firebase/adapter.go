@@ -504,6 +504,48 @@ func (p *FirebaseAuthAdapter) RevokeUserTokens(ctx context.Context, userID strin
 	return nil
 }
 
+// GetUserAuthCapability resolves the user's IdP sign-in methods from firebase
+// (ProviderUserInfo). HasPassword is derived from a "password" entry — NOT from
+// any DB password_hash (firebase has no DB access; migrated users carry stale
+// hashes). The identifier is the DB user id, resolved the same way the other
+// lifecycle methods resolve it (firebase uid first, then by email).
+func (p *FirebaseAuthAdapter) GetUserAuthCapability(ctx context.Context, userID string) (ports.AuthCapability, error) {
+	if !p.enabled || p.clientManager == nil {
+		return ports.AuthCapability{}, fmt.Errorf("firebase auth provider is not enabled")
+	}
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return ports.AuthCapability{}, fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if authClient == nil {
+		return ports.AuthCapability{}, fmt.Errorf("firebase auth client not available")
+	}
+
+	var rec *auth.UserRecord
+	if strings.Contains(userID, "@") {
+		rec, err = authClient.GetUserByEmail(ctx, userID)
+	} else if r, gerr := authClient.GetUser(ctx, userID); gerr == nil {
+		rec = r
+	} else {
+		rec, err = authClient.GetUserByEmail(ctx, userID)
+	}
+	if err != nil || rec == nil {
+		return ports.AuthCapability{}, fmt.Errorf("firebase: resolve user %q: %w", userID, err)
+	}
+
+	cap := ports.AuthCapability{Providers: make([]string, 0, len(rec.ProviderUserInfo))}
+	for _, ui := range rec.ProviderUserInfo {
+		if ui == nil {
+			continue
+		}
+		cap.Providers = append(cap.Providers, ui.ProviderID) // "password" / "google.com" / "microsoft.com"
+		if ui.ProviderID == "password" {
+			cap.HasPassword = true
+		}
+	}
+	return cap, nil
+}
+
 // Helper function to safely extract string claims
 func getStringClaim(claims map[string]interface{}, key string) string {
 	if val, ok := claims[key]; ok {

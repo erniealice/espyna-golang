@@ -32,6 +32,7 @@ var NewDatabaseConfigAdapter = internal.NewDatabaseConfigAdapter
 type (
 	AuthProvider      = internal.AuthProvider
 	AuthService       = internal.AuthService
+	AuthCapability    = internal.AuthCapability
 	AuthConfigAdapter = internal.AuthConfigAdapter
 )
 

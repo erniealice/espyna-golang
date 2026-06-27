@@ -36,6 +36,7 @@ var NewDatabaseConfigAdapter = infrastructure.NewDatabaseConfigAdapter
 type (
 	AuthProvider      = infrastructure.AuthProvider
 	AuthService       = infrastructure.AuthService
+	AuthCapability    = infrastructure.AuthCapability
 	AuthConfigAdapter = infrastructure.AuthConfigAdapter
 )
 

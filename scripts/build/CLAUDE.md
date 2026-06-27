@@ -1,1 +1,1 @@
-use @packages/espyna/scripts/build/AGENTS.md
+use @packages/espyna-golang/scripts/build/AGENTS.md

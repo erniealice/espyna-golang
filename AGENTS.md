@@ -23,7 +23,7 @@ Following **production-ready, scalable, maintainable** Go architecture:
 - Pure hexagonal architecture - No framework coupling in business logic
 - Single-purpose use cases - Each use case handles one business operation
 - Explicit dependencies - Repository injection makes dependencies clear
-- Standardized patterns - Same CRUD pattern across all 40+ entities
+- Standardized patterns - Same CRUD pattern across all 240+ entities
 
 **Strategic Simplicity**
 - Registry pattern over factories - Centralized component management
@@ -67,7 +67,7 @@ go build ./...
 ┌─────────────────────────────────────────────────────────────┐
 │                   Application Layer                          │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │              Use Cases (40+ Entities)                   ││
+│  │              Use Cases (240+ Entities)                  ││
 │  │  Entity(17) • Event(5) • Workflow(7) • Payment(5)      ││
 │  │  Product(10) • Subscription(11)                         ││
 │  │  • Foreign Key Validation via Repository Injection      ││
@@ -103,8 +103,8 @@ go build ./...
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Domain Structure (40+ Total Entities)
-The package manages **40+ distinct business entities** across **7 domains**:
+### Domain Structure (240+ Total Entities across 25 domains)
+The package manages **240+ distinct business entities** across **25 esqyma proto domains** (authoritative registry: `registry/entityid/entityid.go` — 244 entity-key constants; the per-domain list below is a non-exhaustive legacy snapshot, not the full set):
 
 - **Entity Domain (17)**: Admin, Client, ClientAttribute, Delegate, DelegateClient, Group, Location, LocationAttribute, Permission, Role, RolePermission, Staff, User, Workspace, WorkspaceUser, WorkspaceUserRole, GroupAttribute, StaffAttribute, DelegateAttribute
 - **Event Domain (5)**: Event, EventAttribute, EventClient, EventProduct, EventSettings
@@ -204,7 +204,7 @@ CONFIG_PAYMENT_PROVIDER=asiapay       # Options: asiapay, mock
 | Build Tag | Provider | Description |
 |-----------|----------|-------------|
 | `firestore` | Database | Enables Firestore database provider |
-| `postgres` | Database | Enables PostgreSQL database provider |
+| `postgresql` | Database | Enables PostgreSQL database provider |
 | `mock_auth` | Auth | Enables mock authorization (AllowAll) |
 | `mock_storage` | Storage | Enables mock file storage |
 | `google_uuidv7` | ID | Enables UUID v7 generation |
@@ -219,7 +219,7 @@ CONFIG_PAYMENT_PROVIDER=asiapay       # Options: asiapay, mock
 go build -tags "gin,mock_db,mock_auth,mock_storage" -o main ./cmd/server
 
 # Production with Firestore
-go build -tags "gin,firestore,firebase_auth,gcs,google_uuidv7,gmail,asiapay" -o main ./cmd/server
+go build -tags "gin,firestore,firebase,gcs,google_uuidv7,gmail,asiapay" -o main ./cmd/server
 ```
 
 ### Provider Initialization Flow
@@ -248,7 +248,7 @@ UseCaseInitializer.InitializeAll()
 ## Directory Structure
 
 ```
-packages/espyna/
+packages/espyna-golang/
 ├── cmd/server/              # Entry points
 │   └── main.go
 ├── consumer/                # Consumer package (API surface + adapter registration)
@@ -257,9 +257,19 @@ packages/espyna/
 │   ├── register_*.go        # Real adapter imports (build-tagged)
 │   ├── adapter_*.go         # Adapter wrapper types
 │   └── server_gin.go        # Gin utilities (build-tagged)
+├── composition/             # Public DI layer (contracts, core, routing)
+├── contrib/                 # Vendor adapters — separate build-tagged Go modules
+│   ├── postgres/            #   //go:build postgresql  (PostgreSQL adapter)
+│   ├── google/              #   firebase auth, firestore, GCS, gmail, sheets
+│   ├── gin/ fiber/ grpc/ http/         # HTTP framework + transport adapters
+│   ├── aws/ azure/ mysql/ sqlserver/   # cloud storage + SQL adapters
+│   └── asiapay/ maya/ paypal/ calendly/ microsoft/   # payment + integration
+├── ports/                   # Public port-type aliases for contrib submodules
+├── registry/                # Entity registry (entityid keys — 244 entity constants)
+├── shared/                  # Cross-cutting: context, database, identity, storage, tableparams
 ├── internal/
 │   ├── application/
-│   │   └── usecases/        # Business logic (40+ entities)
+│   │   └── usecases/        # Business logic (240+ entities)
 │   │       ├── entity/
 │   │       ├── event/
 │   │       ├── payment/
@@ -324,7 +334,7 @@ packages/lyngua/translations/en/[businessType]/[module].json
 
 **Database Providers:**
 ```
-packages/espyna/internal/infrastructure/adapters/secondary/database/[provider]/[domain]/[module].go
+packages/espyna-golang/internal/infrastructure/adapters/secondary/database/[provider]/[domain]/[module].go
 ```
 
 ### Common Error Patterns
@@ -369,11 +379,11 @@ Standard REST endpoints for all entity types:
 - **Multi-Framework** - Support vanilla HTTP, Gin, and Fiber simultaneously
 - **Orchestration** - Complex workflow coordination with human-in-the-loop
 - **Testability** - Comprehensive dependency injection for unit testing
-- **Scalability** - 40+ entities across 7 domains with consistent patterns
+- **Scalability** - 240+ entities across 25 domains with consistent patterns
 
 ## Notes
 - **Pure Hexagonal Architecture** - No technology imports in application layer
-- **40+ Total Entities** - Complete business domain coverage
+- **240+ Total Entities** - Complete business domain coverage
 - **Registry-Based DI** - No legacy factory patterns, pure provider system
 - **Multi-Provider Support** - PostgreSQL, Firestore, Mock with fallback
 - **Foreign Key Integrity** - Repository injection pattern ensures consistency

@@ -116,6 +116,14 @@ func (r *PostgresDelegateClientRepository) ReadDelegateClient(ctx context.Contex
 		return nil, fmt.Errorf("delegate client ID is required")
 	}
 
+	// Tenancy fail-closed: the WorkspaceAware decorator scopes by workspace_id for a
+	// non-empty session workspace, but falls OPEN on an empty WorkspaceID (a real
+	// pre-workspace-selection operator state). Reject that here so a cross-tenant row
+	// can never be read by id without a workspace.
+	if identity.Must(ctx).WorkspaceID == "" {
+		return nil, fmt.Errorf("delegate client not found")
+	}
+
 	// Read document using common operations
 	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
 	if err != nil {
@@ -196,6 +204,12 @@ func (r *PostgresDelegateClientRepository) DeleteDelegateClient(ctx context.Cont
 
 // ListDelegateClients lists delegate clients using common PostgreSQL operations
 func (r *PostgresDelegateClientRepository) ListDelegateClients(ctx context.Context, req *delegateclientpb.ListDelegateClientsRequest) (*delegateclientpb.ListDelegateClientsResponse, error) {
+	// Tenancy fail-closed: the WorkspaceAware decorator scopes List by workspace_id
+	// for a non-empty session workspace but enumerates ALL tenants on an empty
+	// WorkspaceID. Return an empty list rather than leak cross-tenant rows.
+	if identity.Must(ctx).WorkspaceID == "" {
+		return &delegateclientpb.ListDelegateClientsResponse{}, nil
+	}
 	// List documents using common operations
 	var params *interfaces.ListParams
 	if req != nil && req.Filters != nil {

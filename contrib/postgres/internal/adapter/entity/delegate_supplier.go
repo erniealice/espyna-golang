@@ -9,9 +9,10 @@ import (
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	delegatesupplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_supplier"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -79,6 +80,11 @@ func (r *PostgresDelegateSupplierRepository) ReadDelegateSupplier(ctx context.Co
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("delegate_supplier ID is required")
 	}
+	// Tenancy fail-closed: the WorkspaceAware decorator falls open on an empty
+	// WorkspaceID; reject so a cross-tenant row can't be read by id without a workspace.
+	if identity.Must(ctx).WorkspaceID == "" {
+		return nil, fmt.Errorf("delegate_supplier not found")
+	}
 	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read delegate_supplier: %w", err)
@@ -135,6 +141,11 @@ func (r *PostgresDelegateSupplierRepository) DeleteDelegateSupplier(ctx context.
 
 // ListDelegateSuppliers lists delegate suppliers matching optional filters.
 func (r *PostgresDelegateSupplierRepository) ListDelegateSuppliers(ctx context.Context, req *delegatesupplierpb.ListDelegateSuppliersRequest) (*delegatesupplierpb.ListDelegateSuppliersResponse, error) {
+	// Tenancy fail-closed: the WorkspaceAware decorator enumerates ALL tenants on an
+	// empty WorkspaceID; return an empty list rather than leak cross-tenant rows.
+	if identity.Must(ctx).WorkspaceID == "" {
+		return &delegatesupplierpb.ListDelegateSuppliersResponse{}, nil
+	}
 	var params *interfaces.ListParams
 	if req != nil && req.Filters != nil {
 		params = &interfaces.ListParams{Filters: req.Filters}

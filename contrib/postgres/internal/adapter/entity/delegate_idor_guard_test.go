@@ -64,6 +64,35 @@ func TestDelegatePageDataWorkspaceScoped(t *testing.T) {
 			}
 		}
 	}
+
+	// The sibling junction-table generic CRUD (delegate_client / delegate_supplier
+	// Read/List) are workspace-scoped by the WorkspaceAware decorator for a non-empty
+	// session workspace, but the decorator falls OPEN on an empty WorkspaceID. Each
+	// must carry an explicit fail-closed guard for that pre-selection state.
+	emptyGuardCases := []struct {
+		file   string
+		method string
+	}{
+		{"delegate_client.go", "ReadDelegateClient"},
+		{"delegate_client.go", "ListDelegateClients"},
+		{"delegate_supplier.go", "ReadDelegateSupplier"},
+		{"delegate_supplier.go", "ListDelegateSuppliers"},
+	}
+	for _, c := range emptyGuardCases {
+		src, ok := srcCache[c.file]
+		if !ok {
+			b, err := os.ReadFile(c.file)
+			if err != nil {
+				t.Fatalf("read %s: %v", c.file, err)
+			}
+			src = string(b)
+			srcCache[c.file] = src
+		}
+		body := methodBody(t, src, c.method)
+		if !strings.Contains(body, `identity.Must(ctx).WorkspaceID == ""`) {
+			t.Errorf("%s.%s: missing empty-WorkspaceID fail-closed guard — the WorkspaceAware decorator falls open on empty wsID", c.file, c.method)
+		}
+	}
 }
 
 // methodBody returns the source text of the named method, from the line declaring it to

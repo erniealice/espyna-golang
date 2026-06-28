@@ -7,7 +7,7 @@ import (
 	"database/sql"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 )
 
 // executorProvider is implemented by WorkspaceAwareOperations; it lets raw-SQL

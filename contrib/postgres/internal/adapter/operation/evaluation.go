@@ -211,7 +211,7 @@ func (r *PostgresEvaluationRepository) ListEvaluations(ctx context.Context, req 
 // queries; the scanEvaluationRow column order MUST match it.
 const evaluationSelectCols = `id, workspace_id, client_id, subscription_id, subscription_seat_id, evaluation_template_id,
 	evaluation_type, relationship_type, evaluator_type, evaluator_workspace_user_id, evaluator_client_portal_grant_id,
-	subject_type, subject_staff_id, subject_client_id, period_start, period_end, status, visibility_type,
+	subject_type, staff_id, subject_client_id, period_start, period_end, status, visibility_type,
 	overall_score, narrative, submitted_at, active, date_created, date_modified, evaluation_cycle_id,
 	signed_off_by_workspace_user_id, signed_off_by_client_portal_grant_id, signed_off_at`
 
@@ -302,7 +302,7 @@ func (r *PostgresEvaluationRepository) GetEvaluationItemPageData(ctx context.Con
 }
 
 // GetLatestEvaluationScore returns the latest SUBMITTED/SIGNED_OFF overall_score
-// per subject_staff_id (Q-RATING-XJOIN-1). Batched over staffIDs; tie-break is
+// per staff_id (Q-RATING-XJOIN-1). Batched over staffIDs; tie-break is
 // ORDER BY submitted_at DESC, id DESC. The returned map omits staff with no
 // scored evaluation. This is a PURE workspace-scoped read; the servicing gate
 // (Q-SERVICING-SCOPE-1 / CR-5) is applied by the calling service-layer UC/view,
@@ -313,16 +313,16 @@ func (r *PostgresEvaluationRepository) GetLatestEvaluationScore(ctx context.Cont
 		return out, nil
 	}
 	wsID := identity.Must(ctx).WorkspaceID
-	// DISTINCT ON (subject_staff_id) keeps the first row per staff after the
+	// DISTINCT ON (staff_id) keeps the first row per staff after the
 	// deterministic ORDER BY — i.e. the latest scored evaluation.
-	query := `SELECT DISTINCT ON (subject_staff_id) subject_staff_id, overall_score
+	query := `SELECT DISTINCT ON (staff_id) staff_id, overall_score
 		FROM ` + r.tableName + `
-		WHERE subject_staff_id = ANY($1)
+		WHERE staff_id = ANY($1)
 			AND active = true
 			AND status IN ('submitted', 'signed_off')
 			AND overall_score IS NOT NULL
 			AND ($2::text = '' OR workspace_id = $2::text)
-		ORDER BY subject_staff_id, submitted_at DESC, id DESC`
+		ORDER BY staff_id, submitted_at DESC, id DESC`
 	rows, err := r.db.QueryContext(ctx, query, sqlStringArray(staffIDs), wsID)
 	if err != nil {
 		return nil, fmt.Errorf("latest evaluation score query failed: %w", err)
@@ -385,7 +385,7 @@ func scanEvaluationRow(scan func(dest ...any) error) (*pb.Evaluation, error) {
 	setOptStr(&e.EvaluationTemplateId, evaluationTemplateID)
 	setOptStr(&e.EvaluatorWorkspaceUserId, evaluatorWorkspaceUserID)
 	setOptStr(&e.EvaluatorClientPortalGrantId, evaluatorClientPortalGrantID)
-	setOptStr(&e.SubjectStaffId, subjectStaffID)
+	setOptStr(&e.StaffId, subjectStaffID)
 	setOptStr(&e.SubjectClientId, subjectClientID)
 	setOptStr(&e.Narrative, narrative)
 	setOptStr(&e.EvaluationCycleId, evaluationCycleID)

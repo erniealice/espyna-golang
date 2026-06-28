@@ -84,6 +84,7 @@ const (
 	principalTypeClientDelegate   int32 = 4
 	principalTypeSupplier         int32 = 5
 	principalTypeSupplierDelegate int32 = 6
+	principalTypeStaff            int32 = 7
 )
 
 // userRolesUnionCTE is the legacy UNION-across-all-bindings CTE retained
@@ -257,6 +258,23 @@ const userRolesSupplierDelegateCTE = `
 	)
 `
 
+// userRolesStaffCTE — PRINCIPAL_TYPE_STAFF (7). The role grant lives on the
+// staff anchor row itself (staff.role_id), mirroring client_portal_grant.role_id.
+// staff.id = $3 is the binding; role_id IS NOT NULL means a staff row with no
+// assigned role resolves to ZERO permissions (an HR record, not a switchable
+// principal) — fail-closed by construction.
+const userRolesStaffCTE = `
+	WITH user_roles AS (
+		SELECT s.role_id
+		FROM staff s
+		WHERE s.id = $3
+		  AND s.user_id = $1
+		  AND s.workspace_id = $2
+		  AND s.active = true
+		  AND s.role_id IS NOT NULL
+	)
+`
+
 // GetUserPermissionCodes returns all effective ALLOW codes for a user in a
 // workspace, with DENY-wins applied. Empty slice when no permissions.
 //
@@ -371,6 +389,10 @@ func buildPermissionQuerySQL(
 		return userRolesSupplierCTE + permissionSelect,
 			[]any{userID, workspaceID, bindingID},
 			true
+	case principalTypeStaff:
+		return userRolesStaffCTE + permissionSelect,
+			[]any{userID, workspaceID, bindingID},
+			true
 	case principalTypeClientDelegate:
 		if actingAsClientID == "" {
 			// Delegate kind set but no per-target row → fail closed
@@ -406,7 +428,8 @@ func isKnownBindingKind(kind int32) bool {
 		principalTypeClient,
 		principalTypeClientDelegate,
 		principalTypeSupplier,
-		principalTypeSupplierDelegate:
+		principalTypeSupplierDelegate,
+		principalTypeStaff:
 		return true
 	default:
 		return false
@@ -429,6 +452,8 @@ func bindingCTEForKind(kind int32) (string, bool) {
 		return userRolesClientCTE, true
 	case principalTypeSupplier:
 		return userRolesSupplierCTE, true
+	case principalTypeStaff:
+		return userRolesStaffCTE, true
 	case principalTypeClientDelegate:
 		return userRolesClientDelegateCTE, true
 	case principalTypeSupplierDelegate:

@@ -34,6 +34,7 @@ const (
 	BindingKindClientDelegate   int32 = 4
 	BindingKindSupplier         int32 = 5
 	BindingKindSupplierDelegate int32 = 6
+	BindingKindStaff            int32 = 7
 )
 
 // Sentinel errors a BindingResolver may return. The impl recognizes these by

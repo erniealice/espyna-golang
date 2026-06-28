@@ -194,6 +194,52 @@ func (a *PrincipalResolverAdapter) ResolvePrincipals(
 		rows.Close()
 	}
 
+	// ─── 3b. Staff → PRINCIPAL_TYPE_STAFF ───────────────────────────────────
+	// The staff ENTITY is the operational-delivery identity (anchor = staff.id;
+	// job_task.assigned_to / task_outcome.recorded_by reference it). A staff row
+	// is a switchable principal ONLY when it carries a role_id (its delivery
+	// capability); role-less staff rows are HR records, not principals.
+	{
+		const q = `
+			SELECT
+				s.id,
+				s.workspace_id,
+				COALESCE(w.name, '') AS workspace_name
+			FROM staff s
+			LEFT JOIN workspace w ON w.id = s.workspace_id AND w.active = true
+			WHERE s.user_id = $1
+				AND s.active = true
+				AND s.role_id IS NOT NULL
+			ORDER BY workspace_name ASC, s.id ASC
+		`
+		rows, err := db.QueryContext(ctx, q, userID)
+		if err != nil {
+			return nil, fmt.Errorf("principal_resolver: staff query: %w", err)
+		}
+		for rows.Next() {
+			var staffID, wsID, wsName sql.NullString
+			if err := rows.Scan(&staffID, &wsID, &wsName); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("principal_resolver: staff scan: %w", err)
+			}
+			name := strings.TrimSpace(wsName.String)
+			if name == "" {
+				name = "Workspace"
+			}
+			out = append(out, &authpb.Principal{
+				Type:        principaltypepb.PrincipalType_PRINCIPAL_TYPE_STAFF,
+				PrincipalId: staffID.String,
+				WorkspaceId: wsID.String,
+				DisplayName: fmt.Sprintf("%s · Staff", name),
+			})
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("principal_resolver: staff rows: %w", err)
+		}
+		rows.Close()
+	}
+
 	// ─── 4. Delegate → DelegateClient → CLIENT_DELEGATE ─────────────────────
 	if cdPrincipals, err := a.resolveDelegatePrincipals(
 		ctx, db, userID, principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE,
@@ -512,6 +558,46 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 		if err := rows.Err(); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("principal_resolver: supplier_portal_grant rows: %w", err)
+		}
+		rows.Close()
+	}
+
+	// 3b. staff -> PRINCIPAL_TYPE_STAFF in this workspace
+	{
+		const q = `
+			SELECT s.id, COALESCE(w.name, '')
+			FROM staff s
+			LEFT JOIN workspace w ON w.id = s.workspace_id AND w.active = true
+			WHERE s.user_id = $1
+				AND s.workspace_id = $2
+				AND s.active = true
+				AND s.role_id IS NOT NULL
+			ORDER BY COALESCE(w.name, ''), s.id
+		`
+		rows, err := db.QueryContext(ctx, q, userID, workspaceID)
+		if err != nil {
+			return nil, fmt.Errorf("principal_resolver: staff lookup: %w", err)
+		}
+		for rows.Next() {
+			var staffID, name sql.NullString
+			if err := rows.Scan(&staffID, &name); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("principal_resolver: staff scan: %w", err)
+			}
+			display := strings.TrimSpace(name.String)
+			if display == "" {
+				display = "Workspace"
+			}
+			out = append(out, &authpb.Principal{
+				Type:        principaltypepb.PrincipalType_PRINCIPAL_TYPE_STAFF,
+				PrincipalId: staffID.String,
+				WorkspaceId: workspaceID,
+				DisplayName: fmt.Sprintf("%s · Staff", display),
+			})
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("principal_resolver: staff rows: %w", err)
 		}
 		rows.Close()
 	}

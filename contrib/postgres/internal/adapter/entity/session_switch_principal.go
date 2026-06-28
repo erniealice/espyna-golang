@@ -598,6 +598,20 @@ func lockTargetBinding(
 			FOR UPDATE
 		`
 		args = []any{tgt.GetPrincipalId(), userID}
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_STAFF:
+		// tgt.PrincipalID == staff.id (NOT workspace_user.id — do NOT conflate;
+		// staff is its own anchor). Lock the staff row: workspace_id pins it to
+		// the workspace being switched into, and role_id IS NOT NULL enforces
+		// that only a role-bearing staff row is a switchable principal (an
+		// HR-only row fails closed here → ErrNoRows → rotation aborts).
+		query = `
+			SELECT id FROM staff
+			WHERE id = $1 AND user_id = $2 AND workspace_id = $3
+			  AND active = true AND role_id IS NOT NULL
+			LIMIT 1
+			FOR UPDATE
+		`
+		args = []any{tgt.GetPrincipalId(), userID, tgt.GetWorkspaceId()}
 	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT_DELEGATE:
 		// Lock the acting-as row when a specific target is chosen; that's
 		// the row an admin would revoke. When N=1 the loader chose it;

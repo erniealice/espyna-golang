@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
@@ -117,6 +117,16 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ReadPhaseOutcomeSummary(ctx cont
 	summary := &pb.PhaseOutcomeSummary{}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, summary); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	// Staff row-scope (Phase 4): the generic dbOps.Read by id has no WHERE seam,
+	// so guard post-read — a STAFF principal may only read a phase summary it
+	// issued (issued_by). Fail-closed → not-found on an empty session staff.id
+	// or a summary issued by another staff member. Non-staff unaffected.
+	if staffID, ok := staffRowScope(ctx); ok {
+		if staffID == "" || summary.IssuedBy != staffID {
+			return nil, fmt.Errorf("phase outcome summary with ID '%s' not found", req.Data.Id)
+		}
 	}
 
 	return &pb.ReadPhaseOutcomeSummaryResponse{
@@ -268,13 +278,18 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 		pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
 	`
 
+	// Staff row-scope (Phase 4): a STAFF principal sees only phase summaries it
+	// issued ($4, session-derived). Predicate lives inside the enriched CTE so
+	// the counted total matches the scoped set. Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 4)
+
 	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT %s
 			FROM phase_outcome_summary pos
 			WHERE pos.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
-			       pos.narrative ILIKE $1)
+			       pos.narrative ILIKE $1)%s
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -284,9 +299,9 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 		FROM enriched e, counted c
 		%s
 		LIMIT $2 OFFSET $3;
-	`, posColumns, orderByClause)
+	`, posColumns, staffClause, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query phase outcome summary list page data: %w", err)
 	}
@@ -341,6 +356,10 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryItemPageDa
 		return nil, fmt.Errorf("phase outcome summary ID is required")
 	}
 
+	// Staff row-scope (Phase 4): a STAFF principal may only read a phase summary
+	// it issued ($2). Fail-closed → not-found otherwise. Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 2)
+
 	query := `
 		SELECT
 			pos.id, pos.job_phase_id, pos.job_id, pos.summary_type,
@@ -350,10 +369,10 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryItemPageDa
 			pos.narrative, pos.issued_by, pos.issued_date,
 			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
 		FROM phase_outcome_summary pos
-		WHERE pos.id = $1 AND pos.active = true
+		WHERE pos.id = $1 AND pos.active = true` + staffClause + `
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.PhaseOutcomeSummaryId)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.PhaseOutcomeSummaryId}, staffArgs...)...)
 	summary, err := scanPhaseOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("phase outcome summary with ID '%s' not found", req.PhaseOutcomeSummaryId)
@@ -377,6 +396,10 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 		return nil, fmt.Errorf("job phase ID is required")
 	}
 
+	// Staff row-scope (Phase 4): the latest phase summary is visible to a STAFF
+	// principal only if it issued it ($2). Fail-closed → empty result otherwise.
+	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 2)
+
 	query := `
 		SELECT
 			pos.id, pos.job_phase_id, pos.job_id, pos.summary_type,
@@ -386,12 +409,12 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 			pos.narrative, pos.issued_by, pos.issued_date,
 			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
 		FROM phase_outcome_summary pos
-		WHERE pos.job_phase_id = $1 AND pos.active = true
+		WHERE pos.job_phase_id = $1 AND pos.active = true` + staffClause + `
 		ORDER BY pos.date_created DESC
 		LIMIT 1
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.JobPhaseId)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobPhaseId}, staffArgs...)...)
 	summary, err := scanPhaseOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {
 		return &pb.GetPhaseOutcomeSummaryByJobPhaseResponse{
@@ -417,6 +440,10 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 		return nil, fmt.Errorf("job ID is required")
 	}
 
+	// Staff row-scope (Phase 4): within a job a STAFF principal sees only the
+	// phase summaries it issued ($2). Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 2)
+
 	query := `
 		SELECT
 			pos.id, pos.job_phase_id, pos.job_id, pos.summary_type,
@@ -426,11 +453,11 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 			pos.narrative, pos.issued_by, pos.issued_date,
 			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
 		FROM phase_outcome_summary pos
-		WHERE pos.job_id = $1 AND pos.active = true
+		WHERE pos.job_id = $1 AND pos.active = true` + staffClause + `
 		ORDER BY pos.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobId)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list phase outcome summaries by job: %w", err)
 	}

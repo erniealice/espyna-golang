@@ -120,6 +120,25 @@ func (m *SessionMiddleware) Handler(next http.Handler) http.Handler {
 			rid.SessionToken = token
 		}
 
+		// Resolve the session row's ACTIVE binding (kind, principal_id,
+		// acting_as_*) from the SAME cookie token and stamp it onto the
+		// RequestIdentity (Phase 0b). This is the ONE place in the protected-
+		// route setup that already holds the validated token and the stored
+		// identity, so it is the correct insertion point: the binding is keyed
+		// by the same token as the user/workspace snapshot (no torn read across
+		// a concurrent principal switch), and WithSessionBinding mutates the
+		// SAME pointer in place. Downstream the Layer-4 RBAC backstop reads this
+		// binding (via ExtractBindingFromContext) to scope permissions to the
+		// active binding instead of unioning across every binding the user
+		// holds. LookupSessionPrincipal fails CLOSED to a zero binding on any
+		// miss/error; a zero binding (kind 0) preserves the legacy
+		// union-across-all-bindings behaviour, so a pre-selection or
+		// binding-less session is never broken by this stamp.
+		if m.AuthAdapter != nil {
+			sp := m.AuthAdapter.LookupSessionPrincipal(ctx, token)
+			ctx = sharedidentity.WithSessionBinding(ctx, int32(sp.Kind), sp.PrincipalID, sp.ActingAsClientID, sp.ActingAsSupplierID)
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

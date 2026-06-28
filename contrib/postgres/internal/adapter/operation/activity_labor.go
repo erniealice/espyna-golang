@@ -11,9 +11,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/activity_labor"
 )
 
@@ -107,6 +107,16 @@ func (r *PostgresActivityLaborRepository) ReadActivityLabor(ctx context.Context,
 	labor := &pb.ActivityLabor{}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, labor); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	// Staff row-scope (Phase 4): the generic dbOps.Read by activity_id has no
+	// WHERE seam, so guard post-read — a STAFF principal may only read its own
+	// labor row (staff_id). Fail-closed → not-found on an empty session staff.id
+	// or another staff's row. Non-staff principals unaffected.
+	if staffID, ok := staffRowScope(ctx); ok {
+		if staffID == "" || labor.StaffId != staffID {
+			return nil, fmt.Errorf("activity labor not found")
+		}
 	}
 
 	return &pb.ReadActivityLaborResponse{
@@ -219,15 +229,21 @@ func (r *PostgresActivityLaborRepository) ListByStaff(ctx context.Context, req *
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// Staff row-scope (Phase 4) — IDOR-critical: req.StaffId is a REQUEST param,
+	// so a STAFF principal must additionally be pinned to its own session
+	// staff.id ($2). The two predicates intersect — a staff asking for another
+	// staff's labor gets zero rows. Non-staff principals are unchanged.
+	staffClause, staffArgs := staffScopeClause(ctx, "al.staff_id", 2)
+
 	query := fmt.Sprintf(`
 		SELECT al.activity_id, al.staff_id, al.hours, al.rate_type,
 			   al.time_start, al.time_end
 		FROM %s al
-		WHERE al.staff_id = $1
+		WHERE al.staff_id = $1%s
 		ORDER BY al.time_start DESC
-	`, r.tableName)
+	`, r.tableName, staffClause)
 
-	rows, err := db.GetDB().QueryContext(ctx, query, req.StaffId)
+	rows, err := db.GetDB().QueryContext(ctx, query, append([]any{req.StaffId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list activity labors by staff: %w", err)
 	}
@@ -290,16 +306,20 @@ func (r *PostgresActivityLaborRepository) ListByJob(ctx context.Context, req *pb
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
+	// Staff row-scope (Phase 4): within a job a STAFF principal sees only its own
+	// labor rows ($2, session-derived). Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "al.staff_id", 2)
+
 	query := fmt.Sprintf(`
 		SELECT al.activity_id, al.staff_id, al.hours, al.rate_type,
 			   al.time_start, al.time_end
 		FROM %s al
 		INNER JOIN job_activity ja ON al.activity_id = ja.id AND ja.active = true
-		WHERE ja.job_id = $1
+		WHERE ja.job_id = $1%s
 		ORDER BY al.time_start DESC
-	`, r.tableName)
+	`, r.tableName, staffClause)
 
-	rows, err := db.GetDB().QueryContext(ctx, query, req.JobId)
+	rows, err := db.GetDB().QueryContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list activity labors by job: %w", err)
 	}

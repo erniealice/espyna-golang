@@ -50,6 +50,7 @@ const (
 	principalTypeClientDelegate   int32 = 4
 	principalTypeSupplier         int32 = 5
 	principalTypeSupplierDelegate int32 = 6
+	principalTypeStaff            int32 = 7
 )
 
 // userRolesUnionCTE is the legacy UNION-across-all-bindings CTE retained for
@@ -221,6 +222,23 @@ const userRolesSupplierDelegateCTE = `
 	)
 `
 
+// userRolesStaffCTE — PRINCIPAL_TYPE_STAFF (7). The role grant lives on the
+// staff anchor row itself (staff.role_id), mirroring client_portal_grant.role_id.
+// staff.id = ? is the binding; role_id IS NOT NULL means a staff row with no
+// assigned role resolves to ZERO permissions (fail-closed by construction).
+// Args: bindingID, userID, workspaceID (matching the client CTE's ? order).
+const userRolesStaffCTE = `
+	WITH user_roles AS (
+		SELECT s.role_id
+		FROM staff s
+		WHERE s.id = ?
+		  AND s.user_id = ?
+		  AND s.workspace_id = ?
+		  AND s.active = 1
+		  AND s.role_id IS NOT NULL
+	)
+`
+
 // GetUserPermissionCodes returns all effective ALLOW codes for a user in a
 // workspace, with DENY-wins applied. Empty slice when no permissions.
 //
@@ -320,6 +338,11 @@ func buildPermissionQuerySQL(
 		return userRolesSupplierCTE + permissionSelect,
 			[]any{bindingID, userID, workspaceID},
 			true
+	case principalTypeStaff:
+		// CTE arg order: bindingID, userID, workspaceID (mirrors client CTE pattern)
+		return userRolesStaffCTE + permissionSelect,
+			[]any{bindingID, userID, workspaceID},
+			true
 	case principalTypeClientDelegate:
 		if actingAsClientID == "" {
 			return "", nil, false
@@ -341,7 +364,7 @@ func buildPermissionQuerySQL(
 	}
 }
 
-// isKnownBindingKind reports whether the integer value matches one of the six
+// isKnownBindingKind reports whether the integer value matches one of the
 // PrincipalType enumerants. UNSPECIFIED is NOT considered "known" here — the
 // legacy union path is reached via the exact-zero-pair check above.
 func isKnownBindingKind(kind int32) bool {
@@ -351,7 +374,8 @@ func isKnownBindingKind(kind int32) bool {
 		principalTypeClient,
 		principalTypeClientDelegate,
 		principalTypeSupplier,
-		principalTypeSupplierDelegate:
+		principalTypeSupplierDelegate,
+		principalTypeStaff:
 		return true
 	default:
 		return false
@@ -369,6 +393,8 @@ func bindingCTEForKind(kind int32) (string, bool) {
 		return userRolesClientCTE, true
 	case principalTypeSupplier:
 		return userRolesSupplierCTE, true
+	case principalTypeStaff:
+		return userRolesStaffCTE, true
 	case principalTypeClientDelegate:
 		return userRolesClientDelegateCTE, true
 	case principalTypeSupplierDelegate:

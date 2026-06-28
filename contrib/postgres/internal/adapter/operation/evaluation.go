@@ -12,11 +12,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
 )
@@ -149,8 +149,21 @@ func (r *PostgresEvaluationRepository) ReadEvaluation(ctx context.Context, req *
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
+	e := evaluationFromResultJSON(resultJSON)
+
+	// Staff row-scope (Phase 4): the generic dbOps.Read by id has no WHERE seam,
+	// so guard post-read — a STAFF principal may only read an evaluation whose
+	// subject staff_id is itself. Fail-closed → not-found on an empty session
+	// staff.id or a row about another (or no) staff. Non-staff principals keep
+	// the existing workspace/client scoping (dbOps + the list/item gates).
+	if staffID, ok := staffRowScope(ctx); ok {
+		if staffID == "" || e.StaffId == nil || *e.StaffId != staffID {
+			return nil, fmt.Errorf("evaluation not found")
+		}
+	}
+
 	return &pb.ReadEvaluationResponse{
-		Data:    []*pb.Evaluation{evaluationFromResultJSON(resultJSON)},
+		Data:    []*pb.Evaluation{e},
 		Success: true,
 	}, nil
 }
@@ -196,13 +209,27 @@ func (r *PostgresEvaluationRepository) ListEvaluations(ctx context.Context, req 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list evaluations: %w", err)
 	}
+	staffID, staffScoped := staffRowScope(ctx)
 	var items []*pb.Evaluation
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			continue
 		}
-		items = append(items, evaluationFromResultJSON(resultJSON))
+		ev := evaluationFromResultJSON(resultJSON)
+		// Staff row-scope (Phase 4 IDOR): the generic dbOps.List applies workspace
+		// scoping only — a STAFF principal must see only evaluations whose subject
+		// is ITSELF, and never an INTERNAL_ONLY evaluation (not visible to the
+		// subject). Matches the live POST /api/operation/evaluation/list route.
+		// Fail-closed: empty session staff.id ⇒ no rows. Non-staff/no-session
+		// (e.g. server orchestration) unaffected.
+		if staffScoped {
+			if staffID == "" || ev.GetStaffId() != staffID ||
+				ev.GetVisibilityType() == pb.VisibilityType_VISIBILITY_TYPE_INTERNAL_ONLY {
+				continue
+			}
+		}
+		items = append(items, ev)
 	}
 	return &pb.ListEvaluationsResponse{Data: items, Success: true}, nil
 }
@@ -248,15 +275,22 @@ func (r *PostgresEvaluationRepository) GetEvaluationListPageData(ctx context.Con
 	wsID := identity.Must(ctx).WorkspaceID
 	actingClient := identity.Must(ctx).ActingAsClientID
 
+	// Staff row-scope (Phase 4): a STAFF principal sees only evaluations whose
+	// subject staff_id is itself ($6, session-derived). This is ADDITIVE to the
+	// existing workspace ($4) and acting-as-client ($5) gates. Non-staff → empty
+	// clause (unchanged). A staff caller has empty acting_as, so the $5 client
+	// gate stays inert and only the $6 staff gate applies.
+	staffClause, staffArgs := staffScopeClause(ctx, "staff_id", 6)
+
 	// $5 = acting_as_client_id. When set, scope client_id AND fail-closed on
 	// internal_only visibility. When empty (staff), no client/visibility gate.
 	query := `SELECT ` + evaluationSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE active = true
 			AND ($4::text = '' OR workspace_id = $4::text)
-			AND ($5::text = '' OR (client_id = $5::text AND visibility_type <> 'internal_only'))
+			AND ($5::text = '' OR (client_id = $5::text AND visibility_type <> 'internal_only'))` + staffClause + `
 			AND ($1::text IS NULL OR $1::text = '' OR COALESCE(narrative,'') ILIKE $1 OR status ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID, actingClient)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset, wsID, actingClient}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -286,12 +320,15 @@ func (r *PostgresEvaluationRepository) GetEvaluationItemPageData(ctx context.Con
 	}
 	wsID := identity.Must(ctx).WorkspaceID
 	actingClient := identity.Must(ctx).ActingAsClientID
+	// Staff row-scope (Phase 4): additive subject-staff_id gate ($4). Non-staff
+	// → empty clause; staff with empty staff.id → fail-closed (not-found).
+	staffClause, staffArgs := staffScopeClause(ctx, "staff_id", 4)
 	query := `SELECT ` + evaluationSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE id = $1 AND active = true
 			AND ($2::text = '' OR workspace_id = $2::text)
-			AND ($3::text = '' OR (client_id = $3::text AND visibility_type <> 'internal_only'))`
-	row := r.db.QueryRowContext(ctx, query, req.EvaluationId, wsID, actingClient)
+			AND ($3::text = '' OR (client_id = $3::text AND visibility_type <> 'internal_only'))` + staffClause
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.EvaluationId, wsID, actingClient}, staffArgs...)...)
 	e, err := scanEvaluationRow(row.Scan)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("evaluation not found")
@@ -313,6 +350,13 @@ func (r *PostgresEvaluationRepository) GetLatestEvaluationScore(ctx context.Cont
 		return out, nil
 	}
 	wsID := identity.Must(ctx).WorkspaceID
+	// Staff row-scope (Phase 4): the staffIDs arg is supplied by the calling
+	// service layer, but a STAFF principal must additionally be pinned to its
+	// OWN score ($3, session-derived) — it can never read another staff's
+	// rating even if the caller passes a wider set. Intersects with the ANY($1)
+	// filter: a staff asking for others gets nothing. Non-staff (admin) → empty
+	// clause (unchanged batched read). Empty session staff.id → fail-closed.
+	staffClause, staffArgs := staffScopeClause(ctx, "staff_id", 3)
 	// DISTINCT ON (staff_id) keeps the first row per staff after the
 	// deterministic ORDER BY — i.e. the latest scored evaluation.
 	query := `SELECT DISTINCT ON (staff_id) staff_id, overall_score
@@ -321,9 +365,9 @@ func (r *PostgresEvaluationRepository) GetLatestEvaluationScore(ctx context.Cont
 			AND active = true
 			AND status IN ('submitted', 'signed_off')
 			AND overall_score IS NOT NULL
-			AND ($2::text = '' OR workspace_id = $2::text)
+			AND ($2::text = '' OR workspace_id = $2::text)` + staffClause + `
 		ORDER BY staff_id, submitted_at DESC, id DESC`
-	rows, err := r.db.QueryContext(ctx, query, sqlStringArray(staffIDs), wsID)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{sqlStringArray(staffIDs), wsID}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("latest evaluation score query failed: %w", err)
 	}

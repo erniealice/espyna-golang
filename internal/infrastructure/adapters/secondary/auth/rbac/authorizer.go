@@ -21,18 +21,27 @@
 // seed-code parity gap BEFORE enforcement goes live. In ENFORCE mode the real
 // verdict is returned. See w0-design.md §2 + decisions.md (Q-AWS2 = A+C).
 //
-// Semantic divergence to document (risk R2 in w0-design.md §2.3): the UI loader
-// passes a real binding hint and scopes to ONE binding; this Authorizer has no
-// binding hint in the espyna context (espyna ctx carries only user_id /
-// workspace_id / workspace_user_id / email — see
-// internal/application/shared/context/user.go) so it uses the EXACT zero
-// binding pair, which routes to the legacy union-across-all-bindings CTE. For a
-// user holding multiple bindings in one workspace (e.g. CLIENT +
-// OPERATOR_STAFF) this backstop is MORE permissive (union) than the UI gate
-// (single binding). This is the correct Layer-4 backstop semantic — Layers 0-3
-// already did per-binding UI gating, and authcheck has no session/binding — but
-// it narrowly re-opens the silent-elevation surface that A2 / WKR-P0-2 closed
-// for the UI. Acceptable as a backstop; called out here per R2.
+// Binding scope (risk R2 in w0-design.md §2.3 — RESOLVED in Phase 0b): the UI
+// loader passes a real binding hint and scopes to ONE binding. As of Phase 0b
+// the espyna context ALSO carries the session's active binding: the session
+// middleware resolves the session row via LookupSessionPrincipal and stamps
+// (PrincipalType, PrincipalID, ActingAsClientID, ActingAsSupplierID) onto the
+// RequestIdentity (shared/identity), readable here via
+// contextutil.ExtractBindingFromContext. loadCodes therefore scopes to the
+// active binding whenever the ctx carries a REAL one (kind != 0 && principalID
+// != ""), so a user holding multiple bindings in one workspace (e.g. CLIENT +
+// OPERATOR_STAFF) gets ONLY the active binding's codes — matching the UI gate
+// and CLOSING the silent-elevation surface that the prior zero-pair union
+// re-opened.
+//
+// Fail-closed / non-session preservation: when the ctx carries NO real binding
+// (kind 0 — a service-to-service / authcheck-only context, or a pre-selection
+// session whose binding could not be resolved) loadCodes passes the EXACT zero
+// binding pair, which still routes to the legacy union-across-all-bindings CTE.
+// This is deliberate: those non-session contexts have no single binding to
+// scope to, and breaking them would be a worse failure than the (now
+// session-gated) union. The session path — the one that previously leaked the
+// union — is no longer affected.
 package rbac
 
 import (
@@ -59,13 +68,21 @@ const permCacheTTL = 5 * time.Minute
 // enforcement, so any unset / typo'd value keeps the safe shadow posture.
 const authzEnforceEnvVar = "AUTHZ_ENFORCE"
 
-// permCacheKey is the composite cache key. The Authorizer only ever uses the
-// zero binding pair, so binding / acting-as fields are constant and collapse
-// out of the key — leaving exactly (userID, workspaceID), the same reduction
-// w0-design.md §2.6 prescribes.
+// permCacheKey is the composite cache key. As of Phase 0b the Authorizer scopes
+// to the session's ACTIVE binding when the espyna context carries one (kind,
+// principalID, acting-as), so the binding fields are part of the cache key —
+// otherwise a user's CLIENT-binding code set could be served to that same
+// user's STAFF-binding request (or vice versa) from a stale cache entry. When
+// no binding is resolved (non-session / service-to-service context) all binding
+// fields are zero and the key collapses to (userID, workspaceID) — the legacy
+// union-scoped entry, exactly the w0-design.md §2.6 reduction.
 type permCacheKey struct {
-	userID      string
-	workspaceID string
+	userID             string
+	workspaceID        string
+	bindingKind        int32
+	bindingID          string
+	actingAsClientID   string
+	actingAsSupplierID string
 }
 
 type cachedPerms struct {
@@ -128,10 +145,44 @@ func parseEnforce(v string) bool {
 }
 
 // loadCodes returns the effective ALLOW-minus-DENY permission-code set for the
-// (userID, workspaceID) pair through the cache, calling the authoritative
-// PermissionQuery with the EXACT zero binding pair (→ union CTE) on a miss.
+// (userID, workspaceID, binding) tuple through the cache, calling the
+// authoritative PermissionQuery on a miss.
+//
+// Binding scope (Phase 0b — closes risk R2's silent-elevation surface): the
+// session middleware stamps the session row's ACTIVE binding onto the
+// RequestIdentity, which this reads via ExtractBindingFromContext. When the
+// ctx carries a REAL binding (kind != 0 AND principalID != "") the lookup is
+// scoped to that single binding — so a user holding multiple bindings in one
+// workspace (e.g. CLIENT + OPERATOR_STAFF) gets ONLY the active binding's
+// codes, matching the UI gate instead of the more-permissive union.
+//
+// FAIL-CLOSED / non-session preservation: when the ctx does NOT carry a real
+// binding (kind 0 — service-to-service, no session, or a pre-selection session
+// whose binding LookupSessionPrincipal could not resolve) we pass the EXACT
+// zero binding pair, which buildPermissionQuerySQL routes to the legacy
+// userRolesUnionCTE (union across every binding the user holds in this
+// workspace). This deliberately preserves the prior backstop behaviour for
+// non-session contexts so they are NOT broken by binding-scoping. A PARTIAL
+// hint never reaches the query: we normalise any non-real binding to the full
+// zero tuple, and buildPermissionQuerySQL itself fails closed (empty set) on
+// any partial/ out-of-range combination it does receive.
 func (a *PermissionAuthorizer) loadCodes(ctx context.Context, userID, workspaceID string) ([]string, error) {
-	key := permCacheKey{userID: userID, workspaceID: workspaceID}
+	kind, principalID, actingAsClientID, actingAsSupplierID := contextutil.ExtractBindingFromContext(ctx)
+
+	// Only a COMPLETE, real binding scopes the lookup. Anything else collapses
+	// to the zero tuple → legacy union CTE (the documented non-session backstop).
+	if !(kind != 0 && principalID != "") {
+		kind, principalID, actingAsClientID, actingAsSupplierID = 0, "", "", ""
+	}
+
+	key := permCacheKey{
+		userID:             userID,
+		workspaceID:        workspaceID,
+		bindingKind:        kind,
+		bindingID:          principalID,
+		actingAsClientID:   actingAsClientID,
+		actingAsSupplierID: actingAsSupplierID,
+	}
 
 	a.cache.mu.RLock()
 	if entry, ok := a.cache.store[key]; ok && time.Now().Before(entry.expires) {
@@ -140,10 +191,10 @@ func (a *PermissionAuthorizer) loadCodes(ctx context.Context, userID, workspaceI
 	}
 	a.cache.mu.RUnlock()
 
-	// Zero binding pair → buildPermissionQuerySQL routes to userRolesUnionCTE
+	// Real binding → single-binding scope; zero tuple → userRolesUnionCTE
 	// (union across every binding the user holds in this workspace), binding
 	// []any{userID, workspaceID}. Returns ALLOW minus DENY, identical to the UI.
-	codes, err := a.query.GetUserPermissionCodes(ctx, userID, workspaceID, 0, "", "", "")
+	codes, err := a.query.GetUserPermissionCodes(ctx, userID, workspaceID, kind, principalID, actingAsClientID, actingAsSupplierID)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +302,9 @@ func (a *PermissionAuthorizer) GetUserWorkspaces(ctx context.Context, userID str
 }
 
 // GetUserPermissionCodes is the UI-adaptation pass-through (authorization.go:27-29).
-// It returns the raw code set for the ctx workspace via the zero binding pair —
+// It returns the raw code set for the ctx workspace, scoped to the session's
+// active binding when the ctx carries one (loadCodes reads it via
+// ExtractBindingFromContext) and falling back to the zero-pair union otherwise —
 // shadow/enforce mode does NOT apply here (this is a bulk read, not a gate).
 func (a *PermissionAuthorizer) GetUserPermissionCodes(ctx context.Context, userID string) ([]string, error) {
 	ws := contextutil.ExtractWorkspaceIDFromContext(ctx)

@@ -10,11 +10,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_cycle_member"
 )
@@ -99,8 +99,20 @@ func (r *PostgresEvaluationCycleMemberRepository) ReadEvaluationCycleMember(ctx 
 		return nil, fmt.Errorf("failed to read evaluation cycle member: %w", err)
 	}
 	resultJSON, _ := json.Marshal(result)
+	e := evaluationCycleMemberFromResultJSON(resultJSON)
+
+	// Staff row-scope (Phase 4): the generic dbOps.Read by id has no WHERE seam,
+	// so guard post-read — a STAFF principal may only read a cycle-member row
+	// whose subject_staff_id is itself. Fail-closed → not-found on an empty
+	// session staff.id or a row about another staff. Non-staff unaffected.
+	if staffID, ok := staffRowScope(ctx); ok {
+		if staffID == "" || e.SubjectStaffId != staffID {
+			return nil, fmt.Errorf("evaluation cycle member not found")
+		}
+	}
+
 	return &pb.ReadEvaluationCycleMemberResponse{
-		Data:    []*pb.EvaluationCycleMember{evaluationCycleMemberFromResultJSON(resultJSON)},
+		Data:    []*pb.EvaluationCycleMember{e},
 		Success: true,
 	}, nil
 }
@@ -178,10 +190,14 @@ func (r *PostgresEvaluationCycleMemberRepository) GetEvaluationCycleMemberListPa
 		return nil, fmt.Errorf("invalid sort for evaluation cycle member list: %w", err)
 	}
 	wsID := identity.Must(ctx).WorkspaceID
+	// Staff row-scope (Phase 4): a STAFF principal sees only the cycle-member
+	// rows whose subject_staff_id is itself ($4). Additive to the workspace ($3)
+	// gate. Non-staff → empty clause; empty session staff.id → fail-closed.
+	staffClause, staffArgs := staffScopeClause(ctx, "subject_staff_id", 4)
 	query := `SELECT ` + evaluationCycleMemberSelectCols + `
 		FROM ` + r.tableName + `
-		WHERE active = true AND ($3::text = '' OR workspace_id = $3::text) ` + orderBy + ` LIMIT $1 OFFSET $2;`
-	rows, err := r.db.QueryContext(ctx, query, limit, offset, wsID)
+		WHERE active = true AND ($3::text = '' OR workspace_id = $3::text)` + staffClause + ` ` + orderBy + ` LIMIT $1 OFFSET $2;`
+	rows, err := r.db.QueryContext(ctx, query, append([]any{limit, offset, wsID}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -206,10 +222,13 @@ func (r *PostgresEvaluationCycleMemberRepository) GetEvaluationCycleMemberItemPa
 		return nil, fmt.Errorf("evaluation cycle member ID required")
 	}
 	wsID := identity.Must(ctx).WorkspaceID
+	// Staff row-scope (Phase 4): additive subject_staff_id gate ($3). Non-staff
+	// → empty clause; staff with empty staff.id → fail-closed (not-found).
+	staffClause, staffArgs := staffScopeClause(ctx, "subject_staff_id", 3)
 	query := `SELECT ` + evaluationCycleMemberSelectCols + `
 		FROM ` + r.tableName + `
-		WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
-	row := r.db.QueryRowContext(ctx, query, req.EvaluationCycleMemberId, wsID)
+		WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)` + staffClause
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.EvaluationCycleMemberId, wsID}, staffArgs...)...)
 	e, err := scanEvaluationCycleMemberRow(row.Scan)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("evaluation cycle member not found")

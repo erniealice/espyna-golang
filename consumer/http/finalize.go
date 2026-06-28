@@ -26,11 +26,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/erniealice/espyna-golang/consumer"
 	consumerapp "github.com/erniealice/espyna-golang/consumer/app"
 	compose "github.com/erniealice/espyna-golang/consumer/compose"
 	"github.com/erniealice/pyeza-golang"
 	pyezatypes "github.com/erniealice/pyeza-golang/types"
 
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	securitypb "github.com/erniealice/esqyma/pkg/schema/v1/service/security"
@@ -90,6 +92,36 @@ func (s *Server) finalizeHTTPAdapter(appCtx *consumerapp.AppContext, routes *rou
 		s.config.BusinessType,                 // 14 businessType    (Server)
 		mustTranslations(ui.Translations),     // 15 translations  (APP-SUPPLIED)
 	)
+
+	// ── Per-request principal binding → binding-scoped RBAC (Phase 0) ────
+	// Wire the permission loader's principal lookup so RBAC scopes to the
+	// session's ACTIVE binding (kind, id, acting-as) instead of the legacy
+	// union-across-all-bindings. Sourced from the session row via the same
+	// LookupSessionPrincipal use case the workspace-path middleware uses
+	// (server.go PrincipalLookup). Without this a multi-binding user (e.g. an
+	// operator who is ALSO a staff principal) loads the UNION of every
+	// binding's permissions — defeating per-principal scope. An empty hint (no
+	// session binding) makes the view adapter install empty perms (fail-closed).
+	if s.useCases != nil && s.useCases.Service != nil && s.useCases.Service.Auth != nil &&
+		s.useCases.Service.Auth.LookupSessionPrincipal != nil {
+		lookupUC := s.useCases.Service.Auth.LookupSessionPrincipal
+		httpAdapter.SetPrincipalLookup(func(r *http.Request) PermissionBindingHint {
+			token := consumer.GetSessionTokenFromContext(r.Context())
+			if token == "" {
+				return PermissionBindingHint{}
+			}
+			resp, err := lookupUC.Execute(r.Context(), &authpb.LookupSessionPrincipalRequest{Token: token})
+			if err != nil || resp == nil {
+				return PermissionBindingHint{}
+			}
+			return PermissionBindingHint{
+				Kind:               PrincipalType(resp.GetKind()),
+				BindingID:          resp.GetPrincipalId(),
+				ActingAsClientID:   resp.GetActingAsClientId(),
+				ActingAsSupplierID: resp.GetActingAsSupplierId(),
+			}
+		})
+	}
 
 	// ── Messages-URL: PRESERVE the {status}->open substitution ───────────
 	// conversation.list resolves to /app/conversations/list/{status}; the

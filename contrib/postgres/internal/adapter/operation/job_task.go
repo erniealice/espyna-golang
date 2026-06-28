@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 )
@@ -118,6 +118,17 @@ func (r *PostgresJobTaskRepository) ReadJobTask(ctx context.Context, req *pb.Rea
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
+	// Staff row-scope (Phase 4): the generic dbOps.Read by id has no WHERE seam,
+	// so enforce the IDOR guard post-read — a STAFF principal may only read a
+	// job_task assigned to itself. Fail-closed: empty session staff.id, or a row
+	// with no/other assignee, is treated as not-found. Non-staff principals are
+	// unaffected (workspace scoping already applied by dbOps).
+	if staffID, ok := staffRowScope(ctx); ok {
+		if staffID == "" || task.AssignedTo == nil || *task.AssignedTo != staffID {
+			return nil, fmt.Errorf("job task with ID '%s' not found", req.Data.Id)
+		}
+	}
+
 	return &pb.ReadJobTaskResponse{
 		Success: true,
 		Data:    []*pb.JobTask{task},
@@ -191,6 +202,7 @@ func (r *PostgresJobTaskRepository) ListJobTasks(ctx context.Context, req *pb.Li
 		return nil, fmt.Errorf("failed to list job tasks: %w", err)
 	}
 
+	staffID, staffScoped := staffRowScope(ctx)
 	var tasks []*pb.JobTask
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
@@ -202,6 +214,14 @@ func (r *PostgresJobTaskRepository) ListJobTasks(ctx context.Context, req *pb.Li
 		task := &pb.JobTask{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, task); err != nil {
 			log.Printf("WARN: protojson unmarshal job_task: %v", err)
+			continue
+		}
+		// Staff row-scope (Phase 4 IDOR): the generic dbOps.List applies workspace
+		// scoping only — a STAFF principal must see only its OWN assigned tasks
+		// (matches the ReadJobTask post-read guard + the live POST
+		// /api/operation/job-task/list route). Fail-closed: empty session staff.id
+		// ⇒ no rows. Non-staff / no-session (e.g. server orchestration) unaffected.
+		if staffScoped && (staffID == "" || task.AssignedTo == nil || *task.AssignedTo != staffID) {
 			continue
 		}
 		tasks = append(tasks, task)
@@ -255,6 +275,12 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 		return nil, err
 	}
 
+	// Staff row-scope (Phase 4): a STAFF principal sees only job_tasks assigned to
+	// itself ($4, from the session — never a request param). Non-staff principals
+	// get the empty clause (unchanged). The predicate lives inside the enriched
+	// CTE so the counted total reflects the scoped set.
+	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 4)
+
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -271,7 +297,7 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 			FROM job_task jt
 			WHERE jt.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
-			       jt.name ILIKE $1)
+			       jt.name ILIKE $1)` + staffClause + `
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -284,7 +310,8 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	args := append([]any{searchPattern, limit, offset}, staffArgs...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job task list page data: %w", err)
 	}
@@ -397,6 +424,11 @@ func (r *PostgresJobTaskRepository) GetJobTaskItemPageData(
 		return nil, fmt.Errorf("job task ID is required")
 	}
 
+	// Staff row-scope (Phase 4): a STAFF principal may only read a job_task
+	// assigned to itself ($2, from the session). Fail-closed → not-found on a
+	// foreign or unassigned row. Non-staff principals get the empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 2)
+
 	query := `
 		SELECT
 			jt.id,
@@ -410,10 +442,10 @@ func (r *PostgresJobTaskRepository) GetJobTaskItemPageData(
 			jt.is_ad_hoc,
 			jt.assigned_to
 		FROM job_task jt
-		WHERE jt.id = $1 AND jt.active = true
+		WHERE jt.id = $1 AND jt.active = true` + staffClause + `
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.JobTaskId)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobTaskId}, staffArgs...)...)
 
 	var (
 		id           string
@@ -492,6 +524,10 @@ func (r *PostgresJobTaskRepository) ListByPhase(
 		return nil, fmt.Errorf("job phase ID is required")
 	}
 
+	// Staff row-scope (Phase 4): within a phase a STAFF principal sees only the
+	// tasks assigned to itself ($2, session-derived). Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 2)
+
 	query := `
 		SELECT
 			jt.id,
@@ -505,11 +541,11 @@ func (r *PostgresJobTaskRepository) ListByPhase(
 			jt.is_ad_hoc,
 			jt.assigned_to
 		FROM job_task jt
-		WHERE jt.job_phase_id = $1 AND jt.active = true
+		WHERE jt.job_phase_id = $1 AND jt.active = true` + staffClause + `
 		ORDER BY jt.step_order ASC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobPhaseId)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{req.JobPhaseId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list job tasks by phase: %w", err)
 	}
@@ -598,6 +634,12 @@ func (r *PostgresJobTaskRepository) ListByAssignee(
 		return nil, fmt.Errorf("assignee ID is required")
 	}
 
+	// Staff row-scope (Phase 4) — IDOR-critical: req.AssignedTo is a REQUEST
+	// param, so a STAFF principal must additionally be pinned to its own
+	// session staff.id ($2). The two predicates intersect: a staff asking for
+	// another staff's tasks gets zero rows. Non-staff principals are unchanged.
+	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 2)
+
 	query := `
 		SELECT
 			jt.id,
@@ -611,11 +653,11 @@ func (r *PostgresJobTaskRepository) ListByAssignee(
 			jt.is_ad_hoc,
 			jt.assigned_to
 		FROM job_task jt
-		WHERE jt.assigned_to = $1 AND jt.active = true
+		WHERE jt.assigned_to = $1 AND jt.active = true` + staffClause + `
 		ORDER BY jt.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, req.AssignedTo)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{req.AssignedTo}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list job tasks by assignee: %w", err)
 	}

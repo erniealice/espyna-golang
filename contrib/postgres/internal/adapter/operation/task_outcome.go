@@ -13,10 +13,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
@@ -140,6 +140,18 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 	outcome := &pb.TaskOutcome{}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, outcome); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	// Staff row-scope (Phase 4): the generic dbOps.Read by id has no WHERE seam,
+	// so guard post-read — a STAFF principal may only read an outcome it
+	// recorded_by OR reviewed_by. Fail-closed → not-found on an empty session
+	// staff.id or a row it neither recorded nor reviewed. Non-staff unaffected.
+	if staffID, ok := staffRowScope(ctx); ok {
+		owns := staffID != "" && (outcome.RecordedBy == staffID ||
+			(outcome.ReviewedBy != nil && *outcome.ReviewedBy == staffID))
+		if !owns {
+			return nil, fmt.Errorf("task outcome with ID '%s' not found", req.Data.Id)
+		}
 	}
 
 	return &pb.ReadTaskOutcomeResponse{
@@ -296,13 +308,19 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 		to_.active, to_.date_created, to_.date_modified
 	`
 
+	// Staff row-scope (Phase 4): a STAFF principal sees only outcomes it
+	// recorded_by OR reviewed_by ($4, session-derived). Predicate lives inside
+	// the enriched CTE so the counted total matches the scoped set. Non-staff →
+	// empty clause (unchanged).
+	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 4)
+
 	query := `
 		WITH enriched AS (
 			SELECT ` + toColumns + `
 			FROM task_outcome to_
 			WHERE to_.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
-			       to_.determination_note ILIKE $1)
+			       to_.determination_note ILIKE $1)` + staffClause + `
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -314,7 +332,7 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query task outcome list page data: %w", err)
 	}
@@ -369,6 +387,10 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeItemPageData(
 		return nil, fmt.Errorf("task outcome ID is required")
 	}
 
+	// Staff row-scope (Phase 4): a STAFF principal may only read an outcome it
+	// recorded_by OR reviewed_by ($2). Fail-closed → not-found otherwise.
+	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+
 	query := `
 		SELECT
 			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
@@ -379,10 +401,10 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeItemPageData(
 			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
 		FROM task_outcome to_
-		WHERE to_.id = $1 AND to_.active = true
+		WHERE to_.id = $1 AND to_.active = true` + staffClause + `
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.TaskOutcomeId)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.TaskOutcomeId}, staffArgs...)...)
 
 	outcome, err := scanTaskOutcomeSingleRow(row)
 	if err == sql.ErrNoRows {
@@ -407,6 +429,10 @@ func (r *PostgresTaskOutcomeRepository) ListByJobTask(
 		return nil, fmt.Errorf("job task ID is required")
 	}
 
+	// Staff row-scope (Phase 4): within a task a STAFF principal sees only the
+	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+
 	query := `
 		SELECT
 			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
@@ -417,11 +443,11 @@ func (r *PostgresTaskOutcomeRepository) ListByJobTask(
 			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
 		FROM task_outcome to_
-		WHERE to_.job_task_id = $1 AND to_.active = true
+		WHERE to_.job_task_id = $1 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobTaskId)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{req.JobTaskId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task outcomes by job task: %w", err)
 	}
@@ -447,6 +473,10 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 		return nil, fmt.Errorf("job phase ID is required")
 	}
 
+	// Staff row-scope (Phase 4): within a phase a STAFF principal sees only the
+	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+
 	query := `
 		SELECT
 			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
@@ -458,7 +488,7 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 			to_.active, to_.date_created, to_.date_modified
 		FROM task_outcome to_
 		JOIN job_task jt ON to_.job_task_id = jt.id
-		WHERE jt.job_phase_id = $1 AND to_.active = true
+		WHERE jt.job_phase_id = $1 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`
 
@@ -470,7 +500,7 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 	if exec == nil {
 		return nil, fmt.Errorf("task_outcome ListByJobPhase: no SQL executor available")
 	}
-	rows, err := exec.QueryContext(ctx, query, req.JobPhaseId)
+	rows, err := exec.QueryContext(ctx, query, append([]any{req.JobPhaseId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task outcomes by job phase: %w", err)
 	}
@@ -496,6 +526,10 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 		return nil, fmt.Errorf("job ID is required")
 	}
 
+	// Staff row-scope (Phase 4): within a job a STAFF principal sees only the
+	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+
 	query := `
 		SELECT
 			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
@@ -507,11 +541,11 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 			to_.active, to_.date_created, to_.date_modified
 		FROM task_outcome to_
 		JOIN job_task jt ON to_.job_task_id = jt.id
-		WHERE jt.job_id = $1 AND to_.active = true
+		WHERE jt.job_id = $1 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobId)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task outcomes by job: %w", err)
 	}

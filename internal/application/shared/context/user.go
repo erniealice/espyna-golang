@@ -175,6 +175,25 @@ func ExtractEmailFromContext(ctx context.Context) string {
 	return ""
 }
 
+// ExtractBindingFromContext returns the session's ACTIVE principal binding
+// (kind, principalID, actingAsClientID, actingAsSupplierID) stamped by the
+// session middleware via identity.WithSessionBinding. It reads the typed
+// RequestIdentity struct first and returns all-zero values when the struct is
+// absent (pre-auth / service-to-service / no-session context).
+//
+// A zero return (kind == 0 && principalID == "") is the "no resolved binding"
+// sentinel: the Layer-4 RBAC backstop interprets it as the legacy
+// union-across-all-bindings pair so non-session callers are not broken; a REAL
+// binding is (kind != 0 && principalID != ""). There is deliberately no legacy
+// per-key fallback — the binding fields never existed as standalone context
+// keys, so the only writer is identity.WithSessionBinding.
+func ExtractBindingFromContext(ctx context.Context) (kind int32, principalID, actingAsClientID, actingAsSupplierID string) {
+	if id, ok := identity.FromContext(ctx); ok {
+		return id.PrincipalType, id.PrincipalID, id.ActingAsClientID, id.ActingAsSupplierID
+	}
+	return 0, "", "", ""
+}
+
 func RequireUserIDFromContext(ctx context.Context) (string, error) {
 	uid := ExtractUserIDFromContext(ctx)
 	if uid == "" {

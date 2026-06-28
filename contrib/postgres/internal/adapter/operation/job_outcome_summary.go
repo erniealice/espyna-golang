@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
@@ -117,6 +117,16 @@ func (r *PostgresJobOutcomeSummaryRepository) ReadJobOutcomeSummary(ctx context.
 	summary := &pb.JobOutcomeSummary{}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, summary); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+
+	// Staff row-scope (Phase 4): the generic dbOps.Read by id has no WHERE seam,
+	// so guard post-read — a STAFF principal may only read a summary it issued
+	// (issued_by). Fail-closed → not-found on an empty session staff.id or a
+	// summary issued by another staff member. Non-staff principals unaffected.
+	if staffID, ok := staffRowScope(ctx); ok {
+		if staffID == "" || summary.IssuedBy != staffID {
+			return nil, fmt.Errorf("job outcome summary with ID '%s' not found", req.Data.Id)
+		}
 	}
 
 	return &pb.ReadJobOutcomeSummaryResponse{
@@ -270,13 +280,18 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		jos.date_created, jos.date_modified
 	`
 
+	// Staff row-scope (Phase 4): a STAFF principal sees only summaries it issued
+	// ($4, session-derived). Predicate lives inside the enriched CTE so the
+	// counted total matches the scoped set. Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "jos.issued_by", 4)
+
 	query := `
 		WITH enriched AS (
 			SELECT ` + josColumns + `
 			FROM job_outcome_summary jos
 			WHERE jos.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
-			       jos.narrative ILIKE $1)
+			       jos.narrative ILIKE $1)` + staffClause + `
 		),
 		counted AS (
 			SELECT COUNT(*) as total FROM enriched
@@ -288,7 +303,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job outcome summary list page data: %w", err)
 	}
@@ -343,6 +358,10 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryItemPageData(
 		return nil, fmt.Errorf("job outcome summary ID is required")
 	}
 
+	// Staff row-scope (Phase 4): a STAFF principal may only read a summary it
+	// issued ($2). Fail-closed → not-found otherwise. Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "jos.issued_by", 2)
+
 	query := `
 		SELECT
 			jos.id, jos.job_id, jos.summary_type, jos.overall_determination,
@@ -353,10 +372,10 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryItemPageData(
 			jos.supersedes_id, jos.attachment_ids, jos.active,
 			jos.date_created, jos.date_modified
 		FROM job_outcome_summary jos
-		WHERE jos.id = $1 AND jos.active = true
+		WHERE jos.id = $1 AND jos.active = true` + staffClause + `
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.JobOutcomeSummaryId)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobOutcomeSummaryId}, staffArgs...)...)
 
 	summary, err := scanJobOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {
@@ -381,6 +400,11 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 		return nil, fmt.Errorf("job ID is required")
 	}
 
+	// Staff row-scope (Phase 4): the latest summary for a job is visible to a
+	// STAFF principal only if it issued it ($2). Fail-closed → empty result
+	// (sql.ErrNoRows path) otherwise. Non-staff → empty clause.
+	staffClause, staffArgs := staffScopeClause(ctx, "jos.issued_by", 2)
+
 	query := `
 		SELECT
 			jos.id, jos.job_id, jos.summary_type, jos.overall_determination,
@@ -391,12 +415,12 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 			jos.supersedes_id, jos.attachment_ids, jos.active,
 			jos.date_created, jos.date_modified
 		FROM job_outcome_summary jos
-		WHERE jos.job_id = $1 AND jos.active = true
+		WHERE jos.job_id = $1 AND jos.active = true` + staffClause + `
 		ORDER BY jos.date_created DESC
 		LIMIT 1
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.JobId)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
 
 	summary, err := scanJobOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {

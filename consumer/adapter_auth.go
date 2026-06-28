@@ -5,10 +5,11 @@ import (
 	"fmt"
 
 	serviceauthuc "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
-	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/ports"
+	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 	svcauthpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
+	pyezarender "github.com/erniealice/pyeza-golang/render"
 )
 
 // authProviderOperations is an alias for ports.AuthProvider so the consumer
@@ -353,6 +354,11 @@ func (a *AuthAdapter) ExecutePasswordReset(ctx context.Context, token, newPasswo
 // authenticated by ID-token verification, with no DB password) still gets a
 // real opaque session row in the SAME `session` table, created/validated/
 // invalidated through the espyna application use cases.
+//
+// It is ALSO the generic accessor for the provider-agnostic session use cases
+// that have no databaseAuthOperations equivalent at all (e.g.
+// LookupSessionPrincipal, which reads the shared session row for EVERY
+// provider including password) — those callers consult it unconditionally.
 func (a *AuthAdapter) sessionFallbackUC() *serviceauthuc.UseCases {
 	if a.container == nil {
 		return nil
@@ -522,6 +528,39 @@ func (a *AuthAdapter) ResolveSessionIdentity(ctx context.Context, token string) 
 		WorkspaceID:     wsID,
 		WorkspaceUserID: wsUserID,
 	}, nil
+}
+
+// LookupSessionPrincipal resolves the session row's ACTIVE binding (kind,
+// principal_id, acting_as_*) for the given token. Provider-AGNOSTIC: the
+// service-auth LookupSessionPrincipal use case reads the shared `session`
+// table via its PrincipalResolver adapter, so it works identically for the
+// password and firebase providers (unlike the databaseAuthOperations branch,
+// which only the password adapter implements).
+//
+// Returns a ZERO SessionPrincipal (UNSPECIFIED kind, empty IDs) on any
+// miss/error — the same fail-closed "no hint" sentinel the workspace-path
+// PrincipalLookup and the view-adapter SetPrincipalLookup already treat as
+// "no resolved binding". The session middleware stamps this onto the
+// RequestIdentity via identity.WithSessionBinding so the Layer-4 RBAC backstop
+// can scope to the active binding instead of unioning across all bindings.
+func (a *AuthAdapter) LookupSessionPrincipal(ctx context.Context, token string) SessionPrincipal {
+	if token == "" {
+		return SessionPrincipal{}
+	}
+	uc := a.sessionFallbackUC()
+	if uc == nil || uc.LookupSessionPrincipal == nil {
+		return SessionPrincipal{}
+	}
+	resp, err := uc.LookupSessionPrincipal.Execute(ctx, &svcauthpb.LookupSessionPrincipalRequest{Token: token})
+	if err != nil || resp == nil {
+		return SessionPrincipal{}
+	}
+	return SessionPrincipal{
+		Kind:               pyezarender.PrincipalType(resp.GetKind()),
+		PrincipalID:        resp.GetPrincipalId(),
+		ActingAsClientID:   resp.GetActingAsClientId(),
+		ActingAsSupplierID: resp.GetActingAsSupplierId(),
+	}
 }
 
 // --- Re-export error codes for consumer convenience ---

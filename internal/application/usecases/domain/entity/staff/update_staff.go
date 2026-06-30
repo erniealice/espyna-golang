@@ -9,8 +9,6 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	"github.com/erniealice/espyna-golang/shared/identity"
-	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 )
 
@@ -80,36 +78,11 @@ func (uc *UpdateStaffUseCase) Execute(ctx context.Context, req *staffpb.UpdateSt
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "staff.validation.id_required", "Staff ID is required [DEFAULT]"))
 	}
 
-	// Self-escalation guard (defense-in-depth).
-	//
-	// A STAFF principal (PRINCIPAL_TYPE_STAFF = 7) must NOT be able to mutate
-	// their own staff.role_id. role_id is the sole permission source for the
-	// staff principal kind (userRolesStaffCTE); self-mutation would allow any
-	// staff user holding the staff:update permission to grant themselves an
-	// arbitrarily powerful role without administrator approval.
-	//
-	// Three-condition conjunction — all three must be true to reject:
-	//   (1) actor is a STAFF principal       → other principal kinds do not have a
-	//       corresponding staff row as their anchor
-	//   (2) target staff row == actor's own  → an admin updating a DIFFERENT staff
-	//       member's role is permitted
-	//   (3) request carries a role_id change → non-role self-updates (status,
-	//       seniority, employment_type, …) are NOT blocked
-	//
-	// Uses identity.FromContext (not Must) so that non-HTTP callers (seeder,
-	// internal migration tooling) that have no RequestIdentity on the context
-	// bypass the guard safely — they are never STAFF principals.
-	if actorID, ok := identity.FromContext(ctx); ok &&
-		actorID.PrincipalType == int32(principaltypepb.PrincipalType_PRINCIPAL_TYPE_STAFF) &&
-		actorID.PrincipalID == req.Data.Id &&
-		req.Data.RoleId != nil {
-		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
-			ctx,
-			uc.services.Translator,
-			"staff.validation.self_role_elevation_denied",
-			"Staff cannot change their own role [DEFAULT]",
-		))
-	}
+	// NOTE: the former staff.role_id self-escalation guard was removed with
+	// Option E (2026-06-30) — staff.role_id no longer exists. The equivalent
+	// escalation surface is now self-granting a workspace_user_role or editing a
+	// permission/role's applicable_principal_types; guard those in their own
+	// use cases (follow-up).
 
 	// Business logic validation
 	if req.Data.User != nil && req.Data.User.EmailAddress == "" {

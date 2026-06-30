@@ -197,8 +197,8 @@ func (a *PrincipalResolverAdapter) ResolvePrincipals(
 	// ─── 3b. Staff → PRINCIPAL_TYPE_STAFF ───────────────────────────────────
 	// The staff ENTITY is the operational-delivery identity (anchor = staff.id;
 	// job_task.assigned_to / task_outcome.recorded_by reference it). A staff row
-	// is a switchable principal ONLY when it carries a role_id (its delivery
-	// capability); role-less staff rows are HR records, not principals.
+	// is a switchable principal whenever active (Option E, 2026-06-30 — role
+	// narrowing via workspace_user_role + the permission-kind filter, not role_id).
 	{
 		const q = `
 			SELECT
@@ -209,7 +209,6 @@ func (a *PrincipalResolverAdapter) ResolvePrincipals(
 			LEFT JOIN workspace w ON w.id = s.workspace_id AND w.active = true
 			WHERE s.user_id = $1
 				AND s.active = true
-				AND s.role_id IS NOT NULL
 			ORDER BY workspace_name ASC, s.id ASC
 		`
 		rows, err := db.QueryContext(ctx, q, userID)
@@ -571,7 +570,6 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 			WHERE s.user_id = $1
 				AND s.workspace_id = $2
 				AND s.active = true
-				AND s.role_id IS NOT NULL
 			ORDER BY COALESCE(w.name, ''), s.id
 		`
 		rows, err := db.QueryContext(ctx, q, userID, workspaceID)

@@ -143,6 +143,37 @@ const permissionSelect = `
 	  )
 `
 
+// permissionSelectForKind is permissionSelect with the active principal kind's
+// applicable_principal_types membership test inlined (Option E, 2026-06-30). Used
+// only for the STAFF (7) path — the staff narrowing boundary. The kind is a
+// trusted int32 from the binding switch (never user input), inlined via
+// fmt.Sprintf(%d). MySQL stores applicable_principal_types as a JSON array;
+// JSON_CONTAINS(doc, '7') tests integer membership. Fail-closed: a staff session
+// sees only permissions tagged {7}. (If a MySQL deployment's permission table
+// lacks the column, the query errors → zero perms → still fail-closed.)
+func permissionSelectForKind(kind int32) string {
+	return fmt.Sprintf(`
+	SELECT DISTINCT p.permission_code
+	FROM permission p
+	JOIN role_permission rp ON rp.permission_id = p.id
+	JOIN user_roles ur ON ur.role_id = rp.role_id
+	WHERE rp.permission_type = 'PERMISSION_TYPE_ALLOW'
+	  AND p.active = 1
+	  AND rp.active = 1
+	  AND JSON_CONTAINS(COALESCE(p.applicable_principal_types, JSON_ARRAY()), '%d')
+	  AND p.permission_code NOT IN (
+	      SELECT p2.permission_code
+	      FROM permission p2
+	      JOIN role_permission rp2 ON rp2.permission_id = p2.id
+	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
+	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
+	        AND p2.active = 1
+	        AND rp2.active = 1
+	        AND JSON_CONTAINS(COALESCE(p2.applicable_principal_types, JSON_ARRAY()), '%d')
+	  )
+`, kind, kind)
+}
+
 // Per-binding user_roles CTEs — each is a SINGLE grant-chain SELECT.
 // Parameter convention: ? = userID, ? = workspaceID, ? = bindingID
 // (and ? = actingAsClientID / actingAsSupplierID for delegate kinds).
@@ -222,20 +253,24 @@ const userRolesSupplierDelegateCTE = `
 	)
 `
 
-// userRolesStaffCTE — PRINCIPAL_TYPE_STAFF (7). The role grant lives on the
-// staff anchor row itself (staff.role_id), mirroring client_portal_grant.role_id.
-// staff.id = ? is the binding; role_id IS NOT NULL means a staff row with no
-// assigned role resolves to ZERO permissions (fail-closed by construction).
-// Args: bindingID, userID, workspaceID (matching the client CTE's ? order).
+// userRolesStaffCTE — PRINCIPAL_TYPE_STAFF (7). Option E (2026-06-30): roles come
+// from workspace_user_role via the staff user's workspace_user record (the same
+// M:N table as OPERATOR_*), NOT a staff.role_id column. Narrowing is at the
+// permission grain (permissionSelectForKind). Args: bindingID, userID,
+// workspaceID (? order matches the client CTE).
 const userRolesStaffCTE = `
 	WITH user_roles AS (
-		SELECT s.role_id
+		SELECT wur.role_id
 		FROM staff s
+		JOIN workspace_user wu ON wu.user_id = s.user_id AND wu.workspace_id = s.workspace_id
+		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
 		WHERE s.id = ?
 		  AND s.user_id = ?
 		  AND s.workspace_id = ?
 		  AND s.active = 1
-		  AND s.role_id IS NOT NULL
+		  AND wu.active = 1
+		  AND wur.active = 1
+		  AND wur.role_id IS NOT NULL
 	)
 `
 
@@ -339,8 +374,9 @@ func buildPermissionQuerySQL(
 			[]any{bindingID, userID, workspaceID},
 			true
 	case principalTypeStaff:
-		// CTE arg order: bindingID, userID, workspaceID (mirrors client CTE pattern)
-		return userRolesStaffCTE + permissionSelect,
+		// CTE arg order: bindingID, userID, workspaceID (mirrors client CTE pattern).
+		// Option E: permissionSelectForKind narrows to {7}-tagged permissions.
+		return userRolesStaffCTE + permissionSelectForKind(bindingKind),
 			[]any{bindingID, userID, workspaceID},
 			true
 	case principalTypeClientDelegate:

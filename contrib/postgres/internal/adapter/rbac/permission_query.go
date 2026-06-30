@@ -153,9 +153,10 @@ const userRolesUnionCTE = `
 	)
 `
 
-// permissionSelect is the ALLOW-with-DENY-wins predicate that every
-// binding chain feeds. It's appended after the per-binding user_roles
-// CTE block.
+// permissionSelect is the ALLOW-with-DENY-wins predicate. Retained for the
+// legacy union path only (the exact (0,"") zero-pair in buildPermissionQuerySQL,
+// which carries no active binding kind). Every per-binding path uses
+// permissionSelectForKind instead.
 const permissionSelect = `
 	SELECT DISTINCT p.permission_code
 	FROM permission p
@@ -174,6 +175,43 @@ const permissionSelect = `
 	        AND rp2.active = true
 	  )
 `
+
+// permissionSelectForKind is permissionSelect with the active principal kind
+// inlined as a literal predicate on p.applicable_principal_types (a PostgreSQL
+// integer[] column). The kind is a trusted int32 from the binding switch —
+// never user input — so fmt.Sprintf(%d) is injection-safe.
+//
+// This is the LOAD-BEARING narrowing boundary (Option E, locked 2026-06-30):
+// the staff persona's perms = its roles' perms ∩ {perms tagged with the kind}.
+// Currently invoked ONLY for the staff (7) binding — operator/client/supplier/
+// delegate keep the unfiltered permissionSelect, so admin is NOT filtered here.
+// (Were it applied to admin it would be a no-op: every permission carries {1,2}.)
+// Fail-closed for staff (7): `7 = ANY({1,2})` is false for every untagged
+// permission, so a staff session sees ONLY permissions explicitly tagged {7}
+// — independent of which roles the staff user holds. The DENY subquery applies
+// the same kind-filter symmetrically.
+func permissionSelectForKind(kind int32) string {
+	return fmt.Sprintf(`
+	SELECT DISTINCT p.permission_code
+	FROM permission p
+	JOIN role_permission rp ON rp.permission_id = p.id
+	JOIN user_roles ur ON ur.role_id = rp.role_id
+	WHERE rp.permission_type = 'PERMISSION_TYPE_ALLOW'
+	  AND p.active = true
+	  AND rp.active = true
+	  AND %d = ANY(p.applicable_principal_types)
+	  AND p.permission_code NOT IN (
+	      SELECT p2.permission_code
+	      FROM permission p2
+	      JOIN role_permission rp2 ON rp2.permission_id = p2.id
+	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
+	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
+	        AND p2.active = true
+	        AND rp2.active = true
+	        AND %d = ANY(p2.applicable_principal_types)
+	  )
+`, kind, kind)
+}
 
 // Per-binding user_roles CTEs — each is a SINGLE grant-chain SELECT with
 // no UNIONs, so the user only sees the permissions of the binding the
@@ -258,20 +296,32 @@ const userRolesSupplierDelegateCTE = `
 	)
 `
 
-// userRolesStaffCTE — PRINCIPAL_TYPE_STAFF (7). The role grant lives on the
-// staff anchor row itself (staff.role_id), mirroring client_portal_grant.role_id.
-// staff.id = $3 is the binding; role_id IS NOT NULL means a staff row with no
-// assigned role resolves to ZERO permissions (an HR record, not a switchable
-// principal) — fail-closed by construction.
+// userRolesStaffCTE — PRINCIPAL_TYPE_STAFF (7). Roles are sourced from
+// workspace_user_role via the staff user's workspace_user record (Option E,
+// locked 2026-06-30). Staff is an internal workspace_user facet — its roles
+// come from the same M:N table as admin (multi-role), NOT from a single
+// staff.role_id column.
+//
+// Security boundary: this CTE carries NO applicable_principal_types filter
+// (no role-level narrowing). The fail-closed narrowing is entirely in
+// permissionSelectForKind: `7 = ANY(p.applicable_principal_types)`. A staff
+// principal can never see a permission unless that specific permission row is
+// tagged {7} in the catalog — independent of role assignment.
+//
+// wu.active + wur.active guards match the userRolesOperatorCTE pattern.
 const userRolesStaffCTE = `
 	WITH user_roles AS (
-		SELECT s.role_id
+		SELECT wur.role_id
 		FROM staff s
+		JOIN workspace_user wu ON wu.user_id = s.user_id AND wu.workspace_id = s.workspace_id
+		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
 		WHERE s.id = $3
 		  AND s.user_id = $1
 		  AND s.workspace_id = $2
 		  AND s.active = true
-		  AND s.role_id IS NOT NULL
+		  AND wu.active = true
+		  AND wur.active = true
+		  AND wur.role_id IS NOT NULL
 	)
 `
 
@@ -390,7 +440,13 @@ func buildPermissionQuerySQL(
 			[]any{userID, workspaceID, bindingID},
 			true
 	case principalTypeStaff:
-		return userRolesStaffCTE + permissionSelect,
+		// Option E (2026-06-30): the staff persona narrows at the PERMISSION grain
+		// via permissionSelectForKind — only permissions tagged {7} in
+		// applicable_principal_types pass (fail-closed). The other kinds stay on
+		// the unfiltered permissionSelect: every permission is tagged {1,2} today,
+		// so filtering client(3)/supplier(5)/delegate(4,6) would zero them out.
+		// They opt in to the kind-filter once their own tags exist.
+		return userRolesStaffCTE + permissionSelectForKind(bindingKind),
 			[]any{userID, workspaceID, bindingID},
 			true
 	case principalTypeClientDelegate:

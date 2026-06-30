@@ -601,13 +601,13 @@ func lockTargetBinding(
 	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_STAFF:
 		// tgt.PrincipalID == staff.id (NOT workspace_user.id — do NOT conflate;
 		// staff is its own anchor). Lock the staff row: workspace_id pins it to
-		// the workspace being switched into, and role_id IS NOT NULL enforces
-		// that only a role-bearing staff row is a switchable principal (an
-		// HR-only row fails closed here → ErrNoRows → rotation aborts).
+		// the workspace being switched into. Any active staff row is switchable
+		// (Option E, 2026-06-30 — role narrowing via workspace_user_role + the
+		// permission-kind filter); a missing/inactive row fails closed → ErrNoRows.
 		query = `
 			SELECT id FROM staff
 			WHERE id = $1 AND user_id = $2 AND workspace_id = $3
-			  AND active = true AND role_id IS NOT NULL
+			  AND active = true
 			LIMIT 1
 			FOR UPDATE
 		`

@@ -12,3 +12,7 @@ playwright-report/
 test-results/
 # Prevent accidental nested clone
 espyna-golang/
+
+# Secrets — untracked 2026-06-30 (keep local, never commit).
+# NOTE: prior commits still contain .env in history — rotate exposed secrets.
+.env

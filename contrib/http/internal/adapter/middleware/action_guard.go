@@ -101,6 +101,12 @@ func SecretFromEnv(getenv func(string) string) string {
 		return v
 	}
 	if v := getenv(EnvKeyFallbackHMAC); v != "" {
+		// SEC-021: the dedicated key is unset, so ONE secret (the reset-token secret)
+		// guards ActionGuard HMAC + CSRF cookies + reset-token integrity. Set a distinct
+		// SECURITY_WORKSPACEFORM_HMAC_KEY. TODO: make this fallback boot-fatal in
+		// production once the secrets are rotated (SEC-003) and the dedicated key is set
+		// in all envs — unconditional removal would brick boot today (the key is unset).
+		log.Printf("[SECURITY][SEC-021] %s unset — falling back to %s for workspace-form HMAC; set a dedicated key.", EnvKeyWorkspaceFormHMAC, EnvKeyFallbackHMAC)
 		return v
 	}
 	return ""

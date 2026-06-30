@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/composition/providers"
 
@@ -1257,7 +1258,23 @@ func (uci *UseCaseInitializer) resolvePermissionQuery() securityports.Permission
 // flip of AllowAllAuthService to //go:build mock_auth is deferred to audit
 // Wave-0.1 (OD-5 / R4) after the NewAllowAllAuth-caller audit.
 func allowAllFallbackPermitted() bool {
-	return os.Getenv("CONFIG_AUTH_PROVIDER") == "mock"
+	if os.Getenv("CONFIG_AUTH_PROVIDER") != "mock" {
+		return false
+	}
+	// Hardening (2026-06-30): even with CONFIG_AUTH_PROVIDER=mock, NEVER permit the
+	// AllowAll authorization fallback against a non-local database. A stray "mock"
+	// setting in a production env then fails CLOSED (boot-fail) instead of silently
+	// granting every caller superadmin. Mirrors the mock_auth build-tag guard (SEC-039).
+	host := strings.ToLower(strings.TrimSpace(os.Getenv("DATABASE_POSTGRES_HOST")))
+	if host == "" {
+		host = strings.ToLower(strings.TrimSpace(os.Getenv("POSTGRES_HOST")))
+	}
+	switch host {
+	case "", "localhost", "127.0.0.1", "::1", "host.docker.internal":
+		return true
+	default:
+		return false
+	}
 }
 
 // initializeIntegrationUseCases initializes integration use cases (email, payment, scheduler providers)

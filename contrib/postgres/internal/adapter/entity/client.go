@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	principalscope "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -133,6 +134,28 @@ func (r *PostgresClientRepository) CreateClient(ctx context.Context, req *client
 func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb.ReadClientRequest) (*clientpb.ReadClientResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("client ID is required")
+	}
+
+	// Staff row-scope: a STAFF principal may only read clients (students) it serves
+	// via the delivery graph. Checked BEFORE the read so an out-of-scope client is
+	// indistinguishable from a missing one (and is never fetched). Non-staff: no-op.
+	if staffID, applies := principalscope.StaffRowScope(ctx); applies {
+		if staffID == "" {
+			return nil, fmt.Errorf("client with ID '%s' not found", req.Data.Id)
+		}
+		exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+		reachRows, qErr := exec.QueryContext(ctx, principalscope.StaffReachableClientExistsSQL(), staffID, req.Data.Id)
+		if qErr != nil {
+			return nil, fmt.Errorf("staff client reachability check: %w", qErr)
+		}
+		reachable := false
+		if reachRows.Next() {
+			_ = reachRows.Scan(&reachable)
+		}
+		_ = reachRows.Close()
+		if !reachable {
+			return nil, fmt.Errorf("client with ID '%s' not found", req.Data.Id)
+		}
 	}
 
 	// Canonical Read — round-trip through protojson DiscardUnknown so every
@@ -454,6 +477,14 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
 	queryArgs = append(queryArgs, limit, offset)
+
+	// Row-scope to the active STAFF principal's own clients (the students of the
+	// jobs they teach/grade). Non-staff principals: no-op. The staff.id bind is
+	// appended AFTER limit/offset so $limitIdx/$offsetIdx above stay correct
+	// (placeholders are positional, independent of SQL clause order).
+	clientScope, clientScopeArgs := principalscope.StaffReachableClientClause(ctx, "c", offsetIdx+1)
+	whereSQL += clientScope
+	queryArgs = append(queryArgs, clientScopeArgs...)
 
 	// CTE query — single round-trip with:
 	//   • User denorm via LEFT JOIN "user" u
@@ -863,6 +894,11 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 		limit = *req.Limit
 	}
 
+	// SEC-006: scope to the caller's workspace ($3) — without it this autocomplete
+	// leaked client names across ALL tenants. Plus the staff row-scope ($4) so a
+	// teacher persona only autocompletes its own students.
+	workspaceID := identity.Must(ctx).WorkspaceID
+	clientScope, clientScopeArgs := principalscope.StaffReachableClientClause(ctx, "c", 4)
 	query := `
 		SELECT
 			c.id,
@@ -873,11 +909,12 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 			) AS label
 		FROM client c
 		LEFT JOIN "user" u ON c.user_id = u.id
-		WHERE c.active = true
+		WHERE c.workspace_id = $3
+			AND c.active = true
 			AND ($1::text = '' OR
 				c.name ILIKE $1 OR
 				u.first_name ILIKE $1 OR
-				u.last_name ILIKE $1)
+				u.last_name ILIKE $1)` + clientScope + `
 		ORDER BY label ASC
 		LIMIT $2
 	`
@@ -887,8 +924,10 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 		pattern = "%" + req.Query + "%"
 	}
 
+	queryArgs := []any{pattern, limit, workspaceID}
+	queryArgs = append(queryArgs, clientScopeArgs...)
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, pattern, limit)
+	rows, err := exec.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search clients by name: %w", err)
 	}

@@ -51,7 +51,7 @@ func (r *PostgresScoringComponentRepository) CreateScoringComponent(ctx context.
 	if req.Data == nil {
 		return nil, fmt.Errorf("scoring component data is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (r *PostgresScoringComponentRepository) UpdateScoringComponent(ctx context.
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("scoring component ID is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -105,7 +106,7 @@ func (r *PostgresEvaluationCycleMemberRepository) ReadEvaluationCycleMember(ctx 
 	// so guard post-read — a STAFF principal may only read a cycle-member row
 	// whose subject_staff_id is itself. Fail-closed → not-found on an empty
 	// session staff.id or a row about another staff. Non-staff unaffected.
-	if staffID, ok := staffRowScope(ctx); ok {
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		if staffID == "" || e.SubjectStaffId != staffID {
 			return nil, fmt.Errorf("evaluation cycle member not found")
 		}
@@ -193,7 +194,7 @@ func (r *PostgresEvaluationCycleMemberRepository) GetEvaluationCycleMemberListPa
 	// Staff row-scope (Phase 4): a STAFF principal sees only the cycle-member
 	// rows whose subject_staff_id is itself ($4). Additive to the workspace ($3)
 	// gate. Non-staff → empty clause; empty session staff.id → fail-closed.
-	staffClause, staffArgs := staffScopeClause(ctx, "subject_staff_id", 4)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "subject_staff_id", 4)
 	query := `SELECT ` + evaluationCycleMemberSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE active = true AND ($3::text = '' OR workspace_id = $3::text)` + staffClause + ` ` + orderBy + ` LIMIT $1 OFFSET $2;`
@@ -224,7 +225,7 @@ func (r *PostgresEvaluationCycleMemberRepository) GetEvaluationCycleMemberItemPa
 	wsID := identity.Must(ctx).WorkspaceID
 	// Staff row-scope (Phase 4): additive subject_staff_id gate ($3). Non-staff
 	// → empty clause; staff with empty staff.id → fail-closed (not-found).
-	staffClause, staffArgs := staffScopeClause(ctx, "subject_staff_id", 3)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "subject_staff_id", 3)
 	query := `SELECT ` + evaluationCycleMemberSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)` + staffClause

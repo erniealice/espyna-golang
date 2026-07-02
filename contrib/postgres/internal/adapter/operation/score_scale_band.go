@@ -51,7 +51,7 @@ func (r *PostgresScoreScaleBandRepository) CreateScoreScaleBand(ctx context.Cont
 	if req.Data == nil {
 		return nil, fmt.Errorf("score scale band data is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (r *PostgresScoreScaleBandRepository) UpdateScoreScaleBand(ctx context.Cont
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("score scale band ID is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}

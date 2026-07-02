@@ -52,7 +52,7 @@ func (r *PostgresScoreScaleRepository) CreateScoreScale(ctx context.Context, req
 	if req.Data == nil {
 		return nil, fmt.Errorf("score scale data is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (r *PostgresScoreScaleRepository) UpdateScoreScale(ctx context.Context, req
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("score scale ID is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}

@@ -51,7 +51,7 @@ func (r *PostgresReportingCheckpointRepository) CreateReportingCheckpoint(ctx co
 	if req.Data == nil {
 		return nil, fmt.Errorf("reporting checkpoint data is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (r *PostgresReportingCheckpointRepository) UpdateReportingCheckpoint(ctx co
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("reporting checkpoint ID is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}

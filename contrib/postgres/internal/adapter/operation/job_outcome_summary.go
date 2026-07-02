@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"log"
 	"time"
 
@@ -123,7 +124,7 @@ func (r *PostgresJobOutcomeSummaryRepository) ReadJobOutcomeSummary(ctx context.
 	// so guard post-read — a STAFF principal may only read a summary it issued
 	// (issued_by). Fail-closed → not-found on an empty session staff.id or a
 	// summary issued by another staff member. Non-staff principals unaffected.
-	if staffID, ok := staffRowScope(ctx); ok {
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		if staffID == "" || summary.IssuedBy != staffID {
 			return nil, fmt.Errorf("job outcome summary with ID '%s' not found", req.Data.Id)
 		}
@@ -283,7 +284,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 	// Staff row-scope (Phase 4): a STAFF principal sees only summaries it issued
 	// ($4, session-derived). Predicate lives inside the enriched CTE so the
 	// counted total matches the scoped set. Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "jos.issued_by", 4)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 4)
 
 	query := `
 		WITH enriched AS (
@@ -360,7 +361,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryItemPageData(
 
 	// Staff row-scope (Phase 4): a STAFF principal may only read a summary it
 	// issued ($2). Fail-closed → not-found otherwise. Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "jos.issued_by", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 2)
 
 	query := `
 		SELECT
@@ -403,7 +404,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 	// Staff row-scope (Phase 4): the latest summary for a job is visible to a
 	// STAFF principal only if it issued it ($2). Fail-closed → empty result
 	// (sql.ErrNoRows path) otherwise. Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "jos.issued_by", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 2)
 
 	query := `
 		SELECT

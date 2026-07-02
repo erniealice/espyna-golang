@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"strings"
 	"time"
 
@@ -156,7 +157,7 @@ func (r *PostgresEvaluationRepository) ReadEvaluation(ctx context.Context, req *
 	// subject staff_id is itself. Fail-closed → not-found on an empty session
 	// staff.id or a row about another (or no) staff. Non-staff principals keep
 	// the existing workspace/client scoping (dbOps + the list/item gates).
-	if staffID, ok := staffRowScope(ctx); ok {
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		if staffID == "" || e.StaffId == nil || *e.StaffId != staffID {
 			return nil, fmt.Errorf("evaluation not found")
 		}
@@ -209,7 +210,7 @@ func (r *PostgresEvaluationRepository) ListEvaluations(ctx context.Context, req 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list evaluations: %w", err)
 	}
-	staffID, staffScoped := staffRowScope(ctx)
+	staffID, staffScoped := principalscope.StaffRowScope(ctx)
 	var items []*pb.Evaluation
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
@@ -280,7 +281,7 @@ func (r *PostgresEvaluationRepository) GetEvaluationListPageData(ctx context.Con
 	// existing workspace ($4) and acting-as-client ($5) gates. Non-staff → empty
 	// clause (unchanged). A staff caller has empty acting_as, so the $5 client
 	// gate stays inert and only the $6 staff gate applies.
-	staffClause, staffArgs := staffScopeClause(ctx, "staff_id", 6)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "staff_id", 6)
 
 	// $5 = acting_as_client_id. When set, scope client_id AND fail-closed on
 	// internal_only visibility. When empty (staff), no client/visibility gate.
@@ -322,7 +323,7 @@ func (r *PostgresEvaluationRepository) GetEvaluationItemPageData(ctx context.Con
 	actingClient := identity.Must(ctx).ActingAsClientID
 	// Staff row-scope (Phase 4): additive subject-staff_id gate ($4). Non-staff
 	// → empty clause; staff with empty staff.id → fail-closed (not-found).
-	staffClause, staffArgs := staffScopeClause(ctx, "staff_id", 4)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "staff_id", 4)
 	query := `SELECT ` + evaluationSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE id = $1 AND active = true
@@ -356,7 +357,7 @@ func (r *PostgresEvaluationRepository) GetLatestEvaluationScore(ctx context.Cont
 	// rating even if the caller passes a wider set. Intersects with the ANY($1)
 	// filter: a staff asking for others gets nothing. Non-staff (admin) → empty
 	// clause (unchanged batched read). Empty session staff.id → fail-closed.
-	staffClause, staffArgs := staffScopeClause(ctx, "staff_id", 3)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "staff_id", 3)
 	// DISTINCT ON (staff_id) keeps the first row per staff after the
 	// deterministic ORDER BY — i.e. the latest scored evaluation.
 	query := `SELECT DISTINCT ON (staff_id) staff_id, overall_score

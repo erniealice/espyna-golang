@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"log"
 	"time"
 
@@ -146,7 +147,7 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 	// so guard post-read — a STAFF principal may only read an outcome it
 	// recorded_by OR reviewed_by. Fail-closed → not-found on an empty session
 	// staff.id or a row it neither recorded nor reviewed. Non-staff unaffected.
-	if staffID, ok := staffRowScope(ctx); ok {
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		owns := staffID != "" && (outcome.RecordedBy == staffID ||
 			(outcome.ReviewedBy != nil && *outcome.ReviewedBy == staffID))
 		if !owns {
@@ -312,7 +313,7 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 	// recorded_by OR reviewed_by ($4, session-derived). Predicate lives inside
 	// the enriched CTE so the counted total matches the scoped set. Non-staff →
 	// empty clause (unchanged).
-	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 4)
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 4)
 
 	query := `
 		WITH enriched AS (
@@ -389,7 +390,7 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeItemPageData(
 
 	// Staff row-scope (Phase 4): a STAFF principal may only read an outcome it
 	// recorded_by OR reviewed_by ($2). Fail-closed → not-found otherwise.
-	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
 
 	query := `
 		SELECT
@@ -431,7 +432,7 @@ func (r *PostgresTaskOutcomeRepository) ListByJobTask(
 
 	// Staff row-scope (Phase 4): within a task a STAFF principal sees only the
 	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
 
 	query := `
 		SELECT
@@ -475,7 +476,7 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 
 	// Staff row-scope (Phase 4): within a phase a STAFF principal sees only the
 	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
 
 	query := `
 		SELECT
@@ -528,7 +529,7 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 
 	// Staff row-scope (Phase 4): within a job a STAFF principal sees only the
 	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
 
 	query := `
 		SELECT

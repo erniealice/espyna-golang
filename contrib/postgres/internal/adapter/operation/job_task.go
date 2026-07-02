@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"log"
 	"time"
 
@@ -123,7 +124,7 @@ func (r *PostgresJobTaskRepository) ReadJobTask(ctx context.Context, req *pb.Rea
 	// job_task assigned to itself. Fail-closed: empty session staff.id, or a row
 	// with no/other assignee, is treated as not-found. Non-staff principals are
 	// unaffected (workspace scoping already applied by dbOps).
-	if staffID, ok := staffRowScope(ctx); ok {
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		if staffID == "" || task.AssignedTo == nil || *task.AssignedTo != staffID {
 			return nil, fmt.Errorf("job task with ID '%s' not found", req.Data.Id)
 		}
@@ -202,7 +203,7 @@ func (r *PostgresJobTaskRepository) ListJobTasks(ctx context.Context, req *pb.Li
 		return nil, fmt.Errorf("failed to list job tasks: %w", err)
 	}
 
-	staffID, staffScoped := staffRowScope(ctx)
+	staffID, staffScoped := principalscope.StaffRowScope(ctx)
 	var tasks []*pb.JobTask
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
@@ -279,7 +280,7 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 	// itself ($4, from the session — never a request param). Non-staff principals
 	// get the empty clause (unchanged). The predicate lives inside the enriched
 	// CTE so the counted total reflects the scoped set.
-	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 4)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jt.assigned_to", 4)
 
 	query := `
 		WITH enriched AS (
@@ -427,7 +428,7 @@ func (r *PostgresJobTaskRepository) GetJobTaskItemPageData(
 	// Staff row-scope (Phase 4): a STAFF principal may only read a job_task
 	// assigned to itself ($2, from the session). Fail-closed → not-found on a
 	// foreign or unassigned row. Non-staff principals get the empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jt.assigned_to", 2)
 
 	query := `
 		SELECT
@@ -526,7 +527,7 @@ func (r *PostgresJobTaskRepository) ListByPhase(
 
 	// Staff row-scope (Phase 4): within a phase a STAFF principal sees only the
 	// tasks assigned to itself ($2, session-derived). Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jt.assigned_to", 2)
 
 	query := `
 		SELECT
@@ -638,7 +639,7 @@ func (r *PostgresJobTaskRepository) ListByAssignee(
 	// param, so a STAFF principal must additionally be pinned to its own
 	// session staff.id ($2). The two predicates intersect: a staff asking for
 	// another staff's tasks gets zero rows. Non-staff principals are unchanged.
-	staffClause, staffArgs := staffScopeClause(ctx, "jt.assigned_to", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jt.assigned_to", 2)
 
 	query := `
 		SELECT

@@ -12,12 +12,13 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	principalscope "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
@@ -122,6 +123,22 @@ func (r *PostgresJobRepository) CreateJob(ctx context.Context, req *pb.CreateJob
 func (r *PostgresJobRepository) ReadJob(ctx context.Context, req *pb.ReadJobRequest) (*pb.ReadJobResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("job ID is required")
+	}
+
+	// Staff row-scope: a STAFF principal may only read jobs it teaches/grades via
+	// the delivery graph. Checked BEFORE the read so an out-of-scope job is
+	// indistinguishable from a missing one. Non-staff: no-op.
+	if staffID, applies := principalscope.StaffRowScope(ctx); applies {
+		if staffID == "" {
+			return nil, fmt.Errorf("job with ID '%s' not found", req.Data.Id)
+		}
+		var reachable bool
+		if err := r.db.QueryRowContext(ctx, principalscope.StaffReachableJobExistsSQL(), staffID, req.Data.Id).Scan(&reachable); err != nil {
+			return nil, fmt.Errorf("staff job reachability check: %w", err)
+		}
+		if !reachable {
+			return nil, fmt.Errorf("job with ID '%s' not found", req.Data.Id)
+		}
 	}
 
 	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
@@ -272,6 +289,12 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		return nil, err
 	}
 
+	// Row-scope to the active STAFF principal's own jobs (the jobs it teaches/grades).
+	// Non-staff principals: no-op. The staff.id bind is appended AFTER the existing
+	// workspace/search/limit/offset args ($1-$4) so $5 lines up; placeholders are
+	// positional, independent of SQL clause order.
+	jobScope, jobScopeArgs := principalscope.StaffReachableJobClause(ctx, "j", 5)
+
 	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
@@ -301,7 +324,7 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			WHERE j.active = true
 			  AND ($1 = '' OR j.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
-			       j.name ILIKE $2)
+			       j.name ILIKE $2)%s
 		)
 		SELECT
 			e.*,
@@ -309,9 +332,11 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		FROM enriched e
 		%s
 		LIMIT $3 OFFSET $4;
-	`, orderByClause)
+	`, jobScope, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	args := []any{workspaceID, searchPattern, limit, offset}
+	args = append(args, jobScopeArgs...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job list page data: %w", err)
 	}
@@ -514,6 +539,11 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 	// identically). Empty wsID = service-to-service call → no scoping.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
+	// Row-scope to the active STAFF principal's own jobs. Non-staff: no-op. The
+	// staff.id bind is appended AFTER req.JobId ($1) and workspaceID ($2) so $3
+	// lines up (placeholders are positional, independent of clause order).
+	jobScope, jobScopeArgs := principalscope.StaffReachableJobClause(ctx, "j", 3)
+
 	query := `
 		SELECT
 			j.id,
@@ -541,9 +571,11 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 		FROM job j
 		WHERE j.id = $1 AND j.active = true
 		  AND ($2 = '' OR j.workspace_id = $2)
-	`
+	` + jobScope
 
-	row := r.db.QueryRowContext(ctx, query, req.JobId, workspaceID)
+	args := []any{req.JobId, workspaceID}
+	args = append(args, jobScopeArgs...)
+	row := r.db.QueryRowContext(ctx, query, args...)
 
 	var (
 		id               string
@@ -713,6 +745,12 @@ func (r *PostgresJobRepository) GetJobsByClient(
 	// service-to-service call → no scoping.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
+	// Row-scope to the active STAFF principal's own jobs. Non-staff: no-op. The
+	// staff.id bind is appended AFTER req.ClientId ($1) and workspaceID ($2) so
+	// $3 lines up. The table is aliased "j" so the clause can reference j.id;
+	// bare columns still resolve to the single table.
+	jobScope, jobScopeArgs := principalscope.StaffReachableJobClause(ctx, "j", 3)
+
 	query := fmt.Sprintf(`
 		SELECT id, date_created, date_modified, active, name,
 		       job_template_id, origin_type, origin_id, client_id,
@@ -720,13 +758,15 @@ func (r *PostgresJobRepository) GetJobsByClient(
 		       status, approval_status, posting_status, billing_status,
 		       location_id, created_by, parent_job_id,
 		       cycle_index, cycle_period_start, cycle_period_end
-		FROM %s
+		FROM %s j
 		WHERE client_id = $1 AND active = true
-		  AND ($2 = '' OR workspace_id = $2)
+		  AND ($2 = '' OR workspace_id = $2)%s
 		ORDER BY date_created DESC
-	`, r.tableName)
+	`, r.tableName, jobScope)
 
-	rows, err := r.db.QueryContext(ctx, query, req.ClientId, workspaceID)
+	args := []any{req.ClientId, workspaceID}
+	args = append(args, jobScopeArgs...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list jobs by client: %w", err)
 	}
@@ -759,6 +799,10 @@ func (r *PostgresJobRepository) GetJobsByOrigin(
 	// Empty wsID = service-to-service call → no scoping.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
+	// Staff row-scope ($4): a STAFF principal only sees origin-linked jobs it
+	// teaches/grades. Aliased FROM (%s j) so the clause's j.id resolves; bare
+	// columns still resolve to the single table. Non-staff: no-op.
+	jobScope, jobScopeArgs := principalscope.StaffReachableJobClause(ctx, "j", 4)
 	query := fmt.Sprintf(`
 		SELECT id, date_created, date_modified, active, name,
 		       job_template_id, origin_type, origin_id, client_id,
@@ -766,13 +810,15 @@ func (r *PostgresJobRepository) GetJobsByOrigin(
 		       status, approval_status, posting_status, billing_status,
 		       location_id, created_by, parent_job_id,
 		       cycle_index, cycle_period_start, cycle_period_end
-		FROM %s
+		FROM %s j
 		WHERE origin_type = $1 AND origin_id = $2 AND active = true
-		  AND ($3 = '' OR workspace_id = $3)
+		  AND ($3 = '' OR workspace_id = $3)%s
 		ORDER BY parent_job_id NULLS FIRST, date_created ASC
-	`, r.tableName)
+	`, r.tableName, jobScope)
 
-	rows, err := r.db.QueryContext(ctx, query, req.OriginType.String(), req.OriginId, workspaceID)
+	args := []any{req.OriginType.String(), req.OriginId, workspaceID}
+	args = append(args, jobScopeArgs...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list jobs by origin: %w", err)
 	}

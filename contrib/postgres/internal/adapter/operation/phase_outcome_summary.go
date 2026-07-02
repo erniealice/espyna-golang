@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"log"
 	"time"
 
@@ -123,7 +124,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ReadPhaseOutcomeSummary(ctx cont
 	// so guard post-read — a STAFF principal may only read a phase summary it
 	// issued (issued_by). Fail-closed → not-found on an empty session staff.id
 	// or a summary issued by another staff member. Non-staff unaffected.
-	if staffID, ok := staffRowScope(ctx); ok {
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		if staffID == "" || summary.IssuedBy != staffID {
 			return nil, fmt.Errorf("phase outcome summary with ID '%s' not found", req.Data.Id)
 		}
@@ -281,7 +282,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 	// Staff row-scope (Phase 4): a STAFF principal sees only phase summaries it
 	// issued ($4, session-derived). Predicate lives inside the enriched CTE so
 	// the counted total matches the scoped set. Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 4)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 4)
 
 	query := fmt.Sprintf(`
 		WITH enriched AS (
@@ -358,7 +359,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryItemPageDa
 
 	// Staff row-scope (Phase 4): a STAFF principal may only read a phase summary
 	// it issued ($2). Fail-closed → not-found otherwise. Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 2)
 
 	query := `
 		SELECT
@@ -398,7 +399,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 
 	// Staff row-scope (Phase 4): the latest phase summary is visible to a STAFF
 	// principal only if it issued it ($2). Fail-closed → empty result otherwise.
-	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 2)
 
 	query := `
 		SELECT
@@ -442,7 +443,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 
 	// Staff row-scope (Phase 4): within a job a STAFF principal sees only the
 	// phase summaries it issued ($2). Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "pos.issued_by", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 2)
 
 	query := `
 		SELECT

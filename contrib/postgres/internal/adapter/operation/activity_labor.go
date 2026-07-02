@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -113,7 +114,7 @@ func (r *PostgresActivityLaborRepository) ReadActivityLabor(ctx context.Context,
 	// WHERE seam, so guard post-read — a STAFF principal may only read its own
 	// labor row (staff_id). Fail-closed → not-found on an empty session staff.id
 	// or another staff's row. Non-staff principals unaffected.
-	if staffID, ok := staffRowScope(ctx); ok {
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		if staffID == "" || labor.StaffId != staffID {
 			return nil, fmt.Errorf("activity labor not found")
 		}
@@ -233,7 +234,7 @@ func (r *PostgresActivityLaborRepository) ListByStaff(ctx context.Context, req *
 	// so a STAFF principal must additionally be pinned to its own session
 	// staff.id ($2). The two predicates intersect — a staff asking for another
 	// staff's labor gets zero rows. Non-staff principals are unchanged.
-	staffClause, staffArgs := staffScopeClause(ctx, "al.staff_id", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "al.staff_id", 2)
 
 	query := fmt.Sprintf(`
 		SELECT al.activity_id, al.staff_id, al.hours, al.rate_type,
@@ -308,7 +309,7 @@ func (r *PostgresActivityLaborRepository) ListByJob(ctx context.Context, req *pb
 
 	// Staff row-scope (Phase 4): within a job a STAFF principal sees only its own
 	// labor rows ($2, session-derived). Non-staff → empty clause.
-	staffClause, staffArgs := staffScopeClause(ctx, "al.staff_id", 2)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "al.staff_id", 2)
 
 	query := fmt.Sprintf(`
 		SELECT al.activity_id, al.staff_id, al.hours, al.rate_type,

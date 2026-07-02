@@ -54,7 +54,7 @@ func (r *PostgresScoringSchemeRepository) CreateScoringScheme(ctx context.Contex
 	if req.Data == nil {
 		return nil, fmt.Errorf("scoring scheme data is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (r *PostgresScoringSchemeRepository) UpdateScoringScheme(ctx context.Contex
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("scoring scheme ID is required")
 	}
-	data, err := protoGradingToMap(req.Data)
+	data, err := protoToMap(req.Data)
 	if err != nil {
 		return nil, err
 	}

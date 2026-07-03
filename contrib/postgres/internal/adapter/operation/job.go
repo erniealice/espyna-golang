@@ -133,7 +133,7 @@ func (r *PostgresJobRepository) ReadJob(ctx context.Context, req *pb.ReadJobRequ
 			return nil, fmt.Errorf("job with ID '%s' not found", req.Data.Id)
 		}
 		var reachable bool
-		if err := r.db.QueryRowContext(ctx, principalscope.StaffReachableJobExistsSQL(), staffID, req.Data.Id).Scan(&reachable); err != nil {
+		if err := r.db.QueryRowContext(ctx, principalscope.StaffReachableJobExistsSQL(), staffID, req.Data.Id, identity.Must(ctx).WorkspaceID).Scan(&reachable); err != nil {
 			return nil, fmt.Errorf("staff job reachability check: %w", err)
 		}
 		if !reachable {
@@ -229,6 +229,32 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context, req *pb.ListJobsRe
 		return nil, fmt.Errorf("failed to list jobs: %w", err)
 	}
 
+	// Staff row-scope (IDOR): the generic dbOps.List applies workspace scoping
+	// only — this route (POST /api/operation/job/list) is reachable by a STAFF
+	// persona whose job:list permission is tagged applicable to the staff kind, so
+	// an unscoped list would enumerate EVERY workspace job. Resolve the set of jobs
+	// the acting staff.id reaches via the delivery graph once, then drop any listed
+	// row outside it. Fail-closed: empty staff.id ⇒ empty set ⇒ zero rows. Non-staff
+	// / no-session callers: no scope resolved, list unchanged.
+	staffID, staffScoped := principalscope.StaffRowScope(ctx)
+	var reachableJobs map[string]bool
+	if staffScoped {
+		reachableJobs = map[string]bool{}
+		if staffID != "" {
+			reachRows, qErr := r.db.QueryContext(ctx, principalscope.StaffReachableJobIDsSQL(), staffID, identity.Must(ctx).WorkspaceID)
+			if qErr != nil {
+				return nil, fmt.Errorf("staff job reachability set: %w", qErr)
+			}
+			for reachRows.Next() {
+				var id string
+				if scanErr := reachRows.Scan(&id); scanErr == nil {
+					reachableJobs[id] = true
+				}
+			}
+			_ = reachRows.Close()
+		}
+	}
+
 	var jobs []*pb.Job
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
@@ -240,6 +266,9 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context, req *pb.ListJobsRe
 		job := &pb.Job{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, job); err != nil {
 			log.Printf("WARN: protojson unmarshal job: %v", err)
+			continue
+		}
+		if staffScoped && !reachableJobs[job.Id] {
 			continue
 		}
 		jobs = append(jobs, job)

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
 )
 
@@ -51,6 +52,61 @@ func StaffRowScope(ctx context.Context) (staffID string, applies bool) {
 		return "", false
 	}
 	return id.PrincipalID, true
+}
+
+// workspaceScope returns the SESSION identity's WorkspaceID (empty when there is
+// no identity). It is the SAME source StaffRowScope reads its principal from, so
+// the workspace bound woven into the reachable-set subqueries below cannot be
+// spoofed by a request parameter. An empty WorkspaceID binds the workspace column
+// to the empty string (matches no row) — a malformed staff session then sees zero
+// rows, consistent with the fail-closed contract.
+func workspaceScope(ctx context.Context) string {
+	if id, ok := identity.FromContext(ctx); ok && id != nil {
+		return id.WorkspaceID
+	}
+	return ""
+}
+
+// reachableClientUnion is the graph-derived set of client.id values the acting
+// staff.id ($staffP) serves within one workspace ($wsP): the client_id of any job
+// the staff is assigned to (job_task.assigned_to) OR has recorded/reviewed an
+// outcome for (task_outcome.recorded_by|reviewed_by), joined up through
+// job_phase to job.client_id. The workspace bound (belt-and-suspenders) confines
+// the graph walk to the session workspace even if an outer query's workspace
+// predicate is bypassed. Table names come from registry/entityid (no literals).
+func reachableClientUnion(staffP, wsP int) string {
+	s := fmt.Sprintf("$%d", staffP)
+	w := fmt.Sprintf("$%d", wsP)
+	return "SELECT j.client_id FROM " + entityid.Job + " j" +
+		" JOIN " + entityid.JobPhase + " jp ON jp.job_id = j.id" +
+		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id" +
+		" WHERE jt.assigned_to = " + s + " AND j.workspace_id = " + w +
+		" UNION " +
+		"SELECT j2.client_id FROM " + entityid.Job + " j2" +
+		" JOIN " + entityid.JobPhase + " jp2 ON jp2.job_id = j2.id" +
+		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
+		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
+		" WHERE (t.recorded_by = " + s + " OR t.reviewed_by = " + s + ") AND j2.workspace_id = " + w
+}
+
+// reachableJobUnion is the graph-derived set of job.id values the acting staff.id
+// ($staffP) is assigned to OR has recorded/reviewed an outcome for, within one
+// workspace ($wsP). job_phase/job_task carry no workspace_id, so the workspace
+// bound is enforced by joining job (aliased jw/jw2) on the phase's job_id. Table
+// names come from registry/entityid (no literals).
+func reachableJobUnion(staffP, wsP int) string {
+	s := fmt.Sprintf("$%d", staffP)
+	w := fmt.Sprintf("$%d", wsP)
+	return "SELECT jp.job_id FROM " + entityid.JobPhase + " jp" +
+		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id" +
+		" JOIN " + entityid.Job + " jw ON jw.id = jp.job_id AND jw.workspace_id = " + w +
+		" WHERE jt.assigned_to = " + s +
+		" UNION " +
+		"SELECT jp2.job_id FROM " + entityid.JobPhase + " jp2" +
+		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
+		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
+		" JOIN " + entityid.Job + " jw2 ON jw2.id = jp2.job_id AND jw2.workspace_id = " + w +
+		" WHERE t.recorded_by = " + s + " OR t.reviewed_by = " + s
 }
 
 // StaffScopeClause returns a SQL predicate fragment that confines a read to the
@@ -104,6 +160,11 @@ func StaffScopeClauseAny(ctx context.Context, cols []string, nextParam int) (cla
 // task_outcome.recorded_by|reviewed_by → job_phase → job.client_id). Same 3-state
 // contract as StaffScopeClause; emits an IN(<graph subquery>) because clients carry
 // no staff column. The reviewed_by axis keeps parity with the task_outcome adapter.
+//
+// Two positional args are appended in order: $nextParam = the session staff.id,
+// $(nextParam+1) = the session workspace.id (belt-and-suspenders workspace bound
+// inside the graph subquery). Callers MUST advance their placeholder counter by
+// len(args) (== 2), not a hardcoded +1.
 func StaffReachableClientClause(ctx context.Context, clientAlias string, nextParam int) (clause string, args []any) {
 	staffID, applies := StaffRowScope(ctx)
 	if !applies {
@@ -112,25 +173,18 @@ func StaffReachableClientClause(ctx context.Context, clientAlias string, nextPar
 	if staffID == "" {
 		return " AND 1=0", nil
 	}
-	sub := fmt.Sprintf(`(
-		SELECT j.client_id FROM job j
-			JOIN job_phase jp ON jp.job_id = j.id
-			JOIN job_task jt ON jt.job_phase_id = jp.id
-		WHERE jt.assigned_to = $%d
-		UNION
-		SELECT j2.client_id FROM job j2
-			JOIN job_phase jp2 ON jp2.job_id = j2.id
-			JOIN job_task jt2 ON jt2.job_phase_id = jp2.id
-			JOIN task_outcome t ON t.job_task_id = jt2.id
-		WHERE t.recorded_by = $%d OR t.reviewed_by = $%d
-	)`, nextParam, nextParam, nextParam)
-	return fmt.Sprintf(" AND %s.id IN %s", clientAlias, sub), []any{staffID}
+	sub := reachableClientUnion(nextParam, nextParam+1)
+	return fmt.Sprintf(" AND %s.id IN (%s)", clientAlias, sub), []any{staffID, workspaceScope(ctx)}
 }
 
 // StaffReachableJobClause confines a JOB query (the job row aliased as jobAlias,
 // e.g. "j") to the jobs the active STAFF principal is assigned to OR has
 // recorded/reviewed an outcome for. Same 3-state contract; graph-derived through
 // job_phase/job_task/task_outcome.
+//
+// Two positional args are appended in order: $nextParam = the session staff.id,
+// $(nextParam+1) = the session workspace.id. Callers MUST advance their
+// placeholder counter by len(args) (== 2), not a hardcoded +1.
 func StaffReachableJobClause(ctx context.Context, jobAlias string, nextParam int) (clause string, args []any) {
 	staffID, applies := StaffRowScope(ctx)
 	if !applies {
@@ -139,17 +193,8 @@ func StaffReachableJobClause(ctx context.Context, jobAlias string, nextParam int
 	if staffID == "" {
 		return " AND 1=0", nil
 	}
-	sub := fmt.Sprintf(`(
-		SELECT jp.job_id FROM job_phase jp
-			JOIN job_task jt ON jt.job_phase_id = jp.id
-		WHERE jt.assigned_to = $%d
-		UNION
-		SELECT jp2.job_id FROM job_phase jp2
-			JOIN job_task jt2 ON jt2.job_phase_id = jp2.id
-			JOIN task_outcome t ON t.job_task_id = jt2.id
-		WHERE t.recorded_by = $%d OR t.reviewed_by = $%d
-	)`, nextParam, nextParam, nextParam)
-	return fmt.Sprintf(" AND %s.id IN %s", jobAlias, sub), []any{staffID}
+	sub := reachableJobUnion(nextParam, nextParam+1)
+	return fmt.Sprintf(" AND %s.id IN (%s)", jobAlias, sub), []any{staffID, workspaceScope(ctx)}
 }
 
 // StaffReachableClientExistsSQL returns a query that yields a single bool: whether
@@ -157,33 +202,51 @@ func StaffReachableJobClause(ctx context.Context, jobAlias string, nextParam int
 // for the generic dbOps by-id Read paths (ReadClient / item views) that have no
 // WHERE seam — run it (after StaffRowScope reports a staff principal) and treat a
 // false / no-row result as not-found, so an out-of-scope client is indistinguishable
-// from a missing one. Args order: $1 = staffID, $2 = clientID.
+// from a missing one. Args order: $1 = staffID, $2 = clientID, $3 = workspaceID.
 func StaffReachableClientExistsSQL() string {
-	return `SELECT EXISTS(
-		SELECT 1 FROM job j
-			JOIN job_phase jp ON jp.job_id = j.id
-			JOIN job_task jt ON jt.job_phase_id = jp.id
-		WHERE jt.assigned_to = $1 AND j.client_id = $2
-		UNION
-		SELECT 1 FROM job j2
-			JOIN job_phase jp2 ON jp2.job_id = j2.id
-			JOIN job_task jt2 ON jt2.job_phase_id = jp2.id
-			JOIN task_outcome t ON t.job_task_id = jt2.id
-		WHERE (t.recorded_by = $1 OR t.reviewed_by = $1) AND j2.client_id = $2
-	)`
+	return "SELECT EXISTS(" +
+		"SELECT 1 FROM " + entityid.Job + " j" +
+		" JOIN " + entityid.JobPhase + " jp ON jp.job_id = j.id" +
+		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id" +
+		" WHERE jt.assigned_to = $1 AND j.client_id = $2 AND j.workspace_id = $3" +
+		" UNION " +
+		"SELECT 1 FROM " + entityid.Job + " j2" +
+		" JOIN " + entityid.JobPhase + " jp2 ON jp2.job_id = j2.id" +
+		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
+		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
+		" WHERE (t.recorded_by = $1 OR t.reviewed_by = $1) AND j2.client_id = $2 AND j2.workspace_id = $3" +
+		")"
 }
 
 // StaffReachableJobExistsSQL is StaffReachableClientExistsSQL for a job.id (the
-// generic dbOps by-id ReadJob path). Args order: $1 = staffID, $2 = jobID.
+// generic dbOps by-id ReadJob path). Args order: $1 = staffID, $2 = jobID,
+// $3 = workspaceID.
 func StaffReachableJobExistsSQL() string {
-	return `SELECT EXISTS(
-		SELECT 1 FROM job_phase jp
-			JOIN job_task jt ON jt.job_phase_id = jp.id
-		WHERE jt.assigned_to = $1 AND jp.job_id = $2
-		UNION
-		SELECT 1 FROM job_phase jp2
-			JOIN job_task jt2 ON jt2.job_phase_id = jp2.id
-			JOIN task_outcome t ON t.job_task_id = jt2.id
-		WHERE (t.recorded_by = $1 OR t.reviewed_by = $1) AND jp2.job_id = $2
-	)`
+	return "SELECT EXISTS(" +
+		"SELECT 1 FROM " + entityid.JobPhase + " jp" +
+		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id" +
+		" JOIN " + entityid.Job + " jw ON jw.id = jp.job_id AND jw.workspace_id = $3" +
+		" WHERE jt.assigned_to = $1 AND jp.job_id = $2" +
+		" UNION " +
+		"SELECT 1 FROM " + entityid.JobPhase + " jp2" +
+		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
+		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
+		" JOIN " + entityid.Job + " jw2 ON jw2.id = jp2.job_id AND jw2.workspace_id = $3" +
+		" WHERE (t.recorded_by = $1 OR t.reviewed_by = $1) AND jp2.job_id = $2" +
+		")"
+}
+
+// StaffReachableClientIDsSQL returns a query yielding the DISTINCT set of
+// client.id values the acting staff.id reaches via the delivery graph, confined
+// to one workspace. It is the row-set seam for the GENERIC dbOps.List path
+// (ListClients) that has no WHERE seam: fetch the set once, then drop any listed
+// row whose id is absent (fail-closed). Args order: $1 = staffID, $2 = workspaceID.
+func StaffReachableClientIDsSQL() string {
+	return reachableClientUnion(1, 2)
+}
+
+// StaffReachableJobIDsSQL is StaffReachableClientIDsSQL for job.id — the row-set
+// seam for the generic ListJobs path. Args order: $1 = staffID, $2 = workspaceID.
+func StaffReachableJobIDsSQL() string {
+	return reachableJobUnion(1, 2)
 }

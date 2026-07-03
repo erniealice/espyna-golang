@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	principalscope "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
@@ -144,7 +144,7 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 			return nil, fmt.Errorf("client with ID '%s' not found", req.Data.Id)
 		}
 		exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-		reachRows, qErr := exec.QueryContext(ctx, principalscope.StaffReachableClientExistsSQL(), staffID, req.Data.Id)
+		reachRows, qErr := exec.QueryContext(ctx, principalscope.StaffReachableClientExistsSQL(), staffID, req.Data.Id, identity.Must(ctx).WorkspaceID)
 		if qErr != nil {
 			return nil, fmt.Errorf("staff client reachability check: %w", qErr)
 		}
@@ -340,6 +340,34 @@ func (r *PostgresClientRepository) ListClients(ctx context.Context, req *clientp
 		return nil, fmt.Errorf("failed to list clients: %w", err)
 	}
 
+	// Staff row-scope (IDOR): the generic dbOps.List applies workspace scoping
+	// only — this route (POST /api/entity/client/list) is reachable by a STAFF
+	// persona whose client:list permission is tagged applicable to the staff kind,
+	// so an unscoped list would enumerate EVERY workspace client. Resolve the set
+	// of clients the acting staff.id reaches via the delivery graph once, then drop
+	// any listed row outside it. Fail-closed: a staff session with an empty staff.id
+	// (malformed) yields the empty set ⇒ zero rows. Non-staff / no-session callers:
+	// no scope resolved, list unchanged.
+	staffID, staffScoped := principalscope.StaffRowScope(ctx)
+	var reachableClients map[string]bool
+	if staffScoped {
+		reachableClients = map[string]bool{}
+		if staffID != "" {
+			exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+			reachRows, qErr := exec.QueryContext(ctx, principalscope.StaffReachableClientIDsSQL(), staffID, identity.Must(ctx).WorkspaceID)
+			if qErr != nil {
+				return nil, fmt.Errorf("staff client reachability set: %w", qErr)
+			}
+			for reachRows.Next() {
+				var id string
+				if scanErr := reachRows.Scan(&id); scanErr == nil {
+					reachableClients[id] = true
+				}
+			}
+			_ = reachRows.Close()
+		}
+	}
+
 	// Convert results to protobuf slice using protojson
 	var clients []*clientpb.Client
 	for _, result := range listResult.Data {
@@ -352,6 +380,9 @@ func (r *PostgresClientRepository) ListClients(ctx context.Context, req *clientp
 		client := &clientpb.Client{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, client); err != nil {
 			// Log error and continue with next item
+			continue
+		}
+		if staffScoped && !reachableClients[client.Id] {
 			continue
 		}
 		clients = append(clients, client)

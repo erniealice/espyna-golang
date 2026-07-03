@@ -3,6 +3,7 @@
 package product
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -42,7 +43,7 @@ func (r *MySQLProductRepository) CountByStatusAndKind(
 		SELECT
 			CASE WHEN p.active = 1 THEN 'active' ELSE 'inactive' END AS status,
 			COUNT(*) AS cnt
-		FROM product p
+		FROM ` + entityid.Product + ` p
 		WHERE p.product_kind = ?
 		  AND (? = '' OR p.workspace_id = ?)
 		GROUP BY status`
@@ -96,8 +97,8 @@ func (r *MySQLProductRepository) CountByLine(
 	const query = `
 		SELECT COALESCE(NULLIF(pl.line_id, ''), 'unassigned'),
 		       COUNT(DISTINCT p.id)
-		FROM product p
-		LEFT JOIN product_line pl
+		FROM ` + entityid.Product + ` p
+		LEFT JOIN ` + entityid.ProductLine + ` pl
 		  ON pl.product_id = p.id AND pl.active = 1
 		WHERE p.active = 1
 		  AND p.product_kind = ?
@@ -173,7 +174,7 @@ func (r *MySQLProductRepository) RecentlyListed(
 			p.workspace_id,
 			p.date_created,
 			p.date_modified
-		FROM product p
+		FROM ` + entityid.Product + ` p
 		WHERE p.active = 1
 		  AND p.product_kind = ?
 		  AND (? = '' OR p.workspace_id = ?)

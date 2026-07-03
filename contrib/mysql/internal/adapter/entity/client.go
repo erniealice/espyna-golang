@@ -373,16 +373,16 @@ func (r *MySQLClientRepository) GetClientListPageData(
 				c.credit_limit,
 				c.lead_time_days,
 				COALESCE(pt.name, '') AS payment_term_name,
-				(SELECT COUNT(*) FROM subscription s WHERE s.client_id = c.id AND s.active = 1 AND s.workspace_id = ?) AS active_subscriptions,
+				(SELECT COUNT(*) FROM ` + entityid.Subscription + ` s WHERE s.client_id = c.id AND s.active = 1 AND s.workspace_id = ?) AS active_subscriptions,
 				u.id AS user_id_value,
 				u.first_name AS user_first_name,
 				u.last_name AS user_last_name,
 				u.email_address AS user_email_address,
 				u.mobile_number AS user_phone_number,
 				COUNT(*) OVER () AS total
-			FROM client c
+			FROM ` + entityid.Client + ` c
 			LEFT JOIN `+"`user`"+` u ON c.user_id = u.id
-			LEFT JOIN payment_term pt ON c.payment_term_id = pt.id
+			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON c.payment_term_id = pt.id
 			%s
 		)
 		SELECT * FROM enriched
@@ -654,8 +654,8 @@ func (r *MySQLClientRepository) loadClientCategories(ctx context.Context, client
 			cc.category_id,
 			cat.name,
 			cat.description
-		FROM client_category cc
-		INNER JOIN category cat ON cc.category_id = cat.id
+		FROM ` + entityid.ClientCategory + ` cc
+		INNER JOIN ` + entityid.Category + ` cat ON cc.category_id = cat.id
 		WHERE cc.client_id = ? AND cc.active = 1 AND cat.active = 1
 		ORDER BY cat.name ASC
 	`
@@ -726,7 +726,7 @@ func (r *MySQLClientRepository) SearchClientsByName(ctx context.Context, req *cl
 				NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''),
 				c.id
 			) AS label
-		FROM client c
+		FROM ` + entityid.Client + ` c
 		LEFT JOIN ` + "`user`" + ` u ON c.user_id = u.id
 		WHERE c.active = 1
 			AND (? = '' OR

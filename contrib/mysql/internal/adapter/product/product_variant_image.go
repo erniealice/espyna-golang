@@ -266,8 +266,8 @@ func (r *MySQLProductVariantImageRepository) GetProductVariantImageListPageData(
 				pvi.sort_order,
 				pvi.is_primary,
 				COALESCE(pv.sku, '') AS variant_sku
-			FROM product_variant_image pvi
-			LEFT JOIN product_variant pv ON pvi.product_variant_id = pv.id AND pv.active = 1
+			FROM ` + entityid.ProductVariantImage + ` pvi
+			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvi.product_variant_id = pv.id AND pv.active = 1
 			WHERE pvi.active = 1
 			%s
 		),
@@ -419,8 +419,8 @@ func (r *MySQLProductVariantImageRepository) GetProductVariantImageItemPageData(
 				pvi.sort_order,
 				pvi.is_primary,
 				COALESCE(pv.sku, '') AS variant_sku
-			FROM product_variant_image pvi
-			LEFT JOIN product_variant pv ON pvi.product_variant_id = pv.id AND pv.active = 1
+			FROM ` + entityid.ProductVariantImage + ` pvi
+			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvi.product_variant_id = pv.id AND pv.active = 1
 			WHERE pvi.id = ? AND pvi.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1;

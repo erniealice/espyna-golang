@@ -350,7 +350,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM treasury_disbursement d
+			FROM ` + entityid.TreasuryDisbursement + ` d
 			WHERE d.active = true
 			  AND d.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -583,7 +583,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM treasury_disbursement d
+			FROM ` + entityid.TreasuryDisbursement + ` d
 			WHERE d.id = $1 AND d.workspace_id = $2 AND d.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

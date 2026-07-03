@@ -246,7 +246,7 @@ func (r *MySQLSecurityDepositRepository) GetSecurityDepositListPageData(
 				sd.status,
 				sd.account_id,
 				sd.notes
-			FROM security_deposit sd
+			FROM ` + entityid.SecurityDeposit + ` sd
 			WHERE sd.active = 1
 			  AND (? IS NULL OR ? = '' OR
 			       sd.counterparty_name LIKE ? OR
@@ -378,7 +378,7 @@ func (r *MySQLSecurityDepositRepository) GetSecurityDepositItemPageData(
 			sd.status,
 			sd.account_id,
 			sd.notes
-		FROM security_deposit sd
+		FROM ` + entityid.SecurityDeposit + ` sd
 		WHERE sd.id = ? AND sd.active = 1
 		LIMIT 1`
 

@@ -175,7 +175,7 @@ func (r *MySQLFulfillmentRepository) DeleteFulfillment(ctx context.Context, req 
 	}
 
 	// Dialect: active = true → active = 0 (soft delete sets to 0), $1 → ?
-	query := `UPDATE fulfillment SET active = 0, date_modified = NOW() WHERE id = ?`
+	query := `UPDATE ` + entityid.Fulfillment + ` SET active = 0, date_modified = NOW() WHERE id = ?`
 	_, err := r.db.ExecContext(ctx, query, req.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete fulfillment: %w", err)
@@ -309,10 +309,10 @@ func (r *MySQLFulfillmentRepository) GetFulfillmentListPageData(
 				COALESCE(s.name, '') AS supplier_name,
 				COUNT(DISTINCT fi.id) AS item_count,
 				COUNT(DISTINCT fse.id) AS status_event_count
-			FROM fulfillment f
-			LEFT JOIN supplier s ON s.id = f.supplier_id AND s.active = 1
-			LEFT JOIN fulfillment_item fi ON fi.fulfillment_id = f.id
-			LEFT JOIN fulfillment_status_event fse ON fse.fulfillment_id = f.id
+			FROM ` + entityid.Fulfillment + ` f
+			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = f.supplier_id AND s.active = 1
+			LEFT JOIN ` + entityid.FulfillmentItem + ` fi ON fi.fulfillment_id = f.id
+			LEFT JOIN ` + entityid.FulfillmentStatusEvent + ` fse ON fse.fulfillment_id = f.id
 			WHERE f.active = 1
 			  AND f.workspace_id = ?
 			  AND (? = '' OR

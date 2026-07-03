@@ -301,7 +301,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 				jt.default_fulfillment_type,
 				jt.default_cost_flow_type,
 				jt.default_billing_rule_type
-			FROM job_template jt
+			FROM `+entityid.JobTemplate+` jt
 			WHERE jt.active = $4
 			  AND ($5::text = '' OR jt.workspace_id = $5::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -439,7 +439,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateItemPageData(
 			jt.default_fulfillment_type,
 			jt.default_cost_flow_type,
 			jt.default_billing_rule_type
-		FROM job_template jt
+		FROM ` + entityid.JobTemplate + ` jt
 		WHERE jt.id = $1 AND jt.active = true
 		  AND ($2::text = '' OR jt.workspace_id = $2::text)
 	`

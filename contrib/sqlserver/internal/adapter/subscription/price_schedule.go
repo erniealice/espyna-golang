@@ -261,7 +261,7 @@ func (r *SQLServerPriceScheduleRepository) GetPriceScheduleListPageData(ctx cont
 
 	query := fmt.Sprintf(`
 		SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end
-		FROM price_schedule
+		FROM ` + entityid.PriceSchedule + `
 		WHERE active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR name LIKE @p1 OR description LIKE @p1)
 		ORDER BY [%s] %s
@@ -321,7 +321,7 @@ func (r *SQLServerPriceScheduleRepository) GetPriceScheduleItemPageData(ctx cont
 	}
 
 	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end
-		FROM price_schedule WHERE id = @p1 AND active = 1`
+		FROM ` + entityid.PriceSchedule + ` WHERE id = @p1 AND active = 1`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.PriceScheduleId)
@@ -388,7 +388,7 @@ func (r *SQLServerPriceScheduleRepository) FindApplicablePriceSchedule(ctx conte
 	// SQL Server: SELECT TOP 1 instead of LIMIT 1; active = 1; @pN placeholders.
 	query := `
 		SELECT TOP 1 id, name, description, active, date_time_start, date_time_end, location_id, date_created, date_modified
-		FROM price_schedule
+		FROM ` + entityid.PriceSchedule + `
 		WHERE active = 1
 		  AND location_id = @p1
 		  AND date_time_start <= @p2

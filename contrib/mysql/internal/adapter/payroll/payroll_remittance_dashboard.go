@@ -3,6 +3,7 @@
 package payroll
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -34,8 +35,8 @@ func (r *MySQLPayrollRemittanceRepository) CountDueWithin(
 
 	const query = `
 		SELECT CAST(COUNT(*) AS SIGNED)
-		FROM payroll_remittance prm
-		LEFT JOIN payroll_run pr ON pr.id = prm.payroll_run_id
+		FROM ` + entityid.PayrollRemittance + ` prm
+		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = prm.payroll_run_id
 		WHERE prm.due_date >= ?
 		  AND prm.due_date <= ?
 		  AND (? IS NULL OR ? = '' OR pr.workspace_id = ?)`
@@ -74,8 +75,8 @@ func (r *MySQLPayrollRemittanceRepository) UpcomingDeadlines(
 			prm.amount,
 			prm.due_date,
 			prm.status
-		FROM payroll_remittance prm
-		LEFT JOIN payroll_run pr ON pr.id = prm.payroll_run_id
+		FROM ` + entityid.PayrollRemittance + ` prm
+		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = prm.payroll_run_id
 		WHERE (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 		ORDER BY prm.due_date ASC
 		LIMIT ?`

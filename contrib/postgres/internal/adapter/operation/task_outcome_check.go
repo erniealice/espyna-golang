@@ -266,7 +266,7 @@ func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 				toc.criteria_option_id,
 				toc.checked,
 				toc.note
-			FROM task_outcome_check toc
+			FROM ` + entityid.TaskOutcomeCheck + ` toc
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       toc.note ILIKE $1)
 		)
@@ -381,7 +381,7 @@ func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckItemPageData(
 			toc.criteria_option_id,
 			toc.checked,
 			toc.note
-		FROM task_outcome_check toc
+		FROM ` + entityid.TaskOutcomeCheck + ` toc
 		WHERE toc.id = $1
 	`
 
@@ -452,7 +452,7 @@ func (r *PostgresTaskOutcomeCheckRepository) ListByTaskOutcome(
 			toc.criteria_option_id,
 			toc.checked,
 			toc.note
-		FROM task_outcome_check toc
+		FROM ` + entityid.TaskOutcomeCheck + ` toc
 		WHERE toc.task_outcome_id = $1
 		ORDER BY toc.date_created ASC
 	`

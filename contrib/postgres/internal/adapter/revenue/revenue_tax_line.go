@@ -137,7 +137,7 @@ func (r *PostgresRevenueTaxLineRepository) DeleteByRevenueID(ctx context.Context
 	}
 	// Hoisted into the sanctioned core write funnel (P2 Phase-3 Q-WRITE-PREPARE).
 	// HardDeleteByColumn emits the byte-equivalent
-	// "DELETE FROM revenue_tax_line WHERE revenue_id = $1".
+	// "DELETE FROM " + entityid.RevenueTaxLine + " WHERE revenue_id = $1".
 	if _, err := postgresCore.HardDeleteByColumn(ctx, r.db, "revenue_tax_line", "revenue_id", revenueID); err != nil {
 		return fmt.Errorf("DeleteByRevenueID: %w", err)
 	}
@@ -150,7 +150,7 @@ func (r *PostgresRevenueTaxLineRepository) ListByRevenueID(ctx context.Context, 
 		return nil, fmt.Errorf("ListByRevenueID requires raw *sql.DB")
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT row_to_json(rtl) FROM revenue_tax_line rtl
+		`SELECT row_to_json(rtl) FROM ` + entityid.RevenueTaxLine + ` rtl
 		 WHERE rtl.revenue_id = $1
 		 ORDER BY rtl.direction, rtl.tax_kind_snapshot`,
 		revenueID,

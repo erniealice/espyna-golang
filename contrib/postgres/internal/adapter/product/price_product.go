@@ -269,7 +269,7 @@ func (r *PostgresPriceProductRepository) GetPriceProductListPageData(
 				active,
 				date_created,
 				date_modified
-			FROM price_product
+			FROM `+entityid.PriceProduct+`
 			WHERE active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       product_id ILIKE $1 OR
@@ -324,7 +324,7 @@ func (r *PostgresPriceProductRepository) GetPriceProductItemPageData(ctx context
 	if req == nil || req.PriceProductId == "" {
 		return nil, fmt.Errorf("price product ID required")
 	}
-	query := `SELECT id, product_id, amount, currency, active, date_created, date_modified FROM price_product WHERE id = $1 AND active = true`
+	query := `SELECT id, product_id, amount, currency, active, date_created, date_modified FROM ` + entityid.PriceProduct + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PriceProductId)
 	var id, productId, currency string
 	var amount int64

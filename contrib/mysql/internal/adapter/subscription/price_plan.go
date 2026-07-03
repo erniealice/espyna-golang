@@ -264,7 +264,7 @@ func (r *MySQLPricePlanRepository) GetPricePlanListPageData(ctx context.Context,
 	// Dialect: $N → ?, ILIKE → LIKE, active = true → active = 1,
 	// WHERE workspace_id = ? added (price_plan has workspace_id via plan FK;
 	// filter directly on price_plan.workspace_id if present, otherwise skip).
-	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM price_plan WHERE active = 1 AND (? IS NULL OR ? = '' OR plan_id LIKE ? OR billing_currency LIKE ?) ` + orderBy + ` LIMIT ? OFFSET ?`
+	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM ` + entityid.PricePlan + ` WHERE active = 1 AND (? IS NULL OR ? = '' OR plan_id LIKE ? OR billing_currency LIKE ?) ` + orderBy + ` LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, searchPattern, searchPattern, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -338,7 +338,7 @@ func (r *MySQLPricePlanRepository) GetPricePlanItemPageData(ctx context.Context,
 	if req == nil || req.PricePlanId == "" {
 		return nil, fmt.Errorf("price plan ID required")
 	}
-	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM price_plan WHERE id = ? AND active = 1`
+	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM ` + entityid.PricePlan + ` WHERE id = ? AND active = 1`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
 	var id, planId, billingCurrency string
 	var name, description sql.NullString

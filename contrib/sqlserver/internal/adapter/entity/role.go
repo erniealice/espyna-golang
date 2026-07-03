@@ -284,12 +284,12 @@ func (r *SQLServerRoleRepository) GetRoleListPageData(
 					p.permission_type AS [permission.permission_type],
 					p.description AS [permission.description],
 					p.active AS [permission.active]
-				 FROM role_permission rp
-				 JOIN permission p ON rp.permission_id = p.id
+				 FROM ` + entityid.RolePermission + ` rp
+				 JOIN ` + entityid.Permission + ` p ON rp.permission_id = p.id
 				 WHERE rp.role_id = r.id AND rp.active = 1 AND p.active = 1
 				 ORDER BY p.name
 				 FOR JSON PATH) AS role_permissions
-			FROM role r
+			FROM ` + entityid.Role + ` r
 			%s
 		),
 		counted AS (
@@ -462,12 +462,12 @@ func (r *SQLServerRoleRepository) GetRoleItemPageData(
 				p.permission_type AS [permission.permission_type],
 				p.description AS [permission.description],
 				p.active AS [permission.active]
-			 FROM role_permission rp
-			 JOIN permission p ON rp.permission_id = p.id
+			 FROM ` + entityid.RolePermission + ` rp
+			 JOIN ` + entityid.Permission + ` p ON rp.permission_id = p.id
 			 WHERE rp.role_id = r.id AND rp.active = 1 AND p.active = 1
 			 ORDER BY p.name
 			 FOR JSON PATH) AS role_permissions
-		FROM role r
+		FROM ` + entityid.Role + ` r
 		WHERE r.id = @p1 AND r.workspace_id = @p2;
 	`
 

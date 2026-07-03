@@ -123,7 +123,7 @@ func (r *SQLServerForexRateRepository) FindMostRecent(ctx context.Context, works
 	row := r.db.QueryRowContext(ctx,
 		`SELECT TOP 1 fr.id, fr.workspace_id, fr.from_currency, fr.to_currency,
 		        fr.rate_bps, fr.status, fr.effective_from, fr.effective_to
-		 FROM forex_rate fr
+		 FROM ` + entityid.ForexRate + ` fr
 		 WHERE fr.workspace_id = @p1
 		   AND fr.from_currency = @p2
 		   AND fr.to_currency = @p3
@@ -144,7 +144,7 @@ func (r *SQLServerForexRateRepository) FindActive(ctx context.Context, workspace
 	row := r.db.QueryRowContext(ctx,
 		`SELECT TOP 1 fr.id, fr.workspace_id, fr.from_currency, fr.to_currency,
 		        fr.rate_bps, fr.status, fr.effective_from, fr.effective_to
-		 FROM forex_rate fr
+		 FROM ` + entityid.ForexRate + ` fr
 		 WHERE fr.workspace_id = @p1
 		   AND fr.from_currency = @p2
 		   AND fr.to_currency = @p3
@@ -213,7 +213,7 @@ func (r *SQLServerForexRateRepository) SupersedePrior(ctx context.Context, prior
 		return fmt.Errorf("SupersedePrior requires raw *sql.DB")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE forex_rate SET status = 3, effective_to = @p1
+		`UPDATE ` + entityid.ForexRate + ` SET status = 3, effective_to = @p1
 		 WHERE id = @p2
 		   AND workspace_id = @p3
 		   AND status = 2`,

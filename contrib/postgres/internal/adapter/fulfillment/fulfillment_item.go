@@ -63,7 +63,7 @@ func (r *PostgresFulfillmentItemRepository) CreateFulfillmentItem(ctx context.Co
 	}
 
 	query := `
-		INSERT INTO fulfillment_item
+		INSERT INTO ` + entityid.FulfillmentItem + `
 			(id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 			 source_type, source_id, quantity_ordered, quantity_delivered, status, notes)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -131,7 +131,7 @@ func (r *PostgresFulfillmentItemRepository) ListFulfillmentItems(ctx context.Con
 	query := `
 		SELECT id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		       source_type, source_id, quantity_ordered, quantity_delivered, status, notes
-		FROM fulfillment_item
+		FROM ` + entityid.FulfillmentItem + `
 		WHERE fulfillment_id = $1
 		ORDER BY id ASC
 	`
@@ -198,7 +198,7 @@ func (r *PostgresFulfillmentItemRepository) UpdateFulfillmentItemDelivered(ctx c
 	}
 
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE fulfillment_item SET quantity_delivered = $1 WHERE id = $2`,
+		`UPDATE ` + entityid.FulfillmentItem + ` SET quantity_delivered = $1 WHERE id = $2`,
 		quantityDelivered, id,
 	)
 	if err != nil {

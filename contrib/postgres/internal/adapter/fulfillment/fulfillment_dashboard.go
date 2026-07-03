@@ -3,6 +3,7 @@
 package fulfillment
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"database/sql"
 	"fmt"
@@ -44,7 +45,7 @@ func (r *PostgresFulfillmentRepository) CountByStatus(
 	if since.IsZero() {
 		const q = `
 			SELECT f.status, COUNT(*)::bigint
-			FROM fulfillment f
+			FROM ` + entityid.Fulfillment + ` f
 			WHERE f.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR f.workspace_id = $1)
 			GROUP BY f.status`
@@ -52,7 +53,7 @@ func (r *PostgresFulfillmentRepository) CountByStatus(
 	} else {
 		const q = `
 			SELECT f.status, COUNT(*)::bigint
-			FROM fulfillment f
+			FROM ` + entityid.Fulfillment + ` f
 			WHERE f.active = true
 			  AND f.date_created >= $2
 			  AND ($1::text IS NULL OR $1::text = '' OR f.workspace_id = $1)
@@ -103,8 +104,8 @@ func (r *PostgresFulfillmentRepository) AvgFulfillmentTimeDays(
 
 	const query = `
 		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (e.occurred_at - f.date_created)) / 86400.0), 0)::float8
-		FROM fulfillment f
-		JOIN fulfillment_status_event e ON e.fulfillment_id = f.id
+		FROM ` + entityid.Fulfillment + ` f
+		JOIN ` + entityid.FulfillmentStatusEvent + ` e ON e.fulfillment_id = f.id
 		WHERE f.active = true
 		  AND e.to_status = 'DELIVERED'
 		  AND ($1::text IS NULL OR $1::text = '' OR f.workspace_id = $1)
@@ -151,7 +152,7 @@ func (r *PostgresFulfillmentRepository) RecentExceptions(
 			f.provider_reference,
 			f.date_created,
 			f.date_modified
-		FROM fulfillment f
+		FROM ` + entityid.Fulfillment + ` f
 		WHERE f.active = true
 		  AND f.status IN ('FAILED', 'CANCELLED', 'EXCEPTION')
 		  AND ($1::text IS NULL OR $1::text = '' OR f.workspace_id = $1)
@@ -249,10 +250,10 @@ func (r *PostgresFulfillmentRepository) DailyDeliveredLast30(
 			d.bucket,
 			COUNT(f.id)::bigint AS delivered
 		FROM days d
-		LEFT JOIN fulfillment_status_event e
+		LEFT JOIN ` + entityid.FulfillmentStatusEvent + ` e
 			ON date_trunc('day', e.occurred_at) = d.bucket
 			AND e.to_status = 'DELIVERED'
-		LEFT JOIN fulfillment f
+		LEFT JOIN ` + entityid.Fulfillment + ` f
 			ON f.id = e.fulfillment_id
 			AND ($1::text IS NULL OR $1::text = '' OR f.workspace_id = $1)
 		GROUP BY d.bucket

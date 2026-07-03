@@ -291,8 +291,8 @@ func (r *SQLServerInventoryItemRepository) GetInventoryItemListPageData(
 				COALESCE(p.tracking_mode, '') AS tracking_mode,
 				COALESCE(p.name, '') AS product_name,
 				COUNT(*) OVER() AS total_count
-			FROM inventory_item ii
-			LEFT JOIN product p ON ii.product_id = p.id AND p.active = 1
+			FROM ` + entityid.InventoryItem + ` ii
+			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = 1
 			%s
 		)
 		SELECT * FROM enriched
@@ -447,8 +447,8 @@ func (r *SQLServerInventoryItemRepository) GetInventoryItemItemPageData(
 				ii.notes,
 				COALESCE(p.name, '') AS product_name,
 				COALESCE(p.price, 0) AS product_price
-			FROM inventory_item ii
-			LEFT JOIN product p ON ii.product_id = p.id AND p.active = 1
+			FROM ` + entityid.InventoryItem + ` ii
+			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = 1
 			WHERE ii.id = @p1 AND ii.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

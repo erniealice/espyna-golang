@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
 
@@ -32,7 +33,7 @@ func (r *PostgresCollectionRepository) SumPending(
 
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)::bigint
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = true
 		  AND tc.status = 'pending'
 		  AND ($1::text IS NULL OR $1::text = '' OR tc.workspace_id = $1)`
@@ -57,7 +58,7 @@ func (r *PostgresCollectionRepository) SumOverdue(
 
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)::bigint
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = true
 		  AND tc.status = 'pending'
 		  AND tc.payment_date IS NOT NULL
@@ -88,7 +89,7 @@ func (r *PostgresCollectionRepository) SumCollectedToday(
 
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)::bigint
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = true
 		  AND tc.status = 'completed'
 		  AND tc.payment_date >= $2
@@ -117,7 +118,7 @@ func (r *PostgresCollectionRepository) SumByModeWeek(
 
 	const query = `
 		SELECT COALESCE(tc.collection_method_id, 'other'), COALESCE(SUM(tc.amount), 0)::bigint
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = true
 		  AND tc.status = 'completed'
 		  AND tc.payment_date >= $2
@@ -164,7 +165,7 @@ func (r *PostgresCollectionRepository) RecentByDate(
 
 	const query = `
 		SELECT to_jsonb(tc) AS row
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR tc.workspace_id = $1)
 		ORDER BY COALESCE(tc.payment_date, tc.date_created) DESC
@@ -234,7 +235,7 @@ func (r *PostgresCollectionRepository) SumByDayLast30(
 		SELECT d.bucket,
 		       COALESCE(SUM(tc.amount), 0)::bigint
 		FROM days d
-		LEFT JOIN treasury_collection tc
+		LEFT JOIN ` + entityid.TreasuryCollection + ` tc
 		  ON tc.active = true
 		 AND tc.status = 'completed'
 		 AND tc.payment_date >= d.bucket

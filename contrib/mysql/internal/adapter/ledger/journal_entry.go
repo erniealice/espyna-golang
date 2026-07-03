@@ -297,7 +297,7 @@ func (r *MySQLJournalEntryRepository) GetJournalEntryListPageData(ctx context.Co
 				je.date_created,
 				je.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM journal_entry je
+			FROM ` + entityid.JournalEntry + ` je
 			%s
 		)
 		SELECT * FROM enriched
@@ -457,7 +457,7 @@ func (r *MySQLJournalEntryRepository) PostJournalEntry(ctx context.Context, req 
 	postedAt := time.Now().UTC()
 	postedBy := req.PostedBy
 
-	updateSQL := `UPDATE journal_entry
+	updateSQL := `UPDATE ` + entityid.JournalEntry + `
 		    SET status     = 'POSTED',
 		        posted_by  = ?,
 		        posted_at  = ?,

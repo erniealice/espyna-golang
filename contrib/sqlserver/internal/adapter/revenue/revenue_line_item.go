@@ -229,9 +229,9 @@ func (r *SQLServerRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name,
 				COUNT(*) OVER() AS total
-			FROM revenue_line_item rli
-			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = 1
-			LEFT JOIN product p ON rli.product_id = p.id AND p.active = 1
+			FROM ` + entityid.RevenueLineItem + ` rli
+			LEFT JOIN ` + entityid.Revenue + ` rv ON rli.revenue_id = rv.id AND rv.active = 1
+			LEFT JOIN ` + entityid.Product + ` p ON rli.product_id = p.id AND p.active = 1
 			WHERE rli.active = 1
 			  AND (@p1 IS NULL OR @p1 = '' OR
 			       rli.description LIKE @p1 OR
@@ -381,9 +381,9 @@ func (r *SQLServerRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
-			FROM revenue_line_item rli
-			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = 1
-			LEFT JOIN product p ON rli.product_id = p.id AND p.active = 1
+			FROM ` + entityid.RevenueLineItem + ` rli
+			LEFT JOIN ` + entityid.Revenue + ` rv ON rli.revenue_id = rv.id AND rv.active = 1
+			LEFT JOIN ` + entityid.Product + ` p ON rli.product_id = p.id AND p.active = 1
 			WHERE rli.id = @p1 AND rli.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

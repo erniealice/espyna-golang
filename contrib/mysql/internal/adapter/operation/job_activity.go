@@ -229,7 +229,7 @@ func (r *MySQLJobActivityRepository) GetJobActivityListPageData(ctx context.Cont
 				ja.active,
 				j.name AS job_name
 			FROM %s ja
-			LEFT JOIN job j ON j.id = ja.job_id
+			LEFT JOIN ` + entityid.Job + ` j ON j.id = ja.job_id
 			WHERE ja.active = 1
 		),
 		counted AS (

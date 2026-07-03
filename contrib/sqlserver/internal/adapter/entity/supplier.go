@@ -138,7 +138,7 @@ func (r *SQLServerSupplierRepository) ReadSupplier(ctx context.Context, req *sup
 			u.last_name as user_last_name,
 			u.email_address as user_email_address,
 			u.mobile_number as user_phone_number
-		FROM supplier s
+		FROM ` + entityid.Supplier + ` s
 		LEFT JOIN [user] u ON s.user_id = u.id
 		WHERE s.id = @p1 AND s.active = 1
 	`
@@ -452,9 +452,9 @@ func (r *SQLServerSupplierRepository) GetSupplierListPageData(
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.mobile_number as user_phone_number
-			FROM supplier s
+			FROM ` + entityid.Supplier + ` s
 			LEFT JOIN [user] u ON s.user_id = u.id
-			LEFT JOIN payment_term pt ON s.payment_term_id = pt.id
+			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON s.payment_term_id = pt.id
 			%s
 		),
 		counted AS (
@@ -667,7 +667,7 @@ func (r *SQLServerSupplierRepository) GetSupplierItemPageData(
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.mobile_number as user_phone_number
-			FROM supplier s
+			FROM ` + entityid.Supplier + ` s
 			LEFT JOIN [user] u ON s.user_id = u.id
 			WHERE s.id = @p1 AND s.workspace_id = @p2
 		)
@@ -788,8 +788,8 @@ func (r *SQLServerSupplierRepository) loadSupplierCategories(ctx context.Context
 			sc.category_id,
 			cat.name,
 			cat.description
-		FROM supplier_category sc
-		INNER JOIN category cat ON sc.category_id = cat.id
+		FROM ` + entityid.SupplierCategory + ` sc
+		INNER JOIN ` + entityid.Category + ` cat ON sc.category_id = cat.id
 		WHERE sc.supplier_id = @p1 AND sc.active = 1 AND cat.active = 1
 		ORDER BY cat.name ASC
 	`

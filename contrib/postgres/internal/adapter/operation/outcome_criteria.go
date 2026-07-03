@@ -276,7 +276,7 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaListPageData(
 				oc.scope,
 				oc.name,
 				oc.criteria_type
-			FROM outcome_criteria oc
+			FROM ` + entityid.OutcomeCriteria + ` oc
 			WHERE oc.active = true
 			  AND ($4::text = '' OR oc.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -415,7 +415,7 @@ func (r *PostgresOutcomeCriteriaRepository) GetOutcomeCriteriaItemPageData(
 			oc.scope,
 			oc.name,
 			oc.criteria_type
-		FROM outcome_criteria oc
+		FROM ` + entityid.OutcomeCriteria + ` oc
 		WHERE oc.id = $1 AND oc.active = true
 		  AND ($2::text = '' OR oc.workspace_id = $2::text)
 	`
@@ -502,7 +502,7 @@ func (r *PostgresOutcomeCriteriaRepository) ListByGroup(
 			oc.scope,
 			oc.name,
 			oc.criteria_type
-		FROM outcome_criteria oc
+		FROM ` + entityid.OutcomeCriteria + ` oc
 		WHERE oc.criteria_group_id = $1 AND oc.active = true
 		ORDER BY oc.version DESC
 	`
@@ -599,7 +599,7 @@ func (r *PostgresOutcomeCriteriaRepository) GetCurrentPublished(
 			oc.scope,
 			oc.name,
 			oc.criteria_type
-		FROM outcome_criteria oc
+		FROM ` + entityid.OutcomeCriteria + ` oc
 		WHERE oc.criteria_group_id = $1 AND oc.version_status = 2 AND oc.active = true
 		ORDER BY oc.version DESC
 		LIMIT 1
@@ -698,7 +698,7 @@ func (r *PostgresOutcomeCriteriaRepository) ListByScope(
 			oc.scope,
 			oc.name,
 			oc.criteria_type
-		FROM outcome_criteria oc
+		FROM ` + entityid.OutcomeCriteria + ` oc
 		WHERE oc.scope = $1
 		  AND ($2 = '' OR oc.industry_code = $2)
 		  AND ($3 = '' OR oc.workspace_id = $3)

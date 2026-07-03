@@ -254,7 +254,7 @@ func (r *MySQLRevenueCategoryRepository) GetRevenueCategoryListPageData(
 				rc.code,
 				rc.description,
 				rc.parent_category_id
-			FROM revenue_category rc
+			FROM ` + entityid.RevenueCategory + ` rc
 			WHERE rc.active = 1
 			  AND (? = '' OR rc.name LIKE ? OR rc.code LIKE ? OR rc.description LIKE ?)
 		),
@@ -384,7 +384,7 @@ func (r *MySQLRevenueCategoryRepository) GetRevenueCategoryItemPageData(
 			rc.code,
 			rc.description,
 			rc.parent_category_id
-		FROM revenue_category rc
+		FROM ` + entityid.RevenueCategory + ` rc
 		WHERE rc.id = ? AND rc.active = 1
 		LIMIT 1
 	`

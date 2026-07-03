@@ -3,6 +3,7 @@
 package product
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,7 +32,7 @@ func (r *SQLServerProductRepository) CountByStatusAndKind(
 	const query = `
 		WITH base AS (
 			SELECT p.active
-			FROM product p
+			FROM ` + entityid.Product + ` p
 			WHERE p.product_kind = @p2
 			  AND (@p1 IS NULL OR @p1 = '' OR p.workspace_id = @p1)
 		)
@@ -66,8 +67,8 @@ func (r *SQLServerProductRepository) CountByLine(
 	const query = `
 		SELECT COALESCE(NULLIF(pl.line_id, ''), 'unassigned'),
 		       CAST(COUNT(DISTINCT p.id) AS bigint)
-		FROM product p
-		LEFT JOIN product_line pl
+		FROM ` + entityid.Product + ` p
+		LEFT JOIN ` + entityid.ProductLine + ` pl
 		  ON pl.product_id = p.id AND pl.active = 1
 		WHERE p.active = 1
 		  AND p.product_kind = @p2
@@ -129,7 +130,7 @@ func (r *SQLServerProductRepository) RecentlyListed(
 			p.active,
 			p.date_created,
 			p.date_modified
-		FROM product p
+		FROM ` + entityid.Product + ` p
 		WHERE p.active = 1
 		  AND p.product_kind = @p2
 		  AND (@p1 IS NULL OR @p1 = '' OR p.workspace_id = @p1)

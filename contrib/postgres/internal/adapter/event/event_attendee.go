@@ -287,7 +287,7 @@ func (r *PostgresEventAttendeeRepository) GetEventAttendeeListPageData(
 				ea.active,
 				ea.date_created,
 				ea.date_modified
-			FROM event_attendee ea
+			FROM %s ea
 			WHERE ea.active = true
 			  AND ea.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -303,7 +303,7 @@ func (r *PostgresEventAttendeeRepository) GetEventAttendeeListPageData(
 		FROM enriched e
 		%s
 		LIMIT $3 OFFSET $4;
-	`, orderByClause)
+	`, entityid.EventAttendee, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
@@ -443,7 +443,7 @@ func (r *PostgresEventAttendeeRepository) GetEventAttendeeItemPageData(
 			ea.active,
 			ea.date_created,
 			ea.date_modified
-		FROM event_attendee ea
+		FROM ` + entityid.EventAttendee + ` ea
 		WHERE ea.id = $1 AND ea.workspace_id = $2 AND ea.active = true
 		LIMIT 1;
 	`

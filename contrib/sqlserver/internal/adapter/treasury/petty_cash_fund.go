@@ -283,7 +283,7 @@ func (r *SQLServerPettyCashFundRepository) GetPettyCashFundListPageData(
 				pcf.current_balance,
 				pcf.custodian_id,
 				pcf.location_id
-			FROM petty_cash_fund pcf
+			FROM ` + entityid.PettyCashFund + ` pcf
 			WHERE pcf.active = 1
 			  AND pcf.workspace_id = @p1
 			  AND (@p2 = '' OR pcf.name LIKE @p2)
@@ -424,7 +424,7 @@ func (r *SQLServerPettyCashFundRepository) GetPettyCashFundItemPageData(
 				pcf.current_balance,
 				pcf.custodian_id,
 				pcf.location_id
-			FROM petty_cash_fund pcf
+			FROM ` + entityid.PettyCashFund + ` pcf
 			WHERE pcf.id = @p1 AND pcf.workspace_id = @p2 AND pcf.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

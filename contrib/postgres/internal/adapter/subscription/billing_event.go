@@ -254,8 +254,8 @@ func (r *PostgresBillingEventRepository) GetBillingEventListPageData(
 	// over the full filtered set before LIMIT/OFFSET.
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH base AS (
-			SELECT be.* FROM billing_event be
-			LEFT JOIN subscription s ON be.subscription_id = s.id
+			SELECT be.* FROM ` + entityid.BillingEvent + ` be
+			LEFT JOIN ` + entityid.Subscription + ` s ON be.subscription_id = s.id
 			WHERE be.active = true
 			  AND ($3::text = '' OR s.workspace_id = $3::text)
 		)
@@ -411,7 +411,7 @@ func (r *PostgresBillingEventRepository) listByColumn(
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT be.*
 		FROM ` + r.tableName + ` be
-		LEFT JOIN subscription s ON be.subscription_id = s.id
+		LEFT JOIN ` + entityid.Subscription + ` s ON be.subscription_id = s.id
 		WHERE be.` + column + ` = $1
 		  AND be.active = true
 		  AND ($2::text = '' OR s.workspace_id = $2::text)

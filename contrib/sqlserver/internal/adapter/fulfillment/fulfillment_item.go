@@ -61,7 +61,7 @@ func (r *SQLServerFulfillmentItemRepository) CreateFulfillmentItem(ctx context.C
 
 	// SQL Server: INSERT ... OUTPUT inserted.<cols> (no RETURNING).
 	const query = `
-		INSERT INTO fulfillment_item
+		INSERT INTO ` + entityid.FulfillmentItem + `
 			(id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 			 source_type, source_id, quantity_ordered, quantity_delivered, status, notes)
 		OUTPUT
@@ -134,7 +134,7 @@ func (r *SQLServerFulfillmentItemRepository) ListFulfillmentItems(ctx context.Co
 	const query = `
 		SELECT id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		       source_type, source_id, quantity_ordered, quantity_delivered, status, notes
-		FROM fulfillment_item
+		FROM ` + entityid.FulfillmentItem + `
 		WHERE fulfillment_id = @p1
 		ORDER BY id ASC
 	`
@@ -203,7 +203,7 @@ func (r *SQLServerFulfillmentItemRepository) UpdateFulfillmentItemDelivered(ctx 
 
 	exec := r.getExec(ctx)
 	_, err := exec.ExecContext(ctx,
-		`UPDATE fulfillment_item SET quantity_delivered = @p1 WHERE id = @p2`,
+		`UPDATE ` + entityid.FulfillmentItem + ` SET quantity_delivered = @p1 WHERE id = @p2`,
 		quantityDelivered, id,
 	)
 	if err != nil {

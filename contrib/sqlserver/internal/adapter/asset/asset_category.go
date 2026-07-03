@@ -355,8 +355,8 @@ func (r *SQLServerAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 				OR (a.salvage_value IS NULL AND CAST(a.acquisition_cost * COALESCE(ac.salvage_pct, ac.default_salvage_value_percent) / 100 AS BIGINT) IS NOT NULL)
 				OR a.salvage_value <> CAST(a.acquisition_cost * COALESCE(ac.salvage_pct, ac.default_salvage_value_percent) / 100 AS BIGINT)
 			) THEN 1 ELSE NULL END)    AS assets_deviating
-		FROM asset_category ac
-		LEFT JOIN asset a ON a.asset_category_id = ac.id AND a.active = 1
+		FROM ` + entityid.AssetCategory + ` ac
+		LEFT JOIN ` + entityid.Asset + ` a ON a.asset_category_id = ac.id AND a.active = 1
 		WHERE ac.active = 1
 		  AND (@p1 = '' OR ac.workspace_id = @p1)
 		GROUP BY ac.id

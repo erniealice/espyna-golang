@@ -3,6 +3,7 @@
 package operation
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"database/sql"
 	"fmt"
@@ -77,7 +78,7 @@ func (r *MySQLJobActivityRepository) SumHoursByWeek(
 				CASE WHEN ja.entry_type = 'ENTRY_TYPE_LABOR' THEN ja.quantity ELSE 0 END
 			) * 100, 0) AS centi_hours
 		FROM week_series w
-		LEFT JOIN job_activity ja
+		LEFT JOIN ` + entityid.JobActivity + ` ja
 			ON ja.active = 1
 			AND DATE_SUB(ja.entry_date, INTERVAL WEEKDAY(ja.entry_date) DAY) = w.bucket
 			AND (? = '' OR ja.workspace_id = ?)
@@ -141,7 +142,7 @@ func (r *MySQLJobActivityRepository) RecentActivity(
 			ja.description,
 			ja.entry_date,
 			ja.date_created
-		FROM job_activity ja
+		FROM ` + entityid.JobActivity + ` ja
 		WHERE ja.active = 1
 		  AND (? = '' OR ja.workspace_id = ?)
 		ORDER BY ja.entry_date IS NULL ASC, ja.entry_date DESC,

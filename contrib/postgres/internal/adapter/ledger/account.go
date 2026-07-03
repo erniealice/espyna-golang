@@ -126,7 +126,7 @@ func (r *PostgresAccountRepository) ReadAccount(ctx context.Context, req *accoun
 			group_id, parent_id, cash_flow_activity, normal_balance,
 			is_system_account, is_contra, status, notes,
 			active, date_created, date_modified
-		FROM account
+		FROM ` + entityid.Account + `
 		WHERE id = $1
 		AND ($2::text IS NULL OR workspace_id = $2)
 		LIMIT 1`
@@ -374,7 +374,7 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 				a.date_created,
 				a.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM account a
+			FROM ` + entityid.Account + ` a
 			WHERE a.active = true` + whereStr + `
 		)
 		SELECT * FROM enriched
@@ -525,7 +525,7 @@ func (r *PostgresAccountRepository) GetAccountItemPageData(ctx context.Context, 
 			group_id, parent_id, cash_flow_activity, normal_balance,
 			is_system_account, is_contra, status, notes,
 			active, date_created, date_modified
-		FROM account
+		FROM ` + entityid.Account + `
 		WHERE id = $1 AND active = true
 		AND ($2::text IS NULL OR workspace_id = $2)
 		LIMIT 1`

@@ -5,6 +5,7 @@ package entity
 import (
 	"context"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"time"
 
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
@@ -44,7 +45,7 @@ func (r *PostgresWorkspaceUserRoleRepository) RecentAssignments(ctx context.Cont
 			wur.date_created,
 			wur.date_modified
 		FROM %s wur
-		JOIN workspace_user wu ON wu.id = wur.workspace_user_id
+		JOIN `+entityid.WorkspaceUser+` wu ON wu.id = wur.workspace_user_id
 		WHERE ($1::text IS NULL OR $1::text = '' OR wu.workspace_id = $1)
 		  AND wur.active = true
 		ORDER BY wur.date_created DESC NULLS LAST
@@ -110,7 +111,7 @@ func (r *PostgresWorkspaceUserRoleRepository) CountSinceDays(ctx context.Context
 	query := fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM %s wur
-		JOIN workspace_user wu ON wu.id = wur.workspace_user_id
+		JOIN `+entityid.WorkspaceUser+` wu ON wu.id = wur.workspace_user_id
 		WHERE ($1::text IS NULL OR $1::text = '' OR wu.workspace_id = $1)
 		  AND wur.active = true
 		  AND wur.date_created >= NOW() - ($2 || ' days')::interval

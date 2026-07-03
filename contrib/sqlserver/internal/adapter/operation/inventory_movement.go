@@ -219,7 +219,7 @@ func (r *SQLServerInventoryMovementRepository) GetInventoryMovementListPageData(
 				im.reference_id,
 				im.reference_type,
 				im.notes
-			FROM inventory_movement im
+			FROM ` + entityid.InventoryMovement + ` im
 			WHERE im.workspace_id = @p1 AND im.active = 1
 		),
 		counted AS (

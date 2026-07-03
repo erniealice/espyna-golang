@@ -284,8 +284,8 @@ func (r *MySQLInventoryTransactionRepository) GetInventoryTransactionListPageDat
 				it.serial_number,
 				it.performed_by,
 				COALESCE(ii.name, '') as inventory_item_name
-			FROM inventory_transaction it
-			LEFT JOIN inventory_item ii ON it.inventory_item_id = ii.id AND ii.active = 1
+			FROM ` + entityid.InventoryTransaction + ` it
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = 1
 			WHERE it.active = 1
 			  AND (? = '' OR
 			       it.transaction_type LIKE ? OR
@@ -468,8 +468,8 @@ func (r *MySQLInventoryTransactionRepository) GetInventoryTransactionItemPageDat
 				it.performed_by,
 				COALESCE(ii.name, '') as inventory_item_name,
 				COALESCE(ii.sku, '') as inventory_item_sku
-			FROM inventory_transaction it
-			LEFT JOIN inventory_item ii ON it.inventory_item_id = ii.id AND ii.active = 1
+			FROM ` + entityid.InventoryTransaction + ` it
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = 1
 			WHERE it.id = ? AND it.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1;
@@ -620,10 +620,10 @@ func (r *MySQLInventoryTransactionRepository) GetInventoryMovementsListPageData(
 		       it.reference_type,
 		       it.reference_id,
 		       it.performed_by
-		FROM inventory_transaction it
-		LEFT JOIN inventory_item ii ON it.inventory_item_id = ii.id
-		LEFT JOIN product_variant pv ON ii.product_variant_id = pv.id
-		LEFT JOIN product p ON pv.product_id = p.id
+		FROM ` + entityid.InventoryTransaction + ` it
+		LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id
+		LEFT JOIN ` + entityid.ProductVariant + ` pv ON ii.product_variant_id = pv.id
+		LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id
 		WHERE it.active = 1
 		  AND (? = '' OR ii.workspace_id = ?)
 		  AND (? = '' OR it.transaction_date >= ?)

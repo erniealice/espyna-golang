@@ -243,8 +243,8 @@ func (r *MySQLProductPricePlanRepository) GetProductPricePlanListPageData(ctx co
 	// Model D: join product_plan so that list rows carry product_id + variant_id.
 	// Dialect: $N → ?, ILIKE → LIKE, active = true → active = 1.
 	query := `SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
-		FROM product_price_plan ppp
-		LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
+		FROM ` + entityid.ProductPricePlan + ` ppp
+		LEFT JOIN ` + entityid.ProductPlan + ` pp ON pp.id = ppp.product_plan_id
 		WHERE ppp.active = 1 AND (? IS NULL OR ? = '' OR ppp.price_plan_id LIKE ? OR ppp.product_plan_id LIKE ? OR ppp.billing_currency LIKE ?)
 		` + orderBy + ` LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, limit, offset)
@@ -307,8 +307,8 @@ func (r *MySQLProductPricePlanRepository) GetProductPricePlanItemPageData(ctx co
 	}
 	// Model D: same join-through shape as the list query.
 	query := `SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
-		FROM product_price_plan ppp
-		LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
+		FROM ` + entityid.ProductPricePlan + ` ppp
+		LEFT JOIN ` + entityid.ProductPlan + ` pp ON pp.id = ppp.product_plan_id
 		WHERE ppp.id = ? AND ppp.active = 1`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPricePlanId)
 	var id, pricePlanId, productPlanId, billingCurrency string

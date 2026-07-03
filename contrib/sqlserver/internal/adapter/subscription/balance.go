@@ -218,9 +218,9 @@ func (r *SQLServerBalanceRepository) GetBalanceListPageData(ctx context.Context,
 				b.balance_type,
 				(SELECT s.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS subscription_data,
 				(SELECT c.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS client_data
-			FROM balance b
-			LEFT JOIN subscription s ON b.subscription_id = s.id
-			LEFT JOIN client c ON b.client_id = c.id
+			FROM ` + entityid.Balance + ` b
+			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON b.client_id = c.id
 			WHERE b.active = 1
 	`
 
@@ -387,9 +387,9 @@ func (r *SQLServerBalanceRepository) GetBalanceItemPageData(ctx context.Context,
 				b.balance_type,
 				(SELECT s.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS subscription_data,
 				(SELECT c.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS client_data
-			FROM balance b
-			LEFT JOIN subscription s ON b.subscription_id = s.id
-			LEFT JOIN client c ON b.client_id = c.id
+			FROM ` + entityid.Balance + ` b
+			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON b.client_id = c.id
 			WHERE b.id = @p1 AND b.active = 1
 		)
 		SELECT TOP 1 * FROM enriched

@@ -181,7 +181,7 @@ func (r *PostgresTaxRegistrationRepository) FindActive(ctx context.Context, part
 		return nil, fmt.Errorf("FindActive requires raw *sql.DB")
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT row_to_json(tr) FROM tax_registration tr
+		`SELECT row_to_json(tr) FROM ` + entityid.TaxRegistration + ` tr
 		 WHERE tr.party_type = $1
 		   AND tr.party_id = $2
 		   AND tr.status IN (2, 3, 4)  -- ACTIVE=2, SUPERSEDED=3, CANCELLED=4
@@ -231,8 +231,8 @@ func (r *PostgresTaxRegistrationRepository) FindActiveByComputePath(ctx context.
 		// Join to tax_registration_kind to apply the jurisdiction predicate.
 		row := r.db.QueryRowContext(ctx,
 			`SELECT row_to_json(tr)
-			 FROM tax_registration tr
-			 JOIN tax_registration_kind trk ON trk.id = tr.tax_registration_kind_id
+			 FROM ` + entityid.TaxRegistration + ` tr
+			 JOIN ` + entityid.TaxRegistrationKind + ` trk ON trk.id = tr.tax_registration_kind_id
 			 WHERE tr.party_type = $1
 			   AND tr.party_id = $2
 			   AND tr.compute_path_snapshot = $3
@@ -253,7 +253,7 @@ func (r *PostgresTaxRegistrationRepository) FindActiveByComputePath(ctx context.
 		// No jurisdiction filter — return the most-recent matching registration.
 		row := r.db.QueryRowContext(ctx,
 			`SELECT row_to_json(tr)
-			 FROM tax_registration tr
+			 FROM ` + entityid.TaxRegistration + ` tr
 			 WHERE tr.party_type = $1
 			   AND tr.party_id = $2
 			   AND tr.compute_path_snapshot = $3

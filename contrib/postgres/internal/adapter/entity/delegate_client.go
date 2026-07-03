@@ -300,7 +300,7 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 				role_id,
 				granted_by_user_id,
 				workspace_id
-			FROM delegate_client
+			FROM ` + entityid.DelegateClient + `
 			WHERE active = true
 			  AND workspace_id = $4::text
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -373,7 +373,7 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientItemPageData(ctx con
 	// Tenancy: scope on the junction's own workspace_id (IDOR defense). $ws from
 	// session identity. FAIL-CLOSED: an empty WorkspaceID matches no row.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT id, delegate_id, client_id, active, date_created, date_modified FROM delegate_client WHERE id = $1 AND active = true AND workspace_id = $2::text`
+	query := `SELECT id, delegate_id, client_id, active, date_created, date_modified FROM ` + entityid.DelegateClient + ` WHERE id = $1 AND active = true AND workspace_id = $2::text`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.DelegateClientId, wsID)
 	var id, delegateId, clientId string

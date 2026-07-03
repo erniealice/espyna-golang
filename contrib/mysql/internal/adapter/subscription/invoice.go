@@ -389,9 +389,9 @@ const invoiceBaseSelect = `
 		u.date_created as user_date_created,
 		u.date_modified as user_date_modified,
 		u.active as user_active
-	FROM invoice i
-	LEFT JOIN subscription s ON i.subscription_id = s.id
-	LEFT JOIN client c ON s.client_id = c.id
+	FROM ` + entityid.Invoice + ` i
+	LEFT JOIN ` + entityid.Subscription + ` s ON i.subscription_id = s.id
+	LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id
 	LEFT JOIN ` + "`user`" + ` u ON c.user_id = u.id
 `
 
@@ -524,7 +524,7 @@ func (r *MySQLInvoiceRepository) GetInvoiceListPageData(ctx context.Context, req
 	}
 
 	// Count query — same WHERE, no ORDER BY / LIMIT.
-	countQuery := "SELECT COUNT(*) FROM invoice i LEFT JOIN subscription s ON i.subscription_id = s.id LEFT JOIN client c ON s.client_id = c.id LEFT JOIN `user` u ON c.user_id = u.id " + whereSQL
+	countQuery := "SELECT COUNT(*) FROM " + entityid.Invoice + " i LEFT JOIN " + entityid.Subscription + " s ON i.subscription_id = s.id LEFT JOIN " + entityid.Client + " c ON s.client_id = c.id LEFT JOIN `user` u ON c.user_id = u.id " + whereSQL
 	var totalCount int64
 	if err := exec.QueryRowContext(ctx, countQuery, args...).Scan(&totalCount); err != nil {
 		return nil, fmt.Errorf("failed to get total count: %w", err)

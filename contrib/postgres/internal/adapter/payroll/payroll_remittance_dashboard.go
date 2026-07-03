@@ -3,6 +3,7 @@
 package payroll
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -34,8 +35,8 @@ func (r *PostgresPayrollRemittanceRepository) CountDueWithin(
 
 	const query = `
 		SELECT COUNT(*)::bigint
-		FROM payroll_remittance prm
-		LEFT JOIN payroll_run pr ON pr.id = prm.payroll_run_id
+		FROM ` + entityid.PayrollRemittance + ` prm
+		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = prm.payroll_run_id
 		WHERE prm.due_date >= $2
 		  AND prm.due_date <= $3
 		  AND ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)`
@@ -69,8 +70,8 @@ func (r *PostgresPayrollRemittanceRepository) UpcomingDeadlines(
 			prm.amount,
 			prm.due_date,
 			prm.status
-		FROM payroll_remittance prm
-		LEFT JOIN payroll_run pr ON pr.id = prm.payroll_run_id
+		FROM ` + entityid.PayrollRemittance + ` prm
+		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = prm.payroll_run_id
 		WHERE ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)
 		ORDER BY prm.due_date ASC
 		LIMIT $2`

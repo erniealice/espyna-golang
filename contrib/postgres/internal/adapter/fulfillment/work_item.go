@@ -175,7 +175,7 @@ func (r *PostgresFulfillmentRepository) DeleteFulfillment(ctx context.Context, r
 	// scope f.workspace_id). Empty wsID = service-to-service call → no scoping
 	// (the empty-string bypass is preserved). $2 is the workspace_id arg.
 	workspaceID := identity.Must(ctx).WorkspaceID
-	query := `UPDATE fulfillment SET active = false, date_modified = NOW() WHERE id = $1 AND ($2 = '' OR workspace_id = $2)`
+	query := `UPDATE ` + entityid.Fulfillment + ` SET active = false, date_modified = NOW() WHERE id = $1 AND ($2 = '' OR workspace_id = $2)`
 	_, err := r.db.ExecContext(ctx, query, req.Id, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete fulfillment: %w", err)
@@ -299,10 +299,10 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 				COALESCE(s.name, '') AS supplier_name,
 				COUNT(DISTINCT fi.id) AS item_count,
 				COUNT(DISTINCT fse.id) AS status_event_count
-			FROM fulfillment f
-			LEFT JOIN supplier s ON s.id = f.supplier_id AND s.active = true
-			LEFT JOIN fulfillment_item fi ON fi.fulfillment_id = f.id
-			LEFT JOIN fulfillment_status_event fse ON fse.fulfillment_id = f.id
+			FROM ` + entityid.Fulfillment + ` f
+			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = f.supplier_id AND s.active = true
+			LEFT JOIN ` + entityid.FulfillmentItem + ` fi ON fi.fulfillment_id = f.id
+			LEFT JOIN ` + entityid.FulfillmentStatusEvent + ` fse ON fse.fulfillment_id = f.id
 			WHERE f.active = true
 			  AND f.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -498,8 +498,8 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 			f.expenditure_id,
 			COALESCE(s.name, '') AS supplier_name,
 			COALESCE(CAST(f.revenue_id AS text), '') AS revenue_reference
-		FROM fulfillment f
-		LEFT JOIN supplier s ON s.id = f.supplier_id AND s.active = true
+		FROM ` + entityid.Fulfillment + ` f
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = f.supplier_id AND s.active = true
 		WHERE f.id = $1 AND f.workspace_id = $2 AND f.active = true
 	`
 
@@ -580,7 +580,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	itemsQuery := `
 		SELECT id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		       source_type, source_id, quantity_ordered, quantity_delivered, status, notes
-		FROM fulfillment_item
+		FROM ` + entityid.FulfillmentItem + `
 		WHERE fulfillment_id = $1
 		ORDER BY id ASC
 	`
@@ -639,7 +639,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	eventsQuery := `
 		SELECT id, fulfillment_id, from_status, to_status, provider_status, provider_reference,
 		       triggered_by_id, reason, occurred_at
-		FROM fulfillment_status_event
+		FROM ` + entityid.FulfillmentStatusEvent + `
 		WHERE fulfillment_id = $1
 		ORDER BY occurred_at DESC
 	`
@@ -693,7 +693,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentItemPageData(
 	returnsQuery := `
 		SELECT id, fulfillment_id, reason, status, refund_amount, currency,
 		       processed_by_id, notes, active, date_created
-		FROM fulfillment_return
+		FROM ` + entityid.FulfillmentReturn + `
 		WHERE fulfillment_id = $1 AND active = true
 		ORDER BY date_created DESC
 	`
@@ -791,7 +791,7 @@ func (r *PostgresFulfillmentRepository) TransitionStatus(
 
 	// Read current status for from_status
 	var fromStatus sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT status FROM fulfillment WHERE id = $1 AND active = true FOR UPDATE`, req.FulfillmentId).Scan(&fromStatus)
+	err = tx.QueryRowContext(ctx, `SELECT status FROM ` + entityid.Fulfillment + ` WHERE id = $1 AND active = true FOR UPDATE`, req.FulfillmentId).Scan(&fromStatus)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("fulfillment with ID '%s' not found", req.FulfillmentId)
 	}
@@ -835,7 +835,7 @@ func (r *PostgresFulfillmentRepository) TransitionStatus(
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO fulfillment_status_event
+		`INSERT INTO ` + entityid.FulfillmentStatusEvent + `
 			(fulfillment_id, from_status, to_status, provider_status, provider_reference, triggered_by_id, reason, occurred_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
 		req.FulfillmentId,
@@ -887,7 +887,7 @@ func (r *PostgresFulfillmentRepository) ListStatusEvents(
 	query := `
 		SELECT id, fulfillment_id, from_status, to_status, provider_status, provider_reference,
 		       triggered_by_id, reason, occurred_at
-		FROM fulfillment_status_event
+		FROM ` + entityid.FulfillmentStatusEvent + `
 		WHERE fulfillment_id = $1
 		ORDER BY occurred_at DESC
 	`

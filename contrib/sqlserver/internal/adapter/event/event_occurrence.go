@@ -169,7 +169,7 @@ func (r *SQLServerEventOccurrenceRepository) GetEventOccurrenceListPageData(
 				eo.active,
 				eo.date_created,
 				eo.date_modified
-			FROM event_occurrence eo
+			FROM ` + entityid.EventOccurrence + ` eo
 			WHERE eo.active = 1
 			  AND eo.workspace_id = @p1
 			  AND (@p2 = '' OR eo.event_id LIKE @p2)
@@ -310,7 +310,7 @@ func (r *SQLServerEventOccurrenceRepository) GetEventOccurrenceItemPageData(
 			eo.active,
 			eo.date_created,
 			eo.date_modified
-		FROM event_occurrence eo
+		FROM ` + entityid.EventOccurrence + ` eo
 		WHERE eo.id = @p1 AND eo.workspace_id = @p2 AND eo.active = 1
 	`
 

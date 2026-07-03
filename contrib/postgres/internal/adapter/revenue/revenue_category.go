@@ -261,7 +261,7 @@ func (r *PostgresRevenueCategoryRepository) GetRevenueCategoryListPageData(
 				rc.description,
 				rc.parent_category_id,
 				COUNT(*) OVER() AS total
-			FROM revenue_category rc
+			FROM ` + entityid.RevenueCategory + ` rc
 			WHERE rc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       rc.name ILIKE $1 OR
@@ -384,7 +384,7 @@ func (r *PostgresRevenueCategoryRepository) GetRevenueCategoryItemPageData(
 			rc.code,
 			rc.description,
 			rc.parent_category_id
-		FROM revenue_category rc
+		FROM ` + entityid.RevenueCategory + ` rc
 		WHERE rc.id = $1 AND rc.active = true
 		LIMIT 1;
 	`

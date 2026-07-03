@@ -341,7 +341,7 @@ func (r *SQLServerSubscriptionRepository) GetSubscriptionListPageData(ctx contex
 		WITH
 		search_filtered AS (
 			SELECT s.*
-			FROM subscription s
+			FROM ` + entityid.Subscription + ` s
 			WHERE s.active = @p7
 				AND (@p8 = '' OR s.workspace_id = @p8)
 				AND (@p1 = '' OR s.name LIKE @p1)
@@ -399,10 +399,10 @@ func (r *SQLServerSubscriptionRepository) GetSubscriptionListPageData(ctx contex
 					DATEDIFF_BIG(MILLISECOND, '1970-01-01', p.date_modified) AS [plan.date_modified]
 				FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS price_plan
 			FROM search_filtered sf
-			LEFT JOIN client c ON sf.client_id = c.id AND c.active = 1
+			LEFT JOIN ` + entityid.Client + ` c ON sf.client_id = c.id AND c.active = 1
 			LEFT JOIN [user] u ON c.user_id = u.id AND u.active = 1
-			LEFT JOIN price_plan pp ON sf.price_plan_id = pp.id AND pp.active = 1
-			LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = 1
+			LEFT JOIN ` + entityid.PricePlan + ` pp ON sf.price_plan_id = pp.id AND pp.active = 1
+			LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = 1
 		),
 
 		sorted AS (
@@ -629,11 +629,11 @@ func (r *SQLServerSubscriptionRepository) GetSubscriptionItemPageData(ctx contex
 				DATEDIFF_BIG(MILLISECOND, '1970-01-01', p.date_created) AS [plan.date_created],
 				DATEDIFF_BIG(MILLISECOND, '1970-01-01', p.date_modified) AS [plan.date_modified]
 			FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS price_plan
-		FROM subscription s
-		LEFT JOIN client c ON s.client_id = c.id AND c.active = 1
+		FROM ` + entityid.Subscription + ` s
+		LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id AND c.active = 1
 		LEFT JOIN [user] u ON c.user_id = u.id AND u.active = 1
-		LEFT JOIN price_plan pp ON s.price_plan_id = pp.id AND pp.active = 1
-		LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = 1
+		LEFT JOIN ` + entityid.PricePlan + ` pp ON s.price_plan_id = pp.id AND pp.active = 1
+		LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = 1
 		WHERE s.id = @p1
 		  AND (@p2 = '' OR s.workspace_id = @p2)
 	`
@@ -770,7 +770,7 @@ func (r *SQLServerSubscriptionRepository) CountActiveByClientIds(ctx context.Con
 		}
 		query := fmt.Sprintf(`
 			SELECT client_id, CAST(COUNT(*) AS INT) AS cnt
-			  FROM subscription
+			  FROM ` + entityid.Subscription + `
 			 WHERE active = 1
 			   AND (@p1 = '' OR workspace_id = @p1)
 			   AND client_id IN (%s)
@@ -779,7 +779,7 @@ func (r *SQLServerSubscriptionRepository) CountActiveByClientIds(ctx context.Con
 	} else {
 		rows, err = exec.QueryContext(ctx, `
 			SELECT client_id, CAST(COUNT(*) AS INT) AS cnt
-			  FROM subscription
+			  FROM ` + entityid.Subscription + `
 			 WHERE active = 1
 			   AND (@p1 = '' OR workspace_id = @p1)
 			 GROUP BY client_id`,

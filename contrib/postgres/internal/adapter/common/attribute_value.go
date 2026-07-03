@@ -277,8 +277,8 @@ func (r *PostgresAttributeValueRepository) GetAttributeValueListPageData(
 				av.value,
 				av.sort_order,
 				COALESCE(a.name, '') as attribute_name
-			FROM attribute_value av
-			LEFT JOIN attribute a ON av.attribute_id = a.id AND a.active = true
+			FROM `+entityid.AttributeValue+` av
+			LEFT JOIN `+entityid.Attribute+` a ON av.attribute_id = a.id AND a.active = true
 			WHERE av.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       av.value ILIKE $1 OR
@@ -413,8 +413,8 @@ func (r *PostgresAttributeValueRepository) GetAttributeValueItemPageData(
 				av.value,
 				av.sort_order,
 				COALESCE(a.name, '') as attribute_name
-			FROM attribute_value av
-			LEFT JOIN attribute a ON av.attribute_id = a.id AND a.active = true
+			FROM ` + entityid.AttributeValue + ` av
+			LEFT JOIN ` + entityid.Attribute + ` a ON av.attribute_id = a.id AND a.active = true
 			WHERE av.id = $1 AND av.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

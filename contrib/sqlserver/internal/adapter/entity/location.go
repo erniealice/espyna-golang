@@ -276,13 +276,13 @@ func (r *SQLServerLocationRepository) GetLocationListPageData(
 					la.location_id,
 					la.attribute_id,
 					la.value
-				 FROM location_attribute la
+				 FROM ` + entityid.LocationAttribute + ` la
 				 WHERE la.location_id = l.id
 				 ORDER BY la.attribute_id
 				 FOR JSON PATH) AS location_attributes,
 				COUNT(*) OVER () AS total
-			FROM location l
-			LEFT JOIN location_area la2 ON l.location_area_id = la2.id
+			FROM ` + entityid.Location + ` l
+			LEFT JOIN ` + entityid.LocationArea + ` la2 ON l.location_area_id = la2.id
 			%s
 		),
 		counted AS (
@@ -437,11 +437,11 @@ func (r *SQLServerLocationRepository) GetLocationItemPageData(
 				la.location_id,
 				la.attribute_id,
 				la.value
-			 FROM location_attribute la
+			 FROM ` + entityid.LocationAttribute + ` la
 			 WHERE la.location_id = @p1
 			 ORDER BY la.attribute_id
 			 FOR JSON PATH) AS location_attributes
-		FROM location l
+		FROM ` + entityid.Location + ` l
 		WHERE l.id = @p1
 		  AND (@p2 = '' OR l.workspace_id = @p2);
 	`

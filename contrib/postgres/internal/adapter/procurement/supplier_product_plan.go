@@ -197,7 +197,7 @@ func (r *PostgresSupplierProductPlanRepository) GetSupplierProductPlanListPageDa
 		return nil, err
 	}
 	query := fmt.Sprintf(`SELECT id, name, active, supplier_plan_id, product_id, product_variant_id, date_created, date_modified
-	          FROM supplier_product_plan
+	          FROM ` + entityid.SupplierProductPlan + `
 	          WHERE active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1)
 	          %s LIMIT $2 OFFSET $3`, orderByClause)
@@ -241,7 +241,7 @@ func (r *PostgresSupplierProductPlanRepository) GetSupplierProductPlanItemPageDa
 		return nil, fmt.Errorf("supplier product plan ID required")
 	}
 	query := `SELECT id, name, active, supplier_plan_id, product_id, product_variant_id, date_created, date_modified
-	          FROM supplier_product_plan WHERE id = $1`
+	          FROM ` + entityid.SupplierProductPlan + ` WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, req.SupplierProductPlanId)
 	var id, name, supplierPlanID, productID string
 	var productVariantID sql.NullString
@@ -284,7 +284,7 @@ func (r *PostgresSupplierProductPlanRepository) ListBySupplierPlan(ctx context.C
 	_ = params
 
 	query := `SELECT id, name, active, supplier_plan_id, product_id, product_variant_id, date_created, date_modified
-	          FROM supplier_product_plan
+	          FROM ` + entityid.SupplierProductPlan + `
 	          WHERE supplier_plan_id = $1 AND active = true
 	          ORDER BY name ASC`
 	rows, err := r.db.QueryContext(ctx, query, req.SupplierPlanId)

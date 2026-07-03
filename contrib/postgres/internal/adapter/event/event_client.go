@@ -273,7 +273,7 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 				ec.active,
 				ec.date_created,
 				ec.date_modified
-			FROM event_client ec
+			FROM ` + entityid.EventClient + ` ec
 			WHERE ec.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   ec.event_id ILIKE $1 OR
@@ -392,7 +392,7 @@ func (r *PostgresEventClientRepository) GetEventClientItemPageData(
 			ec.active,
 			ec.date_created,
 			ec.date_modified
-		FROM event_client ec
+		FROM ` + entityid.EventClient + ` ec
 		WHERE ec.id = $1 AND ec.active = true
 		LIMIT 1;
 	`

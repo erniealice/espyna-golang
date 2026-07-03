@@ -282,7 +282,7 @@ func (r *SQLServerSecurityDepositRepository) GetSecurityDepositListPageData(
 				sd.status,
 				sd.account_id,
 				sd.notes
-			FROM security_deposit sd
+			FROM ` + entityid.SecurityDeposit + ` sd
 			WHERE sd.active = 1
 			  AND sd.workspace_id = @p1
 			  AND (@p2 = '' OR
@@ -437,7 +437,7 @@ func (r *SQLServerSecurityDepositRepository) GetSecurityDepositItemPageData(
 				sd.status,
 				sd.account_id,
 				sd.notes
-			FROM security_deposit sd
+			FROM ` + entityid.SecurityDeposit + ` sd
 			WHERE sd.id = @p1 AND sd.workspace_id = @p2 AND sd.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

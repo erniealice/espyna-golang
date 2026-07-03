@@ -3,6 +3,7 @@
 package operation
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"database/sql"
 	"fmt"
@@ -48,7 +49,7 @@ func (r *SQLServerJobRepository) CountByStatus(
 	if since.IsZero() {
 		const q = `
 			SELECT j.status, COUNT(*)
-			FROM job j
+			FROM ` + entityid.Job + ` j
 			WHERE j.active = 1
 			  AND (@p1 IS NULL OR @p1 = '' OR j.workspace_id = @p1)
 			GROUP BY j.status`
@@ -56,7 +57,7 @@ func (r *SQLServerJobRepository) CountByStatus(
 	} else {
 		const q = `
 			SELECT j.status, COUNT(*)
-			FROM job j
+			FROM ` + entityid.Job + ` j
 			WHERE j.active = 1
 			  AND j.date_created >= @p2
 			  AND (@p1 IS NULL OR @p1 = '' OR j.workspace_id = @p1)
@@ -121,7 +122,7 @@ func (r *SQLServerJobRepository) UpcomingDeadlines(
 			j.status,
 			j.planned_end,
 			j.due_date
-		FROM job j
+		FROM ` + entityid.Job + ` j
 		WHERE j.active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR j.workspace_id = @p1)
 		  AND COALESCE(
@@ -211,7 +212,7 @@ func (r *SQLServerJobRepository) TopByCompletionRisk(
 				p.job_id,
 				COUNT(*) AS total,
 				SUM(CASE WHEN p.status = 'JOB_PHASE_STATUS_COMPLETED' THEN 1 ELSE 0 END) AS done
-			FROM job_phase p
+			FROM ` + entityid.JobPhase + ` p
 			WHERE p.active = 1
 			GROUP BY p.job_id
 		)
@@ -221,7 +222,7 @@ func (r *SQLServerJobRepository) TopByCompletionRisk(
 			j.status,
 			COALESCE(CAST(pc.done AS float) * 100.0 / NULLIF(CAST(pc.total AS float), 0), 0) AS completion_pct,
 			j.planned_end
-		FROM job j
+		FROM ` + entityid.Job + ` j
 		LEFT JOIN phase_counts pc ON pc.job_id = j.id
 		WHERE j.active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR j.workspace_id = @p1)

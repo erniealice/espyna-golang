@@ -183,7 +183,7 @@ func (r *SQLServerTaxRegistrationRepository) FindActive(ctx context.Context, par
 		`SELECT tr.id, tr.party_type, tr.party_id, tr.tax_registration_kind_id,
 		        tr.compute_path_snapshot, tr.party_role_snapshot,
 		        tr.status, tr.effective_from, tr.effective_to, tr.workspace_id
-		 FROM tax_registration tr
+		 FROM ` + entityid.TaxRegistration + ` tr
 		 WHERE tr.party_type = @p1
 		   AND tr.party_id = @p2
 		   AND tr.status IN (2, 3, 4)
@@ -274,8 +274,8 @@ func (r *SQLServerTaxRegistrationRepository) FindActiveByComputePath(ctx context
 				tr.id, tr.party_type, tr.party_id, tr.tax_registration_kind_id,
 				tr.compute_path_snapshot, tr.party_role_snapshot,
 				tr.status, tr.effective_from, tr.effective_to, tr.workspace_id
-			 FROM tax_registration tr
-			 JOIN tax_registration_kind trk ON trk.id = tr.tax_registration_kind_id
+			 FROM ` + entityid.TaxRegistration + ` tr
+			 JOIN ` + entityid.TaxRegistrationKind + ` trk ON trk.id = tr.tax_registration_kind_id
 			 WHERE tr.party_type = @p1
 			   AND tr.party_id = @p2
 			   AND tr.compute_path_snapshot = @p3
@@ -295,7 +295,7 @@ func (r *SQLServerTaxRegistrationRepository) FindActiveByComputePath(ctx context
 				tr.id, tr.party_type, tr.party_id, tr.tax_registration_kind_id,
 				tr.compute_path_snapshot, tr.party_role_snapshot,
 				tr.status, tr.effective_from, tr.effective_to, tr.workspace_id
-			 FROM tax_registration tr
+			 FROM ` + entityid.TaxRegistration + ` tr
 			 WHERE tr.party_type = @p1
 			   AND tr.party_id = @p2
 			   AND tr.compute_path_snapshot = @p3

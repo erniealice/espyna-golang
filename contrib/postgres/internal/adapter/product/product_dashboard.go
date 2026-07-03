@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
@@ -41,7 +42,7 @@ func (r *PostgresProductRepository) CountByStatusAndKind(
 	const query = `
 		WITH base AS (
 			SELECT p.active
-			FROM product p
+			FROM ` + entityid.Product + ` p
 			WHERE p.product_kind = $2
 			  AND ($1::text IS NULL OR $1::text = '' OR p.workspace_id = $1)
 		)
@@ -84,8 +85,8 @@ func (r *PostgresProductRepository) CountByLine(
 	const query = `
 		SELECT COALESCE(NULLIF(pl.line_id, ''), 'unassigned'),
 		       COUNT(DISTINCT p.id)::bigint
-		FROM product p
-		LEFT JOIN product_line pl
+		FROM ` + entityid.Product + ` p
+		LEFT JOIN ` + entityid.ProductLine + ` pl
 		  ON pl.product_id = p.id AND pl.active = true
 		WHERE p.active = true
 		  AND p.product_kind = $2
@@ -132,7 +133,7 @@ func (r *PostgresProductRepository) RecentlyListed(
 
 	const query = `
 		SELECT to_jsonb(p) AS row
-		FROM product p
+		FROM ` + entityid.Product + ` p
 		WHERE p.active = true
 		  AND p.product_kind = $2
 		  AND ($1::text IS NULL OR $1::text = '' OR p.workspace_id = $1)

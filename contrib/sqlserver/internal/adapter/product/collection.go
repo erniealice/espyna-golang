@@ -233,8 +233,8 @@ func (r *SQLServerCollectionRepository) GetCollectionListPageData(ctx context.Co
 				p.date_created AS plan_date_created,
 				p.date_modified AS plan_date_modified,
 				p.active     AS plan_active
-			FROM collection_plan cp
-			INNER JOIN plan p ON cp.plan_id = p.id
+			FROM ` + entityid.CollectionPlan + ` cp
+			INNER JOIN ` + entityid.Plan + ` p ON cp.plan_id = p.id
 			WHERE cp.active = 1 AND p.active = 1
 		),
 		-- CTE 2: Aggregate collection_plan relationships with plan details (JSON)
@@ -266,7 +266,7 @@ func (r *SQLServerCollectionRepository) GetCollectionListPageData(ctx context.Co
 		-- CTE 3: Apply search filter
 		search_filtered AS (
 			SELECT c.*
-			FROM collection c
+			FROM ` + entityid.Collection + ` c
 			WHERE c.active = 1
 				AND (@p1 = '' OR
 					c.name LIKE @p1 OR
@@ -297,7 +297,7 @@ func (r *SQLServerCollectionRepository) GetCollectionListPageData(ctx context.Co
 						cp2.date_modified   AS [parent.date_modified],
 						cp2.active          AS [parent.active]
 					FROM collection_parent cpp
-					INNER JOIN collection cp2 ON cpp.parent_id = cp2.id
+					INNER JOIN ` + entityid.Collection + ` cp2 ON cpp.parent_id = cp2.id
 					WHERE cpp.collection_id = sf.id AND cpp.active = 1 AND cp2.active = 1
 					FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
 				) AS collection_parent_json
@@ -445,8 +445,8 @@ func (r *SQLServerCollectionRepository) GetCollectionItemPageData(ctx context.Co
 				p.date_created AS plan_date_created,
 				p.date_modified AS plan_date_modified,
 				p.active      AS plan_active
-			FROM collection_plan cp
-			INNER JOIN plan p ON cp.plan_id = p.id
+			FROM ` + entityid.CollectionPlan + ` cp
+			INNER JOIN ` + entityid.Plan + ` p ON cp.plan_id = p.id
 			WHERE cp.collection_id = @p1 AND cp.active = 1 AND p.active = 1
 		)
 		SELECT
@@ -489,11 +489,11 @@ func (r *SQLServerCollectionRepository) GetCollectionItemPageData(ctx context.Co
 					cp2.date_modified   AS [parent.date_modified],
 					cp2.active          AS [parent.active]
 				FROM collection_parent cpp
-				INNER JOIN collection cp2 ON cpp.parent_id = cp2.id
+				INNER JOIN ` + entityid.Collection + ` cp2 ON cpp.parent_id = cp2.id
 				WHERE cpp.collection_id = @p1 AND cpp.active = 1 AND cp2.active = 1
 				FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
 			) AS collection_parent_json
-		FROM collection c
+		FROM ` + entityid.Collection + ` c
 		WHERE c.id = @p1 AND c.active = 1
 	`
 

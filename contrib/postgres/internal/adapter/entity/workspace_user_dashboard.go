@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // CountByWorkspace returns the number of workspace_user rows in the
@@ -43,7 +44,7 @@ func (r *PostgresWorkspaceUserRepository) UsersPerRole(ctx context.Context, work
 			wur.role_id,
 			COUNT(DISTINCT wu.id) AS user_count
 		FROM %s wu
-		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
+		JOIN `+entityid.WorkspaceUserRole+` wur ON wur.workspace_user_id = wu.id
 		WHERE ($1::text IS NULL OR $1::text = '' OR wu.workspace_id = $1)
 		  AND wur.active = true
 		GROUP BY wur.role_id

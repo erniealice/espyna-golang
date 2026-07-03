@@ -295,18 +295,17 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 				jt.status,
 				jt.is_ad_hoc,
 				jt.assigned_to
-			FROM job_task jt
+			FROM ` + entityid.JobTask + ` jt
 			WHERE jt.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jt.name ILIKE $1)` + staffClause + `
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
@@ -442,7 +441,7 @@ func (r *PostgresJobTaskRepository) GetJobTaskItemPageData(
 			jt.status,
 			jt.is_ad_hoc,
 			jt.assigned_to
-		FROM job_task jt
+		FROM ` + entityid.JobTask + ` jt
 		WHERE jt.id = $1 AND jt.active = true` + staffClause + `
 	`
 
@@ -541,7 +540,7 @@ func (r *PostgresJobTaskRepository) ListByPhase(
 			jt.status,
 			jt.is_ad_hoc,
 			jt.assigned_to
-		FROM job_task jt
+		FROM ` + entityid.JobTask + ` jt
 		WHERE jt.job_phase_id = $1 AND jt.active = true` + staffClause + `
 		ORDER BY jt.step_order ASC
 	`
@@ -653,7 +652,7 @@ func (r *PostgresJobTaskRepository) ListByAssignee(
 			jt.status,
 			jt.is_ad_hoc,
 			jt.assigned_to
-		FROM job_task jt
+		FROM ` + entityid.JobTask + ` jt
 		WHERE jt.assigned_to = $1 AND jt.active = true` + staffClause + `
 		ORDER BY jt.date_created DESC
 	`

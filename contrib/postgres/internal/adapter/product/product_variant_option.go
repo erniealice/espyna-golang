@@ -283,9 +283,9 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPage
 				pvo.product_option_value_id,
 				COALESCE(pv.sku, '') as variant_sku,
 				COALESCE(povl.label, '') as option_value_label
-			FROM product_variant_option pvo
-			LEFT JOIN product_variant pv ON pvo.product_variant_id = pv.id AND pv.active = true
-			LEFT JOIN product_option_value povl ON pvo.product_option_value_id = povl.id AND povl.active = true
+			FROM ` + entityid.ProductVariantOption + ` pvo
+			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvo.product_variant_id = pv.id AND pv.active = true
+			LEFT JOIN ` + entityid.ProductOptionValue + ` povl ON pvo.product_option_value_id = povl.id AND povl.active = true
 			WHERE pvo.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pv.sku ILIKE $1 OR
@@ -419,9 +419,9 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionItemPage
 				COALESCE(pv.sku, '') as variant_sku,
 				COALESCE(povl.label, '') as option_value_label,
 				COALESCE(povl.value, '') as option_value_value
-			FROM product_variant_option pvo
-			LEFT JOIN product_variant pv ON pvo.product_variant_id = pv.id AND pv.active = true
-			LEFT JOIN product_option_value povl ON pvo.product_option_value_id = povl.id AND povl.active = true
+			FROM ` + entityid.ProductVariantOption + ` pvo
+			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvo.product_variant_id = pv.id AND pv.active = true
+			LEFT JOIN ` + entityid.ProductOptionValue + ` povl ON pvo.product_option_value_id = povl.id AND povl.active = true
 			WHERE pvo.id = $1 AND pvo.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

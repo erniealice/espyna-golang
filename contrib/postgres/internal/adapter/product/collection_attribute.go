@@ -267,7 +267,7 @@ func (r *PostgresCollectionAttributeRepository) GetCollectionAttributeListPageDa
 				ca.value,
 				ca.date_created,
 				ca.date_modified
-			FROM collection_attribute ca
+			FROM ` + entityid.CollectionAttribute + ` ca
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       ca.collection_id ILIKE $1 OR
 			       ca.attribute_id ILIKE $1 OR
@@ -383,7 +383,7 @@ func (r *PostgresCollectionAttributeRepository) GetCollectionAttributeItemPageDa
 			ca.value,
 			ca.date_created,
 			ca.date_modified
-		FROM collection_attribute ca
+		FROM ` + entityid.CollectionAttribute + ` ca
 		WHERE ca.id = $1
 		LIMIT 1;
 	`

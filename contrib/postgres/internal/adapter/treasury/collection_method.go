@@ -270,7 +270,7 @@ func (r *PostgresCollectionMethodRepository) GetCollectionMethodListPageData(
 				cm.name,
 				cm.provider_name,
 				cm.active
-			FROM collection_method cm
+			FROM ` + entityid.CollectionMethod + ` cm
 			WHERE cm.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       cm.name ILIKE $1 OR
@@ -368,7 +368,7 @@ func (r *PostgresCollectionMethodRepository) GetCollectionMethodItemPageData(
 				cm.name,
 				cm.provider_name,
 				cm.active
-			FROM collection_method cm
+			FROM ` + entityid.CollectionMethod + ` cm
 			WHERE cm.id = $1
 		)
 		SELECT * FROM enriched LIMIT 1;

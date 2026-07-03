@@ -18,6 +18,7 @@
 package expenditure
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -65,7 +66,7 @@ const expenditureStatusAggregateQuery = `
 			COALESCE(ex.status, 'unknown') AS status,
 			ex.total_amount,
 			ex.status NOT IN ('paid', 'cancelled') AS is_open
-		FROM expenditure ex
+		FROM ` + entityid.Expenditure + ` ex
 		WHERE ex.active = 1
 		  AND ex.expenditure_type = ?
 		  AND (? = '' OR ex.workspace_id = ?)
@@ -166,8 +167,8 @@ func (r *MySQLExpenditureRepository) TopBySupplier(
 			ex.supplier_id,
 			COALESCE(s.name, ex.supplier_id),
 			COALESCE(SUM(ex.total_amount), 0) AS total
-		FROM expenditure ex
-		LEFT JOIN supplier s ON s.id = ex.supplier_id
+		FROM ` + entityid.Expenditure + ` ex
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ex.supplier_id
 		WHERE ex.active = 1
 		  AND ex.expenditure_type = ?
 		  AND ex.supplier_id IS NOT NULL
@@ -225,7 +226,7 @@ func (r *MySQLExpenditureRepository) RecentByDate(
 			ex.expenditure_category_id, ex.location_id,
 			ex.payment_terms, ex.due_date, ex.approved_by,
 			ex.purchase_order_id, ex.run_id, ex.workspace_id
-		FROM expenditure ex
+		FROM ` + entityid.Expenditure + ` ex
 		WHERE ex.active = 1
 		  AND ex.expenditure_type = ?
 		  AND (? = '' OR ex.workspace_id = ?)
@@ -393,7 +394,7 @@ func (r *MySQLExpenditureRepository) SumByMonth(
 		SELECT
 			DATE_FORMAT(ex.expenditure_date, '%Y-%m-01') AS bucket,
 			COALESCE(SUM(ex.total_amount), 0)            AS total
-		FROM expenditure ex
+		FROM ` + entityid.Expenditure + ` ex
 		WHERE ex.active = 1
 		  AND ex.expenditure_type = ?
 		  AND ex.expenditure_date >= ?
@@ -454,7 +455,7 @@ func (r *MySQLExpenditureRepository) SumByCategory(
 		SELECT
 			COALESCE(NULLIF(ex.expenditure_category_id, ''), 'uncategorized'),
 			COALESCE(SUM(ex.total_amount), 0)
-		FROM expenditure ex
+		FROM ` + entityid.Expenditure + ` ex
 		WHERE ex.active = 1
 		  AND ex.expenditure_type = ?
 		  AND ex.status NOT IN ('cancelled')

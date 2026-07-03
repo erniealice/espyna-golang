@@ -409,7 +409,7 @@ func (r *MySQLPlanRepository) SearchPlansByName(ctx context.Context, req *planpb
 	// Dialect: ILIKE → LIKE, $1/$2 → ?, active = true → active = 1.
 	query := `
 		SELECT id, name
-		FROM plan
+		FROM ` + entityid.Plan + `
 		WHERE active = 1
 			AND (? = '' OR name LIKE ?)
 		ORDER BY name ASC

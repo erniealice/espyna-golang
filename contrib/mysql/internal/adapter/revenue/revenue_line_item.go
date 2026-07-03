@@ -268,9 +268,9 @@ func (r *MySQLRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
-			FROM revenue_line_item rli
-			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = 1
-			LEFT JOIN product p ON rli.product_id = p.id AND p.active = 1
+			FROM ` + entityid.RevenueLineItem + ` rli
+			LEFT JOIN ` + entityid.Revenue + ` rv ON rli.revenue_id = rv.id AND rv.active = 1
+			LEFT JOIN ` + entityid.Product + ` p ON rli.product_id = p.id AND p.active = 1
 			WHERE rli.active = 1
 			  AND (? = '' OR rli.description LIKE ? OR p.name LIKE ? OR rv.name LIKE ?)
 		),
@@ -450,9 +450,9 @@ func (r *MySQLRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
-			FROM revenue_line_item rli
-			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = 1
-			LEFT JOIN product p ON rli.product_id = p.id AND p.active = 1
+			FROM ` + entityid.RevenueLineItem + ` rli
+			LEFT JOIN ` + entityid.Revenue + ` rv ON rli.revenue_id = rv.id AND rv.active = 1
+			LEFT JOIN ` + entityid.Product + ` p ON rli.product_id = p.id AND p.active = 1
 			WHERE rli.id = ? AND rli.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1

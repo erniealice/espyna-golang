@@ -274,7 +274,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 				pa.value,
 				pa.date_created,
 				pa.date_modified
-			FROM product_attribute pa
+			FROM ` + entityid.ProductAttribute + ` pa
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       pa.product_id ILIKE $1 OR
 			       pa.attribute_id ILIKE $1 OR
@@ -390,7 +390,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeItemPageData(
 			pa.value,
 			pa.date_created,
 			pa.date_modified
-		FROM product_attribute pa
+		FROM ` + entityid.ProductAttribute + ` pa
 		WHERE pa.id = $1
 		LIMIT 1;
 	`

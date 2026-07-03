@@ -284,7 +284,7 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 		SELECT
 			id, first_name, last_name, email_address, active, date_created, date_modified, timezone,
 			COUNT(*) OVER() AS total_count
-		FROM "user"
+		FROM "`+entityid.User+`"
 		%s
 		ORDER BY %s %s
 		LIMIT $%d OFFSET $%d
@@ -353,7 +353,7 @@ func (r *PostgresUserRepository) GetUserItemPageData(ctx context.Context, req *u
 	if req == nil || req.UserId == "" {
 		return nil, fmt.Errorf("user ID required")
 	}
-	query := `SELECT id, first_name, last_name, email_address, active, date_created, date_modified, timezone FROM "user" WHERE id = $1`
+	query := `SELECT id, first_name, last_name, email_address, active, date_created, date_modified, timezone FROM "` + entityid.User + `" WHERE id = $1`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.UserId)
 	var id, firstName, lastName, emailAddress string

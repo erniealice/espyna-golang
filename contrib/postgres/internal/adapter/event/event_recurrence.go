@@ -291,7 +291,7 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceListPageData(
 				er.active,
 				er.date_created,
 				er.date_modified
-			FROM event_recurrence er
+			FROM ` + entityid.EventRecurrence + ` er
 			WHERE er.active = true
 			  AND er.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -465,7 +465,7 @@ func (r *PostgresEventRecurrenceRepository) GetEventRecurrenceItemPageData(
 			er.active,
 			er.date_created,
 			er.date_modified
-		FROM event_recurrence er
+		FROM ` + entityid.EventRecurrence + ` er
 		WHERE er.id = $1 AND er.workspace_id = $2 AND er.active = true
 		LIMIT 1;
 	`

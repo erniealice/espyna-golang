@@ -290,8 +290,8 @@ func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationListPa
 				id2.accumulated_depreciation,
 				id2.book_value,
 				COALESCE(ii.name, '') as inventory_item_name
-			FROM inventory_depreciation id2
-			LEFT JOIN inventory_item ii ON id2.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventoryDepreciation + ` id2
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON id2.inventory_item_id = ii.id AND ii.active = true
 			WHERE id2.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       id2.method ILIKE $1 OR
@@ -447,8 +447,8 @@ func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationItemPa
 				id2.book_value,
 				COALESCE(ii.name, '') as inventory_item_name,
 				COALESCE(ii.sku, '') as inventory_item_sku
-			FROM inventory_depreciation id2
-			LEFT JOIN inventory_item ii ON id2.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventoryDepreciation + ` id2
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON id2.inventory_item_id = ii.id AND ii.active = true
 			WHERE id2.id = $1 AND id2.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

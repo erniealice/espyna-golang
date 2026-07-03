@@ -257,7 +257,7 @@ func (r *SQLServerJobTemplateRepository) GetJobTemplateListPageData(
 				jt.default_fulfillment_type,
 				jt.default_cost_flow_type,
 				jt.default_billing_rule_type
-			FROM job_template jt
+			FROM ` + entityid.JobTemplate + ` jt
 			%s
 		),
 		counted AS (
@@ -388,7 +388,7 @@ func (r *SQLServerJobTemplateRepository) GetJobTemplateItemPageData(
 			jt.default_fulfillment_type,
 			jt.default_cost_flow_type,
 			jt.default_billing_rule_type
-		FROM job_template jt
+		FROM ` + entityid.JobTemplate + ` jt
 		WHERE jt.id = @p1 AND jt.workspace_id = @p2 AND jt.active = 1
 	`
 

@@ -269,7 +269,7 @@ func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentList
 				pcr.replenishment_date,
 				pcr.posted_by,
 				pcr.notes
-			FROM petty_cash_replenishment pcr
+			FROM `+entityid.PettyCashReplenishment+` pcr
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       pcr.replenishment_number ILIKE $1 OR
 			       pcr.notes ILIKE $1)
@@ -398,7 +398,7 @@ func (r *PostgresPettyCashReplenishmentRepository) GetPettyCashReplenishmentItem
 				pcr.replenishment_date,
 				pcr.posted_by,
 				pcr.notes
-			FROM petty_cash_replenishment pcr
+			FROM ` + entityid.PettyCashReplenishment + ` pcr
 			WHERE pcr.id = $1
 		)
 		SELECT * FROM enriched LIMIT 1;

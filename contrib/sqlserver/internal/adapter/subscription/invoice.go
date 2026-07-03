@@ -246,9 +246,9 @@ func (r *SQLServerInvoiceRepository) GetInvoiceListPageData(ctx context.Context,
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM invoice i
-			LEFT JOIN subscription s ON i.subscription_id = s.id
-			LEFT JOIN client c ON s.client_id = c.id
+			FROM ` + entityid.Invoice + ` i
+			LEFT JOIN ` + entityid.Subscription + ` s ON i.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id
 			LEFT JOIN [user] u ON c.user_id = u.id
 			WHERE i.active = 1
 			  AND (@p1 = '' OR i.workspace_id = @p1)
@@ -519,7 +519,7 @@ func (r *SQLServerInvoiceRepository) GetInvoiceListPageData(ctx context.Context,
 	// Count query — mirrors the main query filters but without pagination.
 	// workspace_id guard also applied here.
 	countQuery := `
-		SELECT COUNT(*) FROM invoice i
+		SELECT COUNT(*) FROM ` + entityid.Invoice + ` i
 		WHERE i.active = 1
 		  AND (@p1 = '' OR i.workspace_id = @p1)
 	`
@@ -638,9 +638,9 @@ func (r *SQLServerInvoiceRepository) GetInvoiceItemPageData(ctx context.Context,
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM invoice i
-			LEFT JOIN subscription s ON i.subscription_id = s.id
-			LEFT JOIN client c ON s.client_id = c.id
+			FROM ` + entityid.Invoice + ` i
+			LEFT JOIN ` + entityid.Subscription + ` s ON i.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id
 			LEFT JOIN [user] u ON c.user_id = u.id
 			WHERE i.id = @p1
 			  AND i.active = 1

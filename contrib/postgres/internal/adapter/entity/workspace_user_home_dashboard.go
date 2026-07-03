@@ -5,6 +5,7 @@ package entity
 import (
 	"context"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"log"
 	"time"
 
@@ -20,10 +21,10 @@ import (
 // as UsersPerRole which joins workspace_user_role).
 func (r *PostgresWorkspaceUserRepository) HomeDashboardStats(ctx context.Context, workspaceID string) (homedash.HomeDashboardStats, error) {
 	query := `SELECT
-		COALESCE((SELECT COUNT(*) FROM workspace_user WHERE workspace_id = $1), 0),
-		COALESCE((SELECT COUNT(*) FROM workspace_user WHERE active = true AND workspace_id = $1), 0),
-		COALESCE((SELECT COUNT(*) FROM workspace_user WHERE active = false AND workspace_id = $1), 0),
-		COALESCE((SELECT COUNT(*) FROM role WHERE active = true AND workspace_id = $1), 0)`
+		COALESCE((SELECT COUNT(*) FROM ` + entityid.WorkspaceUser + ` WHERE workspace_id = $1), 0),
+		COALESCE((SELECT COUNT(*) FROM ` + entityid.WorkspaceUser + ` WHERE active = true AND workspace_id = $1), 0),
+		COALESCE((SELECT COUNT(*) FROM ` + entityid.WorkspaceUser + ` WHERE active = false AND workspace_id = $1), 0),
+		COALESCE((SELECT COUNT(*) FROM ` + entityid.Role + ` WHERE active = true AND workspace_id = $1), 0)`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, workspaceID)
@@ -46,12 +47,12 @@ func (r *PostgresWorkspaceUserRepository) HomeRecentActivity(ctx context.Context
 	}
 	query := fmt.Sprintf(`
 		(SELECT 'user_created' as event_type, u.first_name || ' ' || u.last_name as name, wu.date_created as event_date
-		 FROM workspace_user wu JOIN "user" u ON wu.user_id = u.id
+		 FROM `+entityid.WorkspaceUser+` wu JOIN "`+entityid.User+`" u ON wu.user_id = u.id
 		 WHERE wu.date_created IS NOT NULL AND wu.workspace_id = $1
 		 ORDER BY wu.date_created DESC LIMIT 3)
 		UNION ALL
 		(SELECT 'role_modified' as event_type, r.name, r.date_modified as event_date
-		 FROM role r
+		 FROM `+entityid.Role+` r
 		 WHERE r.date_modified IS NOT NULL AND r.workspace_id = $1
 		 ORDER BY r.date_modified DESC LIMIT 2)
 		ORDER BY event_date DESC

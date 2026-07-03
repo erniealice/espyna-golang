@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	activitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity"
 )
 
@@ -80,11 +81,11 @@ func (r *PostgresAssigneeQueryRepository) ListPendingActivitiesForAssignee(
 	// ── Count query (same join, no LIMIT/OFFSET) ──
 	countQuery := `
 		SELECT COUNT(*)
-		FROM activity a
-		JOIN stage st        ON a.stage_id    = st.id
-		JOIN workflow wf     ON st.workflow_id = wf.id
-		JOIN work_request wr ON wf.id         = wr.workflow_id
-		JOIN workspace_user wu ON wu.id        = $1
+		FROM ` + entityid.Activity + ` a
+		JOIN ` + entityid.Stage + ` st        ON a.stage_id    = st.id
+		JOIN ` + entityid.Workflow + ` wf     ON st.workflow_id = wf.id
+		JOIN ` + entityid.WorkRequest + ` wr ON wf.id         = wr.workflow_id
+		JOIN ` + entityid.WorkspaceUser + ` wu ON wu.id        = $1
 		WHERE a.assigned_to    = wu.user_id
 		  AND a.assigned_to IS NOT NULL
 		  AND a.status NOT IN ('completed', 'skipped', 'cancelled')
@@ -120,11 +121,11 @@ func (r *PostgresAssigneeQueryRepository) ListPendingActivitiesForAssignee(
 			a.assigned_to,
 			a.date_created,
 			a.date_modified
-		FROM activity a
-		JOIN stage st        ON a.stage_id    = st.id
-		JOIN workflow wf     ON st.workflow_id = wf.id
-		JOIN work_request wr ON wf.id         = wr.workflow_id
-		JOIN workspace_user wu ON wu.id        = $1
+		FROM ` + entityid.Activity + ` a
+		JOIN ` + entityid.Stage + ` st        ON a.stage_id    = st.id
+		JOIN ` + entityid.Workflow + ` wf     ON st.workflow_id = wf.id
+		JOIN ` + entityid.WorkRequest + ` wr ON wf.id         = wr.workflow_id
+		JOIN ` + entityid.WorkspaceUser + ` wu ON wu.id        = $1
 		WHERE a.assigned_to    = wu.user_id
 		  AND a.assigned_to IS NOT NULL
 		  AND a.status NOT IN ('completed', 'skipped', 'cancelled')

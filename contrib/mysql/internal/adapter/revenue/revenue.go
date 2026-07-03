@@ -318,12 +318,12 @@ func (r *MySQLRevenueRepository) GetRevenueListPageData(
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
 				COALESCE(pt.name, '') as payment_term_name,
-				EXISTS(SELECT 1 FROM treasury_collection tc WHERE tc.revenue_id = rv.id) as has_collection,
+				EXISTS(SELECT 1 FROM ` + entityid.TreasuryCollection + ` tc WHERE tc.revenue_id = rv.id) as has_collection,
 				COUNT(*) OVER() AS total_count
 			FROM %s rv
-			LEFT JOIN client c ON rv.client_id = c.id AND c.active = 1
-			LEFT JOIN location l ON rv.location_id = l.id AND l.active = 1
-			LEFT JOIN payment_term pt ON rv.payment_term_id = pt.id
+			LEFT JOIN ` + entityid.Client + ` c ON rv.client_id = c.id AND c.active = 1
+			LEFT JOIN ` + entityid.Location + ` l ON rv.location_id = l.id AND l.active = 1
+			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON rv.payment_term_id = pt.id
 			%s
 		)
 		SELECT * FROM enriched
@@ -531,9 +531,9 @@ func (r *MySQLRevenueRepository) GetRevenueItemPageData(
 				rv.advance_collection_id,
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name
-			FROM revenue rv
-			LEFT JOIN client c ON rv.client_id = c.id AND c.active = 1
-			LEFT JOIN location l ON rv.location_id = l.id AND l.active = 1
+			FROM ` + entityid.Revenue + ` rv
+			LEFT JOIN ` + entityid.Client + ` c ON rv.client_id = c.id AND c.active = 1
+			LEFT JOIN ` + entityid.Location + ` l ON rv.location_id = l.id AND l.active = 1
 			WHERE rv.id = ? AND rv.workspace_id = ? AND rv.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1

@@ -126,7 +126,7 @@ func (r *SQLServerTaxRateRepository) FindApplicable(ctx context.Context, workspa
 			tr.id, tr.jurisdiction, tr.authority_code, tr.kind, tr.treatment_code,
 			tr.direction, tr.rate_bps, tr.status, tr.effective_from, tr.effective_to,
 			tr.workspace_id
-		 FROM tax_rate tr
+		 FROM ` + entityid.TaxRate + ` tr
 		 WHERE tr.jurisdiction = @p1
 		   AND tr.authority_code = @p2
 		   AND tr.kind = @p3

@@ -115,7 +115,7 @@ func (r *PostgresTaxRegistrationKindRepository) FindByPartyType(ctx context.Cont
 	// applicable_party_types is stored as a text[] column; each element is the
 	// upper-case party-type string (e.g. "CLIENT", "WORKSPACE").
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT row_to_json(k) FROM tax_registration_kind k
+		`SELECT row_to_json(k) FROM ` + entityid.TaxRegistrationKind + ` k
 		 WHERE active = true AND $1 = ANY(applicable_party_types)
 		 ORDER BY name`,
 		partyType,

@@ -3,6 +3,7 @@
 package payroll
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -51,14 +52,14 @@ func (r *PostgresPayrollRunRepository) CountByStatus(
 	if since.IsZero() {
 		query = `
 			SELECT pr.status, COUNT(*)::bigint
-			FROM payroll_run pr
+			FROM ` + entityid.PayrollRun + ` pr
 			WHERE ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)
 			GROUP BY pr.status`
 		args = []any{workspaceID}
 	} else {
 		query = `
 			SELECT pr.status, COUNT(*)::bigint
-			FROM payroll_run pr
+			FROM ` + entityid.PayrollRun + ` pr
 			WHERE pr.date_created >= $2
 			  AND ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)
 			GROUP BY pr.status`
@@ -114,7 +115,7 @@ func (r *PostgresPayrollRunRepository) SumGrossByMonth(
 		SELECT m.bucket,
 		       COALESCE(SUM(pr.total_gross), 0)::bigint
 		FROM months m
-		LEFT JOIN payroll_run pr
+		LEFT JOIN ` + entityid.PayrollRun + ` pr
 		  ON date_trunc('month', pr.pay_period_end::timestamp) = m.bucket
 		 AND ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)
 		GROUP BY m.bucket
@@ -165,7 +166,7 @@ func (r *PostgresPayrollRunRepository) LatestRun(
 			pr.employee_count,
 			pr.status,
 			pr.date_created
-		FROM payroll_run pr
+		FROM ` + entityid.PayrollRun + ` pr
 		WHERE ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)
 		ORDER BY pr.date_created DESC
 		LIMIT 1`
@@ -234,7 +235,7 @@ func (r *PostgresPayrollRunRepository) RecentRuns(
 			pr.employee_count,
 			pr.status,
 			pr.date_created
-		FROM payroll_run pr
+		FROM ` + entityid.PayrollRun + ` pr
 		WHERE ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)
 		ORDER BY pr.date_created DESC
 		LIMIT $2`
@@ -299,7 +300,7 @@ func (r *PostgresPayrollRunRepository) SumTotalGrossInPeriod(
 
 	const query = `
 		SELECT COALESCE(SUM(pr.total_gross), 0)::bigint
-		FROM payroll_run pr
+		FROM ` + entityid.PayrollRun + ` pr
 		WHERE pr.pay_period_end >= $2
 		  AND pr.pay_period_end <= $3
 		  AND ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)`

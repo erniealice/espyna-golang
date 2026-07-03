@@ -230,13 +230,13 @@ No additional configuration needed - uses default table names.
 
 ### Collection/Table Name Overrides
 
-Override default table/collection names using these patterns:
+**PostgreSQL: RETIRED** (Q-TABLE-NAMES, 20260703 table-name-single-source). Table
+names are `registry/entityid` constants — the single source — and cannot be
+overridden by environment variable. Setting `DATABASE_POSTGRES_TABLE_*` (with or
+without the `LEAPFOR_` prefix) only produces a boot-time warning log naming the
+ignored vars; it is never read or applied.
 
-**PostgreSQL:**
-```bash
-LEAPFOR_DATABASE_POSTGRES_TABLE_CLIENT=custom_clients
-LEAPFOR_DATABASE_POSTGRES_TABLE_MANAGER=custom_managers
-```
+Firestore collection overrides remain available:
 
 **Firestore:**
 ```bash

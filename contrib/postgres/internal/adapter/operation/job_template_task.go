@@ -272,7 +272,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 				jtt.name,
 				jtt.step_order,
 				jtt.estimated_duration_minutes
-			FROM job_template_task jtt
+			FROM ` + entityid.JobTemplateTask + ` jtt
 			WHERE jtt.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jtt.name ILIKE $1)
@@ -401,7 +401,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskItemPageData(
 			jtt.name,
 			jtt.step_order,
 			jtt.estimated_duration_minutes
-		FROM job_template_task jtt
+		FROM ` + entityid.JobTemplateTask + ` jtt
 		WHERE jtt.id = $1 AND jtt.active = true
 	`
 
@@ -485,7 +485,7 @@ func (r *PostgresJobTemplateTaskRepository) ListByPhase(
 			jtt.name,
 			jtt.step_order,
 			jtt.estimated_duration_minutes
-		FROM job_template_task jtt
+		FROM ` + entityid.JobTemplateTask + ` jtt
 		WHERE jtt.job_template_phase_id = $1 AND jtt.active = true
 		ORDER BY jtt.step_order ASC
 	`

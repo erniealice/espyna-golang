@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 )
@@ -235,7 +235,7 @@ func (r *PostgresProcurementRequestLineRepository) GetProcurementRequestLineList
 				prl.date_created,
 				prl.date_modified,
 				COUNT(*) OVER() AS total
-			FROM procurement_request_line prl
+			FROM ` + entityid.ProcurementRequestLine + ` prl
 			WHERE prl.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR prl.procurement_request_id = $1)
 		)

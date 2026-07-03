@@ -267,8 +267,8 @@ func (r *MySQLProductVariantRepository) GetProductVariantListPageData(
 				pv.sku,
 				pv.price_override,
 				COALESCE(p.name, '') AS product_name
-			FROM product_variant pv
-			LEFT JOIN product p ON pv.product_id = p.id AND p.active = 1
+			FROM ` + entityid.ProductVariant + ` pv
+			LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id AND p.active = 1
 			WHERE pv.active = 1
 			%s
 		),
@@ -415,8 +415,8 @@ func (r *MySQLProductVariantRepository) GetProductVariantItemPageData(
 				COALESCE(p.name, '')     AS product_name,
 				COALESCE(p.price, 0)     AS product_price,
 				COALESCE(p.currency, '') AS product_currency
-			FROM product_variant pv
-			LEFT JOIN product p ON pv.product_id = p.id AND p.active = 1
+			FROM ` + entityid.ProductVariant + ` pv
+			LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id AND p.active = 1
 			WHERE pv.id = ? AND pv.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1;

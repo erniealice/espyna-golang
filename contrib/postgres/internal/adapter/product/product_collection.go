@@ -292,7 +292,7 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 				active,
 				date_created,
 				date_modified
-			FROM product_collection
+			FROM ` + entityid.ProductCollection + `
 			WHERE active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       product_id ILIKE $1 OR
@@ -346,7 +346,7 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionItemPageData(c
 	if req == nil || req.ProductCollectionId == "" {
 		return nil, fmt.Errorf("product collection ID required")
 	}
-	query := `SELECT id, product_id, collection_id, active, date_created, date_modified FROM product_collection WHERE id = $1 AND active = true`
+	query := `SELECT id, product_id, collection_id, active, date_created, date_modified FROM ` + entityid.ProductCollection + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductCollectionId)
 	var id, productId, collectionId string
 	var active bool

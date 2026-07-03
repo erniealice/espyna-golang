@@ -306,9 +306,9 @@ func (r *MySQLExpenditureRepository) GetExpenditureListPageData(
 				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
-			FROM expenditure ex
-			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = 1
-			LEFT JOIN location l ON ex.location_id = l.id AND l.active = 1
+			FROM ` + entityid.Expenditure + ` ex
+			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = 1
+			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = 1
 			WHERE ex.active = 1
 			  AND (? = '' OR ex.workspace_id = ?)
 			  AND (? = '' OR
@@ -537,9 +537,9 @@ func (r *MySQLExpenditureRepository) GetExpenditureItemPageData(
 				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
-			FROM expenditure ex
-			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = 1
-			LEFT JOIN location l ON ex.location_id = l.id AND l.active = 1
+			FROM ` + entityid.Expenditure + ` ex
+			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = 1
+			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = 1
 			WHERE ex.id = ? AND ex.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1

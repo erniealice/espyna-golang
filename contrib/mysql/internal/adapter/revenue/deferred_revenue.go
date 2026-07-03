@@ -279,7 +279,7 @@ func (r *MySQLDeferredRevenueRepository) GetDeferredRevenueListPageData(
 				dr.status,
 				dr.liability_account_id,
 				dr.revenue_account_id
-			FROM deferred_revenue dr
+			FROM ` + entityid.DeferredRevenue + ` dr
 			WHERE dr.active = 1
 			  AND (? = '' OR dr.description LIKE ? OR dr.customer_name LIKE ?)
 		),

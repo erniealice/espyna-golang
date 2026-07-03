@@ -3,6 +3,7 @@
 package ledger
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"strings"
@@ -31,7 +32,7 @@ func (r *SQLServerEquityTransactionRepository) SumByTypeYTD(
 
 	const query = `
 		SELECT et.transaction_type, CAST(COALESCE(SUM(et.amount), 0) AS bigint)
-		FROM equity_transaction et
+		FROM ` + entityid.EquityTransaction + ` et
 		WHERE et.transaction_date >= @p2
 		  AND et.transaction_date < @p3
 		  AND (@p1 IS NULL OR @p1 = '' OR et.workspace_id = @p1)
@@ -82,7 +83,7 @@ func (r *SQLServerEquityTransactionRepository) RecentTransactions(
 			et.amount,
 			et.transaction_date,
 			COALESCE(et.description, '')
-		FROM equity_transaction et
+		FROM ` + entityid.EquityTransaction + ` et
 		WHERE (@p1 IS NULL OR @p1 = '' OR et.workspace_id = @p1)
 		ORDER BY et.transaction_date DESC
 		OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY`

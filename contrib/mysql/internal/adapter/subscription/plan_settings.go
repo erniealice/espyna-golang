@@ -189,7 +189,7 @@ func (r *MySQLPlanSettingsRepository) GetPlanSettingsListPageData(ctx context.Co
 
 	// Dialect: ILIKE → LIKE, active = true → active = 1, $N → ?.
 	// ORDER BY is author-controlled (no caller interpolation).
-	query := `SELECT id, plan_id, name, description, active, date_created, date_modified FROM plan_settings WHERE active = 1 AND (? IS NULL OR ? = '' OR plan_id LIKE ?) ORDER BY date_created DESC LIMIT ? OFFSET ?`
+	query := `SELECT id, plan_id, name, description, active, date_created, date_modified FROM ` + entityid.PlanSettings + ` WHERE active = 1 AND (? IS NULL OR ? = '' OR plan_id LIKE ?) ORDER BY date_created DESC LIMIT ? OFFSET ?`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, searchPattern, searchPattern, limit, offset)

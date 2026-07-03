@@ -9,9 +9,9 @@ import (
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
@@ -237,9 +237,9 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 				b.balance_type,
 				row_to_json(s.*) as subscription_data,
 				row_to_json(c.*) as client_data
-			FROM balance b
-			LEFT JOIN subscription s ON b.subscription_id = s.id
-			LEFT JOIN client c ON b.client_id = c.id
+			FROM ` + entityid.Balance + ` b
+			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON b.client_id = c.id
 			WHERE b.active = true
 	`
 
@@ -429,9 +429,9 @@ func (r *PostgresBalanceRepository) GetBalanceItemPageData(ctx context.Context, 
 				b.balance_type,
 				row_to_json(s.*) as subscription_data,
 				row_to_json(c.*) as client_data
-			FROM balance b
-			LEFT JOIN subscription s ON b.subscription_id = s.id
-			LEFT JOIN client c ON b.client_id = c.id
+			FROM ` + entityid.Balance + ` b
+			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON b.client_id = c.id
 			WHERE b.id = $1 AND b.active = true
 		)
 		SELECT * FROM enriched

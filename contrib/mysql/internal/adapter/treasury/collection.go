@@ -299,7 +299,7 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM treasury_collection tc
+			FROM ` + entityid.TreasuryCollection + ` tc
 			WHERE tc.active = 1
 			  AND tc.workspace_id = ?
 			  AND (? IS NULL OR ? = '' OR
@@ -465,7 +465,7 @@ func (r *MySQLCollectionRepository) GetCollectionItemPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM treasury_collection tc
+			FROM ` + entityid.TreasuryCollection + ` tc
 			WHERE tc.id = ? AND tc.workspace_id = ? AND tc.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1;
@@ -676,8 +676,8 @@ func (r *MySQLCollectionRepository) ListByClient(ctx context.Context, req *colle
 	const query = `
 		SELECT c.id, c.active, c.revenue_id, c.amount, c.status, c.currency,
 		       c.reference_number, c.payment_date, c.collection_type
-		FROM treasury_collection c
-		JOIN revenue r ON r.id = c.revenue_id
+		FROM ` + entityid.TreasuryCollection + ` c
+		JOIN ` + entityid.Revenue + ` r ON r.id = c.revenue_id
 		WHERE r.client_id = ?
 		  AND (? = '' OR r.workspace_id = ?)`
 

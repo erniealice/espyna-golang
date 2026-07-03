@@ -307,7 +307,7 @@ func (r *SQLServerJobRepository) GetJobListPageData(
 				j.cycle_period_start,
 				j.cycle_period_end,
 				COUNT(*) OVER() AS total_count
-			FROM job j
+			FROM ` + entityid.Job + ` j
 			%s
 		)
 		SELECT * FROM enriched
@@ -538,7 +538,7 @@ func (r *SQLServerJobRepository) GetJobItemPageData(
 			j.cycle_index,
 			j.cycle_period_start,
 			j.cycle_period_end
-		FROM job j
+		FROM ` + entityid.Job + ` j
 		WHERE j.id = @p1 AND j.workspace_id = @p2 AND j.active = 1
 	`
 

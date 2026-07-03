@@ -272,7 +272,7 @@ func (r *PostgresWorkflowRepository) GetWorkflowListPageData(
 				w.version,
 				w.date_created,
 				w.date_modified
-			FROM workflow w
+			FROM %s w
 			WHERE w.active = true
 			  AND w.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -288,7 +288,7 @@ func (r *PostgresWorkflowRepository) GetWorkflowListPageData(
 		FROM enriched e
 		%s
 		LIMIT $3 OFFSET $4;
-	`, orderByClause)
+	`, entityid.Workflow, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
@@ -412,7 +412,7 @@ func (r *PostgresWorkflowRepository) GetWorkflowItemPageData(
 			w.version,
 			w.date_created,
 			w.date_modified
-		FROM workflow w
+		FROM ` + entityid.Workflow + ` w
 		WHERE w.id = $1 AND w.workspace_id = $2 AND w.active = true
 		LIMIT 1;
 	`

@@ -239,7 +239,7 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 			rb.date_modified,
 			COUNT(*) OVER() AS total
 		FROM %s rb
-		LEFT JOIN rate_table rt ON rt.id = rb.rate_table_id
+		LEFT JOIN ` + entityid.RateTable + ` rt ON rt.id = rb.rate_table_id
 		WHERE (rt.workspace_id = $1 OR rt.workspace_id IS NULL)
 		%s
 		LIMIT $2 OFFSET $3;

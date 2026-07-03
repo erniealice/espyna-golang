@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
 )
 
@@ -40,7 +41,7 @@ func (r *PostgresLoanPaymentRepository) SumDueWithin(
 
 	const query = `
 		SELECT COALESCE(SUM(l.remaining_balance), 0)::bigint
-		FROM loan l
+		FROM ` + entityid.Loan + ` l
 		WHERE l.active = true
 		  AND l.maturity_date >= $2
 		  AND l.maturity_date <= $3
@@ -82,8 +83,8 @@ func (r *PostgresLoanPaymentRepository) RecentByLoan(
 			lp.total_amount,
 			lp.remaining_balance,
 			lp.date_created
-		FROM loan_payment lp
-		JOIN loan l ON l.id = lp.loan_id
+		FROM ` + entityid.LoanPayment + ` lp
+		JOIN ` + entityid.Loan + ` l ON l.id = lp.loan_id
 		WHERE ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
 		ORDER BY lp.payment_date DESC, lp.date_created DESC
 		LIMIT $2`

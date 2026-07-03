@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -237,7 +237,7 @@ func (r *PostgresCategoryRepository) GetCategoryListPageData(ctx context.Context
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, name, description, code, module, parent_id,
 		       date_created, date_modified, active, workspace_id
-		FROM category
+		FROM `+entityid.Category+`
 		WHERE workspace_id = $1
 		ORDER BY name ASC
 	`, wsID)

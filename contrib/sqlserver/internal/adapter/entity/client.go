@@ -379,12 +379,12 @@ func (r *SQLServerClientRepository) GetClientListPageData(
 				u.mobile_number AS user_phone_number,
 				-- Windowed total — same filter as the page rows; no separate CTE needed.
 				COUNT(*) OVER () AS total
-			FROM client c
+			FROM ` + entityid.Client + ` c
 			LEFT JOIN [user] u ON c.user_id = u.id
-			LEFT JOIN payment_term pt ON c.payment_term_id = pt.id
+			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON c.payment_term_id = pt.id
 			OUTER APPLY (
 				SELECT COUNT(*) AS active_subscriptions
-				FROM subscription s
+				FROM ` + entityid.Subscription + ` s
 				WHERE s.client_id = c.id
 				  AND s.active = 1
 				  AND s.workspace_id = @p1
@@ -655,8 +655,8 @@ func (r *SQLServerClientRepository) loadClientCategories(ctx context.Context, cl
 			cc.category_id,
 			cat.name,
 			cat.description
-		FROM client_category cc
-		INNER JOIN category cat ON cc.category_id = cat.id
+		FROM ` + entityid.ClientCategory + ` cc
+		INNER JOIN ` + entityid.Category + ` cat ON cc.category_id = cat.id
 		WHERE cc.client_id = @p1 AND cc.active = 1 AND cat.active = 1
 		ORDER BY cat.name ASC
 	`
@@ -734,7 +734,7 @@ func (r *SQLServerClientRepository) SearchClientsByName(ctx context.Context, req
 				NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''),
 				c.id
 			) AS label
-		FROM client c
+		FROM ` + entityid.Client + ` c
 		LEFT JOIN [user] u ON c.user_id = u.id
 		WHERE c.active = 1
 			AND (@p1 = '' OR

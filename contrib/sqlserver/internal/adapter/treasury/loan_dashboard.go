@@ -3,6 +3,7 @@
 package treasury
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -37,7 +38,7 @@ type loanScalarAggregate struct {
 const loanScalarAggregateQuery = `
 	WITH base AS (
 		SELECT l.status, l.remaining_balance
-		FROM loan l
+		FROM ` + entityid.Loan + ` l
 		WHERE l.active = 1
 		  AND (@p1 = '' OR l.workspace_id = @p1)
 	)
@@ -114,8 +115,8 @@ func (r *SQLServerLoanRepository) SumInterestAccruedYTD(
 	// active = 1 on the joined loan table.
 	const query = `
 		SELECT COALESCE(SUM(lp.interest_amount), 0)
-		FROM loan_payment lp
-		JOIN loan l ON l.id = lp.loan_id
+		FROM ` + entityid.LoanPayment + ` lp
+		JOIN ` + entityid.Loan + ` l ON l.id = lp.loan_id
 		WHERE lp.payment_date >= @p2
 		  AND lp.payment_date <= @p3
 		  AND (@p1 = '' OR l.workspace_id = @p1)`
@@ -157,7 +158,7 @@ func (r *SQLServerLoanRepository) TopByOutstanding(
 			l.remaining_balance,
 			l.principal_amount,
 			l.status
-		FROM loan l
+		FROM ` + entityid.Loan + ` l
 		WHERE l.active = 1
 		  AND (@p1 = '' OR l.workspace_id = @p1)
 		ORDER BY l.remaining_balance DESC`, limit)
@@ -223,7 +224,7 @@ func (r *SQLServerLoanRepository) OutstandingPrincipalByMonth(
 		),
 		active_principal AS (
 			SELECT COALESCE(SUM(l.remaining_balance), 0) AS now_balance
-			FROM loan l
+			FROM ` + entityid.Loan + ` l
 			WHERE l.active = 1
 			  AND (@p1 = '' OR l.workspace_id = @p1)
 		)
@@ -233,8 +234,8 @@ func (r *SQLServerLoanRepository) OutstandingPrincipalByMonth(
 		CROSS JOIN active_principal ap
 		OUTER APPLY (
 			SELECT COALESCE(SUM(lp.principal_amount), 0) AS paid_principal
-			FROM loan_payment lp
-			JOIN loan l ON l.id = lp.loan_id
+			FROM ` + entityid.LoanPayment + ` lp
+			JOIN ` + entityid.Loan + ` l ON l.id = lp.loan_id
 			WHERE lp.payment_date >= DATEADD(month, 1, m.bucket)
 			  AND (@p1 = '' OR l.workspace_id = @p1)
 		) paid

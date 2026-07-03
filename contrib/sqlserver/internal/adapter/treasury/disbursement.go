@@ -319,7 +319,7 @@ func (r *SQLServerDisbursementRepository) GetDisbursementListPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM treasury_disbursement d
+			FROM ` + entityid.TreasuryDisbursement + ` d
 			WHERE d.active = 1
 			  AND d.workspace_id = @p1
 			  AND (@p2 = '' OR
@@ -550,7 +550,7 @@ func (r *SQLServerDisbursementRepository) GetDisbursementItemPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM treasury_disbursement d
+			FROM ` + entityid.TreasuryDisbursement + ` d
 			WHERE d.id = @p1 AND d.workspace_id = @p2 AND d.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

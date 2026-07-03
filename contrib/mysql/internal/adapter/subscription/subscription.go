@@ -314,7 +314,7 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionListPageData(ctx context.Co
 		WITH
 		search_filtered AS (
 			SELECT s.*
-			FROM subscription s
+			FROM ` + entityid.Subscription + ` s
 			WHERE s.active = ?
 				AND (? = '' OR s.workspace_id = ?)
 				AND (? = '' OR s.name LIKE ?)
@@ -373,10 +373,10 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionListPageData(ctx context.Co
 				) as price_plan,
 				COUNT(*) OVER () AS _total_count
 			FROM search_filtered sf
-			LEFT JOIN client c ON sf.client_id = c.id AND c.active = 1
+			LEFT JOIN ` + entityid.Client + ` c ON sf.client_id = c.id AND c.active = 1
 			LEFT JOIN `+"`user`"+` u ON c.user_id = u.id AND u.active = 1
-			LEFT JOIN price_plan pp ON sf.price_plan_id = pp.id AND pp.active = 1
-			LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = 1
+			LEFT JOIN ` + entityid.PricePlan + ` pp ON sf.price_plan_id = pp.id AND pp.active = 1
+			LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = 1
 		),
 		sorted AS (
 			SELECT * FROM enriched
@@ -619,11 +619,11 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionItemPageData(ctx context.Co
 					'date_modified', UNIX_TIMESTAMP(p.date_modified) * 1000
 				)
 			) as price_plan
-		FROM subscription s
-		LEFT JOIN client c ON s.client_id = c.id AND c.active = 1
+		FROM ` + entityid.Subscription + ` s
+		LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id AND c.active = 1
 		LEFT JOIN ` + "`user`" + ` u ON c.user_id = u.id AND u.active = 1
-		LEFT JOIN price_plan pp ON s.price_plan_id = pp.id AND pp.active = 1
-		LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = 1
+		LEFT JOIN ` + entityid.PricePlan + ` pp ON s.price_plan_id = pp.id AND pp.active = 1
+		LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = 1
 		WHERE s.id = ?
 		  AND (? = '' OR s.workspace_id = ?)
 	`
@@ -743,7 +743,7 @@ func (r *MySQLSubscriptionRepository) CountActiveByClientIds(ctx context.Context
 		}
 		sqlRows, err = exec.QueryContext(ctx,
 			`SELECT client_id, COUNT(*) AS cnt
-			   FROM subscription
+			   FROM ` + entityid.Subscription + `
 			  WHERE active = 1
 			    AND (? = '' OR workspace_id = ?)
 			    AND client_id IN (`+placeholders+`)
@@ -753,7 +753,7 @@ func (r *MySQLSubscriptionRepository) CountActiveByClientIds(ctx context.Context
 	} else {
 		sqlRows, err = exec.QueryContext(ctx,
 			`SELECT client_id, COUNT(*) AS cnt
-			   FROM subscription
+			   FROM ` + entityid.Subscription + `
 			  WHERE active = 1
 			    AND (? = '' OR workspace_id = ?)
 			  GROUP BY client_id`,

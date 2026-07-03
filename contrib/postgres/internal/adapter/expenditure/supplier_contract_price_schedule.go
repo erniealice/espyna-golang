@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
 )
 
@@ -248,7 +248,7 @@ func (r *PostgresSupplierContractPriceScheduleRepository) ActivateSupplierContra
 	}
 	newStatus := int32(scpspb.SupplierContractPriceScheduleStatus_SUPPLIER_CONTRACT_PRICE_SCHEDULE_STATUS_ACTIVE)
 	if _, err := r.db.ExecContext(ctx,
-		`UPDATE supplier_contract_price_schedule
+		`UPDATE `+entityid.SupplierContractPriceSchedule+`
 		 SET status = $1, date_modified = NOW()
 		 WHERE id = $2 AND active = true`,
 		newStatus, req.GetSupplierContractPriceScheduleId(),
@@ -274,7 +274,7 @@ func (r *PostgresSupplierContractPriceScheduleRepository) SupersedeSupplierContr
 	}
 	newStatus := int32(scpspb.SupplierContractPriceScheduleStatus_SUPPLIER_CONTRACT_PRICE_SCHEDULE_STATUS_SUPERSEDED)
 	if _, err := r.db.ExecContext(ctx,
-		`UPDATE supplier_contract_price_schedule
+		`UPDATE `+entityid.SupplierContractPriceSchedule+`
 		 SET status = $1, date_modified = NOW()
 		 WHERE id = $2 AND active = true`,
 		newStatus, req.GetSupplierContractPriceScheduleId(),
@@ -311,7 +311,7 @@ func (r *PostgresSupplierContractPriceScheduleRepository) GetActiveAsOf(ctx cont
 	// contains asOf. The partial unique index guarantees at most one ACTIVE row.
 	query := `
 		SELECT id
-		FROM supplier_contract_price_schedule
+		FROM ` + entityid.SupplierContractPriceSchedule + `
 		WHERE supplier_contract_id = $1
 		  AND active = true
 		  AND status <> $2

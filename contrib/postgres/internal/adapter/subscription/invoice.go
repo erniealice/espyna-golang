@@ -9,9 +9,9 @@ import (
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -272,10 +272,10 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM invoice i
-			LEFT JOIN subscription s ON i.subscription_id = s.id
-			LEFT JOIN client c ON s.client_id = c.id
-			LEFT JOIN "user" u ON c.user_id = u.id
+			FROM ` + entityid.Invoice + ` i
+			LEFT JOIN ` + entityid.Subscription + ` s ON i.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id
+			LEFT JOIN "` + entityid.User + `" u ON c.user_id = u.id
 			WHERE i.active = true
 	`
 
@@ -645,10 +645,10 @@ func (r *PostgresInvoiceRepository) GetInvoiceItemPageData(ctx context.Context, 
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM invoice i
-			LEFT JOIN subscription s ON i.subscription_id = s.id
-			LEFT JOIN client c ON s.client_id = c.id
-			LEFT JOIN "user" u ON c.user_id = u.id
+			FROM ` + entityid.Invoice + ` i
+			LEFT JOIN ` + entityid.Subscription + ` s ON i.subscription_id = s.id
+			LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id
+			LEFT JOIN "` + entityid.User + `" u ON c.user_id = u.id
 			WHERE i.id = $1 AND i.active = true
 			  AND ($2::text = '' OR s.workspace_id = $2::text)
 		)

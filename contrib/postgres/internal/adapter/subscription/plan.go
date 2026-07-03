@@ -12,9 +12,9 @@ import (
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
@@ -531,7 +531,7 @@ func (r *PostgresPlanRepository) SearchPlansByName(ctx context.Context, req *pla
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT id, name
-		FROM plan
+		FROM ` + entityid.Plan + `
 		WHERE active = true
 			AND ($3::text = '' OR workspace_id = $3::text)
 			AND ($1::text = '' OR name ILIKE $1)

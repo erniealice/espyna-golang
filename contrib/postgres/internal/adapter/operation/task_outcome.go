@@ -318,17 +318,16 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 	query := `
 		WITH enriched AS (
 			SELECT ` + toColumns + `
-			FROM task_outcome to_
+			FROM ` + entityid.TaskOutcome + ` to_
 			WHERE to_.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       to_.determination_note ILIKE $1)` + staffClause + `
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
-			e.*, c.total
-		FROM enriched e, counted c
+			e.*, COUNT(*) OVER () AS total
+		FROM enriched e
 		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`
@@ -401,7 +400,7 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeItemPageData(
 			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
 			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
-		FROM task_outcome to_
+		FROM ` + entityid.TaskOutcome + ` to_
 		WHERE to_.id = $1 AND to_.active = true` + staffClause + `
 	`
 
@@ -443,7 +442,7 @@ func (r *PostgresTaskOutcomeRepository) ListByJobTask(
 			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
 			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
-		FROM task_outcome to_
+		FROM ` + entityid.TaskOutcome + ` to_
 		WHERE to_.job_task_id = $1 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`
@@ -487,8 +486,8 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
 			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
-		FROM task_outcome to_
-		JOIN job_task jt ON to_.job_task_id = jt.id
+		FROM ` + entityid.TaskOutcome + ` to_
+		JOIN ` + entityid.JobTask + ` jt ON to_.job_task_id = jt.id
 		WHERE jt.job_phase_id = $1 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`
@@ -540,8 +539,8 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
 			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
-		FROM task_outcome to_
-		JOIN job_task jt ON to_.job_task_id = jt.id
+		FROM ` + entityid.TaskOutcome + ` to_
+		JOIN ` + entityid.JobTask + ` jt ON to_.job_task_id = jt.id
 		WHERE jt.job_id = $1 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`

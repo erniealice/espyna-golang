@@ -269,7 +269,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 				cc.active,
 				cc.date_created,
 				cc.date_modified
-			FROM client_category cc
+			FROM ` + entityid.ClientCategory + ` cc
 			WHERE cc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   cc.name ILIKE $1 OR
@@ -400,7 +400,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryItemPageData(
 			cc.active,
 			cc.date_created,
 			cc.date_modified
-		FROM client_category cc
+		FROM ` + entityid.ClientCategory + ` cc
 		WHERE cc.id = $1 AND cc.active = true
 		LIMIT 1;
 	`

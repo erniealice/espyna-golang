@@ -246,8 +246,8 @@ func (r *MySQLSubscriptionAttributeRepository) GetSubscriptionAttributeListPageD
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (
 		SELECT sa.id, sa.subscription_id, sa.attribute_id, sa.value, sa.active, sa.date_created, sa.date_modified
-		FROM subscription_attribute sa
-		LEFT JOIN subscription s ON sa.subscription_id = s.id
+		FROM ` + entityid.SubscriptionAttribute + ` sa
+		LEFT JOIN ` + entityid.Subscription + ` s ON sa.subscription_id = s.id
 		WHERE sa.active = 1
 		  AND (? = '' OR s.workspace_id = ?)
 		  AND (? IS NULL OR ? = '' OR sa.value LIKE ?)
@@ -313,7 +313,7 @@ func (r *MySQLSubscriptionAttributeRepository) GetSubscriptionAttributeItemPageD
 	if req == nil || req.SubscriptionAttributeId == "" {
 		return nil, fmt.Errorf("subscription attribute ID required")
 	}
-	query := `SELECT id, subscription_id, attribute_id, value, active, date_created, date_modified FROM subscription_attribute WHERE id = ? AND active = 1`
+	query := `SELECT id, subscription_id, attribute_id, value, active, date_created, date_modified FROM ` + entityid.SubscriptionAttribute + ` WHERE id = ? AND active = 1`
 	row := r.db.QueryRowContext(ctx, query, req.SubscriptionAttributeId)
 	var id, subscriptionId, attributeId, attributeValue string
 	var active bool

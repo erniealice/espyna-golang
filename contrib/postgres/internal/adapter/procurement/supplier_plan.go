@@ -189,7 +189,7 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context
 		return nil, err
 	}
 	query := `SELECT id, name, description, active, supplier_id, date_created, date_modified
-	          FROM supplier_plan
+	          FROM ` + entityid.SupplierPlan + `
 	          WHERE active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)
 	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
@@ -233,7 +233,7 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanItemPageData(ctx context
 		return nil, fmt.Errorf("supplier plan ID required")
 	}
 	query := `SELECT id, name, description, active, supplier_id, date_created, date_modified
-	          FROM supplier_plan WHERE id = $1`
+	          FROM ` + entityid.SupplierPlan + ` WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, req.SupplierPlanId)
 	var id, name, supplierID string
 	var description sql.NullString
@@ -274,7 +274,7 @@ func (r *PostgresSupplierPlanRepository) SearchSupplierPlansByName(ctx context.C
 	}
 	query := `
 		SELECT id, name
-		FROM supplier_plan
+		FROM ` + entityid.SupplierPlan + `
 		WHERE active = true
 			AND ($1::text = '' OR name ILIKE $1)
 		ORDER BY name ASC

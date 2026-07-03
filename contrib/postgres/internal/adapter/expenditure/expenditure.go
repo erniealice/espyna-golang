@@ -12,11 +12,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
@@ -312,9 +312,9 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name,
 				COUNT(*) OVER() AS total
-			FROM expenditure ex
-			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = true
-			LEFT JOIN location l ON ex.location_id = l.id AND l.active = true
+			FROM ` + entityid.Expenditure + ` ex
+			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = true
+			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = true
 			WHERE ex.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR ex.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -529,9 +529,9 @@ func (r *PostgresExpenditureRepository) GetExpenditureItemPageData(
 				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
-			FROM expenditure ex
-			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = true
-			LEFT JOIN location l ON ex.location_id = l.id AND l.active = true
+			FROM ` + entityid.Expenditure + ` ex
+			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = true
+			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = true
 			WHERE ex.id = $1 AND ex.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

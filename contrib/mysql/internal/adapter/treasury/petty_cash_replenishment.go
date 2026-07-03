@@ -242,7 +242,7 @@ func (r *MySQLPettyCashReplenishmentRepository) GetPettyCashReplenishmentListPag
 				pcr.replenishment_date,
 				pcr.posted_by,
 				pcr.notes
-			FROM petty_cash_replenishment pcr
+			FROM ` + entityid.PettyCashReplenishment + ` pcr
 			WHERE (? IS NULL OR ? = '' OR
 			       pcr.replenishment_number LIKE ? OR
 			       pcr.notes LIKE ?)
@@ -353,7 +353,7 @@ func (r *MySQLPettyCashReplenishmentRepository) GetPettyCashReplenishmentItemPag
 			pcr.replenishment_date,
 			pcr.posted_by,
 			pcr.notes
-		FROM petty_cash_replenishment pcr
+		FROM ` + entityid.PettyCashReplenishment + ` pcr
 		WHERE pcr.id = ?
 		LIMIT 1`
 

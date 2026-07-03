@@ -229,7 +229,7 @@ func (r *MySQLLoanPaymentRepository) GetLoanPaymentListPageData(
 				lp.total_amount,
 				lp.remaining_balance,
 				lp.notes
-			FROM loan_payment lp
+			FROM ` + entityid.LoanPayment + ` lp
 			WHERE (? IS NULL OR ? = '' OR
 			       lp.payment_number LIKE ?)
 		),
@@ -352,7 +352,7 @@ func (r *MySQLLoanPaymentRepository) GetLoanPaymentItemPageData(
 				lp.total_amount,
 				lp.remaining_balance,
 				lp.notes
-			FROM loan_payment lp
+			FROM ` + entityid.LoanPayment + ` lp
 			WHERE lp.id = ?
 		)
 		SELECT * FROM enriched LIMIT 1;

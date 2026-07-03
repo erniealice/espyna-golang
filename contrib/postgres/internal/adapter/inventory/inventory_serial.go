@@ -303,8 +303,8 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialListPageData(
 				is2.purchase_order,
 				is2.notes,
 				COALESCE(ii.name, '') as inventory_item_name
-			FROM inventory_serial is2
-			LEFT JOIN inventory_item ii ON is2.inventory_item_id = ii.id AND ii.active = true
+			FROM `+entityid.InventorySerial+` is2
+			LEFT JOIN `+entityid.InventoryItem+` ii ON is2.inventory_item_id = ii.id AND ii.active = true
 			WHERE is2.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       is2.serial_number ILIKE $1 OR
@@ -473,8 +473,8 @@ func (r *PostgresInventorySerialRepository) GetInventorySerialItemPageData(
 				is2.notes,
 				COALESCE(ii.name, '') as inventory_item_name,
 				COALESCE(ii.sku, '') as inventory_item_sku
-			FROM inventory_serial is2
-			LEFT JOIN inventory_item ii ON is2.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventorySerial + ` is2
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON is2.inventory_item_id = ii.id AND ii.active = true
 			WHERE is2.id = $1 AND is2.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

@@ -91,7 +91,7 @@ func (r *PostgresConversationPostRepository) CreateConversationPost(ctx context.
 
 	// I3 / M3: monotone parent bump in the same connection/txn.
 	if r.db != nil && post.GetConversationId() != "" && post.GetSentAt() != 0 {
-		const bump = `UPDATE conversation
+		const bump = `UPDATE ` + entityid.Conversation + `
 			SET last_post_at = GREATEST(COALESCE(last_post_at, 0), $2),
 			    date_modified = now()
 			WHERE id = $1`

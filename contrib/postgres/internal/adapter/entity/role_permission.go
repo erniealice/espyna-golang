@@ -266,7 +266,7 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 				rp.active,
 				rp.date_created,
 				rp.date_modified
-			FROM role_permission rp
+			FROM ` + entityid.RolePermission + ` rp
 			` + whereClause + `
 		)
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
@@ -388,7 +388,7 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionItemPageData(
 			rp.active,
 			rp.date_created,
 			rp.date_modified
-		FROM role_permission rp
+		FROM ` + entityid.RolePermission + ` rp
 		WHERE rp.id = $1 AND rp.active = true
 		LIMIT 1;
 	`

@@ -307,7 +307,7 @@ func (r *PostgresEventRepository) GetEventListPageData(
 				e.active,
 				e.date_created,
 				e.date_modified
-			FROM event e
+			FROM ` + entityid.Event + ` e
 			WHERE e.active = true
 			  AND e.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -455,7 +455,7 @@ func (r *PostgresEventRepository) GetEventItemPageData(
 			active,
 			date_created,
 			date_modified
-		FROM event
+		FROM ` + entityid.Event + `
 		WHERE id = $1 AND active = true
 		  AND ($2::text = '' OR workspace_id = $2::text)
 	`

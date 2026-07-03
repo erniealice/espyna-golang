@@ -321,8 +321,8 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
 				COALESCE(p.tracking_mode, '') as tracking_mode,
 				COALESCE(p.name, '') as product_name,
 				COUNT(*) OVER() AS total_count
-			FROM inventory_item ii
-			LEFT JOIN product p ON ii.product_id = p.id AND p.active = true
+			FROM ` + entityid.InventoryItem + ` ii
+			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = true
 			WHERE ii.active = true` + whereStr + `
 		)
 		SELECT * FROM enriched
@@ -489,8 +489,8 @@ func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
 				ii.notes,
 				COALESCE(p.name, '') as product_name,
 				COALESCE(p.price, 0) as product_price
-			FROM inventory_item ii
-			LEFT JOIN product p ON ii.product_id = p.id AND p.active = true
+			FROM ` + entityid.InventoryItem + ` ii
+			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = true
 			WHERE ii.id = $1 AND ii.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

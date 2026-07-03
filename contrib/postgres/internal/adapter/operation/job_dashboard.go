@@ -12,6 +12,7 @@ import (
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 
 	jobdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // Q-SDM-DASHBOARD-COMPILE-ASSERTIONS named-type contract: alias to the
@@ -45,7 +46,7 @@ func (r *PostgresJobRepository) CountByStatus(
 	if since.IsZero() {
 		const q = `
 			SELECT j.status, COUNT(*)::bigint
-			FROM job j
+			FROM ` + entityid.Job + ` j
 			WHERE j.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR j.workspace_id = $1)
 			GROUP BY j.status`
@@ -53,7 +54,7 @@ func (r *PostgresJobRepository) CountByStatus(
 	} else {
 		const q = `
 			SELECT j.status, COUNT(*)::bigint
-			FROM job j
+			FROM ` + entityid.Job + ` j
 			WHERE j.active = true
 			  AND j.date_created >= $2
 			  AND ($1::text IS NULL OR $1::text = '' OR j.workspace_id = $1)
@@ -119,7 +120,7 @@ func (r *PostgresJobRepository) UpcomingDeadlines(
 			j.status,
 			j.planned_end,
 			j.due_date
-		FROM job j
+		FROM ` + entityid.Job + ` j
 		WHERE j.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR j.workspace_id = $1)
 		  AND COALESCE(j.planned_end, to_timestamp(j.due_date / 1000.0)) IS NOT NULL
@@ -194,7 +195,7 @@ func (r *PostgresJobRepository) TopByCompletionRisk(
 				p.job_id,
 				COUNT(*)                                            AS total,
 				COUNT(*) FILTER (WHERE p.status = 'JOB_PHASE_STATUS_COMPLETED') AS done
-			FROM job_phase p
+			FROM ` + entityid.JobPhase + ` p
 			WHERE p.active = true
 			GROUP BY p.job_id
 		)
@@ -204,7 +205,7 @@ func (r *PostgresJobRepository) TopByCompletionRisk(
 			j.status,
 			COALESCE(pc.done * 100.0 / NULLIF(pc.total, 0), 0)::float8 AS completion_pct,
 			j.planned_end
-		FROM job j
+		FROM ` + entityid.Job + ` j
 		LEFT JOIN phase_counts pc ON pc.job_id = j.id
 		WHERE j.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR j.workspace_id = $1)

@@ -196,7 +196,7 @@ func (r *PostgresCostScheduleRepository) GetCostScheduleListPageData(ctx context
 		return nil, err
 	}
 	query := `SELECT id, name, description, active, date_created, date_modified, date_time_start, date_time_end
-	          FROM cost_schedule
+	          FROM ` + entityid.CostSchedule + `
 	          WHERE active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)
 	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
@@ -247,7 +247,7 @@ func (r *PostgresCostScheduleRepository) GetCostScheduleItemPageData(ctx context
 		return nil, fmt.Errorf("cost schedule ID required")
 	}
 	query := `SELECT id, name, description, active, date_created, date_modified, date_time_start, date_time_end
-	          FROM cost_schedule WHERE id = $1`
+	          FROM ` + entityid.CostSchedule + ` WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, req.CostScheduleId)
 	var id, name string
 	var description sql.NullString
@@ -305,7 +305,7 @@ func (r *PostgresCostScheduleRepository) FindApplicableCostSchedule(ctx context.
 
 	query := `
 		SELECT id, name, description, active, date_time_start, date_time_end, date_created, date_modified
-		FROM cost_schedule
+		FROM ` + entityid.CostSchedule + `
 		WHERE active = true
 		  AND location_id = $1
 		  AND date_time_start <= $2

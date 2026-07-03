@@ -287,17 +287,16 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT %s
-			FROM phase_outcome_summary pos
+			FROM `+entityid.PhaseOutcomeSummary+` pos
 			WHERE pos.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pos.narrative ILIKE $1)%s
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
-			e.*, c.total
-		FROM enriched e, counted c
+			e.*, COUNT(*) OVER () AS total
+		FROM enriched e
 		%s
 		LIMIT $2 OFFSET $3;
 	`, posColumns, staffClause, orderByClause)
@@ -369,7 +368,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryItemPageDa
 			pos.conditional_count, pos.deferred_count, pos.na_count,
 			pos.narrative, pos.issued_by, pos.issued_date,
 			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
-		FROM phase_outcome_summary pos
+		FROM ` + entityid.PhaseOutcomeSummary + ` pos
 		WHERE pos.id = $1 AND pos.active = true` + staffClause + `
 	`
 
@@ -409,7 +408,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 			pos.conditional_count, pos.deferred_count, pos.na_count,
 			pos.narrative, pos.issued_by, pos.issued_date,
 			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
-		FROM phase_outcome_summary pos
+		FROM ` + entityid.PhaseOutcomeSummary + ` pos
 		WHERE pos.job_phase_id = $1 AND pos.active = true` + staffClause + `
 		ORDER BY pos.date_created DESC
 		LIMIT 1
@@ -453,7 +452,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 			pos.conditional_count, pos.deferred_count, pos.na_count,
 			pos.narrative, pos.issued_by, pos.issued_date,
 			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
-		FROM phase_outcome_summary pos
+		FROM ` + entityid.PhaseOutcomeSummary + ` pos
 		WHERE pos.job_id = $1 AND pos.active = true` + staffClause + `
 		ORDER BY pos.date_created DESC
 	`

@@ -280,7 +280,7 @@ func (r *PostgresPermissionRepository) GetPermissionListPageData(
 				p.date_created,
 				p.date_modified,
 				COALESCE(p.applicable_principal_types, ARRAY[]::integer[]) as applicable_principal_types
-			FROM permission p
+			FROM `+entityid.Permission+` p
 			WHERE ($4::text = '' OR p.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   p.name ILIKE $1 OR
@@ -425,7 +425,7 @@ func (r *PostgresPermissionRepository) GetPermissionItemPageData(
 			p.active,
 			p.date_created,
 			p.date_modified
-		FROM permission p
+		FROM ` + entityid.Permission + ` p
 		WHERE p.id = $1
 		  AND ($2::text = '' OR p.workspace_id = $2::text)
 		LIMIT 1;

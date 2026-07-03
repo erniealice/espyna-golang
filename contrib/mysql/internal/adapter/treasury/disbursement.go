@@ -291,7 +291,7 @@ func (r *MySQLDisbursementRepository) GetDisbursementListPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM treasury_disbursement d
+			FROM ` + entityid.TreasuryDisbursement + ` d
 			WHERE d.active = 1
 			  AND d.workspace_id = ?
 			  AND (? IS NULL OR ? = '' OR
@@ -450,7 +450,7 @@ func (r *MySQLDisbursementRepository) GetDisbursementItemPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM treasury_disbursement d
+			FROM ` + entityid.TreasuryDisbursement + ` d
 			WHERE d.id = ? AND d.workspace_id = ? AND d.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1;

@@ -281,10 +281,10 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `WITH enriched AS (
 			SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
-			FROM product_price_plan ppp
-			LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
-			LEFT JOIN price_plan plpp ON plpp.id = ppp.price_plan_id
-			LEFT JOIN plan pl ON pl.id = plpp.plan_id
+			FROM ` + entityid.ProductPricePlan + ` ppp
+			LEFT JOIN ` + entityid.ProductPlan + ` pp ON pp.id = ppp.product_plan_id
+			LEFT JOIN ` + entityid.PricePlan + ` plpp ON plpp.id = ppp.price_plan_id
+			LEFT JOIN ` + entityid.Plan + ` pl ON pl.id = plpp.plan_id
 			WHERE ppp.active = true
 				AND ($4::text = '' OR pl.workspace_id = $4::text)
 				AND ($1::text IS NULL OR $1::text = '' OR ppp.price_plan_id ILIKE $1 OR ppp.product_plan_id ILIKE $1 OR ppp.billing_currency ILIKE $1)
@@ -360,8 +360,8 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanItemPageData(ctx
 			ppp.date_modified,
 			pp.product_id,
 			pp.product_variant_id
-		FROM product_price_plan ppp
-		LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
+		FROM ` + entityid.ProductPricePlan + ` ppp
+		LEFT JOIN ` + entityid.ProductPlan + ` pp ON pp.id = ppp.product_plan_id
 		WHERE ppp.id = $1
 		  AND ppp.active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPricePlanId)

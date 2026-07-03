@@ -5,7 +5,10 @@
 // init() registers three things with the espyna registry:
 //   - Provider factory (NewPostgresAdapter)
 //   - BuildFromEnv builder (reads DATABASE_POSTGRES_* env vars, returns initialized adapter)
-//   - TableConfigBuilder (buildPgTableConfig — scans DATABASE_POSTGRES_TABLE_* env vars via entityid.All)
+//   - TableConfigBuilder (buildPgTableConfig — Q-TABLE-NAMES: table names are entityid
+//     constants, the single source; the DATABASE_POSTGRES_TABLE_* per-entity override axis
+//     is RETIRED. buildPgTableConfig returns the default config unconditionally and only
+//     warns, at boot, if any such env var is still set — it is never read or applied.)
 //
 // The 145+ entity adapters in subdirectories (entity/, product/, revenue/, etc.)
 // each have their own init() that calls registry.RegisterRepositoryFactory to
@@ -16,8 +19,9 @@
 //  2. Add an init() that calls registry.RegisterRepositoryFactory("postgresql", entityid.X, factory).
 //  3. Blank-import the adapter package in the consumer binary so init() fires.
 //
-// Table name resolution: buildPgTableConfig() iterates entityid.All, checking
-// DATABASE_POSTGRES_TABLE_{ENTITY} env vars for overrides, and stores them in TableConfig.
+// Table name resolution: table names come from registry/entityid constants ONLY
+// (Q-TABLE-NAMES, 20260703 table-name-single-source). There is no runtime/env override
+// axis; buildPgTableConfig always returns registry.NewDefaultTableConfig().
 //
 // Import order matters: adapter packages must be blank-imported in the consumer
 // binary for their init() registrations to execute.
@@ -29,15 +33,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
-	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 	_ "github.com/lib/pq"
 )
@@ -56,6 +60,7 @@ func init() {
 	)
 	registry.RegisterDatabaseBuildFromEnv("postgresql", buildFromEnv)
 	registry.RegisterDatabaseTableConfigBuilder("postgresql", buildPgTableConfig)
+	warnDeprecatedTableNameEnvVars()
 	// Plan 2 (reflectionless CRUD): register the boot-shot schema validator so the
 	// dialect-neutral container can resolve and run it for the postgresql provider
 	// without importing this postgresql-tagged package directly. Mirrors the
@@ -63,31 +68,37 @@ func init() {
 	registry.RegisterSchemaValidator("postgresql", core.ValidateSchema)
 }
 
-// buildPgTableConfig creates table config from DATABASE_POSTGRES_TABLE_* environment variables.
-// This allows PostgreSQL-specific table naming without the container knowing about it.
+// buildPgTableConfig returns the default table config: table names are the
+// registry/entityid constants, unconditionally (Q-TABLE-NAMES). The former
+// DATABASE_POSTGRES_TABLE_* per-entity/prefix override axis is retired — this
+// function no longer reads any environment variable. See warnDeprecatedTableNameEnvVars.
 func buildPgTableConfig() *registry.TableConfig {
-	prefix := getEnv("DATABASE_POSTGRES_TABLE_PREFIX", "")
-	overrides := make(map[string]string)
-	for _, entity := range entityid.All {
-		envKey := "DATABASE_POSTGRES_TABLE_" + toEnvKey(entity)
-		if val := os.Getenv(envKey); val != "" {
-			overrides[entity] = val
+	return registry.NewDefaultTableConfig()
+}
+
+// warnDeprecatedTableNameEnvVars logs a boot-time warning naming any
+// DATABASE_POSTGRES_TABLE_* env var still set in the environment. The retired
+// override axis never reads these values — this is an operator signal only
+// (fail-closed to the entityid default, never fail-open to an env-supplied name).
+func warnDeprecatedTableNameEnvVars() {
+	var found []string
+	for _, e := range os.Environ() {
+		key, _, ok := strings.Cut(e, "=")
+		if !ok {
+			continue
+		}
+		if strings.Contains(key, "DATABASE_POSTGRES_TABLE_") {
+			found = append(found, key)
 		}
 	}
-	return registry.NewTableConfig(prefix, overrides)
-}
-
-// toEnvKey converts a snake_case entity ID to UPPER_CASE for env var lookup.
-func toEnvKey(entity string) string {
-	return strings.ToUpper(entity)
-}
-
-// getPostgresTableEnv reads DATABASE_POSTGRES_TABLE_{suffix} or returns the default.
-func getPostgresTableEnv(suffix, defaultValue string) string {
-	if value := os.Getenv("DATABASE_POSTGRES_TABLE_" + suffix); value != "" {
-		return value
+	if len(found) == 0 {
+		return
 	}
-	return defaultValue
+	sort.Strings(found)
+	log.Printf(
+		"WARN postgresql: %d DATABASE_POSTGRES_TABLE_* env var(s) set but IGNORED — the table-name override axis is retired (Q-TABLE-NAMES); table names come from registry/entityid only: %s",
+		len(found), strings.Join(found, ", "),
+	)
 }
 
 // buildFromEnv creates and initializes a PostgreSQL adapter from environment variables.

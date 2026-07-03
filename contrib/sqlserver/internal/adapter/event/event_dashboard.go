@@ -3,6 +3,7 @@
 package event
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"database/sql"
 	"fmt"
@@ -35,7 +36,7 @@ func (r *SQLServerEventRepository) countEventsInWindow(
 	const query = `
 		WITH base AS (
 			SELECT e.start_date_time_utc
-			FROM event e
+			FROM ` + entityid.Event + ` e
 			WHERE e.active = 1
 			  AND (@p1 IS NULL OR @p1 = '' OR e.workspace_id = @p1)
 		)
@@ -105,7 +106,7 @@ func (r *SQLServerEventRepository) UpcomingByStartDate(
 			e.active,
 			e.date_created,
 			e.date_modified
-		FROM event e
+		FROM ` + entityid.Event + ` e
 		WHERE e.active = 1
 		  AND e.start_date_time_utc >= @p2
 		  AND (@p1 IS NULL OR @p1 = '' OR e.workspace_id = @p1)
@@ -202,7 +203,7 @@ func (r *SQLServerEventRepository) CountByDay(
 					DATEADD(second, e.start_date_time_utc / 1000,
 					CAST('19700101' AS datetime2))) AS date) AS bucket,
 				CAST(COUNT(*) AS bigint) AS n
-			FROM event e
+			FROM ` + entityid.Event + ` e
 			WHERE e.active = 1
 			  AND e.start_date_time_utc >= @p4
 			  AND e.start_date_time_utc < @p5
@@ -257,8 +258,8 @@ func (r *SQLServerEventRepository) CountByTag(
 ) (map[string]int64, error) {
 	const query = `
 		SELECT et.name, CAST(COUNT(DISTINCT eta.event_id) AS bigint)
-		FROM event_tag_assignment eta
-		JOIN event_tag et ON et.id = eta.event_tag_id
+		FROM ` + entityid.EventTagAssignment + ` eta
+		JOIN ` + entityid.EventTag + ` et ON et.id = eta.event_tag_id
 		WHERE eta.active = 1
 		  AND et.active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR et.workspace_id = @p1)

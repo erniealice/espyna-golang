@@ -222,7 +222,7 @@ func (r *SQLServerRevenueCategoryRepository) GetRevenueCategoryListPageData(
 				rc.description,
 				rc.parent_category_id,
 				COUNT(*) OVER() AS total
-			FROM revenue_category rc
+			FROM ` + entityid.RevenueCategory + ` rc
 			WHERE rc.active = 1
 			  AND (@p1 IS NULL OR @p1 = '' OR
 			       rc.name LIKE @p1 OR
@@ -332,7 +332,7 @@ func (r *SQLServerRevenueCategoryRepository) GetRevenueCategoryItemPageData(
 			rc.code,
 			rc.description,
 			rc.parent_category_id
-		FROM revenue_category rc
+		FROM ` + entityid.RevenueCategory + ` rc
 		WHERE rc.id = @p1 AND rc.active = 1;
 	`
 

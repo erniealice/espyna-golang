@@ -283,8 +283,8 @@ func (r *PostgresInventoryAttributeRepository) GetInventoryAttributeListPageData
 				ia.attribute_id,
 				ia.value,
 				COALESCE(ii.name, '') as inventory_item_name
-			FROM inventory_attribute ia
-			LEFT JOIN inventory_item ii ON ia.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventoryAttribute + ` ia
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON ia.inventory_item_id = ii.id AND ii.active = true
 			WHERE ia.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ia.value ILIKE $1 OR
@@ -420,8 +420,8 @@ func (r *PostgresInventoryAttributeRepository) GetInventoryAttributeItemPageData
 				ia.value,
 				COALESCE(ii.name, '') as inventory_item_name,
 				COALESCE(ii.sku, '') as inventory_item_sku
-			FROM inventory_attribute ia
-			LEFT JOIN inventory_item ii ON ia.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventoryAttribute + ` ia
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON ia.inventory_item_id = ii.id AND ii.active = true
 			WHERE ia.id = $1 AND ia.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

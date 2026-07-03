@@ -279,7 +279,7 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 				sd.status,
 				sd.account_id,
 				sd.notes
-			FROM security_deposit sd
+			FROM ` + entityid.SecurityDeposit + ` sd
 			WHERE sd.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       sd.counterparty_name ILIKE $1 OR
@@ -428,7 +428,7 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositItemPageData(
 				sd.status,
 				sd.account_id,
 				sd.notes
-			FROM security_deposit sd
+			FROM ` + entityid.SecurityDeposit + ` sd
 			WHERE sd.id = $1 AND sd.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

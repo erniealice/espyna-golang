@@ -67,7 +67,7 @@ func (r *PostgresConversationReadReceiptRepository) CreateConversationReadReceip
 
 	if r.db != nil {
 		const upsert = `
-			INSERT INTO conversation_read_receipt
+			INSERT INTO ` + entityid.ConversationReadReceipt + `
 				(id, conversation_id, reader_principal_type, reader_principal_id,
 				 user_id, workspace_id, last_read_post_id, last_read_at, active,
 				 date_created, date_modified)

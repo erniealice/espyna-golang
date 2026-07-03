@@ -280,8 +280,8 @@ func (r *MySQLDelegateRepository) GetDelegateListPageData(ctx context.Context, r
 						END
 					)
 				) AS obj
-			FROM delegate_client dc
-			INNER JOIN client c ON dc.client_id = c.id
+			FROM ` + entityid.DelegateClient + ` dc
+			INNER JOIN ` + entityid.Client + ` c ON dc.client_id = c.id
 			LEFT JOIN ` + "`user`" + ` cu ON c.user_id = cu.id
 			WHERE dc.active = 1 AND c.active = 1
 		),
@@ -315,8 +315,8 @@ func (r *MySQLDelegateRepository) GetDelegateListPageData(ctx context.Context, r
 						ELSE NULL
 					END
 				) AS obj
-			FROM delegate_supplier ds
-			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			FROM ` + entityid.DelegateSupplier + ` ds
+			LEFT JOIN ` + entityid.Supplier + ` s ON ds.supplier_id = s.id
 			WHERE ds.active = 1
 		),
 		delegate_suppliers_agg AS (
@@ -329,7 +329,7 @@ func (r *MySQLDelegateRepository) GetDelegateListPageData(ctx context.Context, r
 
 		search_filtered AS (
 			SELECT d.*
-			FROM delegate d
+			FROM ` + entityid.Delegate + ` d
 			LEFT JOIN ` + "`user`" + ` u ON d.user_id = u.id
 			WHERE d.active = 1
 				AND (? = '' OR
@@ -561,8 +561,8 @@ func (r *MySQLDelegateRepository) GetDelegateItemPageData(ctx context.Context, r
 						END
 					)
 				) AS obj
-			FROM delegate_client dc
-			INNER JOIN client c ON dc.client_id = c.id
+			FROM ` + entityid.DelegateClient + ` dc
+			INNER JOIN ` + entityid.Client + ` c ON dc.client_id = c.id
 			LEFT JOIN ` + "`user`" + ` cu ON c.user_id = cu.id
 			WHERE dc.delegate_id = ? AND dc.active = 1 AND c.active = 1
 		),
@@ -596,8 +596,8 @@ func (r *MySQLDelegateRepository) GetDelegateItemPageData(ctx context.Context, r
 						ELSE NULL
 					END
 				) AS obj
-			FROM delegate_supplier ds
-			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			FROM ` + entityid.DelegateSupplier + ` ds
+			LEFT JOIN ` + entityid.Supplier + ` s ON ds.supplier_id = s.id
 			WHERE ds.delegate_id = ? AND ds.active = 1
 		),
 		delegate_suppliers_agg AS (
@@ -628,7 +628,7 @@ func (r *MySQLDelegateRepository) GetDelegateItemPageData(ctx context.Context, r
 			END AS user_json,
 			COALESCE(dca.delegate_clients, JSON_ARRAY()) AS delegate_clients,
 			COALESCE(dsa.delegate_suppliers, JSON_ARRAY()) AS delegate_suppliers
-		FROM delegate d
+		FROM ` + entityid.Delegate + ` d
 		LEFT JOIN ` + "`user`" + ` u ON d.user_id = u.id
 		LEFT JOIN delegate_clients_agg dca ON d.id = dca.delegate_id
 		LEFT JOIN delegate_suppliers_agg dsa ON d.id = dsa.delegate_id

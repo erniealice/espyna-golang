@@ -277,7 +277,7 @@ func (r *SQLServerPettyCashReplenishmentRepository) GetPettyCashReplenishmentLis
 				pcr.replenishment_date,
 				pcr.posted_by,
 				pcr.notes
-			FROM petty_cash_replenishment pcr
+			FROM ` + entityid.PettyCashReplenishment + ` pcr
 			WHERE (@p1 = '' OR
 			       pcr.replenishment_number LIKE @p1 OR
 			       pcr.notes LIKE @p1)
@@ -408,7 +408,7 @@ func (r *SQLServerPettyCashReplenishmentRepository) GetPettyCashReplenishmentIte
 				pcr.replenishment_date,
 				pcr.posted_by,
 				pcr.notes
-			FROM petty_cash_replenishment pcr
+			FROM ` + entityid.PettyCashReplenishment + ` pcr
 			WHERE pcr.id = @p1
 		)
 		SELECT TOP 1 * FROM enriched;

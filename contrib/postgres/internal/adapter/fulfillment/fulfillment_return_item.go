@@ -67,7 +67,7 @@ func (r *PostgresFulfillmentReturnItemRepository) CreateFulfillmentReturnItem(ct
 	}
 
 	query := `
-		INSERT INTO fulfillment_return_item
+		INSERT INTO ` + entityid.FulfillmentReturnItem + `
 			(id, fulfillment_return_id, fulfillment_item_id, quantity_returned, reason)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, fulfillment_return_id, fulfillment_item_id, quantity_returned, reason, date_created
@@ -110,7 +110,7 @@ func (r *PostgresFulfillmentReturnItemRepository) ListFulfillmentReturnItems(ctx
 
 	query := `
 		SELECT id, fulfillment_return_id, fulfillment_item_id, quantity_returned, reason, date_created
-		FROM fulfillment_return_item
+		FROM ` + entityid.FulfillmentReturnItem + `
 		WHERE fulfillment_return_id = $1
 		ORDER BY id ASC
 	`

@@ -277,7 +277,7 @@ func (r *SQLServerPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 				pcv.status,
 				pcv.approved_by,
 				pcv.approved_at
-			FROM petty_cash_voucher pcv
+			FROM ` + entityid.PettyCashVoucher + ` pcv
 			WHERE (@p1 = '' OR
 			       pcv.voucher_number LIKE @p1 OR
 			       pcv.description LIKE @p1 OR
@@ -418,7 +418,7 @@ func (r *SQLServerPettyCashVoucherRepository) GetPettyCashVoucherItemPageData(
 				pcv.status,
 				pcv.approved_by,
 				pcv.approved_at
-			FROM petty_cash_voucher pcv
+			FROM ` + entityid.PettyCashVoucher + ` pcv
 			WHERE pcv.id = @p1
 		)
 		SELECT TOP 1 * FROM enriched;

@@ -283,7 +283,7 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 				lp.total_amount,
 				lp.remaining_balance,
 				lp.notes
-			FROM loan_payment lp
+			FROM ` + entityid.LoanPayment + ` lp
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       lp.payment_number ILIKE $1)
 		)
@@ -421,7 +421,7 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentItemPageData(
 				lp.total_amount,
 				lp.remaining_balance,
 				lp.notes
-			FROM loan_payment lp
+			FROM ` + entityid.LoanPayment + ` lp
 			WHERE lp.id = $1
 		)
 		SELECT * FROM enriched LIMIT 1;

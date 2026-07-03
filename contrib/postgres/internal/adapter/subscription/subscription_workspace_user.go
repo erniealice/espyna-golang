@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -246,7 +246,7 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) GetSubscriptionWorkspaceUs
 
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, subscription_id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
-		FROM subscription_workspace_user
+		FROM ` + entityid.SubscriptionWorkspaceUser + `
 		WHERE active = true
 			AND ($4::text = '' OR workspace_id = $4::text)
 			AND ($1::text IS NULL OR $1::text = '' OR subscription_id ILIKE $1 OR workspace_user_id ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
@@ -275,7 +275,7 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) GetSubscriptionWorkspaceUs
 	// list query). Empty wsID = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, subscription_id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
-		FROM subscription_workspace_user WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
+		FROM ` + entityid.SubscriptionWorkspaceUser + ` WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
 	row := r.db.QueryRowContext(ctx, query, req.SubscriptionWorkspaceUserId, wsID)
 	swu, err := scanSubscriptionWorkspaceUserRow(row.Scan)
 	if err == sql.ErrNoRows {
@@ -333,8 +333,8 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) IsActiveServicer(ctx conte
 	wsID := identity.Must(ctx).WorkspaceID
 	const q = `SELECT EXISTS (
 		SELECT 1
-		FROM subscription_workspace_user swu
-		JOIN workspace_user wu ON wu.id = swu.workspace_user_id
+		FROM ` + entityid.SubscriptionWorkspaceUser + ` swu
+		JOIN ` + entityid.WorkspaceUser + ` wu ON wu.id = swu.workspace_user_id
 		WHERE swu.subscription_id = $1
 			AND swu.active = true
 			AND wu.user_id = $2

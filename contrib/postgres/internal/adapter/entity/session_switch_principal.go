@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"log"
 	"strings"
 	"time"
@@ -39,7 +40,7 @@ import (
 //	  SELECT session ... WHERE token = $1 AND active = true FOR UPDATE
 //	  SELECT <binding_table> ... WHERE user_id=$1 AND workspace_id=$2
 //	         AND active = true FOR UPDATE      -- binding TOCTOU defense
-//	  INSERT / UPDATE session row
+//	  INSERT / UPDATE ` + entityid.Session + ` row
 //	  INSERT audit_entry (RequireAudit=true: failure rolls tx back)
 //	COMMIT
 //
@@ -576,7 +577,7 @@ func lockTargetBinding(
 		// so lock by id with the user_id and active=true predicate as a
 		// defense-in-depth check.
 		query = `
-			SELECT id FROM workspace_user
+			SELECT id FROM ` + entityid.WorkspaceUser + `
 			WHERE id = $1 AND user_id = $2 AND active = true
 			LIMIT 1
 			FOR UPDATE
@@ -584,7 +585,7 @@ func lockTargetBinding(
 		args = []any{tgt.GetPrincipalId(), userID}
 	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT:
 		query = `
-			SELECT id FROM client_portal_grant
+			SELECT id FROM ` + entityid.ClientPortalGrant + `
 			WHERE id = $1 AND user_id = $2 AND active = true
 			LIMIT 1
 			FOR UPDATE
@@ -592,7 +593,7 @@ func lockTargetBinding(
 		args = []any{tgt.GetPrincipalId(), userID}
 	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_SUPPLIER:
 		query = `
-			SELECT id FROM supplier_portal_grant
+			SELECT id FROM ` + entityid.SupplierPortalGrant + `
 			WHERE id = $1 AND user_id = $2 AND active = true
 			LIMIT 1
 			FOR UPDATE
@@ -605,7 +606,7 @@ func lockTargetBinding(
 		// (Option E, 2026-06-30 — role narrowing via workspace_user_role + the
 		// permission-kind filter); a missing/inactive row fails closed → ErrNoRows.
 		query = `
-			SELECT id FROM staff
+			SELECT id FROM ` + entityid.Staff + `
 			WHERE id = $1 AND user_id = $2 AND workspace_id = $3
 			  AND active = true
 			LIMIT 1
@@ -768,9 +769,9 @@ func buildDelegateLockSQL(
 		if actingAsID != "" {
 			return `
 					SELECT dc.id
-					FROM delegate_client dc
-					JOIN delegate d ON d.id = dc.delegate_id AND d.active = true
-					LEFT JOIN client c ON c.id = dc.client_id AND c.active = true
+					FROM ` + entityid.DelegateClient + ` dc
+					JOIN ` + entityid.Delegate + ` d ON d.id = dc.delegate_id AND d.active = true
+					LEFT JOIN ` + entityid.Client + ` c ON c.id = dc.client_id AND c.active = true
 					WHERE dc.delegate_id = $1 AND dc.client_id = $2
 						AND dc.active = true
 						AND d.user_id = $3
@@ -780,7 +781,7 @@ func buildDelegateLockSQL(
 				`, []any{delegateID, actingAsID, userID, workspaceID}
 		}
 		return `
-					SELECT id FROM delegate
+					SELECT id FROM ` + entityid.Delegate + `
 					WHERE id = $1 AND user_id = $2 AND active = true
 					LIMIT 1
 					FOR UPDATE
@@ -789,9 +790,9 @@ func buildDelegateLockSQL(
 		if actingAsID != "" {
 			return `
 					SELECT ds.id
-					FROM delegate_supplier ds
-					JOIN delegate d ON d.id = ds.delegate_id AND d.active = true
-					LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = true
+					FROM ` + entityid.DelegateSupplier + ` ds
+					JOIN ` + entityid.Delegate + ` d ON d.id = ds.delegate_id AND d.active = true
+					LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ds.supplier_id AND s.active = true
 					WHERE ds.delegate_id = $1 AND ds.supplier_id = $2
 						AND ds.active = true
 						AND d.user_id = $3
@@ -801,7 +802,7 @@ func buildDelegateLockSQL(
 				`, []any{delegateID, actingAsID, userID, workspaceID}
 		}
 		return `
-					SELECT id FROM delegate
+					SELECT id FROM ` + entityid.Delegate + `
 					WHERE id = $1 AND user_id = $2 AND active = true
 					LIMIT 1
 					FOR UPDATE
@@ -815,7 +816,7 @@ func buildDelegateLockSQL(
 // generateOpaqueSwitchToken matches the format produced by espyna's
 // IssueSessionUseCase — 32 random bytes hex-encoded — so the cookie value
 // is indistinguishable from a fresh-login token. The session middleware
-// resolves either shape through the same `SELECT * FROM session WHERE
+// resolves either shape through the same `SELECT * FROM ` + entityid.Session + ` WHERE
 // token = $1` path.
 func generateOpaqueSwitchToken() (string, error) {
 	// Two UUIDs back-to-back = 32 bytes. UUID v4 is crypto/rand-backed.

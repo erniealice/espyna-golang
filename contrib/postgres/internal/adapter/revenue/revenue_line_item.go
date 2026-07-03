@@ -277,9 +277,9 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name,
 				COUNT(*) OVER() AS total
-			FROM revenue_line_item rli
-			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = true
-			LEFT JOIN product p ON rli.product_id = p.id AND p.active = true
+			FROM ` + entityid.RevenueLineItem + ` rli
+			LEFT JOIN ` + entityid.Revenue + ` rv ON rli.revenue_id = rv.id AND rv.active = true
+			LEFT JOIN ` + entityid.Product + ` p ON rli.product_id = p.id AND p.active = true
 			WHERE rli.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR rli.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -453,9 +453,9 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemItemPageData(
 				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
 				COALESCE(p.name, '') as product_name
-			FROM revenue_line_item rli
-			LEFT JOIN revenue rv ON rli.revenue_id = rv.id AND rv.active = true
-			LEFT JOIN product p ON rli.product_id = p.id AND p.active = true
+			FROM ` + entityid.RevenueLineItem + ` rli
+			LEFT JOIN ` + entityid.Revenue + ` rv ON rli.revenue_id = rv.id AND rv.active = true
+			LEFT JOIN ` + entityid.Product + ` p ON rli.product_id = p.id AND p.active = true
 			WHERE rli.id = $1 AND rli.active = true
 			  AND ($2::text = '' OR rli.workspace_id = $2::text)
 		)

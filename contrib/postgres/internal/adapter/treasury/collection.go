@@ -353,7 +353,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM treasury_collection tc
+			FROM ` + entityid.TreasuryCollection + ` tc
 			WHERE tc.active = true
 			  AND tc.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -591,7 +591,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM treasury_collection tc
+			FROM ` + entityid.TreasuryCollection + ` tc
 			WHERE tc.id = $1 AND tc.workspace_id = $2 AND tc.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;
@@ -823,8 +823,8 @@ func (r *PostgresCollectionRepository) ListByClient(ctx context.Context, req *co
 	rows, err := db.GetDB().QueryContext(ctx,
 		`SELECT c.id, c.active, c.revenue_id, c.amount, c.status, c.currency,
 		        c.reference_number, c.payment_date, c.collection_type
-		 FROM treasury_collection c
-		 JOIN revenue r ON r.id = c.revenue_id
+		 FROM `+entityid.TreasuryCollection+` c
+		 JOIN `+entityid.Revenue+` r ON r.id = c.revenue_id
 		 WHERE r.client_id = $1
 		   AND ($2::text = '' OR r.workspace_id = $2::text)`,
 		req.GetClientId(), wsID,

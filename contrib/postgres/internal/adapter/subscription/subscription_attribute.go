@@ -252,8 +252,8 @@ func (r *PostgresSubscriptionAttributeRepository) GetSubscriptionAttributeListPa
 				sa.active,
 				sa.date_created,
 				sa.date_modified
-			FROM subscription_attribute sa
-			LEFT JOIN subscription s ON sa.subscription_id = s.id
+			FROM ` + entityid.SubscriptionAttribute + ` sa
+			LEFT JOIN ` + entityid.Subscription + ` s ON sa.subscription_id = s.id
 			WHERE sa.active = true
 			  AND ($4::text = '' OR s.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR sa.value ILIKE $1))
@@ -312,7 +312,7 @@ func (r *PostgresSubscriptionAttributeRepository) GetSubscriptionAttributeItemPa
 	if req == nil || req.SubscriptionAttributeId == "" {
 		return nil, fmt.Errorf("subscription attribute ID required")
 	}
-	query := `SELECT id, subscription_id, attribute_id, value, active, date_created, date_modified FROM subscription_attribute WHERE id = $1 AND active = true`
+	query := `SELECT id, subscription_id, attribute_id, value, active, date_created, date_modified FROM ` + entityid.SubscriptionAttribute + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.SubscriptionAttributeId)
 	var id, subscriptionId, attributeId, attributeValue string
 	var active bool

@@ -155,7 +155,7 @@ func (r *SQLServerFulfillmentRepository) DeleteFulfillment(ctx context.Context, 
 		return nil, fmt.Errorf("fulfillment ID is required")
 	}
 
-	const query = `UPDATE fulfillment SET active = 0, date_modified = GETUTCDATE() WHERE id = @p1`
+	const query = `UPDATE ` + entityid.Fulfillment + ` SET active = 0, date_modified = GETUTCDATE() WHERE id = @p1`
 	exec := r.getExec(ctx)
 	if _, err := exec.ExecContext(ctx, query, req.Id); err != nil {
 		return nil, fmt.Errorf("failed to delete fulfillment: %w", err)
@@ -280,10 +280,10 @@ func (r *SQLServerFulfillmentRepository) GetFulfillmentListPageData(
 				COUNT(DISTINCT fi.id) AS item_count,
 				COUNT(DISTINCT fse.id) AS status_event_count,
 				COUNT(*) OVER() AS total_count
-			FROM fulfillment f
-			LEFT JOIN supplier s ON s.id = f.supplier_id AND s.active = 1
-			LEFT JOIN fulfillment_item fi ON fi.fulfillment_id = f.id
-			LEFT JOIN fulfillment_status_event fse ON fse.fulfillment_id = f.id
+			FROM ` + entityid.Fulfillment + ` f
+			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = f.supplier_id AND s.active = 1
+			LEFT JOIN ` + entityid.FulfillmentItem + ` fi ON fi.fulfillment_id = f.id
+			LEFT JOIN ` + entityid.FulfillmentStatusEvent + ` fse ON fse.fulfillment_id = f.id
 			%s
 			GROUP BY
 				f.id, f.date_created, f.date_modified, f.active, f.workspace_id,
@@ -441,8 +441,8 @@ func (r *SQLServerFulfillmentRepository) GetFulfillmentItemPageData(
 			f.expenditure_id,
 			COALESCE(s.name, '') AS supplier_name,
 			COALESCE(CAST(f.revenue_id AS nvarchar(max)), '') AS revenue_reference
-		FROM fulfillment f
-		LEFT JOIN supplier s ON s.id = f.supplier_id AND s.active = 1
+		FROM ` + entityid.Fulfillment + ` f
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = f.supplier_id AND s.active = 1
 		WHERE f.id = @p1 AND f.workspace_id = @p2 AND f.active = 1
 	`
 
@@ -527,7 +527,7 @@ func (r *SQLServerFulfillmentRepository) TransitionStatus(
 	}
 
 	const query = `
-		UPDATE fulfillment
+		UPDATE ` + entityid.Fulfillment + `
 		SET status = @p1, date_modified = GETUTCDATE()
 		OUTPUT inserted.id
 		WHERE id = @p2 AND active = 1
@@ -556,7 +556,7 @@ func (r *SQLServerFulfillmentRepository) ListStatusEvents(
 
 	const query = `
 		SELECT id, fulfillment_id, from_status, to_status, reason, occurred_at
-		FROM fulfillment_status_event
+		FROM ` + entityid.FulfillmentStatusEvent + `
 		WHERE fulfillment_id = @p1
 		ORDER BY occurred_at ASC
 	`

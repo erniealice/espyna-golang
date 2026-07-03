@@ -294,8 +294,8 @@ func (r *MySQLRoleRepository) GetRoleListPageData(
 						'dateCreatedString', DATE_FORMAT(CONVERT_TZ(rp.date_created, '+00:00', '+00:00'), '%Y-%m-%dT%H:%i:%sZ')
 					)
 				) AS permissions
-			FROM role_permission rp
-			JOIN permission p ON rp.permission_id = p.id
+			FROM ` + entityid.RolePermission + ` rp
+			JOIN ` + entityid.Permission + ` p ON rp.permission_id = p.id
 			WHERE rp.active = 1 AND p.active = 1
 			GROUP BY rp.role_id
 		),
@@ -311,7 +311,7 @@ func (r *MySQLRoleRepository) GetRoleListPageData(
 				r.date_modified,
 				COALESCE(rpa.permissions, JSON_ARRAY()) AS role_permissions,
 				COALESCE(r.applicable_principal_types, JSON_ARRAY()) AS applicable_principal_types
-			FROM role r
+			FROM ` + entityid.Role + ` r
 			LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
 			WHERE r.workspace_id = ?
 			  AND (? = '' OR
@@ -491,8 +491,8 @@ func (r *MySQLRoleRepository) GetRoleItemPageData(
 						'dateCreatedString', DATE_FORMAT(CONVERT_TZ(rp.date_created, '+00:00', '+00:00'), '%Y-%m-%dT%H:%i:%sZ')
 					)
 				) AS permissions
-			FROM role_permission rp
-			JOIN permission p ON rp.permission_id = p.id
+			FROM ` + entityid.RolePermission + ` rp
+			JOIN ` + entityid.Permission + ` p ON rp.permission_id = p.id
 			WHERE rp.active = 1 AND p.active = 1
 			GROUP BY rp.role_id
 		)
@@ -506,7 +506,7 @@ func (r *MySQLRoleRepository) GetRoleItemPageData(
 			r.date_created,
 			r.date_modified,
 			COALESCE(rpa.permissions, JSON_ARRAY()) AS role_permissions
-		FROM role r
+		FROM ` + entityid.Role + ` r
 		LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
 		WHERE r.id = ? AND r.workspace_id = ?
 		LIMIT 1;

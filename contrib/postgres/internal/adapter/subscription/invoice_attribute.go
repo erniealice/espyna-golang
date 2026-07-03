@@ -254,9 +254,9 @@ func (r *PostgresInvoiceAttributeRepository) GetInvoiceAttributeListPageData(ctx
 				ia.active,
 				ia.date_created,
 				ia.date_modified
-			FROM invoice_attribute ia
-			LEFT JOIN invoice i ON ia.invoice_id = i.id
-			LEFT JOIN subscription s ON i.subscription_id = s.id
+			FROM ` + entityid.InvoiceAttribute + ` ia
+			LEFT JOIN ` + entityid.Invoice + ` i ON ia.invoice_id = i.id
+			LEFT JOIN ` + entityid.Subscription + ` s ON i.subscription_id = s.id
 			WHERE ia.active = true
 			  AND ($4::text = '' OR s.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR ia.value ILIKE $1))
@@ -315,7 +315,7 @@ func (r *PostgresInvoiceAttributeRepository) GetInvoiceAttributeItemPageData(ctx
 	if req == nil || req.InvoiceAttributeId == "" {
 		return nil, fmt.Errorf("invoice attribute ID required")
 	}
-	query := `SELECT id, invoice_id, attribute_id, value, active, date_created, date_modified FROM invoice_attribute WHERE id = $1 AND active = true`
+	query := `SELECT id, invoice_id, attribute_id, value, active, date_created, date_modified FROM ` + entityid.InvoiceAttribute + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.InvoiceAttributeId)
 	var id, invoiceId, attributeId, attributeValue string
 	var active bool

@@ -121,7 +121,7 @@ func (r *PostgresForexRateRepository) FindMostRecent(ctx context.Context, worksp
 		return nil, fmt.Errorf("FindMostRecent requires raw *sql.DB")
 	}
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(fr) FROM forex_rate fr
+		`SELECT row_to_json(fr) FROM ` + entityid.ForexRate + ` fr
 		 WHERE fr.workspace_id = $1
 		   AND fr.from_currency = $2
 		   AND fr.to_currency = $3
@@ -149,7 +149,7 @@ func (r *PostgresForexRateRepository) FindActive(ctx context.Context, workspaceI
 		return nil, fmt.Errorf("FindActive requires raw *sql.DB")
 	}
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(fr) FROM forex_rate fr
+		`SELECT row_to_json(fr) FROM ` + entityid.ForexRate + ` fr
 		 WHERE fr.workspace_id = $1
 		   AND fr.from_currency = $2
 		   AND fr.to_currency = $3
@@ -196,7 +196,7 @@ func (r *PostgresForexRateRepository) SupersedePrior(ctx context.Context, priorI
 		return fmt.Errorf("SupersedePrior requires raw *sql.DB")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE forex_rate SET status = 3, effective_to = $1
+		`UPDATE ` + entityid.ForexRate + ` SET status = 3, effective_to = $1
 		 WHERE id = $2
 		   AND workspace_id = $3
 		   AND status = 2`,

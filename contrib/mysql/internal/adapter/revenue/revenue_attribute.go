@@ -254,8 +254,8 @@ func (r *MySQLRevenueAttributeRepository) GetRevenueAttributeListPageData(
 				ra.date_modified,
 				ra.active,
 				COALESCE(rv.name, '') as revenue_name
-			FROM revenue_attribute ra
-			LEFT JOIN revenue rv ON ra.revenue_id = rv.id AND rv.active = 1
+			FROM ` + entityid.RevenueAttribute + ` ra
+			LEFT JOIN ` + entityid.Revenue + ` rv ON ra.revenue_id = rv.id AND rv.active = 1
 			WHERE ra.active = 1
 			  AND (? = '' OR ra.value LIKE ? OR rv.name LIKE ?)
 		),
@@ -385,8 +385,8 @@ func (r *MySQLRevenueAttributeRepository) GetRevenueAttributeItemPageData(
 				ra.date_modified,
 				ra.active,
 				COALESCE(rv.name, '') as revenue_name
-			FROM revenue_attribute ra
-			LEFT JOIN revenue rv ON ra.revenue_id = rv.id AND rv.active = 1
+			FROM ` + entityid.RevenueAttribute + ` ra
+			LEFT JOIN ` + entityid.Revenue + ` rv ON ra.revenue_id = rv.id AND rv.active = 1
 			WHERE ra.id = ? AND ra.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1

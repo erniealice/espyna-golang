@@ -207,8 +207,8 @@ func (r *PostgresCostPlanRepository) GetCostPlanListPageData(ctx context.Context
 	                 cp.billing_cycle_value, cp.billing_cycle_unit, cp.default_term_value, cp.default_term_unit,
 	                 cp.date_created, cp.date_modified,
 	                 sp.name AS supplier_plan_name
-	          FROM cost_plan cp
-	          LEFT JOIN supplier_plan sp ON cp.supplier_plan_id = sp.id
+	          FROM ` + entityid.CostPlan + ` cp
+	          LEFT JOIN ` + entityid.SupplierPlan + ` sp ON cp.supplier_plan_id = sp.id
 	          WHERE cp.active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR cp.name ILIKE $1 OR cp.description ILIKE $1)
 	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
@@ -288,7 +288,7 @@ func (r *PostgresCostPlanRepository) GetCostPlanItemPageData(ctx context.Context
 	                 cp.billing_kind, cp.amount_basis, cp.billing_amount, cp.billing_currency,
 	                 cp.billing_cycle_value, cp.billing_cycle_unit, cp.default_term_value, cp.default_term_unit,
 	                 cp.date_created, cp.date_modified
-	          FROM cost_plan cp WHERE cp.id = $1`
+	          FROM ` + entityid.CostPlan + ` cp WHERE cp.id = $1`
 	row := r.db.QueryRowContext(ctx, query, req.CostPlanId)
 	var id, name, supplierPlanID, billingCurrency string
 	var description, costScheduleID sql.NullString

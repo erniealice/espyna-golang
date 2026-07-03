@@ -253,7 +253,7 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeListPageData(c
 				active,
 				date_created,
 				date_modified
-			FROM location_attribute
+			FROM ` + entityid.LocationAttribute + `
 			WHERE active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       key ILIKE $1 OR
@@ -319,7 +319,7 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeItemPageData(c
 	if req == nil || req.LocationAttributeId == "" {
 		return nil, fmt.Errorf("location attribute ID required")
 	}
-	query := `SELECT id, location_id, key, value, active, date_created, date_modified FROM location_attribute WHERE id = $1 AND active = true`
+	query := `SELECT id, location_id, key, value, active, date_created, date_modified FROM ` + entityid.LocationAttribute + ` WHERE id = $1 AND active = true`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.LocationAttributeId)
 	var id, locationId, attributeKey, attributeValue string

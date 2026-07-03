@@ -349,7 +349,7 @@ func (r *PostgresJobRepository) GetJobListPageData(
 				j.cycle_index,
 				j.cycle_period_start,
 				j.cycle_period_end
-			FROM job j
+			FROM `+entityid.Job+` j
 			WHERE j.active = true
 			  AND ($1 = '' OR j.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -597,7 +597,7 @@ func (r *PostgresJobRepository) GetJobItemPageData(
 			j.cycle_index,
 			j.cycle_period_start,
 			j.cycle_period_end
-		FROM job j
+		FROM ` + entityid.Job + ` j
 		WHERE j.id = $1 AND j.active = true
 		  AND ($2 = '' OR j.workspace_id = $2)
 	` + jobScope

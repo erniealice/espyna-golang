@@ -67,7 +67,7 @@ func (r *PostgresFulfillmentStatusEventRepository) InsertStatusEvent(ctx context
 	}
 
 	query := `
-		INSERT INTO fulfillment_status_event
+		INSERT INTO ` + entityid.FulfillmentStatusEvent + `
 			(fulfillment_id, from_status, to_status, provider_status, provider_reference,
 			 triggered_by_id, reason, occurred_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
@@ -129,7 +129,7 @@ func (r *PostgresFulfillmentStatusEventRepository) ListStatusEvents(ctx context.
 	query := `
 		SELECT id, fulfillment_id, from_status, to_status, provider_status, provider_reference,
 		       triggered_by_id, reason, occurred_at
-		FROM fulfillment_status_event
+		FROM ` + entityid.FulfillmentStatusEvent + `
 		WHERE fulfillment_id = $1
 		ORDER BY occurred_at DESC
 	`

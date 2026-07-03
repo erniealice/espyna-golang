@@ -284,7 +284,7 @@ func (r *PostgresEventResourceRepository) GetEventResourceListPageData(
 				er.active,
 				er.date_created,
 				er.date_modified
-			FROM event_resource er
+			FROM ` + entityid.EventResource + ` er
 			WHERE er.active = true
 			  AND er.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -428,7 +428,7 @@ func (r *PostgresEventResourceRepository) GetEventResourceItemPageData(
 			er.active,
 			er.date_created,
 			er.date_modified
-		FROM event_resource er
+		FROM ` + entityid.EventResource + ` er
 		WHERE er.id = $1 AND er.workspace_id = $2 AND er.active = true
 		LIMIT 1;
 	`

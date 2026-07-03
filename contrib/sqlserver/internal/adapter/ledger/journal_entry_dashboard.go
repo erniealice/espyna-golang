@@ -3,6 +3,7 @@
 package ledger
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -31,7 +32,7 @@ func (r *SQLServerJournalEntryRepository) CountByStatus(
 	if since.IsZero() {
 		query = `
 			SELECT je.status, CAST(COUNT(*) AS bigint)
-			FROM journal_entry je
+			FROM ` + entityid.JournalEntry + ` je
 			WHERE je.active = 1
 			  AND (@p1 IS NULL OR @p1 = '' OR je.workspace_id = @p1)
 			GROUP BY je.status`
@@ -39,7 +40,7 @@ func (r *SQLServerJournalEntryRepository) CountByStatus(
 	} else {
 		query = `
 			SELECT je.status, CAST(COUNT(*) AS bigint)
-			FROM journal_entry je
+			FROM ` + entityid.JournalEntry + ` je
 			WHERE je.active = 1
 			  AND je.date_created >= @p2
 			  AND (@p1 IS NULL OR @p1 = '' OR je.workspace_id = @p1)
@@ -96,7 +97,7 @@ func (r *SQLServerJournalEntryRepository) RecentEntries(
 			je.total_debit,
 			je.total_credit,
 			je.date_created
-		FROM journal_entry je
+		FROM ` + entityid.JournalEntry + ` je
 		WHERE je.active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR je.workspace_id = @p1)
 		ORDER BY je.date_created DESC

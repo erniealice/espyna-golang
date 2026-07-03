@@ -281,7 +281,7 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 						'value', la.value
 					)
 				) AS attributes
-			FROM location_attribute la
+			FROM ` + entityid.LocationAttribute + ` la
 			GROUP BY la.location_id
 		),
 		enriched AS (
@@ -296,9 +296,9 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 				l.location_area_id,
 				COALESCE(la2.name, '') AS location_area_name,
 				COALESCE(laa.attributes, JSON_ARRAY()) AS location_attributes
-			FROM location l
+			FROM ` + entityid.Location + ` l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-			LEFT JOIN location_area la2 ON l.location_area_id = la2.id
+			LEFT JOIN ` + entityid.LocationArea + ` la2 ON l.location_area_id = la2.id
 			%s
 		),
 		counted AS (
@@ -455,7 +455,7 @@ func (r *MySQLLocationRepository) GetLocationItemPageData(
 						'value', la.value
 					)
 				) AS attributes
-			FROM location_attribute la
+			FROM ` + entityid.LocationAttribute + ` la
 			WHERE la.location_id = ?
 			GROUP BY la.location_id
 		)
@@ -464,7 +464,7 @@ func (r *MySQLLocationRepository) GetLocationItemPageData(
 			l.active, l.date_created, l.date_modified,
 			COALESCE(l.timezone, 'Asia/Manila') AS timezone,
 			COALESCE(laa.attributes, JSON_ARRAY()) AS location_attributes
-		FROM location l
+		FROM ` + entityid.Location + ` l
 		LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
 		WHERE l.id = ?
 		  AND (? IS NULL OR ? = '' OR l.workspace_id = ?)

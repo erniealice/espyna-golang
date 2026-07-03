@@ -266,7 +266,7 @@ func (r *SQLServerPricePlanRepository) GetPricePlanListPageData(ctx context.Cont
 		SELECT id, plan_id, billing_amount, billing_currency, name, description, active,
 		       date_created, date_modified, price_schedule_id, billing_kind, amount_basis,
 		       billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit
-		FROM price_plan
+		FROM ` + entityid.PricePlan + `
 		WHERE active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR plan_id LIKE @p1 OR billing_currency LIKE @p1)
 		ORDER BY [%s] %s
@@ -353,7 +353,7 @@ func (r *SQLServerPricePlanRepository) GetPricePlanItemPageData(ctx context.Cont
 	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active,
 		date_created, date_modified, price_schedule_id, billing_kind, amount_basis,
 		billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit
-		FROM price_plan WHERE id = @p1 AND active = 1`
+		FROM ` + entityid.PricePlan + ` WHERE id = @p1 AND active = 1`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.PricePlanId)

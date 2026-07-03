@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"log"
 	"strings"
 
@@ -65,10 +66,10 @@ func (a *PrincipalResolverAdapter) ResolvePrincipals(
 				wu.workspace_id,
 				COALESCE(w.name, '') AS workspace_name,
 				COALESCE(BOOL_OR(wur.role_id = 'role-admin'), false) AS is_owner
-			FROM workspace_user wu
-			LEFT JOIN workspace w
+			FROM ` + entityid.WorkspaceUser + ` wu
+			LEFT JOIN ` + entityid.Workspace + ` w
 				ON w.id = wu.workspace_id AND w.active = true
-			LEFT JOIN workspace_user_role wur
+			LEFT JOIN ` + entityid.WorkspaceUserRole + ` wur
 				ON wur.workspace_user_id = wu.id AND wur.active = true
 			WHERE wu.user_id = $1
 				AND wu.active = true
@@ -119,8 +120,8 @@ func (a *PrincipalResolverAdapter) ResolvePrincipals(
 				cpg.id,
 				cpg.workspace_id,
 				COALESCE(c.name, '') AS client_name
-			FROM client_portal_grant cpg
-			LEFT JOIN client c ON c.id = cpg.client_id AND c.active = true
+			FROM ` + entityid.ClientPortalGrant + ` cpg
+			LEFT JOIN ` + entityid.Client + ` c ON c.id = cpg.client_id AND c.active = true
 			WHERE cpg.user_id = $1
 				AND cpg.active = true
 			ORDER BY client_name ASC, cpg.id ASC
@@ -160,8 +161,8 @@ func (a *PrincipalResolverAdapter) ResolvePrincipals(
 				spg.id,
 				spg.workspace_id,
 				COALESCE(s.name, '') AS supplier_name
-			FROM supplier_portal_grant spg
-			LEFT JOIN supplier s ON s.id = spg.supplier_id AND s.active = true
+			FROM ` + entityid.SupplierPortalGrant + ` spg
+			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = spg.supplier_id AND s.active = true
 			WHERE spg.user_id = $1
 				AND spg.active = true
 			ORDER BY supplier_name ASC, spg.id ASC
@@ -205,8 +206,8 @@ func (a *PrincipalResolverAdapter) ResolvePrincipals(
 				s.id,
 				s.workspace_id,
 				COALESCE(w.name, '') AS workspace_name
-			FROM staff s
-			LEFT JOIN workspace w ON w.id = s.workspace_id AND w.active = true
+			FROM ` + entityid.Staff + ` s
+			LEFT JOIN ` + entityid.Workspace + ` w ON w.id = s.workspace_id AND w.active = true
 			WHERE s.user_id = $1
 				AND s.active = true
 			ORDER BY workspace_name ASC, s.id ASC
@@ -285,10 +286,10 @@ func (a *PrincipalResolverAdapter) resolveDelegatePrincipals(
 				dc.client_id,
 				COALESCE(dc.workspace_id, c.workspace_id, '') AS workspace_id,
 				COALESCE(c.name, '') AS display_name
-			FROM delegate d
-			JOIN delegate_client dc
+			FROM ` + entityid.Delegate + ` d
+			JOIN ` + entityid.DelegateClient + ` dc
 				ON dc.delegate_id = d.id AND dc.active = true
-			LEFT JOIN client c ON c.id = dc.client_id AND c.active = true
+			LEFT JOIN ` + entityid.Client + ` c ON c.id = dc.client_id AND c.active = true
 			WHERE d.user_id = $1
 				AND d.active = true
 			ORDER BY d.id, COALESCE(c.name, ''), dc.client_id
@@ -301,10 +302,10 @@ func (a *PrincipalResolverAdapter) resolveDelegatePrincipals(
 				ds.supplier_id,
 				COALESCE(ds.workspace_id, s.workspace_id, '') AS workspace_id,
 				COALESCE(s.name, '') AS display_name
-			FROM delegate d
-			JOIN delegate_supplier ds
+			FROM ` + entityid.Delegate + ` d
+			JOIN ` + entityid.DelegateSupplier + ` ds
 				ON ds.delegate_id = d.id AND ds.active = true
-			LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = true
+			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ds.supplier_id AND s.active = true
 			WHERE d.user_id = $1
 				AND d.active = true
 			ORDER BY d.id, COALESCE(s.name, ''), ds.supplier_id
@@ -435,10 +436,10 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 				wu.id,
 				COALESCE(w.name, '') AS workspace_name,
 				COALESCE(BOOL_OR(wur.role_id = 'role-admin'), false) AS is_owner
-			FROM workspace_user wu
-			LEFT JOIN workspace w
+			FROM ` + entityid.WorkspaceUser + ` wu
+			LEFT JOIN ` + entityid.Workspace + ` w
 				ON w.id = wu.workspace_id AND w.active = true
-			LEFT JOIN workspace_user_role wur
+			LEFT JOIN ` + entityid.WorkspaceUserRole + ` wur
 				ON wur.workspace_user_id = wu.id AND wur.active = true
 			WHERE wu.user_id = $1
 				AND wu.workspace_id = $2
@@ -487,8 +488,8 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 	{
 		const q = `
 			SELECT cpg.id, COALESCE(c.name, '')
-			FROM client_portal_grant cpg
-			LEFT JOIN client c ON c.id = cpg.client_id AND c.active = true
+			FROM ` + entityid.ClientPortalGrant + ` cpg
+			LEFT JOIN ` + entityid.Client + ` c ON c.id = cpg.client_id AND c.active = true
 			WHERE cpg.user_id = $1
 				AND cpg.workspace_id = $2
 				AND cpg.active = true
@@ -526,8 +527,8 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 	{
 		const q = `
 			SELECT spg.id, COALESCE(s.name, '')
-			FROM supplier_portal_grant spg
-			LEFT JOIN supplier s ON s.id = spg.supplier_id AND s.active = true
+			FROM ` + entityid.SupplierPortalGrant + ` spg
+			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = spg.supplier_id AND s.active = true
 			WHERE spg.user_id = $1
 				AND spg.workspace_id = $2
 				AND spg.active = true
@@ -565,8 +566,8 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 	{
 		const q = `
 			SELECT s.id, COALESCE(w.name, '')
-			FROM staff s
-			LEFT JOIN workspace w ON w.id = s.workspace_id AND w.active = true
+			FROM ` + entityid.Staff + ` s
+			LEFT JOIN ` + entityid.Workspace + ` w ON w.id = s.workspace_id AND w.active = true
 			WHERE s.user_id = $1
 				AND s.workspace_id = $2
 				AND s.active = true
@@ -604,10 +605,10 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 	{
 		const q = `
 			SELECT d.id, dc.client_id, COALESCE(c.name, '')
-			FROM delegate d
-			JOIN delegate_client dc
+			FROM ` + entityid.Delegate + ` d
+			JOIN ` + entityid.DelegateClient + ` dc
 				ON dc.delegate_id = d.id AND dc.active = true
-			LEFT JOIN client c ON c.id = dc.client_id AND c.active = true
+			LEFT JOIN ` + entityid.Client + ` c ON c.id = dc.client_id AND c.active = true
 			WHERE d.user_id = $1
 				AND d.active = true
 				AND COALESCE(dc.workspace_id, c.workspace_id) = $2
@@ -665,10 +666,10 @@ func (a *PrincipalResolverAdapter) EnumerateBindingsInWorkspace(
 	{
 		const q = `
 			SELECT d.id, ds.supplier_id, COALESCE(s.name, '')
-			FROM delegate d
-			JOIN delegate_supplier ds
+			FROM ` + entityid.Delegate + ` d
+			JOIN ` + entityid.DelegateSupplier + ` ds
 				ON ds.delegate_id = d.id AND ds.active = true
-			LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = true
+			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ds.supplier_id AND s.active = true
 			WHERE d.user_id = $1
 				AND d.active = true
 				AND COALESCE(ds.workspace_id, s.workspace_id) = $2
@@ -746,7 +747,7 @@ func (a *PrincipalResolverAdapter) LookupSessionPrincipal(
 
 	const q = `
 		SELECT principal_type, principal_id, acting_as_client_id, acting_as_supplier_id
-		FROM session
+		FROM ` + entityid.Session + `
 		WHERE token = $1
 			AND active = true
 		LIMIT 1
@@ -788,7 +789,7 @@ func (a *PrincipalResolverAdapter) LookupSessionPrincipal(
 	if resp.Kind == principaltypepb.PrincipalType_PRINCIPAL_TYPE_CLIENT &&
 		resp.ActingAsClientId == "" && resp.PrincipalId != "" {
 		var grantClientID sql.NullString
-		const grantQ = `SELECT client_id FROM client_portal_grant WHERE id = $1 AND active = true LIMIT 1`
+		const grantQ = `SELECT client_id FROM ` + entityid.ClientPortalGrant + ` WHERE id = $1 AND active = true LIMIT 1`
 		if derr := db.QueryRowContext(ctx, grantQ, resp.PrincipalId).Scan(&grantClientID); derr != nil {
 			if derr != sql.ErrNoRows {
 				log.Printf("[principal_resolver] direct-client acting_as derivation error: %v", derr)

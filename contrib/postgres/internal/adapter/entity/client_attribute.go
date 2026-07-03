@@ -253,7 +253,7 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeListPageData(ctx c
 				active,
 				date_created,
 				date_modified
-			FROM client_attribute
+			FROM ` + entityid.ClientAttribute + `
 			WHERE active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       key ILIKE $1 OR
@@ -319,7 +319,7 @@ func (r *PostgresClientAttributeRepository) GetClientAttributeItemPageData(ctx c
 	if req == nil || req.ClientAttributeId == "" {
 		return nil, fmt.Errorf("client attribute ID required")
 	}
-	query := `SELECT id, client_id, key, value, active, date_created, date_modified FROM client_attribute WHERE id = $1 AND active = true`
+	query := `SELECT id, client_id, key, value, active, date_created, date_modified FROM ` + entityid.ClientAttribute + ` WHERE id = $1 AND active = true`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.ClientAttributeId)
 	var id, clientId, attributeKey, attributeValue string

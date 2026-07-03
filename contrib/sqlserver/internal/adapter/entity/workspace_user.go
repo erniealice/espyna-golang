@@ -170,7 +170,7 @@ func (r *SQLServerWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Contex
 			wu.id, wu.workspace_id, wu.user_id, wu.active,
 			wu.date_created, wu.date_modified,
 			u.id, u.first_name, u.last_name, u.email_address, u.mobile_number, u.active
-		FROM workspace_user wu
+		FROM ` + entityid.WorkspaceUser + ` wu
 		LEFT JOIN [user] u ON wu.user_id = u.id
 		WHERE wu.active = 1
 		  AND (@p1 = '' OR wu.workspace_id = @p1)
@@ -382,12 +382,12 @@ func (r *SQLServerWorkspaceUserRepository) GetWorkspaceUserListPageData(
 				r.description AS [role.description],
 				r.color AS [role.color],
 				r.active AS [role.active]
-			 FROM workspace_user_role wur
-			 JOIN role r ON wur.role_id = r.id
+			 FROM ` + entityid.WorkspaceUserRole + ` wur
+			 JOIN ` + entityid.Role + ` r ON wur.role_id = r.id
 			 WHERE wur.workspace_user_id = wu.id AND wur.active = 1 AND r.active = 1
 			 FOR JSON PATH) AS workspace_user_roles,
 			COUNT(*) OVER () AS total_count
-		FROM workspace_user wu
+		FROM ` + entityid.WorkspaceUser + ` wu
 		LEFT JOIN [user] u ON wu.user_id = u.id AND u.active = 1
 		WHERE %s%s
 		ORDER BY %s %s
@@ -565,11 +565,11 @@ func (r *SQLServerWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 				r.description AS [role.description],
 				r.color AS [role.color],
 				r.active AS [role.active]
-			 FROM workspace_user_role wur
-			 JOIN role r ON wur.role_id = r.id
+			 FROM ` + entityid.WorkspaceUserRole + ` wur
+			 JOIN ` + entityid.Role + ` r ON wur.role_id = r.id
 			 WHERE wur.workspace_user_id = wu.id AND wur.active = 1 AND r.active = 1
 			 FOR JSON PATH) AS workspace_user_roles
-		FROM workspace_user wu
+		FROM ` + entityid.WorkspaceUser + ` wu
 		LEFT JOIN [user] u ON wu.user_id = u.id AND u.active = 1
 		WHERE wu.id = @p1 AND wu.active = 1
 		  AND (@p2 = '' OR wu.workspace_id = @p2);

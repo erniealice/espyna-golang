@@ -121,7 +121,7 @@ func (r *PostgresTaxRateRepository) FindApplicable(ctx context.Context, workspac
 	}
 
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(tr) FROM tax_rate tr
+		`SELECT row_to_json(tr) FROM ` + entityid.TaxRate + ` tr
 		 WHERE tr.jurisdiction = $1
 		   AND tr.authority_code = $2
 		   AND tr.kind = $3

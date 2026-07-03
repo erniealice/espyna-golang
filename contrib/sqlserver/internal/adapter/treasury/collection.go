@@ -331,7 +331,7 @@ func (r *SQLServerCollectionRepository) GetCollectionListPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM treasury_collection tc
+			FROM ` + entityid.TreasuryCollection + ` tc
 			WHERE tc.active = 1
 			  AND tc.workspace_id = @p1
 			  AND (@p2 = '' OR
@@ -569,7 +569,7 @@ func (r *SQLServerCollectionRepository) GetCollectionItemPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM treasury_collection tc
+			FROM ` + entityid.TreasuryCollection + ` tc
 			WHERE tc.id = @p1 AND tc.workspace_id = @p2 AND tc.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;
@@ -797,8 +797,8 @@ func (r *SQLServerCollectionRepository) ListByClient(ctx context.Context, req *c
 	rows, err := exec.QueryContext(ctx,
 		`SELECT c.id, c.active, c.revenue_id, c.amount, c.status, c.currency,
 		        c.reference_number, c.payment_date, c.collection_type
-		 FROM treasury_collection c
-		 JOIN revenue r ON r.id = c.revenue_id
+		 FROM ` + entityid.TreasuryCollection + ` c
+		 JOIN ` + entityid.Revenue + ` r ON r.id = c.revenue_id
 		 WHERE r.client_id = @p1
 		   AND (@p2 = '' OR r.workspace_id = @p2)`,
 		req.GetClientId(), wsID,

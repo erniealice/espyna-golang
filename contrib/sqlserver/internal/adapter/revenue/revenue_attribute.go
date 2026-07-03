@@ -219,8 +219,8 @@ func (r *SQLServerRevenueAttributeRepository) GetRevenueAttributeListPageData(
 				ra.active,
 				COALESCE(rv.name, '') as revenue_name,
 				COUNT(*) OVER() AS total
-			FROM revenue_attribute ra
-			LEFT JOIN revenue rv ON ra.revenue_id = rv.id AND rv.active = 1
+			FROM ` + entityid.RevenueAttribute + ` ra
+			LEFT JOIN ` + entityid.Revenue + ` rv ON ra.revenue_id = rv.id AND rv.active = 1
 			WHERE ra.active = 1
 			  AND (@p1 IS NULL OR @p1 = '' OR
 			       ra.value LIKE @p1 OR
@@ -326,8 +326,8 @@ func (r *SQLServerRevenueAttributeRepository) GetRevenueAttributeItemPageData(
 				ra.date_modified,
 				ra.active,
 				COALESCE(rv.name, '') as revenue_name
-			FROM revenue_attribute ra
-			LEFT JOIN revenue rv ON ra.revenue_id = rv.id AND rv.active = 1
+			FROM ` + entityid.RevenueAttribute + ` ra
+			LEFT JOIN ` + entityid.Revenue + ` rv ON ra.revenue_id = rv.id AND rv.active = 1
 			WHERE ra.id = @p1 AND ra.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

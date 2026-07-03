@@ -272,7 +272,7 @@ func (r *MySQLWorkspaceRepository) GetWorkspaceListPageData(
 				w.active,
 				w.date_created,
 				w.date_modified
-			FROM workspace w
+			FROM ` + entityid.Workspace + ` w
 			%s
 		),
 		counted AS (
@@ -406,7 +406,7 @@ func (r *MySQLWorkspaceRepository) GetWorkspaceItemPageData(
 			w.active,
 			w.date_created,
 			w.date_modified
-		FROM workspace w
+		FROM ` + entityid.Workspace + ` w
 		WHERE w.id = ?
 		LIMIT 1;
 	`
@@ -492,7 +492,7 @@ func (r *MySQLWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *wor
 	// Dialect: $1/$2 → ?; active = true → active = 1
 	var wsUserID string
 	err := exec.QueryRowContext(ctx,
-		`SELECT wu.id FROM workspace_user wu
+		`SELECT wu.id FROM ` + entityid.WorkspaceUser + ` wu
 		 WHERE wu.user_id = ? AND wu.workspace_id = ? AND wu.active = 1
 		 LIMIT 1`,
 		userID, req.WorkspaceId,
@@ -503,7 +503,7 @@ func (r *MySQLWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *wor
 
 	var wsName string
 	_ = exec.QueryRowContext(ctx,
-		`SELECT name FROM workspace WHERE id = ? AND active = 1`,
+		`SELECT name FROM ` + entityid.Workspace + ` WHERE id = ? AND active = 1`,
 		req.WorkspaceId,
 	).Scan(&wsName)
 
@@ -537,8 +537,8 @@ func (r *MySQLWorkspaceRepository) ListUserWorkspaces(ctx context.Context, req *
 	// Dialect: $1 → ?; active = true → active = 1
 	rows, err := exec.QueryContext(ctx,
 		`SELECT w.id, w.name, wu.id AS workspace_user_id
-		 FROM workspace w
-		 JOIN workspace_user wu ON wu.workspace_id = w.id
+		 FROM ` + entityid.Workspace + ` w
+		 JOIN ` + entityid.WorkspaceUser + ` wu ON wu.workspace_id = w.id
 		 WHERE wu.user_id = ? AND wu.active = 1 AND w.active = 1
 		 ORDER BY w.name`,
 		req.UserId,

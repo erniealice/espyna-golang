@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -329,7 +329,7 @@ func (r *PostgresProductPlanRepository) ListByPlan(
 
 	query := `
 		SELECT pp.id, pp.name, pp.description, pp.product_id, pp.plan_id, pp.active, pp.date_created, pp.date_modified
-		FROM product_plan pp
+		FROM ` + entityid.ProductPlan + ` pp
 		WHERE pp.plan_id = $1 AND pp.active = true
 		ORDER BY pp.date_created DESC
 	`

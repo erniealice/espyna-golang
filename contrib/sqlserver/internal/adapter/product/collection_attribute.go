@@ -221,7 +221,7 @@ func (r *SQLServerCollectionAttributeRepository) GetCollectionAttributeListPageD
 				ca.value,
 				ca.date_created,
 				ca.date_modified
-			FROM collection_attribute ca
+			FROM ` + entityid.CollectionAttribute + ` ca
 			WHERE (@p1 = '' OR
 			       ca.collection_id LIKE @p1 OR
 			       ca.attribute_id LIKE @p1 OR
@@ -327,7 +327,7 @@ func (r *SQLServerCollectionAttributeRepository) GetCollectionAttributeItemPageD
 			ca.value,
 			ca.date_created,
 			ca.date_modified
-		FROM collection_attribute ca
+		FROM ` + entityid.CollectionAttribute + ` ca
 		WHERE ca.id = @p1
 	`
 

@@ -258,7 +258,7 @@ func (r *SQLServerJournalEntryRepository) GetJournalEntryListPageData(ctx contex
 				je.date_created,
 				je.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM journal_entry je
+			FROM ` + entityid.JournalEntry + ` je
 			WHERE je.active = 1%s
 		)
 		SELECT * FROM enriched
@@ -416,7 +416,7 @@ func (r *SQLServerJournalEntryRepository) PostJournalEntry(ctx context.Context, 
 	postedBy := req.PostedBy
 
 	result, err := r.db.ExecContext(ctx,
-		`UPDATE journal_entry
+		`UPDATE ` + entityid.JournalEntry + `
 		    SET status        = 'POSTED',
 		        posted_by     = @p1,
 		        posted_at     = @p2,

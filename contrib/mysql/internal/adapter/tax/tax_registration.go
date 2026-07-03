@@ -179,7 +179,7 @@ func (r *MySQLTaxRegistrationRepository) FindActive(ctx context.Context, partyTy
 	}
 	// Dialect: ? placeholders; no casts needed in MySQL.
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT tr.id FROM tax_registration tr
+		`SELECT tr.id FROM ` + entityid.TaxRegistration + ` tr
 		 WHERE tr.party_type = ?
 		   AND tr.party_id = ?
 		   AND tr.status IN (2, 3, 4)
@@ -232,8 +232,8 @@ func (r *MySQLTaxRegistrationRepository) FindActiveByComputePath(ctx context.Con
 	if jurisdiction != "" {
 		row := r.db.QueryRowContext(ctx,
 			`SELECT tr.id
-			 FROM tax_registration tr
-			 JOIN tax_registration_kind trk ON trk.id = tr.tax_registration_kind_id
+			 FROM ` + entityid.TaxRegistration + ` tr
+			 JOIN ` + entityid.TaxRegistrationKind + ` trk ON trk.id = tr.tax_registration_kind_id
 			 WHERE tr.party_type = ?
 			   AND tr.party_id = ?
 			   AND tr.compute_path_snapshot = ?
@@ -253,7 +253,7 @@ func (r *MySQLTaxRegistrationRepository) FindActiveByComputePath(ctx context.Con
 	} else {
 		row := r.db.QueryRowContext(ctx,
 			`SELECT tr.id
-			 FROM tax_registration tr
+			 FROM ` + entityid.TaxRegistration + ` tr
 			 WHERE tr.party_type = ?
 			   AND tr.party_id = ?
 			   AND tr.compute_path_snapshot = ?

@@ -12,9 +12,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	accruedexpensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/accrued_expense"
 )
 
@@ -245,7 +245,7 @@ func (r *PostgresAccruedExpenseRepository) ListOutstanding(ctx context.Context, 
 
 	query := `
 		SELECT id
-		FROM accrued_expense
+		FROM ` + entityid.AccruedExpense + `
 		WHERE active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR workspace_id = $1)
 		  AND status IN ($2, $3)

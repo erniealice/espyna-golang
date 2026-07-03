@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
 )
 
@@ -235,8 +235,8 @@ func (r *PostgresSupplierContractPriceScheduleLineRepository) ResolveActiveSched
 
 	query := `
 		SELECT scpsl.id
-		FROM supplier_contract_price_schedule_line scpsl
-		JOIN supplier_contract_price_schedule scps
+		FROM ` + entityid.SupplierContractPriceScheduleLine + ` scpsl
+		JOIN ` + entityid.SupplierContractPriceSchedule + ` scps
 		  ON scps.id = scpsl.supplier_contract_price_schedule_id
 		 AND scps.active = true
 		 AND scps.status <> $1

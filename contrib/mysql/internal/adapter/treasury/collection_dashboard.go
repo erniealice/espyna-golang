@@ -3,6 +3,7 @@
 package treasury
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -33,7 +34,7 @@ func (r *MySQLCollectionRepository) SumPending(
 	// Args: workspaceID (null check), workspaceID
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'pending'
 		  AND (? IS NULL OR ? = '' OR tc.workspace_id = ?)`
@@ -59,7 +60,7 @@ func (r *MySQLCollectionRepository) SumOverdue(
 	// Args: workspaceID x3 (null check + equality), asOf
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'pending'
 		  AND tc.payment_date IS NOT NULL
@@ -90,7 +91,7 @@ func (r *MySQLCollectionRepository) SumCollectedToday(
 	// Args: dayStart, dayEnd, workspaceID x3
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'completed'
 		  AND tc.payment_date >= ?
@@ -120,7 +121,7 @@ func (r *MySQLCollectionRepository) SumByModeWeek(
 	// Args: weekStart, weekEnd, workspaceID x3
 	const query = `
 		SELECT COALESCE(tc.collection_method_id, 'other'), COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'completed'
 		  AND tc.payment_date >= ?
@@ -177,7 +178,7 @@ func (r *MySQLCollectionRepository) RecentByDate(
 			tc.reference_number, tc.payment_date, tc.collection_type,
 			tc.subscription_id, tc.revenue_id, tc.collection_method_id,
 			tc.received_by, tc.received_role, tc.date_created, tc.date_modified
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND (? IS NULL OR ? = '' OR tc.workspace_id = ?)
 		ORDER BY COALESCE(tc.payment_date, tc.date_created) DESC
@@ -317,7 +318,7 @@ func (r *MySQLCollectionRepository) SumByDayLast30(
 		SELECT d.bucket,
 		       COALESCE(SUM(tc.amount), 0)
 		FROM days d
-		LEFT JOIN treasury_collection tc
+		LEFT JOIN ` + entityid.TreasuryCollection + ` tc
 		  ON tc.active = 1
 		 AND tc.status = 'completed'
 		 AND tc.payment_date >= d.bucket

@@ -118,7 +118,7 @@ func (r *SQLServerTaxClassRepository) FindByCode(ctx context.Context, code, dire
 	}
 	row := r.db.QueryRowContext(ctx,
 		`SELECT TOP 1 id, code, direction, name, description, active
-		 FROM tax_class
+		 FROM ` + entityid.TaxClass + `
 		 WHERE code = @p1 AND direction = @p2 AND active = 1`,
 		code, direction,
 	)

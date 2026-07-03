@@ -270,7 +270,7 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 			active,
 			date_created,
 			date_modified
-		FROM subscription_seat
+		FROM ` + entityid.SubscriptionSeat + `
 		WHERE active = true
 		  AND ($4::text = '' OR workspace_id = $4::text)
 		  AND ($1::text IS NULL OR $1::text = '' OR
@@ -328,7 +328,7 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatItemPageData(ctx
 			active,
 			date_created,
 			date_modified
-		FROM subscription_seat
+		FROM ` + entityid.SubscriptionSeat + `
 		WHERE id = $1
 		  AND active = true
 		  AND ($2::text = '' OR workspace_id = $2::text)`
@@ -396,7 +396,7 @@ func (r *PostgresSubscriptionSeatRepository) LockSubscriptionSeatForUpdate(ctx c
 			active,
 			date_created,
 			date_modified
-		FROM subscription_seat
+		FROM ` + entityid.SubscriptionSeat + `
 		WHERE id = $1
 		  AND ($2::text = '' OR workspace_id = $2::text)
 		FOR UPDATE`

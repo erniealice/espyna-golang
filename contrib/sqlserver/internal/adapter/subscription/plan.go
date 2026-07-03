@@ -476,7 +476,7 @@ func (r *SQLServerPlanRepository) SearchPlansByName(ctx context.Context, req *pl
 	// not needed here as "plan" is not a reserved word in SQL Server.
 	query := `
 		SELECT id, name
-		FROM plan
+		FROM ` + entityid.Plan + `
 		WHERE active = 1
 			AND (@p1 = '' OR name LIKE @p1)
 		ORDER BY name ASC

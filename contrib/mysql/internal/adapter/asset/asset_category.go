@@ -359,8 +359,8 @@ func (r *MySQLAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 				)
 				THEN a.id END)
 				AS assets_deviating
-		FROM asset_category ac
-		LEFT JOIN asset a ON a.asset_category_id = ac.id AND a.active = 1
+		FROM ` + entityid.AssetCategory + ` ac
+		LEFT JOIN ` + entityid.Asset + ` a ON a.asset_category_id = ac.id AND a.active = 1
 		WHERE ac.active = 1
 		  AND (? = '' OR ac.workspace_id = ?)
 		GROUP BY ac.id

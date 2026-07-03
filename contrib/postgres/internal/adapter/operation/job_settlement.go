@@ -271,7 +271,7 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 		WITH
 		search_filtered AS (
 			SELECT js.*
-			FROM job_settlement js
+			FROM ` + entityid.JobSettlement + ` js
 			WHERE js.active = true
 				AND ($6::text = '' OR js.workspace_id = $6::text)
 				AND ($1::text = '' OR js.target_id ILIKE $1)
@@ -298,7 +298,7 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 					'active', ja.active
 				) as job_activity
 			FROM search_filtered sf
-			LEFT JOIN job_activity ja ON sf.job_activity_id = ja.id AND ja.active = true
+			LEFT JOIN ` + entityid.JobActivity + ` ja ON sf.job_activity_id = ja.id AND ja.active = true
 		),
 		sorted AS (
 			SELECT * FROM enriched
@@ -459,7 +459,7 @@ func (r *PostgresJobSettlementRepository) ListByActivity(ctx context.Context, re
 		SELECT id, job_activity_id, target_type, target_id,
 			allocated_amount, allocation_pct, settlement_date,
 			status, reversal_of_id, created_by, date_created, active
-		FROM job_settlement
+		FROM ` + entityid.JobSettlement + `
 		WHERE job_activity_id = $1 AND active = true
 		ORDER BY date_created DESC
 	`
@@ -503,7 +503,7 @@ func (r *PostgresJobSettlementRepository) ListByTarget(ctx context.Context, req 
 		SELECT id, job_activity_id, target_type, target_id,
 			allocated_amount, allocation_pct, settlement_date,
 			status, reversal_of_id, created_by, date_created, active
-		FROM job_settlement
+		FROM ` + entityid.JobSettlement + `
 		WHERE target_type = $1 AND target_id = $2 AND active = true
 		ORDER BY date_created DESC
 	`
@@ -548,8 +548,8 @@ func (r *PostgresJobSettlementRepository) GetSettlementSummary(ctx context.Conte
 			js.target_type,
 			SUM(js.allocated_amount) as total_amount,
 			COUNT(*) as count
-		FROM job_settlement js
-		INNER JOIN job_activity ja ON js.job_activity_id = ja.id
+		FROM ` + entityid.JobSettlement + ` js
+		INNER JOIN ` + entityid.JobActivity + ` ja ON js.job_activity_id = ja.id
 		WHERE ja.job_id = $1
 			AND js.active = true
 			AND js.status != 'SETTLEMENT_STATUS_REVERSED'

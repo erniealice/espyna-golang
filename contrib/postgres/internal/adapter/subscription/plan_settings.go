@@ -285,8 +285,8 @@ func (r *PostgresPlanSettingsRepository) GetPlanSettingsListPageData(ctx context
 			ps.active,
 			ps.date_created,
 			ps.date_modified
-		FROM plan_settings ps
-		LEFT JOIN plan p ON ps.plan_id = p.id
+		FROM ` + entityid.PlanSettings + ` ps
+		LEFT JOIN ` + entityid.Plan + ` p ON ps.plan_id = p.id
 		WHERE ps.active = true
 		  AND ($4::text = '' OR p.workspace_id = $4::text)
 		  AND ($1::text IS NULL OR $1::text = '' OR ps.plan_id ILIKE $1)

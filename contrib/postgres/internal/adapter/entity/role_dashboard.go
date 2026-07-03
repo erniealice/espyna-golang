@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	admindash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/admin"
 )
@@ -63,7 +64,7 @@ func (r *PostgresRoleRepository) TopByPermissionCount(ctx context.Context, works
 		FROM %s r
 		LEFT JOIN (
 			SELECT role_id, COUNT(*) AS cnt
-			FROM role_permission
+			FROM `+entityid.RolePermission+`
 			WHERE active = true
 			GROUP BY role_id
 		) rp_count ON rp_count.role_id = r.id

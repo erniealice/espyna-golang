@@ -267,7 +267,7 @@ func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 				ct.outcome_criteria_id,
 				ct.threshold_role,
 				ct.value
-			FROM criteria_threshold ct
+			FROM `+entityid.CriteriaThreshold+` ct
 			WHERE ct.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ct.outcome_criteria_id::text ILIKE $1)
@@ -389,7 +389,7 @@ func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdItemPageData(
 			ct.outcome_criteria_id,
 			ct.threshold_role,
 			ct.value
-		FROM criteria_threshold ct
+		FROM ` + entityid.CriteriaThreshold + ` ct
 		WHERE ct.id = $1 AND ct.active = true
 	`
 
@@ -466,7 +466,7 @@ func (r *PostgresCriteriaThresholdRepository) ListByCriteria(
 			ct.outcome_criteria_id,
 			ct.threshold_role,
 			ct.value
-		FROM criteria_threshold ct
+		FROM ` + entityid.CriteriaThreshold + ` ct
 		WHERE ct.outcome_criteria_id = $1 AND ct.active = true
 		ORDER BY ct.threshold_role ASC
 	`

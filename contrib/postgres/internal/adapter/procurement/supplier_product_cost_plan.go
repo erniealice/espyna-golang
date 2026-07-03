@@ -174,7 +174,7 @@ func (r *PostgresSupplierProductCostPlanRepository) GetSupplierProductCostPlanLi
 		}
 	}
 	query := `SELECT id, active, cost_plan_id, supplier_product_plan_id, billing_treatment, billing_amount, date_created, date_modified
-	          FROM supplier_product_cost_plan
+	          FROM ` + entityid.SupplierProductCostPlan + `
 	          WHERE active = true
 	          ORDER BY date_created DESC LIMIT $1 OFFSET $2`
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
@@ -221,7 +221,7 @@ func (r *PostgresSupplierProductCostPlanRepository) GetSupplierProductCostPlanIt
 		return nil, fmt.Errorf("supplier product cost plan ID required")
 	}
 	query := `SELECT id, active, cost_plan_id, supplier_product_plan_id, billing_treatment, billing_amount, date_created, date_modified
-	          FROM supplier_product_cost_plan WHERE id = $1`
+	          FROM ` + entityid.SupplierProductCostPlan + ` WHERE id = $1`
 	row := r.db.QueryRowContext(ctx, query, req.SupplierProductCostPlanId)
 	var id, costPlanID, supplierProductPlanID string
 	var active bool

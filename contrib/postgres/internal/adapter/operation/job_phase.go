@@ -270,7 +270,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 				jp.name,
 				jp.phase_order,
 				jp.status
-			FROM job_phase jp
+			FROM ` + entityid.JobPhase + ` jp
 			WHERE jp.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jp.name ILIKE $1)
@@ -400,7 +400,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseItemPageData(
 			jp.name,
 			jp.phase_order,
 			jp.status
-		FROM job_phase jp
+		FROM ` + entityid.JobPhase + ` jp
 		WHERE jp.id = $1 AND jp.active = true
 	`
 
@@ -484,7 +484,7 @@ func (r *PostgresJobPhaseRepository) ListByJob(
 			jp.name,
 			jp.phase_order,
 			jp.status
-		FROM job_phase jp
+		FROM ` + entityid.JobPhase + ` jp
 		WHERE jp.job_id = $1 AND jp.active = true
 		ORDER BY jp.phase_order ASC
 	`

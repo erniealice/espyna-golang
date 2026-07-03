@@ -124,7 +124,7 @@ func (r *MySQLTaxRateRepository) FindApplicable(ctx context.Context, workspaceID
 	// Re-sequenced from postgres $1..$7 → positional ? order matching arg slice.
 	var id string
 	row := r.db.QueryRowContext(ctx,
-		`SELECT tr.id FROM tax_rate tr
+		`SELECT tr.id FROM ` + entityid.TaxRate + ` tr
 		 WHERE tr.jurisdiction = ?
 		   AND tr.authority_code = ?
 		   AND tr.kind = ?

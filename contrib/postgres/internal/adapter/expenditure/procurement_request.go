@@ -234,8 +234,8 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 				pr.purchase_order_id,
 				pr.location_id,
 				COALESCE(s.name, '') AS supplier_name
-			FROM procurement_request pr
-			LEFT JOIN supplier s ON pr.supplier_id = s.id AND s.active = true
+			FROM ` + entityid.ProcurementRequest + ` pr
+			LEFT JOIN ` + entityid.Supplier + ` s ON pr.supplier_id = s.id AND s.active = true
 			WHERE pr.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR pr.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -378,8 +378,8 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestItemPageData
 			pr.purchase_order_id,
 			pr.location_id,
 			COALESCE(s.name, '') AS supplier_name
-		FROM procurement_request pr
-		LEFT JOIN supplier s ON pr.supplier_id = s.id AND s.active = true
+		FROM ` + entityid.ProcurementRequest + ` pr
+		LEFT JOIN ` + entityid.Supplier + ` s ON pr.supplier_id = s.id AND s.active = true
 		WHERE pr.id = $1 AND pr.active = true
 		  AND ($2::text = '' OR pr.workspace_id = $2::text)
 		LIMIT 1;
@@ -471,7 +471,7 @@ func (r *PostgresProcurementRequestRepository) SubmitProcurementRequest(ctx cont
 	// Empty wsID = service-to-service call → no scoping.
 	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE procurement_request SET status = $1, date_modified = NOW() WHERE id = $2 AND active = true AND ($3 = '' OR workspace_id = $3)`,
+		`UPDATE `+entityid.ProcurementRequest+` SET status = $1, date_modified = NOW() WHERE id = $2 AND active = true AND ($3 = '' OR workspace_id = $3)`,
 		newStatus, req.GetProcurementRequestId(), workspaceID,
 	)
 	if err != nil {
@@ -497,7 +497,7 @@ func (r *PostgresProcurementRequestRepository) ApproveProcurementRequest(ctx con
 	// id is $5, so the workspace predicate takes $6.
 	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE procurement_request
+		`UPDATE `+entityid.ProcurementRequest+`
 		 SET status = $1, approved_by = $2, approved_at = $3, approved_at_string = $4, date_modified = NOW()
 		 WHERE id = $5 AND active = true AND ($6 = '' OR workspace_id = $6)`,
 		newStatus, req.ApprovedBy, approvedAt, approvedAtStr, req.GetProcurementRequestId(), workspaceID,
@@ -521,7 +521,7 @@ func (r *PostgresProcurementRequestRepository) RejectProcurementRequest(ctx cont
 	// id is $3, so the workspace predicate takes $4.
 	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE procurement_request
+		`UPDATE `+entityid.ProcurementRequest+`
 		 SET status = $1, rejection_reason = $2, date_modified = NOW()
 		 WHERE id = $3 AND active = true AND ($4 = '' OR workspace_id = $4)`,
 		newStatus, req.GetRejectionReason(), req.GetProcurementRequestId(), workspaceID,
@@ -545,7 +545,7 @@ func (r *PostgresProcurementRequestRepository) SpawnPurchaseOrder(ctx context.Co
 	prRow := r.db.QueryRowContext(ctx,
 		`SELECT id, workspace_id, requester_user_id, supplier_id, currency, estimated_total_amount,
 		        needed_by_date, justification, location_id
-		 FROM procurement_request
+		 FROM `+entityid.ProcurementRequest+`
 		 WHERE id = $1 AND status = $2 AND active = true`,
 		req.GetProcurementRequestId(),
 		int32(procurementrequestpb.ProcurementRequestStatus_PROCUREMENT_REQUEST_STATUS_APPROVED),
@@ -591,7 +591,7 @@ func (r *PostgresProcurementRequestRepository) SpawnPurchaseOrder(ctx context.Co
 	const poStatus = "draft"
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO purchase_order
+		`INSERT INTO `+entityid.PurchaseOrder+`
 		 (id, workspace_id, date_created, date_modified, active, status, currency,
 		  supplier_id, notes, location_id, procurement_request_id)
 		 VALUES ($1, $2, NOW(), NOW(), true, $3, $4, $5, $6, $7, $8)`,
@@ -613,7 +613,7 @@ func (r *PostgresProcurementRequestRepository) SpawnPurchaseOrder(ctx context.Co
 	// procurement_request_line nor purchase_order_line_item carries a
 	// workspace_id column of its own.
 	insertLinesSQL := `
-		INSERT INTO purchase_order_line_item
+		INSERT INTO ` + entityid.PurchaseOrderLineItem + `
 			(id, purchase_order_id, description, quantity, unit_price, total_amount, line_number,
 			 expenditure_category_id, location_id, procurement_request_line_id,
 			 date_created, date_modified, active)
@@ -621,7 +621,7 @@ func (r *PostgresProcurementRequestRepository) SpawnPurchaseOrder(ctx context.Co
 		       prl.estimated_unit_price, prl.estimated_total_price, prl.line_number,
 		       prl.expenditure_category_id, prl.location_id, prl.id,
 		       NOW(), NOW(), true
-		FROM procurement_request_line prl
+		FROM ` + entityid.ProcurementRequestLine + ` prl
 		WHERE prl.procurement_request_id = $2 AND prl.active = true
 		ORDER BY prl.line_number`
 
@@ -631,7 +631,7 @@ func (r *PostgresProcurementRequestRepository) SpawnPurchaseOrder(ctx context.Co
 
 	// Update the procurement request: record the spawned PO ID.
 	_, err = tx.ExecContext(ctx,
-		`UPDATE procurement_request
+		`UPDATE `+entityid.ProcurementRequest+`
 		 SET purchase_order_id = $1, date_modified = NOW()
 		 WHERE id = $2`,
 		poID, prID,

@@ -11,12 +11,12 @@ import (
 
 	"github.com/lib/pq"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
@@ -312,8 +312,8 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 						'dateCreatedString', TO_CHAR(rp.date_created AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 					) ORDER BY p.name
 				) FILTER (WHERE rp.id IS NOT NULL) as permissions
-			FROM role_permission rp
-			JOIN permission p ON rp.permission_id = p.id
+			FROM ` + entityid.RolePermission + ` rp
+			JOIN ` + entityid.Permission + ` p ON rp.permission_id = p.id
 			WHERE rp.active = true AND p.active = true
 			GROUP BY rp.role_id
 		),
@@ -329,7 +329,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 				r.date_modified,
 				COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions,
 				COALESCE(r.applicable_principal_types, ARRAY[]::integer[]) as applicable_principal_types
-			FROM role r
+			FROM ` + entityid.Role + ` r
 			LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
 			WHERE r.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -506,8 +506,8 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 						'dateCreatedString', TO_CHAR(rp.date_created AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 					) ORDER BY p.name
 				) FILTER (WHERE rp.id IS NOT NULL) as permissions
-			FROM role_permission rp
-			JOIN permission p ON rp.permission_id = p.id
+			FROM ` + entityid.RolePermission + ` rp
+			JOIN ` + entityid.Permission + ` p ON rp.permission_id = p.id
 			WHERE rp.active = true AND p.active = true
 			GROUP BY rp.role_id
 		)
@@ -521,7 +521,7 @@ func (r *PostgresRoleRepository) GetRoleItemPageData(
 			r.date_created,
 			r.date_modified,
 			COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions
-		FROM role r
+		FROM ` + entityid.Role + ` r
 		LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
 		WHERE r.id = $1 AND r.workspace_id = $2
 		LIMIT 1;

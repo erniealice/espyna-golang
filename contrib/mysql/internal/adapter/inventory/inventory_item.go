@@ -307,8 +307,8 @@ func (r *MySQLInventoryItemRepository) GetInventoryItemListPageData(
 				COALESCE(p.tracking_mode, '') as tracking_mode,
 				COALESCE(p.name, '') as product_name,
 				COUNT(*) OVER() AS total_count
-			FROM inventory_item ii
-			LEFT JOIN product p ON ii.product_id = p.id AND p.active = 1
+			FROM ` + entityid.InventoryItem + ` ii
+			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = 1
 			WHERE ii.active = 1%s
 		)
 		SELECT * FROM enriched
@@ -473,8 +473,8 @@ func (r *MySQLInventoryItemRepository) GetInventoryItemItemPageData(
 				ii.notes,
 				COALESCE(p.name, '') as product_name,
 				COALESCE(p.price, 0) as product_price
-			FROM inventory_item ii
-			LEFT JOIN product p ON ii.product_id = p.id AND p.active = 1
+			FROM ` + entityid.InventoryItem + ` ii
+			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = 1
 			WHERE ii.id = ? AND ii.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1;

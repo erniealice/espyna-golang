@@ -283,8 +283,8 @@ func (r *PostgresProductOptionValueRepository) GetProductOptionValueListPageData
 				pov.sort_order,
 				COALESCE(pov.metadata::text, '{}') as metadata,
 				COALESCE(po.name, '') as option_name
-			FROM product_option_value pov
-			LEFT JOIN product_option po ON pov.product_option_id = po.id AND po.active = true
+			FROM ` + entityid.ProductOptionValue + ` pov
+			LEFT JOIN ` + entityid.ProductOption + ` po ON pov.product_option_id = po.id AND po.active = true
 			WHERE pov.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pov.label ILIKE $1 OR
@@ -432,8 +432,8 @@ func (r *PostgresProductOptionValueRepository) GetProductOptionValueItemPageData
 				COALESCE(pov.metadata::text, '{}') as metadata,
 				COALESCE(po.name, '') as option_name,
 				COALESCE(po.code, '') as option_code
-			FROM product_option_value pov
-			LEFT JOIN product_option po ON pov.product_option_id = po.id AND po.active = true
+			FROM ` + entityid.ProductOptionValue + ` pov
+			LEFT JOIN ` + entityid.ProductOption + ` po ON pov.product_option_id = po.id AND po.active = true
 			WHERE pov.id = $1 AND pov.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

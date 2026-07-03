@@ -104,13 +104,13 @@ func (r *PostgresDelegateRepository) ReadDelegate(ctx context.Context, req *dele
 	var inWorkspace bool
 	if gateErr := gateExec.QueryRowContext(ctx, `
 		SELECT EXISTS (
-			SELECT 1 FROM delegate_client dc
-			INNER JOIN client c ON dc.client_id = c.id
+			SELECT 1 FROM `+entityid.DelegateClient+` dc
+			INNER JOIN `+entityid.Client+` c ON dc.client_id = c.id
 			WHERE dc.delegate_id = $1 AND dc.active = true AND c.active = true
 				AND COALESCE(dc.workspace_id, c.workspace_id) = $2::text
 			UNION ALL
-			SELECT 1 FROM delegate_supplier ds
-			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			SELECT 1 FROM `+entityid.DelegateSupplier+` ds
+			LEFT JOIN `+entityid.Supplier+` s ON ds.supplier_id = s.id
 			WHERE ds.delegate_id = $1 AND ds.active = true
 				AND COALESCE(ds.workspace_id, s.workspace_id) = $2::text
 		)`, req.Data.Id, wsID).Scan(&inWorkspace); gateErr != nil {
@@ -211,16 +211,16 @@ func (r *PostgresDelegateRepository) ListDelegates(ctx context.Context, req *del
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, `
 		SELECT d.id, d.user_id, d.active, d.date_created, d.date_modified
-		FROM delegate d
+		FROM `+entityid.Delegate+` d
 		WHERE d.active = true
 			AND EXISTS (
-				SELECT 1 FROM delegate_client dc
-				INNER JOIN client c ON dc.client_id = c.id
+				SELECT 1 FROM `+entityid.DelegateClient+` dc
+				INNER JOIN `+entityid.Client+` c ON dc.client_id = c.id
 				WHERE dc.delegate_id = d.id AND dc.active = true AND c.active = true
 					AND COALESCE(dc.workspace_id, c.workspace_id) = $1::text
 				UNION ALL
-				SELECT 1 FROM delegate_supplier ds
-				LEFT JOIN supplier s ON ds.supplier_id = s.id
+				SELECT 1 FROM `+entityid.DelegateSupplier+` ds
+				LEFT JOIN `+entityid.Supplier+` s ON ds.supplier_id = s.id
 				WHERE ds.delegate_id = d.id AND ds.active = true
 					AND COALESCE(ds.workspace_id, s.workspace_id) = $1::text
 			)
@@ -350,9 +350,9 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 						END
 					)
 				) AS obj
-			FROM delegate_client dc
-			INNER JOIN client c ON dc.client_id = c.id
-			LEFT JOIN "user" cu ON c.user_id = cu.id
+			FROM ` + entityid.DelegateClient + ` dc
+			INNER JOIN ` + entityid.Client + ` c ON dc.client_id = c.id
+			LEFT JOIN "` + entityid.User + `" cu ON c.user_id = cu.id
 			WHERE dc.active = true AND c.active = true
 				AND COALESCE(dc.workspace_id, c.workspace_id) = $6::text
 		),
@@ -388,8 +388,8 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 						ELSE NULL
 					END
 				) AS obj
-			FROM delegate_supplier ds
-			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			FROM ` + entityid.DelegateSupplier + ` ds
+			LEFT JOIN ` + entityid.Supplier + ` s ON ds.supplier_id = s.id
 			WHERE ds.active = true
 				AND COALESCE(ds.workspace_id, s.workspace_id) = $6::text
 		),
@@ -405,20 +405,20 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 		-- CTE 2: Apply search filter
 		search_filtered AS (
 			SELECT d.*
-			FROM delegate d
-			LEFT JOIN "user" u ON d.user_id = u.id
+			FROM ` + entityid.Delegate + ` d
+			LEFT JOIN "` + entityid.User + `" u ON d.user_id = u.id
 			WHERE d.active = true
 				-- IDOR gate (FAIL-CLOSED): a delegate is visible only if it has an
 				-- active junction (client OR supplier) in THIS session workspace.
 				-- An empty $6 matches no junction -> the delegate is excluded.
 				AND EXISTS (
-					SELECT 1 FROM delegate_client dcx
-					INNER JOIN client cx ON dcx.client_id = cx.id
+					SELECT 1 FROM ` + entityid.DelegateClient + ` dcx
+					INNER JOIN ` + entityid.Client + ` cx ON dcx.client_id = cx.id
 					WHERE dcx.delegate_id = d.id AND dcx.active = true AND cx.active = true
 						AND COALESCE(dcx.workspace_id, cx.workspace_id) = $6::text
 					UNION ALL
-					SELECT 1 FROM delegate_supplier dsx
-					LEFT JOIN supplier sx ON dsx.supplier_id = sx.id
+					SELECT 1 FROM ` + entityid.DelegateSupplier + ` dsx
+					LEFT JOIN ` + entityid.Supplier + ` sx ON dsx.supplier_id = sx.id
 					WHERE dsx.delegate_id = d.id AND dsx.active = true
 						AND COALESCE(dsx.workspace_id, sx.workspace_id) = $6::text
 				)
@@ -451,7 +451,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 				COALESCE(dca.delegate_clients, '[]'::jsonb) as delegate_clients,
 				COALESCE(dsa.delegate_suppliers, '[]'::jsonb) as delegate_suppliers
 			FROM search_filtered sf
-			LEFT JOIN "user" u ON sf.user_id = u.id
+			LEFT JOIN "` + entityid.User + `" u ON sf.user_id = u.id
 			LEFT JOIN delegate_clients_agg dca ON sf.id = dca.delegate_id
 			LEFT JOIN delegate_suppliers_agg dsa ON sf.id = dsa.delegate_id
 		),
@@ -675,9 +675,9 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 						END
 					)
 				) AS obj
-			FROM delegate_client dc
-			INNER JOIN client c ON dc.client_id = c.id
-			LEFT JOIN "user" cu ON c.user_id = cu.id
+			FROM ` + entityid.DelegateClient + ` dc
+			INNER JOIN ` + entityid.Client + ` c ON dc.client_id = c.id
+			LEFT JOIN "` + entityid.User + `" cu ON c.user_id = cu.id
 			WHERE dc.delegate_id = $1 AND dc.active = true AND c.active = true
 				AND COALESCE(dc.workspace_id, c.workspace_id) = $2::text
 		),
@@ -713,8 +713,8 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 						ELSE NULL
 					END
 				) AS obj
-			FROM delegate_supplier ds
-			LEFT JOIN supplier s ON ds.supplier_id = s.id
+			FROM ` + entityid.DelegateSupplier + ` ds
+			LEFT JOIN ` + entityid.Supplier + ` s ON ds.supplier_id = s.id
 			WHERE ds.delegate_id = $1 AND ds.active = true
 				AND COALESCE(ds.workspace_id, s.workspace_id) = $2::text
 		),
@@ -748,8 +748,8 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			END as user,
 			COALESCE(dca.delegate_clients, '[]'::jsonb) as delegate_clients,
 			COALESCE(dsa.delegate_suppliers, '[]'::jsonb) as delegate_suppliers
-		FROM delegate d
-		LEFT JOIN "user" u ON d.user_id = u.id
+		FROM ` + entityid.Delegate + ` d
+		LEFT JOIN "` + entityid.User + `" u ON d.user_id = u.id
 		LEFT JOIN delegate_clients_agg dca ON d.id = dca.delegate_id
 		LEFT JOIN delegate_suppliers_agg dsa ON d.id = dsa.delegate_id
 		WHERE d.id = $1 AND d.active = true
@@ -757,13 +757,13 @@ func (r *PostgresDelegateRepository) GetDelegateItemPageData(ctx context.Context
 			-- (client OR supplier) in THIS session workspace or it is not visible.
 			-- An empty $2 matches no junction -> not-found.
 			AND EXISTS (
-				SELECT 1 FROM delegate_client dcx
-				INNER JOIN client cx ON dcx.client_id = cx.id
+				SELECT 1 FROM ` + entityid.DelegateClient + ` dcx
+				INNER JOIN ` + entityid.Client + ` cx ON dcx.client_id = cx.id
 				WHERE dcx.delegate_id = d.id AND dcx.active = true AND cx.active = true
 					AND COALESCE(dcx.workspace_id, cx.workspace_id) = $2::text
 				UNION ALL
-				SELECT 1 FROM delegate_supplier dsx
-				LEFT JOIN supplier sx ON dsx.supplier_id = sx.id
+				SELECT 1 FROM ` + entityid.DelegateSupplier + ` dsx
+				LEFT JOIN ` + entityid.Supplier + ` sx ON dsx.supplier_id = sx.id
 				WHERE dsx.delegate_id = d.id AND dsx.active = true
 					AND COALESCE(dsx.workspace_id, sx.workspace_id) = $2::text
 			)

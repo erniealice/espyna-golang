@@ -174,7 +174,7 @@ func (r *MySQLLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx contex
 	query := fmt.Sprintf(`
 		WITH filtered AS (
 			SELECT lh.*
-			FROM license_history lh
+			FROM ` + entityid.LicenseHistory + ` lh
 			WHERE lh.active = 1
 				AND (? = '' OR lh.license_id = ?)
 		),

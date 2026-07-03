@@ -324,7 +324,7 @@ func (r *MySQLJobRepository) GetJobListPageData(
 				j.cycle_index,
 				j.cycle_period_start,
 				j.cycle_period_end
-			FROM job j
+			FROM ` + entityid.Job + ` j
 			WHERE j.active = 1
 			  AND (? = '' OR j.name LIKE ?)
 		),
@@ -564,7 +564,7 @@ func (r *MySQLJobRepository) GetJobItemPageData(
 			j.cycle_index,
 			j.cycle_period_start,
 			j.cycle_period_end
-		FROM job j
+		FROM ` + entityid.Job + ` j
 		WHERE j.id = ? AND j.active = 1
 	`
 

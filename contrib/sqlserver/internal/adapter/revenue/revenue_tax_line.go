@@ -136,7 +136,7 @@ func (r *SQLServerRevenueTaxLineRepository) DeleteByRevenueID(ctx context.Contex
 		return fmt.Errorf("DeleteByRevenueID requires raw *sql.DB")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM revenue_tax_line WHERE revenue_id = @p1`,
+		`DELETE FROM ` + entityid.RevenueTaxLine + ` WHERE revenue_id = @p1`,
 		revenueID,
 	)
 	if err != nil {
@@ -160,11 +160,11 @@ func (r *SQLServerRevenueTaxLineRepository) ListByRevenueID(ctx context.Context,
 			SELECT
 				rtl.id, rtl.revenue_id, rtl.direction, rtl.tax_kind_snapshot,
 				rtl.amount, rtl.rate, rtl.tax_id, rtl.active
-			FROM revenue_tax_line rtl2
+			FROM ` + entityid.RevenueTaxLine + ` rtl2
 			WHERE rtl2.id = rtl.id
 			FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
 		) AS row_json
-		FROM revenue_tax_line rtl
+		FROM ` + entityid.RevenueTaxLine + ` rtl
 		WHERE rtl.revenue_id = @p1
 		ORDER BY rtl.direction, rtl.tax_kind_snapshot
 	`, revenueID)

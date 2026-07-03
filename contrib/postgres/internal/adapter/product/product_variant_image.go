@@ -281,8 +281,8 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageListPageDa
 				pvi.sort_order,
 				pvi.is_primary,
 				COALESCE(pv.sku, '') as variant_sku
-			FROM product_variant_image pvi
-			LEFT JOIN product_variant pv ON pvi.product_variant_id = pv.id AND pv.active = true
+			FROM ` + entityid.ProductVariantImage + ` pvi
+			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvi.product_variant_id = pv.id AND pv.active = true
 			WHERE pvi.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pvi.image_url ILIKE $1 OR
@@ -428,8 +428,8 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageItemPageDa
 				pvi.sort_order,
 				pvi.is_primary,
 				COALESCE(pv.sku, '') as variant_sku
-			FROM product_variant_image pvi
-			LEFT JOIN product_variant pv ON pvi.product_variant_id = pv.id AND pv.active = true
+			FROM ` + entityid.ProductVariantImage + ` pvi
+			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvi.product_variant_id = pv.id AND pv.active = true
 			WHERE pvi.id = $1 AND pvi.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

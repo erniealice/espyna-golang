@@ -279,8 +279,8 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 				pv.sku,
 				pv.price_override,
 				COALESCE(p.name, '') as product_name
-			FROM product_variant pv
-			LEFT JOIN product p ON pv.product_id = p.id AND p.active = true
+			FROM `+entityid.ProductVariant+` pv
+			LEFT JOIN `+entityid.Product+` p ON pv.product_id = p.id AND p.active = true
 			WHERE pv.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pv.sku ILIKE $1 OR
@@ -419,8 +419,8 @@ func (r *PostgresProductVariantRepository) GetProductVariantItemPageData(
 				COALESCE(p.name, '') as product_name,
 				COALESCE(p.price, 0) as product_price,
 				COALESCE(p.currency, '') as product_currency
-			FROM product_variant pv
-			LEFT JOIN product p ON pv.product_id = p.id AND p.active = true
+			FROM ` + entityid.ProductVariant + ` pv
+			LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id AND p.active = true
 			WHERE pv.id = $1 AND pv.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

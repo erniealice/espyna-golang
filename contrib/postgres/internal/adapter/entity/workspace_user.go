@@ -224,8 +224,8 @@ func (r *PostgresWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Context
 			wu.id, wu.workspace_id, wu.user_id, wu.active,
 			wu.date_created, wu.date_modified,
 			u.id, u.first_name, u.last_name, u.email_address, u.mobile_number, u.active
-		FROM workspace_user wu
-		LEFT JOIN "user" u ON wu.user_id = u.id
+		FROM ` + entityid.WorkspaceUser + ` wu
+		LEFT JOIN "` + entityid.User + `" u ON wu.user_id = u.id
 		WHERE wu.active = true
 		  AND ($1::text = '' OR wu.workspace_id = $1::text)
 		ORDER BY wu.date_created DESC
@@ -457,8 +457,8 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 						'active', wur.active
 					)
 				) as roles
-			FROM workspace_user_role wur
-			JOIN role r ON wur.role_id = r.id
+			FROM `+entityid.WorkspaceUserRole+` wur
+			JOIN `+entityid.Role+` r ON wur.role_id = r.id
 			WHERE wur.active = true AND r.active = true
 			GROUP BY wur.workspace_user_id
 		)
@@ -477,8 +477,8 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			u.active as user_active,
 			COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles,
 			COUNT(*) OVER() AS total_count
-		FROM workspace_user wu
-		LEFT JOIN "user" u ON wu.user_id = u.id AND u.active = true
+		FROM `+entityid.WorkspaceUser+` wu
+		LEFT JOIN "`+entityid.User+`" u ON wu.user_id = u.id AND u.active = true
 		LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
 		WHERE %s%s
 		ORDER BY %s %s
@@ -659,8 +659,8 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 						'active', wur.active
 					)
 				) as roles
-			FROM workspace_user_role wur
-			JOIN role r ON wur.role_id = r.id
+			FROM ` + entityid.WorkspaceUserRole + ` wur
+			JOIN ` + entityid.Role + ` r ON wur.role_id = r.id
 			WHERE wur.active = true AND r.active = true
 			GROUP BY wur.workspace_user_id
 		),
@@ -681,8 +681,8 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 				u.active as user_active,
 				-- Workspace user roles (many-to-many via junction table)
 				COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles
-			FROM workspace_user wu
-			LEFT JOIN "user" u ON wu.user_id = u.id AND u.active = true
+			FROM ` + entityid.WorkspaceUser + ` wu
+			LEFT JOIN "` + entityid.User + `" u ON wu.user_id = u.id AND u.active = true
 			LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
 			WHERE wu.id = $1 AND wu.active = true
 			  AND ($2::text = '' OR wu.workspace_id = $2::text)
@@ -799,8 +799,8 @@ func (r *PostgresWorkspaceUserRepository) ListWorkspacesForUsers(
 
 	query := `
 		SELECT wu.user_id, w.id, w.name
-		FROM workspace_user wu
-		JOIN workspace w ON wu.workspace_id = w.id
+		FROM ` + entityid.WorkspaceUser + ` wu
+		JOIN ` + entityid.Workspace + ` w ON wu.workspace_id = w.id
 		WHERE wu.active = true AND w.active = true
 		  AND ($1::text = '' OR wu.workspace_id = $1::text)
 		ORDER BY wu.user_id, w.name

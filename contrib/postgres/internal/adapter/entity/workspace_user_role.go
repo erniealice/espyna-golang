@@ -250,7 +250,7 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 				active,
 				date_created,
 				date_modified
-			FROM workspace_user_role
+			FROM ` + entityid.WorkspaceUserRole + `
 			WHERE active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       workspace_user_id ILIKE $1 OR
@@ -304,7 +304,7 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleItemPageData(c
 	if req == nil || req.WorkspaceUserRoleId == "" {
 		return nil, fmt.Errorf("workspace user role ID required")
 	}
-	query := `SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM workspace_user_role WHERE id = $1 AND active = true`
+	query := `SELECT id, workspace_user_id, role_id, active, date_created, date_modified FROM ` + entityid.WorkspaceUserRole + ` WHERE id = $1 AND active = true`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserRoleId)
 	var id, workspaceUserId, roleId string

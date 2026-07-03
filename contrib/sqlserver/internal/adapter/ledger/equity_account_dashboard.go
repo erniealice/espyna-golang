@@ -3,6 +3,7 @@
 package ledger
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 
@@ -26,7 +27,7 @@ func (r *SQLServerEquityAccountRepository) SumContributedTotal(
 
 	const query = `
 		SELECT CAST(COALESCE(SUM(ea.balance), 0) AS bigint)
-		FROM equity_account ea
+		FROM ` + entityid.EquityAccount + ` ea
 		WHERE ea.active = 1
 		  AND ea.balance > 0
 		  AND (@p1 IS NULL OR @p1 = '' OR ea.workspace_id = @p1)`
@@ -50,7 +51,7 @@ func (r *SQLServerEquityAccountRepository) CountActive(
 
 	const query = `
 		SELECT CAST(COUNT(*) AS bigint)
-		FROM equity_account ea
+		FROM ` + entityid.EquityAccount + ` ea
 		WHERE ea.active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR ea.workspace_id = @p1)`
 
@@ -84,7 +85,7 @@ func (r *SQLServerEquityAccountRepository) TopContributors(
 			COALESCE(ea.owner_name, '') AS owner_name,
 			ea.account_type,
 			ea.balance
-		FROM equity_account ea
+		FROM ` + entityid.EquityAccount + ` ea
 		WHERE ea.active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR ea.workspace_id = @p1)
 		ORDER BY

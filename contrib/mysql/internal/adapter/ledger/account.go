@@ -110,7 +110,7 @@ func (r *MySQLAccountRepository) ReadAccount(ctx context.Context, req *accountpb
 			group_id, parent_id, cash_flow_activity, normal_balance,
 			is_system_account, is_contra, status, notes,
 			active, date_created, date_modified
-		FROM account
+		FROM ` + entityid.Account + `
 		WHERE id = ?`
 	args := []any{req.Data.Id}
 	if workspaceID != "" {
@@ -319,7 +319,7 @@ func (r *MySQLAccountRepository) GetAccountListPageData(ctx context.Context, req
 				a.date_created,
 				a.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM account a
+			FROM ` + entityid.Account + ` a
 			%s
 		)
 		SELECT * FROM enriched
@@ -420,7 +420,7 @@ func (r *MySQLAccountRepository) GetAccountItemPageData(ctx context.Context, req
 			group_id, parent_id, cash_flow_activity, normal_balance,
 			is_system_account, is_contra, status, notes,
 			active, date_created, date_modified
-		FROM account
+		FROM ` + entityid.Account + `
 		WHERE id = ? AND active = 1`
 	args := []any{req.AccountId}
 	if workspaceID != "" {

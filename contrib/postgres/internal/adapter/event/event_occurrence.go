@@ -187,7 +187,7 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 				eo.active,
 				eo.date_created,
 				eo.date_modified
-			FROM event_occurrence eo
+			FROM ` + entityid.EventOccurrence + ` eo
 			WHERE eo.active = true
 			  AND eo.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -332,7 +332,7 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceItemPageData(
 			eo.active,
 			eo.date_created,
 			eo.date_modified
-		FROM event_occurrence eo
+		FROM ` + entityid.EventOccurrence + ` eo
 		WHERE eo.id = $1 AND eo.workspace_id = $2 AND eo.active = true
 		LIMIT 1;
 	`

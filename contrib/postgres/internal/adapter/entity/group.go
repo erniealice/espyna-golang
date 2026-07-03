@@ -269,7 +269,7 @@ func (r *PostgresGroupRepository) GetGroupListPageData(
 				g.active,
 				g.date_created,
 				g.date_modified
-			FROM "group" g
+			FROM "`+entityid.Group+`" g
 			WHERE g.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   g.name ILIKE $1 OR
@@ -397,7 +397,7 @@ func (r *PostgresGroupRepository) GetGroupItemPageData(
 			g.active,
 			g.date_created,
 			g.date_modified
-		FROM "group" g
+		FROM "` + entityid.Group + `" g
 		WHERE g.id = $1 AND g.active = true
 		LIMIT 1;
 	`

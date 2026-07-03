@@ -315,7 +315,7 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 				je.date_created,
 				je.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM journal_entry je
+			FROM ` + entityid.JournalEntry + ` je
 			WHERE je.active = true` + whereStr + `
 		)
 		SELECT * FROM enriched
@@ -553,7 +553,7 @@ func (r *PostgresJournalEntryRepository) PostJournalEntry(ctx context.Context, r
 	postedBy := req.PostedBy
 
 	result, err := r.db.ExecContext(ctx,
-		`UPDATE journal_entry
+		`UPDATE `+entityid.JournalEntry+`
 		    SET status     = 'POSTED',
 		        posted_by  = $1,
 		        posted_at  = $2,

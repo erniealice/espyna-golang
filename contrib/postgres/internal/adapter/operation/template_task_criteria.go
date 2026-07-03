@@ -263,7 +263,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 				ttc.outcome_criteria_id,
 				ttc.sequence_order,
 				ttc.required_override
-			FROM template_task_criteria ttc
+			FROM ` + entityid.TemplateTaskCriteria + ` ttc
 			WHERE ttc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ttc.outcome_criteria_id::text ILIKE $1)
@@ -380,7 +380,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaItemPage
 			ttc.outcome_criteria_id,
 			ttc.sequence_order,
 			ttc.required_override
-		FROM template_task_criteria ttc
+		FROM ` + entityid.TemplateTaskCriteria + ` ttc
 		WHERE ttc.id = $1 AND ttc.active = true
 	`
 
@@ -452,7 +452,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) ListByTemplateTask(
 			ttc.outcome_criteria_id,
 			ttc.sequence_order,
 			ttc.required_override
-		FROM template_task_criteria ttc
+		FROM ` + entityid.TemplateTaskCriteria + ` ttc
 		WHERE ttc.job_template_task_id = $1 AND ttc.active = true
 		ORDER BY ttc.sequence_order ASC
 	`
@@ -492,7 +492,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) ListByCriteria(
 			ttc.outcome_criteria_id,
 			ttc.sequence_order,
 			ttc.required_override
-		FROM template_task_criteria ttc
+		FROM ` + entityid.TemplateTaskCriteria + ` ttc
 		WHERE ttc.outcome_criteria_id = $1 AND ttc.active = true
 		ORDER BY ttc.sequence_order ASC
 	`

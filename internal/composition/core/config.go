@@ -75,8 +75,12 @@ SERVER_PORT=8080                          Server port (default: 8080)
 📊 TABLE/COLLECTION NAMES:
 ═══════════════════════════════════════════════════════════════════════════
 
-You can customize table/collection names using environment variables:
-For PostgreSQL: LEAPFOR_DATABASE_POSTGRES_TABLE_<ENTITY>=<table_name>
+PostgreSQL table names are registry/entityid constants — the single source
+(Q-TABLE-NAMES, 20260703 table-name-single-source). The former
+LEAPFOR_DATABASE_POSTGRES_TABLE_<ENTITY> override axis is RETIRED: setting it
+now only logs a boot-time warning naming the ignored var; it is never read.
+
+You can still customize Firestore collection names:
 For Firestore: LEAPFOR_DATABASE_FIRESTORE_COLLECTION_<ENTITY>=<collection_name>
 
 Example entities: CLIENT, MANAGER, SUBSCRIPTION, PAYMENT, PRODUCT, etc.

@@ -272,7 +272,7 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 		WITH
 		search_filtered AS (
 			SELECT im.*
-			FROM inventory_movement im
+			FROM ` + entityid.InventoryMovement + ` im
 			WHERE im.workspace_id = $1
 			  AND ($2::text = '' OR im.product_id ILIKE $2 OR im.id ILIKE $2)
 		),
@@ -315,9 +315,9 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 					'active', tl.active
 				) as to_location
 			FROM search_filtered sf
-			LEFT JOIN product p ON sf.product_id = p.id AND p.active = true
-			LEFT JOIN location fl ON sf.from_location_id = fl.id AND fl.active = true
-			LEFT JOIN location tl ON sf.to_location_id = tl.id AND tl.active = true
+			LEFT JOIN ` + entityid.Product + ` p ON sf.product_id = p.id AND p.active = true
+			LEFT JOIN ` + entityid.Location + ` fl ON sf.from_location_id = fl.id AND fl.active = true
+			LEFT JOIN ` + entityid.Location + ` tl ON sf.to_location_id = tl.id AND tl.active = true
 		),
 		sorted AS (
 			SELECT * FROM enriched
@@ -534,7 +534,7 @@ func (r *PostgresInventoryMovementRepository) ListByJob(ctx context.Context, req
 			movement_date, created_by, date_created,
 			job_id, job_activity_id, inventory_item_id, inventory_serial_id,
 			reference_type, reference_id, status, notes, performed_by, active
-		FROM inventory_movement
+		FROM ` + entityid.InventoryMovement + `
 		WHERE job_id = $1
 		ORDER BY date_created DESC
 	`
@@ -580,7 +580,7 @@ func (r *PostgresInventoryMovementRepository) ListByProduct(ctx context.Context,
 			movement_date, created_by, date_created,
 			job_id, job_activity_id, inventory_item_id, inventory_serial_id,
 			reference_type, reference_id, status, notes, performed_by, active
-		FROM inventory_movement
+		FROM ` + entityid.InventoryMovement + `
 		WHERE product_id = $1
 		ORDER BY date_created DESC
 	`

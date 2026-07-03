@@ -5,6 +5,7 @@ package entity
 import (
 	"context"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // CountByLocation returns the top-N location areas by location count.
@@ -29,7 +30,7 @@ func (r *PostgresLocationAreaRepository) CountByLocation(ctx context.Context, wo
 			la.name,
 			COUNT(l.id) AS location_count
 		FROM %s la
-		LEFT JOIN location l
+		LEFT JOIN `+entityid.Location+` l
 			ON l.location_area_id = la.id
 			AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
 		WHERE ($1::text IS NULL OR $1::text = '' OR la.workspace_id = $1)

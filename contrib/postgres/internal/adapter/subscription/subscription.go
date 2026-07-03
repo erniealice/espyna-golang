@@ -10,9 +10,9 @@ import (
 	"slices"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -354,7 +354,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		-- CTE 1: Apply search filter on subscription
 		search_filtered AS (
 			SELECT s.*
-			FROM subscription s
+			FROM ` + entityid.Subscription + ` s
 			WHERE s.active = $7
 				AND ($8::text = '' OR s.workspace_id = $8::text)
 				AND ($1::text = '' OR
@@ -418,10 +418,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					)
 				) as price_plan
 			FROM search_filtered sf
-			LEFT JOIN client c ON sf.client_id = c.id AND c.active = true
-			LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
-			LEFT JOIN price_plan pp ON sf.price_plan_id = pp.id AND pp.active = true
-			LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = true
+			LEFT JOIN ` + entityid.Client + ` c ON sf.client_id = c.id AND c.active = true
+			LEFT JOIN "` + entityid.User + `" u ON c.user_id = u.id AND u.active = true
+			LEFT JOIN ` + entityid.PricePlan + ` pp ON sf.price_plan_id = pp.id AND pp.active = true
+			LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = true
 		)
 
 		-- Final SELECT with sorting, window count, and pagination.
@@ -669,11 +669,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 					'date_modified', (EXTRACT(EPOCH FROM p.date_modified) * 1000)::bigint
 				)
 			) as price_plan
-		FROM subscription s
-		LEFT JOIN client c ON s.client_id = c.id AND c.active = true
-		LEFT JOIN "user" u ON c.user_id = u.id AND u.active = true
-		LEFT JOIN price_plan pp ON s.price_plan_id = pp.id AND pp.active = true
-		LEFT JOIN plan p ON pp.plan_id = p.id AND p.active = true
+		FROM ` + entityid.Subscription + ` s
+		LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id AND c.active = true
+		LEFT JOIN "` + entityid.User + `" u ON c.user_id = u.id AND u.active = true
+		LEFT JOIN ` + entityid.PricePlan + ` pp ON s.price_plan_id = pp.id AND pp.active = true
+		LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = true
 		-- Active filter intentionally omitted: detail-page lookups must work
 		-- for deactivated subscriptions too (so operators can review/restore).
 		-- Active scoping belongs at the LIST level, not the by-id lookup.
@@ -803,7 +803,7 @@ func (r *PostgresSubscriptionRepository) CountActiveByClientIds(ctx context.Cont
 	if len(clientIDs) > 0 {
 		rows, err = db.GetDB().QueryContext(ctx,
 			`SELECT client_id, COUNT(*)::int AS cnt
-			   FROM subscription
+			   FROM `+entityid.Subscription+`
 			  WHERE active = TRUE
 			    AND ($1::text = '' OR workspace_id = $1::text)
 			    AND client_id = ANY($2)
@@ -813,7 +813,7 @@ func (r *PostgresSubscriptionRepository) CountActiveByClientIds(ctx context.Cont
 	} else {
 		rows, err = db.GetDB().QueryContext(ctx,
 			`SELECT client_id, COUNT(*)::int AS cnt
-			   FROM subscription
+			   FROM `+entityid.Subscription+`
 			  WHERE active = TRUE
 			    AND ($1::text = '' OR workspace_id = $1::text)
 			  GROUP BY client_id`,

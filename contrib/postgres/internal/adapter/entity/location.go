@@ -285,7 +285,7 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 						'value', la.value
 					) ORDER BY la.attribute_id
 				) FILTER (WHERE la.id IS NOT NULL) as attributes
-			FROM location_attribute la
+			FROM `+entityid.LocationAttribute+` la
 			GROUP BY la.location_id
 		),
 		enriched AS (
@@ -300,9 +300,9 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 				l.location_area_id,
 				COALESCE(la2.name, '') as location_area_name,
 				COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
-			FROM location l
+			FROM `+entityid.Location+` l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-			LEFT JOIN location_area la2 ON l.location_area_id = la2.id
+			LEFT JOIN `+entityid.LocationArea+` la2 ON l.location_area_id = la2.id
 			%s
 		)
 		SELECT e.*, COUNT(*) OVER() AS total
@@ -451,7 +451,7 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 						'value', la.value
 					) ORDER BY la.attribute_id
 				) FILTER (WHERE la.id IS NOT NULL) as attributes
-			FROM location_attribute la
+			FROM ` + entityid.LocationAttribute + ` la
 			WHERE la.location_id = $1
 			GROUP BY la.location_id
 		)
@@ -460,7 +460,7 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 			l.active, l.date_created, l.date_modified,
 			COALESCE(l.timezone, 'Asia/Manila') as timezone,
 			COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
-		FROM location l
+		FROM ` + entityid.Location + ` l
 		LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
 		WHERE l.id = $1
 		  AND ($2::text IS NULL OR l.workspace_id = $2)

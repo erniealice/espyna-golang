@@ -310,8 +310,8 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 				pp.billing_cycle_unit,
 				pp.default_term_value,
 				pp.default_term_unit
-			FROM price_plan pp
-			LEFT JOIN plan pl ON pp.plan_id = pl.id
+			FROM ` + entityid.PricePlan + ` pp
+			LEFT JOIN ` + entityid.Plan + ` pl ON pp.plan_id = pl.id
 			WHERE pp.active = true
 			  AND ($4::text = '' OR pl.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -414,7 +414,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 			billing_cycle_unit,
 			default_term_value,
 			default_term_unit
-		FROM price_plan
+		FROM ` + entityid.PricePlan + `
 		WHERE id = $1
 		  AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)

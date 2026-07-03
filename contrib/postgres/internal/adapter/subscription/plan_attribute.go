@@ -252,8 +252,8 @@ func (r *PostgresPlanAttributeRepository) GetPlanAttributeListPageData(ctx conte
 				pa.active,
 				pa.date_created,
 				pa.date_modified
-			FROM plan_attribute pa
-			LEFT JOIN plan p ON pa.plan_id = p.id
+			FROM ` + entityid.PlanAttribute + ` pa
+			LEFT JOIN ` + entityid.Plan + ` p ON pa.plan_id = p.id
 			WHERE pa.active = true
 			  AND ($4::text = '' OR p.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR pa.value ILIKE $1))
@@ -312,7 +312,7 @@ func (r *PostgresPlanAttributeRepository) GetPlanAttributeItemPageData(ctx conte
 	if req == nil || req.PlanAttributeId == "" {
 		return nil, fmt.Errorf("plan attribute ID required")
 	}
-	query := `SELECT id, plan_id, attribute_id, value, active, date_created, date_modified FROM plan_attribute WHERE id = $1 AND active = true`
+	query := `SELECT id, plan_id, attribute_id, value, active, date_created, date_modified FROM ` + entityid.PlanAttribute + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PlanAttributeId)
 	var id, planId, attributeId, attributeValue string
 	var active bool

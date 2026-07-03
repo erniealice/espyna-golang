@@ -267,7 +267,7 @@ func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 				co.option_key,
 				co.display_order,
 				co.severity
-			FROM criteria_option co
+			FROM ` + entityid.CriteriaOption + ` co
 			WHERE co.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       co.option_label ILIKE $1)
@@ -400,7 +400,7 @@ func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionItemPageData(
 			co.option_key,
 			co.display_order,
 			co.severity
-		FROM criteria_option co
+		FROM ` + entityid.CriteriaOption + ` co
 		WHERE co.id = $1 AND co.active = true
 	`
 
@@ -488,7 +488,7 @@ func (r *PostgresCriteriaOptionRepository) ListByCriteria(
 			co.option_key,
 			co.display_order,
 			co.severity
-		FROM criteria_option co
+		FROM ` + entityid.CriteriaOption + ` co
 		WHERE co.outcome_criteria_id = $1 AND co.active = true
 		ORDER BY co.display_order ASC
 	`

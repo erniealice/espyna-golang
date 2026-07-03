@@ -268,7 +268,7 @@ func (r *PostgresAssetRepository) UpdateAsset(ctx context.Context, req *assetpb.
 //
 // Soft-delete: dbOps.Delete sets active=false on the row rather than
 // removing it. This matches the legacy fycha block.go:489 closure behavior
-// (`UPDATE asset SET active = false`). Hard delete would silently regress
+// (`UPDATE ` + entityid.Asset + ` SET active = false`). Hard delete would silently regress
 // the user-facing experience by vanishing history from any active=false view.
 func (r *PostgresAssetRepository) DeleteAsset(ctx context.Context, req *assetpb.DeleteAssetRequest) (*assetpb.DeleteAssetResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {

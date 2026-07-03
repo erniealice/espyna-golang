@@ -271,7 +271,7 @@ func (r *PostgresPettyCashFundRepository) GetPettyCashFundListPageData(
 				pcf.current_balance,
 				pcf.custodian_id,
 				pcf.location_id
-			FROM petty_cash_fund pcf
+			FROM ` + entityid.PettyCashFund + ` pcf
 			WHERE pcf.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pcf.name ILIKE $1)
@@ -407,7 +407,7 @@ func (r *PostgresPettyCashFundRepository) GetPettyCashFundItemPageData(
 				pcf.current_balance,
 				pcf.custodian_id,
 				pcf.location_id
-			FROM petty_cash_fund pcf
+			FROM ` + entityid.PettyCashFund + ` pcf
 			WHERE pcf.id = $1 AND pcf.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

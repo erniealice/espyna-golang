@@ -9,6 +9,8 @@ import (
 	"time"
 
 	equitytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/equity_transaction"
+
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // SumByTypeYTD groups SUM(amount) of equity transactions by transaction_type
@@ -32,7 +34,7 @@ func (r *PostgresEquityTransactionRepository) SumByTypeYTD(
 
 	const query = `
 		SELECT et.transaction_type, COALESCE(SUM(et.amount), 0)::bigint
-		FROM equity_transaction et
+		FROM ` + entityid.EquityTransaction + ` et
 		WHERE et.transaction_date >= $2
 		  AND et.transaction_date < $3
 		  AND ($1::text IS NULL OR $1::text = '' OR et.workspace_id = $1)
@@ -83,7 +85,7 @@ func (r *PostgresEquityTransactionRepository) RecentTransactions(
 			et.amount,
 			et.transaction_date,
 			COALESCE(et.description, '')
-		FROM equity_transaction et
+		FROM ` + entityid.EquityTransaction + ` et
 		WHERE ($1::text IS NULL OR $1::text = '' OR et.workspace_id = $1)
 		ORDER BY et.transaction_date DESC
 		LIMIT $2`

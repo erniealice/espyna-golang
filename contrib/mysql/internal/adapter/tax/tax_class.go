@@ -123,7 +123,7 @@ func (r *MySQLTaxClassRepository) FindByCode(ctx context.Context, code, directio
 	// We select all columns individually and scan them. For simplicity we use
 	// a JSON_OBJECT aggregate that MySQL 8.0+ supports.
 	//
-	// MySQL equivalent of postgres `SELECT row_to_json(c) FROM tax_class c WHERE ...`:
+	// MySQL equivalent of postgres `SELECT row_to_json(c) FROM ` + entityid.TaxClass + ` c WHERE ...`:
 	// SELECT JSON_OBJECT('id', c.id, 'code', c.code, ...) FROM tax_class c WHERE ...
 	// However, rather than enumerate every column in the proto, we use a simpler
 	// approach: scan the relevant columns and build the proto manually.
@@ -131,7 +131,7 @@ func (r *MySQLTaxClassRepository) FindByCode(ctx context.Context, code, directio
 	// Simplified: query id only then use dbOps.Read. This avoids enumerating all columns.
 	var id string
 	row := r.db.QueryRowContext(ctx,
-		"SELECT id FROM tax_class WHERE code = ? AND direction = ? AND active = 1 LIMIT 1",
+		"SELECT id FROM " + entityid.TaxClass + " WHERE code = ? AND direction = ? AND active = 1 LIMIT 1",
 		code, direction,
 	)
 	if err := row.Scan(&id); err == sql.ErrNoRows {

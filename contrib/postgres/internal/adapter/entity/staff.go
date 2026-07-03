@@ -280,8 +280,8 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM staff s
-			LEFT JOIN "user" u ON s.user_id = u.id AND u.active = true
+			FROM ` + entityid.Staff + ` s
+			LEFT JOIN "` + entityid.User + `" u ON s.user_id = u.id AND u.active = true
 			WHERE s.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   u.first_name ILIKE $1 OR
@@ -461,8 +461,8 @@ func (r *PostgresStaffRepository) GetStaffItemPageData(
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM staff s
-			LEFT JOIN "user" u ON s.user_id = u.id AND u.active = true
+			FROM ` + entityid.Staff + ` s
+			LEFT JOIN "` + entityid.User + `" u ON s.user_id = u.id AND u.active = true
 			WHERE s.id = $1 AND s.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

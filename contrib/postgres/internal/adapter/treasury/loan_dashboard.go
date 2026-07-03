@@ -9,6 +9,7 @@ import (
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	treasurydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/treasury"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // TimeBucket is aliased to the service-layer Go-only TimeBucket so the
@@ -52,7 +53,7 @@ type loanScalarAggregate struct {
 const loanScalarAggregateQuery = `
 	WITH base AS (
 		SELECT l.status, l.remaining_balance
-		FROM loan l
+		FROM ` + entityid.Loan + ` l
 		WHERE l.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
 	)
@@ -138,8 +139,8 @@ func (r *PostgresLoanRepository) SumInterestAccruedYTD(
 
 	const query = `
 		SELECT COALESCE(SUM(lp.interest_amount), 0)::bigint
-		FROM loan_payment lp
-		JOIN loan l ON l.id = lp.loan_id
+		FROM ` + entityid.LoanPayment + ` lp
+		JOIN ` + entityid.Loan + ` l ON l.id = lp.loan_id
 		WHERE lp.payment_date >= $2
 		  AND lp.payment_date <= $3
 		  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)`
@@ -181,7 +182,7 @@ func (r *PostgresLoanRepository) TopByOutstanding(
 			l.remaining_balance,
 			l.principal_amount,
 			l.status
-		FROM loan l
+		FROM ` + entityid.Loan + ` l
 		WHERE l.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
 		ORDER BY l.remaining_balance DESC NULLS LAST
@@ -247,15 +248,15 @@ func (r *PostgresLoanRepository) OutstandingPrincipalByMonth(
 			SELECT m.bucket,
 			       COALESCE(SUM(lp.principal_amount), 0)::bigint AS paid_principal
 			FROM months m
-			LEFT JOIN loan_payment lp
+			LEFT JOIN ` + entityid.LoanPayment + ` lp
 			  ON lp.payment_date::timestamp >= m.bucket + interval '1 month'
-			LEFT JOIN loan l ON l.id = lp.loan_id
+			LEFT JOIN ` + entityid.Loan + ` l ON l.id = lp.loan_id
 			WHERE ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1 OR l.workspace_id IS NULL)
 			GROUP BY m.bucket
 		),
 		active_principal AS (
 			SELECT COALESCE(SUM(l.remaining_balance), 0)::bigint AS now_balance
-			FROM loan l
+			FROM ` + entityid.Loan + ` l
 			WHERE l.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
 		)

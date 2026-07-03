@@ -210,7 +210,7 @@ func (r *SQLServerInventoryAttributeRepository) GetInventoryAttributeListPageDat
 				ia.inventory_item_id,
 				ia.attribute_id,
 				ia.value
-			FROM inventory_attribute ia
+			FROM ` + entityid.InventoryAttribute + ` ia
 			WHERE ia.active = 1
 		),
 		counted AS (

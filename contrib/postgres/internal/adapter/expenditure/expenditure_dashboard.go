@@ -14,6 +14,7 @@ import (
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 
 	expendituredash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/expenditure"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // Q-SDM-DASHBOARD-COMPILE-ASSERTIONS named-type contract: the postgres adapter
@@ -47,7 +48,7 @@ const expenditureStatusAggregateQuery = `
 			COALESCE(ex.status, 'unknown') AS status,
 			ex.total_amount,
 			(ex.status NOT IN ('paid', 'cancelled')) AS is_open
-		FROM expenditure ex
+		FROM ` + entityid.Expenditure + ` ex
 		WHERE ex.active = true
 		  AND ex.expenditure_type = $2
 		  AND ($1::text IS NULL OR $1::text = '' OR ex.workspace_id = $1)
@@ -162,8 +163,8 @@ func (r *PostgresExpenditureRepository) TopBySupplier(
 			ex.supplier_id,
 			COALESCE(s.name, ex.supplier_id),
 			COALESCE(SUM(ex.total_amount), 0)::bigint AS total
-		FROM expenditure ex
-		LEFT JOIN supplier s ON s.id = ex.supplier_id
+		FROM ` + entityid.Expenditure + ` ex
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ex.supplier_id
 		WHERE ex.active = true
 		  AND ex.expenditure_type = $2
 		  AND ex.supplier_id IS NOT NULL
@@ -210,7 +211,7 @@ func (r *PostgresExpenditureRepository) RecentByDate(
 
 	const query = `
 		SELECT to_jsonb(ex) AS row
-		FROM expenditure ex
+		FROM ` + entityid.Expenditure + ` ex
 		WHERE ex.active = true
 		  AND ex.expenditure_type = $2
 		  AND ($1::text IS NULL OR $1::text = '' OR ex.workspace_id = $1)
@@ -282,7 +283,7 @@ func (r *PostgresExpenditureRepository) SumByMonth(
 		SELECT m.bucket,
 		       COALESCE(SUM(ex.total_amount), 0)::bigint
 		FROM months m
-		LEFT JOIN expenditure ex
+		LEFT JOIN ` + entityid.Expenditure + ` ex
 		  ON ex.active = true
 		 AND ex.expenditure_type = $2
 		 AND ex.expenditure_date >= m.bucket
@@ -331,7 +332,7 @@ func (r *PostgresExpenditureRepository) SumByCategory(
 		SELECT
 			COALESCE(NULLIF(ex.expenditure_category_id, ''), 'uncategorized'),
 			COALESCE(SUM(ex.total_amount), 0)::bigint
-		FROM expenditure ex
+		FROM ` + entityid.Expenditure + ` ex
 		WHERE ex.active = true
 		  AND ex.expenditure_type = $2
 		  AND ex.status NOT IN ('cancelled')

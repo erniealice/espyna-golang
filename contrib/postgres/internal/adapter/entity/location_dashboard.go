@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"time"
 
 	locationdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/location"
@@ -80,7 +81,7 @@ func (r *PostgresLocationRepository) CountByRegion(ctx context.Context, workspac
 			COALESCE(la.name, 'Unassigned') AS area_name,
 			COUNT(l.id) AS cnt
 		FROM %s l
-		LEFT JOIN location_area la ON l.location_area_id = la.id
+		LEFT JOIN `+entityid.LocationArea+` la ON l.location_area_id = la.id
 		WHERE ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)
 		GROUP BY area_name
 		ORDER BY cnt DESC

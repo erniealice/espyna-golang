@@ -318,7 +318,7 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 			location_id,
 			date_time_start,
 			date_time_end
-		FROM price_schedule
+		FROM ` + entityid.PriceSchedule + `
 		WHERE active = true
 		  AND ($4::text = '' OR workspace_id = $4::text)
 		  AND ($1::text IS NULL OR $1::text = '' OR
@@ -375,7 +375,7 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleItemPageData(ctx conte
 	if req == nil || req.PriceScheduleId == "" {
 		return nil, fmt.Errorf("price schedule ID required")
 	}
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM ` + entityid.PriceSchedule + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PriceScheduleId)
 	var id, name, description string
 	var active bool
@@ -442,7 +442,7 @@ func (r *PostgresPriceScheduleRepository) FindApplicablePriceSchedule(ctx contex
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `
 		SELECT id, name, description, active, date_time_start, date_time_end, location_id, date_created, date_modified
-		FROM price_schedule
+		FROM ` + entityid.PriceSchedule + `
 		WHERE active = true
 		  AND ($3::text = '' OR workspace_id = $3::text)
 		  AND location_id = $1

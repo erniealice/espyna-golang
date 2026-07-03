@@ -285,7 +285,7 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 				r.active,
 				r.date_created,
 				r.date_modified
-			FROM resource r
+			FROM ` + entityid.Resource + ` r
 			WHERE r.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       r.name ILIKE $1 OR
@@ -417,7 +417,7 @@ func (r *PostgresResourceRepository) GetResourceItemPageData(
 			r.active,
 			r.date_created,
 			r.date_modified
-		FROM resource r
+		FROM ` + entityid.Resource + ` r
 		WHERE r.id = $1 AND r.active = true
 		LIMIT 1;
 	`

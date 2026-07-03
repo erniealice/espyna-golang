@@ -286,8 +286,8 @@ func (r *PostgresProductOptionRepository) GetProductOptionListPageData(
 				po.min_value,
 				po.max_value,
 				COALESCE(p.name, '') as product_name
-			FROM product_option po
-			LEFT JOIN product p ON po.product_id = p.id AND p.active = true
+			FROM ` + entityid.ProductOption + ` po
+			LEFT JOIN ` + entityid.Product + ` p ON po.product_id = p.id AND p.active = true
 			WHERE po.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       po.name ILIKE $1 OR
@@ -435,8 +435,8 @@ func (r *PostgresProductOptionRepository) GetProductOptionItemPageData(
 				po.min_value,
 				po.max_value,
 				COALESCE(p.name, '') as product_name
-			FROM product_option po
-			LEFT JOIN product p ON po.product_id = p.id AND p.active = true
+			FROM ` + entityid.ProductOption + ` po
+			LEFT JOIN ` + entityid.Product + ` p ON po.product_id = p.id AND p.active = true
 			WHERE po.id = $1 AND po.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

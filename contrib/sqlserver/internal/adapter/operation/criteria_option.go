@@ -202,7 +202,7 @@ func (r *SQLServerCriteriaOptionRepository) GetCriteriaOptionListPageData(
 				co.outcome_criteria_id,
 				co.label,
 				co.sort_order
-			FROM criteria_option co
+			FROM ` + entityid.CriteriaOption + ` co
 			WHERE co.active = 1
 		),
 		counted AS (

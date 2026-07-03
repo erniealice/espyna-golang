@@ -280,7 +280,7 @@ func (r *SQLServerJobActivityRepository) GetJobActivityListPageData(ctx context.
 				j.name AS job_name,
 				COUNT(*) OVER() AS total_count
 			FROM %s ja
-			LEFT JOIN job j ON j.id = ja.job_id
+			LEFT JOIN ` + entityid.Job + ` j ON j.id = ja.job_id
 			%s
 		)
 		SELECT * FROM enriched
@@ -556,7 +556,7 @@ func (r *SQLServerJobActivityRepository) GetJobActivityRollup(ctx context.Contex
 		SELECT entry_type,
 		       SUM(total_cost) AS total_cost,
 		       COUNT(*)        AS cnt
-		FROM job_activity
+		FROM ` + entityid.JobActivity + `
 		WHERE job_id = @p1 AND active = 1
 		GROUP BY entry_type
 	`
@@ -609,7 +609,7 @@ func (r *SQLServerJobActivityRepository) SubmitForApproval(ctx context.Context, 
 
 	// SQL Server: OUTPUT inserted.id instead of RETURNING.
 	const query = `
-		UPDATE job_activity
+		UPDATE ` + entityid.JobActivity + `
 		SET approval_status = 'ACTIVITY_APPROVAL_STATUS_PENDING_APPROVAL',
 		    date_modified = GETUTCDATE()
 		OUTPUT inserted.id
@@ -635,7 +635,7 @@ func (r *SQLServerJobActivityRepository) ApproveActivity(ctx context.Context, re
 	}
 
 	const query = `
-		UPDATE job_activity
+		UPDATE ` + entityid.JobActivity + `
 		SET approval_status = 'ACTIVITY_APPROVAL_STATUS_APPROVED',
 		    date_modified = GETUTCDATE()
 		OUTPUT inserted.id
@@ -661,7 +661,7 @@ func (r *SQLServerJobActivityRepository) RejectActivity(ctx context.Context, req
 	}
 
 	const query = `
-		UPDATE job_activity
+		UPDATE ` + entityid.JobActivity + `
 		SET approval_status = 'ACTIVITY_APPROVAL_STATUS_REJECTED',
 		    date_modified = GETUTCDATE()
 		OUTPUT inserted.id
@@ -687,7 +687,7 @@ func (r *SQLServerJobActivityRepository) PostActivity(ctx context.Context, req *
 	}
 
 	const query = `
-		UPDATE job_activity
+		UPDATE ` + entityid.JobActivity + `
 		SET posting_status = 'ACTIVITY_POSTING_STATUS_POSTED',
 		    posted_by = @p2,
 		    date_posted = GETUTCDATE(),

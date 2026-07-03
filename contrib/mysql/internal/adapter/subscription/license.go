@@ -258,7 +258,7 @@ func (r *MySQLLicenseRepository) GetLicenseListPageData(ctx context.Context, req
 		WITH
 		search_filtered AS (
 			SELECT l.*
-			FROM license l
+			FROM ` + entityid.License + ` l
 			WHERE l.active = 1
 				AND (? = '' OR
 					l.license_key LIKE ? OR

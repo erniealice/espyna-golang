@@ -9,6 +9,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // PostgresPermissionQuery implements security.PermissionQuery using PostgreSQL
@@ -97,8 +98,8 @@ const userRolesUnionCTE = `
 	WITH user_roles AS (
 		-- 1. WorkspaceUser → workspace_user_role (operator owner / staff)
 		SELECT wur.role_id
-		FROM workspace_user wu
-		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
+		FROM ` + entityid.WorkspaceUser + ` wu
+		JOIN ` + entityid.WorkspaceUserRole + ` wur ON wur.workspace_user_id = wu.id
 		WHERE wu.user_id = $1
 		  AND wu.workspace_id = $2
 		  AND wu.active = true
@@ -109,7 +110,7 @@ const userRolesUnionCTE = `
 
 		-- 2. ClientPortalGrant (CLIENT)
 		SELECT cpg.role_id
-		FROM client_portal_grant cpg
+		FROM ` + entityid.ClientPortalGrant + ` cpg
 		WHERE cpg.user_id = $1
 		  AND cpg.workspace_id = $2
 		  AND cpg.active = true
@@ -119,7 +120,7 @@ const userRolesUnionCTE = `
 
 		-- 3. SupplierPortalGrant (SUPPLIER)
 		SELECT spg.role_id
-		FROM supplier_portal_grant spg
+		FROM ` + entityid.SupplierPortalGrant + ` spg
 		WHERE spg.user_id = $1
 		  AND spg.workspace_id = $2
 		  AND spg.active = true
@@ -129,9 +130,9 @@ const userRolesUnionCTE = `
 
 		-- 4. Delegate → DelegateClient (CLIENT_DELEGATE)
 		SELECT dc.role_id
-		FROM delegate d
-		JOIN delegate_client dc ON dc.delegate_id = d.id
-		LEFT JOIN client c ON c.id = dc.client_id AND c.active = true
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateClient + ` dc ON dc.delegate_id = d.id
+		LEFT JOIN ` + entityid.Client + ` c ON c.id = dc.client_id AND c.active = true
 		WHERE d.user_id = $1
 		  AND d.active = true
 		  AND dc.active = true
@@ -142,9 +143,9 @@ const userRolesUnionCTE = `
 
 		-- 5. Delegate → DelegateSupplier (SUPPLIER_DELEGATE)
 		SELECT ds.role_id
-		FROM delegate d
-		JOIN delegate_supplier ds ON ds.delegate_id = d.id
-		LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = true
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateSupplier + ` ds ON ds.delegate_id = d.id
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ds.supplier_id AND s.active = true
 		WHERE d.user_id = $1
 		  AND d.active = true
 		  AND ds.active = true
@@ -159,16 +160,16 @@ const userRolesUnionCTE = `
 // permissionSelectForKind instead.
 const permissionSelect = `
 	SELECT DISTINCT p.permission_code
-	FROM permission p
-	JOIN role_permission rp ON rp.permission_id = p.id
+	FROM ` + entityid.Permission + ` p
+	JOIN ` + entityid.RolePermission + ` rp ON rp.permission_id = p.id
 	JOIN user_roles ur ON ur.role_id = rp.role_id
 	WHERE rp.permission_type = 'PERMISSION_TYPE_ALLOW'
 	  AND p.active = true
 	  AND rp.active = true
 	  AND p.permission_code NOT IN (
 	      SELECT p2.permission_code
-	      FROM permission p2
-	      JOIN role_permission rp2 ON rp2.permission_id = p2.id
+	      FROM ` + entityid.Permission + ` p2
+	      JOIN ` + entityid.RolePermission + ` rp2 ON rp2.permission_id = p2.id
 	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
 	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
 	        AND p2.active = true
@@ -193,8 +194,8 @@ const permissionSelect = `
 func permissionSelectForKind(kind int32) string {
 	return fmt.Sprintf(`
 	SELECT DISTINCT p.permission_code
-	FROM permission p
-	JOIN role_permission rp ON rp.permission_id = p.id
+	FROM `+entityid.Permission+` p
+	JOIN `+entityid.RolePermission+` rp ON rp.permission_id = p.id
 	JOIN user_roles ur ON ur.role_id = rp.role_id
 	WHERE rp.permission_type = 'PERMISSION_TYPE_ALLOW'
 	  AND p.active = true
@@ -202,8 +203,8 @@ func permissionSelectForKind(kind int32) string {
 	  AND %d = ANY(p.applicable_principal_types)
 	  AND p.permission_code NOT IN (
 	      SELECT p2.permission_code
-	      FROM permission p2
-	      JOIN role_permission rp2 ON rp2.permission_id = p2.id
+	      FROM `+entityid.Permission+` p2
+	      JOIN `+entityid.RolePermission+` rp2 ON rp2.permission_id = p2.id
 	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
 	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
 	        AND p2.active = true
@@ -222,8 +223,8 @@ func permissionSelectForKind(kind int32) string {
 const userRolesOperatorCTE = `
 	WITH user_roles AS (
 		SELECT wur.role_id
-		FROM workspace_user wu
-		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
+		FROM ` + entityid.WorkspaceUser + ` wu
+		JOIN ` + entityid.WorkspaceUserRole + ` wur ON wur.workspace_user_id = wu.id
 		WHERE wu.id = $3
 		  AND wu.user_id = $1
 		  AND wu.workspace_id = $2
@@ -236,7 +237,7 @@ const userRolesOperatorCTE = `
 const userRolesClientCTE = `
 	WITH user_roles AS (
 		SELECT cpg.role_id
-		FROM client_portal_grant cpg
+		FROM ` + entityid.ClientPortalGrant + ` cpg
 		WHERE cpg.id = $3
 		  AND cpg.user_id = $1
 		  AND cpg.workspace_id = $2
@@ -248,7 +249,7 @@ const userRolesClientCTE = `
 const userRolesSupplierCTE = `
 	WITH user_roles AS (
 		SELECT spg.role_id
-		FROM supplier_portal_grant spg
+		FROM ` + entityid.SupplierPortalGrant + ` spg
 		WHERE spg.id = $3
 		  AND spg.user_id = $1
 		  AND spg.workspace_id = $2
@@ -264,9 +265,9 @@ const userRolesSupplierCTE = `
 const userRolesClientDelegateCTE = `
 	WITH user_roles AS (
 		SELECT dc.role_id
-		FROM delegate d
-		JOIN delegate_client dc ON dc.delegate_id = d.id
-		LEFT JOIN client c ON c.id = dc.client_id AND c.active = true
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateClient + ` dc ON dc.delegate_id = d.id
+		LEFT JOIN ` + entityid.Client + ` c ON c.id = dc.client_id AND c.active = true
 		WHERE d.id = $3
 		  AND dc.client_id = $4
 		  AND d.user_id = $1
@@ -283,9 +284,9 @@ const userRolesClientDelegateCTE = `
 const userRolesSupplierDelegateCTE = `
 	WITH user_roles AS (
 		SELECT ds.role_id
-		FROM delegate d
-		JOIN delegate_supplier ds ON ds.delegate_id = d.id
-		LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = true
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateSupplier + ` ds ON ds.delegate_id = d.id
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ds.supplier_id AND s.active = true
 		WHERE d.id = $3
 		  AND ds.supplier_id = $4
 		  AND d.user_id = $1
@@ -312,9 +313,9 @@ const userRolesSupplierDelegateCTE = `
 const userRolesStaffCTE = `
 	WITH user_roles AS (
 		SELECT wur.role_id
-		FROM staff s
-		JOIN workspace_user wu ON wu.user_id = s.user_id AND wu.workspace_id = s.workspace_id
-		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
+		FROM ` + entityid.Staff + ` s
+		JOIN ` + entityid.WorkspaceUser + ` wu ON wu.user_id = s.user_id AND wu.workspace_id = s.workspace_id
+		JOIN ` + entityid.WorkspaceUserRole + ` wur ON wur.workspace_user_id = wu.id
 		WHERE s.id = $3
 		  AND s.user_id = $1
 		  AND s.workspace_id = $2

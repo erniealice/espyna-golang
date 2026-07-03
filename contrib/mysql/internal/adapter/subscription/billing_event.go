@@ -242,7 +242,7 @@ func (r *MySQLBillingEventRepository) GetBillingEventListPageData(
 	// Note: sortField is set from allowed string literals only above (enum path).
 	query := fmt.Sprintf(`
 		WITH base AS (
-			SELECT * FROM billing_event WHERE active = 1
+			SELECT * FROM ` + entityid.BillingEvent + ` WHERE active = 1
 		),
 		counted AS (
 			SELECT b.*, COUNT(*) OVER () AS total FROM base b

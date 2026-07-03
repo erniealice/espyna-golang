@@ -243,7 +243,7 @@ func (r *MySQLPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 				pcv.status,
 				pcv.approved_by,
 				pcv.approved_at
-			FROM petty_cash_voucher pcv
+			FROM ` + entityid.PettyCashVoucher + ` pcv
 			WHERE (? IS NULL OR ? = '' OR
 			       pcv.voucher_number LIKE ? OR
 			       pcv.description LIKE ? OR
@@ -366,7 +366,7 @@ func (r *MySQLPettyCashVoucherRepository) GetPettyCashVoucherItemPageData(
 			pcv.status,
 			pcv.approved_by,
 			pcv.approved_at
-		FROM petty_cash_voucher pcv
+		FROM ` + entityid.PettyCashVoucher + ` pcv
 		WHERE pcv.id = ?
 		LIMIT 1`
 

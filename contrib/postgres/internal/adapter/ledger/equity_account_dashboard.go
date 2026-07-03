@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	equitydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/equity"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // SumContributedTotal returns the total positive contribution balance across all
@@ -26,7 +27,7 @@ func (r *PostgresEquityAccountRepository) SumContributedTotal(
 
 	const query = `
 		SELECT COALESCE(SUM(ea.balance), 0)::bigint
-		FROM equity_account ea
+		FROM ` + entityid.EquityAccount + ` ea
 		WHERE ea.active = true
 		  AND ea.balance > 0
 		  AND ($1::text IS NULL OR $1::text = '' OR ea.workspace_id = $1)`
@@ -50,7 +51,7 @@ func (r *PostgresEquityAccountRepository) CountActive(
 
 	const query = `
 		SELECT COUNT(*)::bigint
-		FROM equity_account ea
+		FROM ` + entityid.EquityAccount + ` ea
 		WHERE ea.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR ea.workspace_id = $1)`
 
@@ -98,7 +99,7 @@ func (r *PostgresEquityAccountRepository) TopContributors(
 			COALESCE(ea.owner_name, '') AS owner_name,
 			ea.account_type,
 			ea.balance
-		FROM equity_account ea
+		FROM ` + entityid.EquityAccount + ` ea
 		WHERE ea.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR ea.workspace_id = $1)
 		ORDER BY ea.balance DESC NULLS LAST

@@ -252,8 +252,8 @@ func (r *PostgresInventorySerialHistoryRepository) GetInventorySerialHistoryList
 				ish.changed_by,
 				ish.changed_by_role,
 				COALESCE(is2.serial_number, '') as serial_number
-			FROM inventory_serial_history ish
-			LEFT JOIN inventory_serial is2 ON ish.inventory_serial_id = is2.id AND is2.active = true
+			FROM ` + entityid.InventorySerialHistory + ` ish
+			LEFT JOIN ` + entityid.InventorySerial + ` is2 ON ish.inventory_serial_id = is2.id AND is2.active = true
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       ish.from_status ILIKE $1 OR
 			       ish.to_status ILIKE $1 OR
@@ -402,9 +402,9 @@ func (r *PostgresInventorySerialHistoryRepository) GetInventorySerialHistoryItem
 				ish.changed_by_role,
 				COALESCE(is2.serial_number, '') as serial_number,
 				COALESCE(ii.name, '') as inventory_item_name
-			FROM inventory_serial_history ish
-			LEFT JOIN inventory_serial is2 ON ish.inventory_serial_id = is2.id AND is2.active = true
-			LEFT JOIN inventory_item ii ON ish.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventorySerialHistory + ` ish
+			LEFT JOIN ` + entityid.InventorySerial + ` is2 ON ish.inventory_serial_id = is2.id AND is2.active = true
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON ish.inventory_item_id = ii.id AND ii.active = true
 			WHERE ish.id = $1
 		)
 		SELECT * FROM enriched LIMIT 1;

@@ -73,7 +73,7 @@ func (r *SQLServerFulfillmentStatusEventRepository) InsertStatusEvent(ctx contex
 	}
 
 	query := `
-		INSERT INTO fulfillment_status_event
+		INSERT INTO ` + entityid.FulfillmentStatusEvent + `
 			(fulfillment_id, from_status, to_status, provider_status, provider_reference,
 			 triggered_by_id, reason, occurred_at)
 		OUTPUT inserted.id, inserted.fulfillment_id, inserted.from_status, inserted.to_status,
@@ -139,7 +139,7 @@ func (r *SQLServerFulfillmentStatusEventRepository) ListStatusEvents(ctx context
 	query := `
 		SELECT id, fulfillment_id, from_status, to_status, provider_status, provider_reference,
 		       triggered_by_id, reason, occurred_at
-		FROM fulfillment_status_event
+		FROM ` + entityid.FulfillmentStatusEvent + `
 		WHERE fulfillment_id = @p1
 		ORDER BY occurred_at DESC
 	`

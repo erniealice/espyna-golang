@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -244,7 +244,7 @@ func (r *PostgresClientWorkspaceUserRepository) GetClientWorkspaceUserListPageDa
 
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
-		FROM client_workspace_user
+		FROM ` + entityid.ClientWorkspaceUser + `
 		WHERE active = true
 			AND ($4::text = '' OR workspace_id = $4::text)
 			AND ($1::text IS NULL OR $1::text = '' OR client_id ILIKE $1 OR workspace_user_id ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
@@ -273,7 +273,7 @@ func (r *PostgresClientWorkspaceUserRepository) GetClientWorkspaceUserItemPageDa
 	// list query). Empty wsID = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
 	query := `SELECT id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
-		FROM client_workspace_user WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
+		FROM ` + entityid.ClientWorkspaceUser + ` WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
 	row := r.db.QueryRowContext(ctx, query, req.ClientWorkspaceUserId, wsID)
 	cwu, err := scanClientWorkspaceUserRow(row.Scan)
 	if err == sql.ErrNoRows {
@@ -330,8 +330,8 @@ func (r *PostgresClientWorkspaceUserRepository) IsActiveAccountTeamMember(ctx co
 	wsID := identity.Must(ctx).WorkspaceID
 	const q = `SELECT EXISTS (
 		SELECT 1
-		FROM client_workspace_user cwu
-		JOIN workspace_user wu ON wu.id = cwu.workspace_user_id
+		FROM ` + entityid.ClientWorkspaceUser + ` cwu
+		JOIN ` + entityid.WorkspaceUser + ` wu ON wu.id = cwu.workspace_user_id
 		WHERE cwu.client_id = $1
 			AND cwu.active = true
 			AND wu.user_id = $2

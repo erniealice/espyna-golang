@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
 )
 
@@ -262,8 +262,8 @@ func (r *PostgresExpenseRecognitionRepository) GetUnrecognizedExpenditures(ctx c
 	// candidates. Workspace scoping is honored.
 	query := `
 		SELECT e.id
-		FROM expenditure e
-		LEFT JOIN expense_recognition er
+		FROM ` + entityid.Expenditure + ` e
+		LEFT JOIN ` + entityid.ExpenseRecognition + ` er
 		  ON er.expenditure_id = e.id
 		 AND er.active = true
 		 AND er.status = 2  -- POSTED
@@ -305,8 +305,8 @@ func (r *PostgresExpenseRecognitionRepository) GetUnrecognizedExpenditures(ctx c
 func (r *PostgresExpenseRecognitionRepository) GetUnrecognizedExpendituresInPeriod(ctx context.Context, workspaceID string, periodStart, periodEnd time.Time) ([]string, error) {
 	query := `
 		SELECT e.id
-		FROM expenditure e
-		LEFT JOIN expense_recognition er
+		FROM ` + entityid.Expenditure + ` e
+		LEFT JOIN ` + entityid.ExpenseRecognition + ` er
 		  ON er.expenditure_id = e.id
 		 AND er.active = true
 		 AND er.status = 2  -- POSTED

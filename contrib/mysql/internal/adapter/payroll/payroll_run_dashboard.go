@@ -3,6 +3,7 @@
 package payroll
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -44,14 +45,14 @@ func (r *MySQLPayrollRunRepository) CountByStatus(
 		// CAST(COUNT(*) AS SIGNED) replaces COUNT(*)::bigint.
 		query = `
 			SELECT pr.status, CAST(COUNT(*) AS SIGNED)
-			FROM payroll_run pr
+			FROM ` + entityid.PayrollRun + ` pr
 			WHERE (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 			GROUP BY pr.status`
 		args = []any{workspaceID, workspaceID, workspaceID}
 	} else {
 		query = `
 			SELECT pr.status, CAST(COUNT(*) AS SIGNED)
-			FROM payroll_run pr
+			FROM ` + entityid.PayrollRun + ` pr
 			WHERE pr.date_created >= ?
 			  AND (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 			GROUP BY pr.status`
@@ -116,7 +117,7 @@ func (r *MySQLPayrollRunRepository) SumGrossByMonth(
 		SELECT m.bucket,
 		       COALESCE(SUM(pr.total_gross), 0)
 		FROM months m
-		LEFT JOIN payroll_run pr
+		LEFT JOIN ` + entityid.PayrollRun + ` pr
 		  ON DATE_FORMAT(pr.pay_period_end, '%Y-%m-01') = m.bucket
 		 AND (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 		GROUP BY m.bucket
@@ -177,7 +178,7 @@ func (r *MySQLPayrollRunRepository) LatestRun(
 			pr.employee_count,
 			pr.status,
 			pr.date_created
-		FROM payroll_run pr
+		FROM ` + entityid.PayrollRun + ` pr
 		WHERE (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 		ORDER BY pr.date_created DESC
 		LIMIT 1`
@@ -247,7 +248,7 @@ func (r *MySQLPayrollRunRepository) RecentRuns(
 			pr.employee_count,
 			pr.status,
 			pr.date_created
-		FROM payroll_run pr
+		FROM ` + entityid.PayrollRun + ` pr
 		WHERE (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 		ORDER BY pr.date_created DESC
 		LIMIT ?`
@@ -315,7 +316,7 @@ func (r *MySQLPayrollRunRepository) SumTotalGrossInPeriod(
 
 	const query = `
 		SELECT COALESCE(SUM(pr.total_gross), 0)
-		FROM payroll_run pr
+		FROM ` + entityid.PayrollRun + ` pr
 		WHERE pr.pay_period_end >= ?
 		  AND pr.pay_period_end <= ?
 		  AND (? IS NULL OR ? = '' OR pr.workspace_id = ?)`

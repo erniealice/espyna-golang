@@ -12,11 +12,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 )
@@ -252,8 +252,8 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 				sc.location_id,
 				COALESCE(s.name, '') AS supplier_name,
 				COUNT(*) OVER() AS total
-			FROM supplier_contract sc
-			LEFT JOIN supplier s ON sc.supplier_id = s.id AND s.active = true
+			FROM ` + entityid.SupplierContract + ` sc
+			LEFT JOIN ` + entityid.Supplier + ` s ON sc.supplier_id = s.id AND s.active = true
 			WHERE sc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR sc.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -401,8 +401,8 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractItemPageData(
 			sc.requested_by,
 			sc.notes,
 			COALESCE(s.name, '') AS supplier_name
-		FROM supplier_contract sc
-		LEFT JOIN supplier s ON sc.supplier_id = s.id AND s.active = true
+		FROM ` + entityid.SupplierContract + ` sc
+		LEFT JOIN ` + entityid.Supplier + ` s ON sc.supplier_id = s.id AND s.active = true
 		WHERE sc.id = $1 AND sc.active = true
 		  AND ($2::text = '' OR sc.workspace_id = $2::text)
 		LIMIT 1;
@@ -515,7 +515,7 @@ func (r *PostgresSupplierContractRepository) ApproveSupplierContract(ctx context
 	// ID. Empty wsID = service-to-service call → no scoping.
 	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE supplier_contract
+		`UPDATE `+entityid.SupplierContract+`
 		 SET status = $1, approved_by = $2, approved_at = $3, approved_at_string = $4, date_modified = NOW()
 		 WHERE id = $5 AND active = true
 		   AND ($6::text = '' OR workspace_id = $6::text)`,
@@ -540,7 +540,7 @@ func (r *PostgresSupplierContractRepository) TerminateSupplierContract(ctx conte
 	// ID. Empty wsID = service-to-service call → no scoping.
 	workspaceID := identity.Must(ctx).WorkspaceID
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE supplier_contract
+		`UPDATE `+entityid.SupplierContract+`
 		 SET status = $1, rejection_reason = $2, date_modified = NOW()
 		 WHERE id = $3 AND active = true
 		   AND ($4::text = '' OR workspace_id = $4::text)`,
@@ -581,7 +581,7 @@ func (r *PostgresSupplierContractRepository) updateBalanceFields(ctx context.Con
 	)
 	err = tx.QueryRowContext(ctx,
 		`SELECT COALESCE(committed_amount, 0), COALESCE(released_amount, 0), COALESCE(billed_amount, 0)
-		 FROM supplier_contract WHERE id = $1 AND active = true FOR UPDATE`,
+		 FROM `+entityid.SupplierContract+` WHERE id = $1 AND active = true FOR UPDATE`,
 		contractID,
 	).Scan(&committedAmount, &releasedAmount, &billedAmount)
 	if err == sql.ErrNoRows {
@@ -596,7 +596,7 @@ func (r *PostgresSupplierContractRepository) updateBalanceFields(ctx context.Con
 	newRemaining := committedAmount - newBilled
 
 	_, err = tx.ExecContext(ctx,
-		`UPDATE supplier_contract
+		`UPDATE `+entityid.SupplierContract+`
 		 SET released_amount = $1, billed_amount = $2, remaining_amount = $3, date_modified = NOW()
 		 WHERE id = $4`,
 		newReleased, newBilled, newRemaining, contractID,

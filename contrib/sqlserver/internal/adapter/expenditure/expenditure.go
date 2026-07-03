@@ -300,9 +300,9 @@ func (r *SQLServerExpenditureRepository) GetExpenditureListPageData(
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name,
 				COUNT(*) OVER() AS total
-			FROM expenditure ex
-			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = 1
-			LEFT JOIN location l ON ex.location_id = l.id AND l.active = 1
+			FROM ` + entityid.Expenditure + ` ex
+			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = 1
+			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = 1
 			%s
 		)
 		SELECT * FROM enriched
@@ -484,9 +484,9 @@ func (r *SQLServerExpenditureRepository) GetExpenditureItemPageData(
 				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name
-			FROM expenditure ex
-			LEFT JOIN supplier s ON ex.supplier_id = s.id AND s.active = 1
-			LEFT JOIN location l ON ex.location_id = l.id AND l.active = 1
+			FROM ` + entityid.Expenditure + ` ex
+			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = 1
+			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = 1
 			WHERE ex.id = @p1 AND ex.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

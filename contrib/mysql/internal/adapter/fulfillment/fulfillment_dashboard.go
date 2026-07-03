@@ -3,6 +3,7 @@
 package fulfillment
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"database/sql"
 	"fmt"
@@ -41,7 +42,7 @@ func (r *MySQLFulfillmentRepository) CountByStatus(
 	if since.IsZero() {
 		const q = `
 			SELECT f.status, COUNT(*)
-			FROM fulfillment f
+			FROM ` + entityid.Fulfillment + ` f
 			WHERE f.active = 1
 			  AND (? = '' OR f.workspace_id = ?)
 			GROUP BY f.status`
@@ -49,7 +50,7 @@ func (r *MySQLFulfillmentRepository) CountByStatus(
 	} else {
 		const q = `
 			SELECT f.status, COUNT(*)
-			FROM fulfillment f
+			FROM ` + entityid.Fulfillment + ` f
 			WHERE f.active = 1
 			  AND f.date_created >= ?
 			  AND (? = '' OR f.workspace_id = ?)
@@ -104,8 +105,8 @@ func (r *MySQLFulfillmentRepository) AvgFulfillmentTimeDays(
 	// Dialect: EXTRACT(EPOCH FROM (... - ...)) → TIMESTAMPDIFF(SECOND, ..., ...)
 	const query = `
 		SELECT COALESCE(AVG(TIMESTAMPDIFF(SECOND, f.date_created, e.occurred_at) / 86400.0), 0)
-		FROM fulfillment f
-		JOIN fulfillment_status_event e ON e.fulfillment_id = f.id
+		FROM ` + entityid.Fulfillment + ` f
+		JOIN ` + entityid.FulfillmentStatusEvent + ` e ON e.fulfillment_id = f.id
 		WHERE f.active = 1
 		  AND e.to_status = 'DELIVERED'
 		  AND (? = '' OR f.workspace_id = ?)
@@ -153,7 +154,7 @@ func (r *MySQLFulfillmentRepository) RecentExceptions(
 			f.provider_reference,
 			f.date_created,
 			f.date_modified
-		FROM fulfillment f
+		FROM ` + entityid.Fulfillment + ` f
 		WHERE f.active = 1
 		  AND f.status IN ('FAILED', 'CANCELLED', 'EXCEPTION')
 		  AND (? = '' OR f.workspace_id = ?)
@@ -249,10 +250,10 @@ func (r *MySQLFulfillmentRepository) DailyDeliveredLast30(
 			d.bucket,
 			COUNT(f.id) AS delivered
 		FROM days d
-		LEFT JOIN fulfillment_status_event e
+		LEFT JOIN ` + entityid.FulfillmentStatusEvent + ` e
 			ON DATE(e.occurred_at) = d.bucket
 			AND e.to_status = 'DELIVERED'
-		LEFT JOIN fulfillment f
+		LEFT JOIN ` + entityid.Fulfillment + ` f
 			ON f.id = e.fulfillment_id
 			AND (? = '' OR f.workspace_id = ?)
 		GROUP BY d.bucket

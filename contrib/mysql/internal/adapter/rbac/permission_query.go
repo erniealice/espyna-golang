@@ -3,6 +3,7 @@
 package rbac
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"database/sql"
 	"fmt"
@@ -63,8 +64,8 @@ const userRolesUnionCTE = `
 	WITH user_roles AS (
 		-- 1. WorkspaceUser → workspace_user_role (operator owner / staff)
 		SELECT wur.role_id
-		FROM workspace_user wu
-		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
+		FROM ` + entityid.WorkspaceUser + ` wu
+		JOIN ` + entityid.WorkspaceUserRole + ` wur ON wur.workspace_user_id = wu.id
 		WHERE wu.user_id = ?
 		  AND wu.workspace_id = ?
 		  AND wu.active = 1
@@ -75,7 +76,7 @@ const userRolesUnionCTE = `
 
 		-- 2. ClientPortalGrant (CLIENT)
 		SELECT cpg.role_id
-		FROM client_portal_grant cpg
+		FROM ` + entityid.ClientPortalGrant + ` cpg
 		WHERE cpg.user_id = ?
 		  AND cpg.workspace_id = ?
 		  AND cpg.active = 1
@@ -85,7 +86,7 @@ const userRolesUnionCTE = `
 
 		-- 3. SupplierPortalGrant (SUPPLIER)
 		SELECT spg.role_id
-		FROM supplier_portal_grant spg
+		FROM ` + entityid.SupplierPortalGrant + ` spg
 		WHERE spg.user_id = ?
 		  AND spg.workspace_id = ?
 		  AND spg.active = 1
@@ -95,9 +96,9 @@ const userRolesUnionCTE = `
 
 		-- 4. Delegate → DelegateClient (CLIENT_DELEGATE)
 		SELECT dc.role_id
-		FROM delegate d
-		JOIN delegate_client dc ON dc.delegate_id = d.id
-		LEFT JOIN client c ON c.id = dc.client_id AND c.active = 1
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateClient + ` dc ON dc.delegate_id = d.id
+		LEFT JOIN ` + entityid.Client + ` c ON c.id = dc.client_id AND c.active = 1
 		WHERE d.user_id = ?
 		  AND d.active = 1
 		  AND dc.active = 1
@@ -108,9 +109,9 @@ const userRolesUnionCTE = `
 
 		-- 5. Delegate → DelegateSupplier (SUPPLIER_DELEGATE)
 		SELECT ds.role_id
-		FROM delegate d
-		JOIN delegate_supplier ds ON ds.delegate_id = d.id
-		LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = 1
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateSupplier + ` ds ON ds.delegate_id = d.id
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ds.supplier_id AND s.active = 1
 		WHERE d.user_id = ?
 		  AND d.active = 1
 		  AND ds.active = 1
@@ -126,16 +127,16 @@ const userRolesUnionCTE = `
 // PERMISSION_TYPE_DENY are string literals, not pg enums.
 const permissionSelect = `
 	SELECT DISTINCT p.permission_code
-	FROM permission p
-	JOIN role_permission rp ON rp.permission_id = p.id
+	FROM ` + entityid.Permission + ` p
+	JOIN ` + entityid.RolePermission + ` rp ON rp.permission_id = p.id
 	JOIN user_roles ur ON ur.role_id = rp.role_id
 	WHERE rp.permission_type = 'PERMISSION_TYPE_ALLOW'
 	  AND p.active = 1
 	  AND rp.active = 1
 	  AND p.permission_code NOT IN (
 	      SELECT p2.permission_code
-	      FROM permission p2
-	      JOIN role_permission rp2 ON rp2.permission_id = p2.id
+	      FROM ` + entityid.Permission + ` p2
+	      JOIN ` + entityid.RolePermission + ` rp2 ON rp2.permission_id = p2.id
 	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
 	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
 	        AND p2.active = 1
@@ -154,8 +155,8 @@ const permissionSelect = `
 func permissionSelectForKind(kind int32) string {
 	return fmt.Sprintf(`
 	SELECT DISTINCT p.permission_code
-	FROM permission p
-	JOIN role_permission rp ON rp.permission_id = p.id
+	FROM ` + entityid.Permission + ` p
+	JOIN ` + entityid.RolePermission + ` rp ON rp.permission_id = p.id
 	JOIN user_roles ur ON ur.role_id = rp.role_id
 	WHERE rp.permission_type = 'PERMISSION_TYPE_ALLOW'
 	  AND p.active = 1
@@ -163,8 +164,8 @@ func permissionSelectForKind(kind int32) string {
 	  AND JSON_CONTAINS(COALESCE(p.applicable_principal_types, JSON_ARRAY()), '%d')
 	  AND p.permission_code NOT IN (
 	      SELECT p2.permission_code
-	      FROM permission p2
-	      JOIN role_permission rp2 ON rp2.permission_id = p2.id
+	      FROM ` + entityid.Permission + ` p2
+	      JOIN ` + entityid.RolePermission + ` rp2 ON rp2.permission_id = p2.id
 	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
 	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
 	        AND p2.active = 1
@@ -182,8 +183,8 @@ func permissionSelectForKind(kind int32) string {
 const userRolesOperatorCTE = `
 	WITH user_roles AS (
 		SELECT wur.role_id
-		FROM workspace_user wu
-		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
+		FROM ` + entityid.WorkspaceUser + ` wu
+		JOIN ` + entityid.WorkspaceUserRole + ` wur ON wur.workspace_user_id = wu.id
 		WHERE wu.id = ?
 		  AND wu.user_id = ?
 		  AND wu.workspace_id = ?
@@ -196,7 +197,7 @@ const userRolesOperatorCTE = `
 const userRolesClientCTE = `
 	WITH user_roles AS (
 		SELECT cpg.role_id
-		FROM client_portal_grant cpg
+		FROM ` + entityid.ClientPortalGrant + ` cpg
 		WHERE cpg.id = ?
 		  AND cpg.user_id = ?
 		  AND cpg.workspace_id = ?
@@ -208,7 +209,7 @@ const userRolesClientCTE = `
 const userRolesSupplierCTE = `
 	WITH user_roles AS (
 		SELECT spg.role_id
-		FROM supplier_portal_grant spg
+		FROM ` + entityid.SupplierPortalGrant + ` spg
 		WHERE spg.id = ?
 		  AND spg.user_id = ?
 		  AND spg.workspace_id = ?
@@ -222,9 +223,9 @@ const userRolesSupplierCTE = `
 const userRolesClientDelegateCTE = `
 	WITH user_roles AS (
 		SELECT dc.role_id
-		FROM delegate d
-		JOIN delegate_client dc ON dc.delegate_id = d.id
-		LEFT JOIN client c ON c.id = dc.client_id AND c.active = 1
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateClient + ` dc ON dc.delegate_id = d.id
+		LEFT JOIN ` + entityid.Client + ` c ON c.id = dc.client_id AND c.active = 1
 		WHERE d.id = ?
 		  AND dc.client_id = ?
 		  AND d.user_id = ?
@@ -240,9 +241,9 @@ const userRolesClientDelegateCTE = `
 const userRolesSupplierDelegateCTE = `
 	WITH user_roles AS (
 		SELECT ds.role_id
-		FROM delegate d
-		JOIN delegate_supplier ds ON ds.delegate_id = d.id
-		LEFT JOIN supplier s ON s.id = ds.supplier_id AND s.active = 1
+		FROM ` + entityid.Delegate + ` d
+		JOIN ` + entityid.DelegateSupplier + ` ds ON ds.delegate_id = d.id
+		LEFT JOIN ` + entityid.Supplier + ` s ON s.id = ds.supplier_id AND s.active = 1
 		WHERE d.id = ?
 		  AND ds.supplier_id = ?
 		  AND d.user_id = ?
@@ -261,9 +262,9 @@ const userRolesSupplierDelegateCTE = `
 const userRolesStaffCTE = `
 	WITH user_roles AS (
 		SELECT wur.role_id
-		FROM staff s
-		JOIN workspace_user wu ON wu.user_id = s.user_id AND wu.workspace_id = s.workspace_id
-		JOIN workspace_user_role wur ON wur.workspace_user_id = wu.id
+		FROM ` + entityid.Staff + ` s
+		JOIN ` + entityid.WorkspaceUser + ` wu ON wu.user_id = s.user_id AND wu.workspace_id = s.workspace_id
+		JOIN ` + entityid.WorkspaceUserRole + ` wur ON wur.workspace_user_id = wu.id
 		WHERE s.id = ?
 		  AND s.user_id = ?
 		  AND s.workspace_id = ?

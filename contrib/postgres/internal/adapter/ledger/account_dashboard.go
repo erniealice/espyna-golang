@@ -6,6 +6,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // SumBalanceByType returns total account balance grouped by account element
@@ -26,7 +28,7 @@ func (r *PostgresAccountRepository) SumBalanceByType(
 
 	query := `
 		SELECT a.element, COALESCE(SUM(a.balance), 0)::bigint
-		FROM account a
+		FROM ` + entityid.Account + ` a
 		WHERE a.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR a.workspace_id = $1)
 		GROUP BY a.element`
@@ -68,7 +70,7 @@ func (r *PostgresAccountRepository) CountByStatus(
 
 	query := `
 		SELECT a.status, COUNT(*)::bigint
-		FROM account a
+		FROM ` + entityid.Account + ` a
 		WHERE a.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR a.workspace_id = $1)
 		GROUP BY a.status`

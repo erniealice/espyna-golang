@@ -3,6 +3,7 @@
 package fulfillment
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"database/sql"
 	"fmt"
@@ -46,7 +47,7 @@ func (r *SQLServerFulfillmentRepository) CountByStatus(
 	if since.IsZero() {
 		const q = `
 			SELECT f.status, COUNT(*)
-			FROM fulfillment f
+			FROM ` + entityid.Fulfillment + ` f
 			WHERE f.active = 1
 			  AND (@p1 IS NULL OR @p1 = '' OR f.workspace_id = @p1)
 			GROUP BY f.status`
@@ -54,7 +55,7 @@ func (r *SQLServerFulfillmentRepository) CountByStatus(
 	} else {
 		const q = `
 			SELECT f.status, COUNT(*)
-			FROM fulfillment f
+			FROM ` + entityid.Fulfillment + ` f
 			WHERE f.active = 1
 			  AND f.date_created >= @p2
 			  AND (@p1 IS NULL OR @p1 = '' OR f.workspace_id = @p1)
@@ -101,8 +102,8 @@ func (r *SQLServerFulfillmentRepository) AvgFulfillmentTimeDays(
 ) (float64, error) {
 	const query = `
 		SELECT CAST(COALESCE(AVG(CAST(DATEDIFF(second, f.date_created, e.occurred_at) AS float) / 86400.0), 0) AS float)
-		FROM fulfillment f
-		JOIN fulfillment_status_event e ON e.fulfillment_id = f.id
+		FROM ` + entityid.Fulfillment + ` f
+		JOIN ` + entityid.FulfillmentStatusEvent + ` e ON e.fulfillment_id = f.id
 		WHERE f.active = 1
 		  AND e.to_status = 'DELIVERED'
 		  AND (@p1 IS NULL OR @p1 = '' OR f.workspace_id = @p1)
@@ -145,7 +146,7 @@ func (r *SQLServerFulfillmentRepository) RecentExceptions(
 			f.provider_reference,
 			f.date_created,
 			f.date_modified
-		FROM fulfillment f
+		FROM ` + entityid.Fulfillment + ` f
 		WHERE f.active = 1
 		  AND f.status IN ('FAILED', 'CANCELLED', 'EXCEPTION')
 		  AND (@p1 IS NULL OR @p1 = '' OR f.workspace_id = @p1)
@@ -236,10 +237,10 @@ func (r *SQLServerFulfillmentRepository) DailyDeliveredLast30(
 			d.bucket,
 			CAST(COUNT(f.id) AS bigint) AS delivered
 		FROM days d
-		LEFT JOIN fulfillment_status_event e
+		LEFT JOIN ` + entityid.FulfillmentStatusEvent + ` e
 			ON CAST(e.occurred_at AS date) = CAST(d.bucket AS date)
 			AND e.to_status = 'DELIVERED'
-		LEFT JOIN fulfillment f
+		LEFT JOIN ` + entityid.Fulfillment + ` f
 			ON f.id = e.fulfillment_id
 			AND (@p1 IS NULL OR @p1 = '' OR f.workspace_id = @p1)
 		GROUP BY d.bucket

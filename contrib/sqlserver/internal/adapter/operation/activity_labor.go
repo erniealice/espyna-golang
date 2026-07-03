@@ -230,7 +230,7 @@ func (r *SQLServerActivityLaborRepository) ListByStaff(ctx context.Context, req 
 	query := `
 		SELECT al.activity_id, al.staff_id, al.hours, al.rate_type,
 		       al.time_start, al.time_end
-		FROM activity_labor al
+		FROM ` + entityid.ActivityLabor + ` al
 		WHERE al.staff_id = @p1
 		ORDER BY al.time_start DESC
 	`
@@ -302,8 +302,8 @@ func (r *SQLServerActivityLaborRepository) ListByJob(ctx context.Context, req *p
 	query := `
 		SELECT al.activity_id, al.staff_id, al.hours, al.rate_type,
 		       al.time_start, al.time_end
-		FROM activity_labor al
-		INNER JOIN job_activity ja ON al.activity_id = ja.id AND ja.active = 1
+		FROM ` + entityid.ActivityLabor + ` al
+		INNER JOIN ` + entityid.JobActivity + ` ja ON al.activity_id = ja.id AND ja.active = 1
 		WHERE ja.job_id = @p1
 		ORDER BY al.time_start DESC
 	`

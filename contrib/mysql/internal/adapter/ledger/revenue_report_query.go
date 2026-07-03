@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	revreportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/revenue_report"
+
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // pivotDimensionConfig defines SQL fragments for one axis of the pivot.
@@ -110,14 +112,14 @@ func getPivotDimensionConfig(tc TableConfig, dimension string) pivotDimensionCon
 			selectKey:  "COALESCE(cl.name, r.name, 'Unassigned')",
 			selectID:   "COALESCE(r.client_id, '__none__')",
 			groupBy:    "r.client_id, cl.name, r.name",
-			extraJoins: "LEFT JOIN client cl ON cl.id = r.client_id",
+			extraJoins: "LEFT JOIN " + entityid.Client + " cl ON cl.id = r.client_id",
 		}
 	case "client_category":
 		return pivotDimensionConfig{
 			selectKey:  "COALESCE(cat.name, 'Unassigned')",
 			selectID:   "COALESCE(cc.category_id, '__none__')",
 			groupBy:    "cc.category_id, cat.name",
-			extraJoins: "LEFT JOIN client cl ON cl.id = r.client_id LEFT JOIN client_category cc ON cc.id = cl.category_id LEFT JOIN category cat ON cat.id = cc.category_id",
+			extraJoins: "LEFT JOIN " + entityid.Client + " cl ON cl.id = r.client_id LEFT JOIN " + entityid.ClientCategory + " cc ON cc.id = cl.category_id LEFT JOIN " + entityid.Category + " cat ON cat.id = cc.category_id",
 		}
 	default:
 		return getPivotDimensionConfig(tc, "product")

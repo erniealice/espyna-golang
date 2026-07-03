@@ -9,6 +9,7 @@ import (
 	"time"
 
 	jobdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 )
 
@@ -74,7 +75,7 @@ func (r *PostgresJobActivityRepository) SumHoursByWeek(
 				CASE WHEN ja.entry_type = 'ENTRY_TYPE_LABOR' THEN ja.quantity ELSE 0 END
 			) * 100, 0)::bigint AS centi_hours
 		FROM weeks w
-		LEFT JOIN job_activity ja
+		LEFT JOIN ` + entityid.JobActivity + ` ja
 			ON ja.active = true
 			AND date_trunc('week', ja.entry_date) = w.bucket
 			AND ($1::text IS NULL OR $1::text = '' OR ja.workspace_id = $1)
@@ -145,7 +146,7 @@ func (r *PostgresJobActivityRepository) RecentActivity(
 			ja.description,
 			ja.entry_date,
 			ja.date_created
-		FROM job_activity ja
+		FROM ` + entityid.JobActivity + ` ja
 		WHERE ja.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR ja.workspace_id = $1)
 		ORDER BY ja.entry_date DESC NULLS LAST, ja.date_created DESC NULLS LAST

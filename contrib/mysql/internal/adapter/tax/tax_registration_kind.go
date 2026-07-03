@@ -118,7 +118,7 @@ func (r *MySQLTaxRegistrationKindRepository) FindByPartyType(ctx context.Context
 	// Dialect: JSON_CONTAINS replaces postgres ANY(array); active = 1 for TINYINT boolean.
 	// applicable_party_types is stored as a JSON array in MySQL (e.g. ["CLIENT","WORKSPACE"]).
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT k.id FROM tax_registration_kind k
+		`SELECT k.id FROM ` + entityid.TaxRegistrationKind + ` k
 		 WHERE active = 1
 		   AND JSON_CONTAINS(k.applicable_party_types, JSON_QUOTE(?), '$')
 		 ORDER BY k.name`,

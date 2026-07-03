@@ -302,8 +302,8 @@ func (r *PostgresAdminRepository) GetAdminListPageData(
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM admin a
-			LEFT JOIN "user" u ON a.user_id = u.id AND u.active = true
+			FROM ` + entityid.Admin + ` a
+			LEFT JOIN "` + entityid.User + `" u ON a.user_id = u.id AND u.active = true
 			WHERE a.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   u.first_name ILIKE $1 OR
@@ -483,8 +483,8 @@ func (r *PostgresAdminRepository) GetAdminItemPageData(
 				u.date_created as user_date_created,
 				u.date_modified as user_date_modified,
 				u.active as user_active
-			FROM admin a
-			LEFT JOIN "user" u ON a.user_id = u.id AND u.active = true
+			FROM ` + entityid.Admin + ` a
+			LEFT JOIN "` + entityid.User + `" u ON a.user_id = u.id AND u.active = true
 			WHERE a.id = $1 AND a.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;

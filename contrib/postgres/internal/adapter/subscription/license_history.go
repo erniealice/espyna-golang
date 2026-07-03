@@ -11,9 +11,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
@@ -243,9 +243,9 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 		-- CTE 1: Apply license_id + workspace filter
 		filtered AS (
 			SELECT lh.*
-			FROM license_history lh
-			LEFT JOIN license l ON lh.license_id = l.id
-			LEFT JOIN subscription s ON l.subscription_id = s.id
+			FROM ` + entityid.LicenseHistory + ` lh
+			LEFT JOIN ` + entityid.License + ` l ON lh.license_id = l.id
+			LEFT JOIN ` + entityid.Subscription + ` s ON l.subscription_id = s.id
 			WHERE lh.active = true
 				AND ($1::text = '' OR lh.license_id = $1)
 				AND ($6::text = '' OR s.workspace_id = $6::text)

@@ -270,7 +270,7 @@ func (r *SQLServerLoanPaymentRepository) GetLoanPaymentListPageData(
 				lp.total_amount,
 				lp.remaining_balance,
 				lp.notes
-			FROM loan_payment lp
+			FROM ` + entityid.LoanPayment + ` lp
 			WHERE (@p1 = '' OR lp.payment_number LIKE @p1)
 		),
 		counted AS (
@@ -408,7 +408,7 @@ func (r *SQLServerLoanPaymentRepository) GetLoanPaymentItemPageData(
 				lp.total_amount,
 				lp.remaining_balance,
 				lp.notes
-			FROM loan_payment lp
+			FROM ` + entityid.LoanPayment + ` lp
 			WHERE lp.id = @p1
 		)
 		SELECT TOP 1 * FROM enriched;

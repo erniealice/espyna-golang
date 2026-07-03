@@ -263,7 +263,7 @@ func (r *SQLServerLicenseRepository) GetLicenseListPageData(ctx context.Context,
 		WITH
 		search_filtered AS (
 			SELECT l.*
-			FROM license l
+			FROM ` + entityid.License + ` l
 			WHERE l.active = 1
 				AND (@p1 = '' OR
 					l.license_key LIKE @p1 OR

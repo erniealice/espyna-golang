@@ -291,7 +291,7 @@ func (r *SQLServerJobPhaseRepository) GetJobPhaseListPageData(
 				jp.name,
 				jp.phase_order,
 				jp.status
-			FROM job_phase jp
+			FROM ` + entityid.JobPhase + ` jp
 			%s
 		),
 		counted AS (
@@ -426,7 +426,7 @@ func (r *SQLServerJobPhaseRepository) GetJobPhaseItemPageData(
 			jp.name,
 			jp.phase_order,
 			jp.status
-		FROM job_phase jp
+		FROM ` + entityid.JobPhase + ` jp
 		WHERE jp.id = @p1 AND jp.workspace_id = @p2 AND jp.active = 1
 	`
 
@@ -515,7 +515,7 @@ func (r *SQLServerJobPhaseRepository) ListByJob(
 			jp.name,
 			jp.phase_order,
 			jp.status
-		FROM job_phase jp
+		FROM ` + entityid.JobPhase + ` jp
 		WHERE jp.job_id = @p1 AND jp.active = 1
 		ORDER BY jp.phase_order ASC
 	`

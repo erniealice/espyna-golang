@@ -297,8 +297,8 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Contex
 				p.date_modified AS p_date_modified,
 				p.active     AS p_active,
 				ROW_NUMBER() OVER (PARTITION BY cp.collection_id, cp.plan_id ORDER BY p.name ASC) AS rn
-			FROM collection_plan cp
-			INNER JOIN plan p ON cp.plan_id = p.id
+			FROM ` + entityid.CollectionPlan + ` cp
+			INNER JOIN ` + entityid.Plan + ` p ON cp.plan_id = p.id
 			WHERE cp.active = 1 AND p.active = 1
 		),
 
@@ -350,7 +350,7 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Contex
 					)
 				) AS collection_parent
 			FROM collection_parent cpp
-			INNER JOIN collection cp ON cpp.parent_id = cp.id
+			INNER JOIN ` + entityid.Collection + ` cp ON cpp.parent_id = cp.id
 			WHERE cpp.active = 1 AND cp.active = 1
 		),
 
@@ -365,7 +365,7 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Contex
 				c.date_modified,
 				COALESCE(cpa.collection_plans, JSON_ARRAY()) AS collection_plans,
 				cppa.collection_parent
-			FROM collection c
+			FROM ` + entityid.Collection + ` c
 			LEFT JOIN collection_plans_agg cpa ON c.id = cpa.collection_id
 			LEFT JOIN collection_parent_agg cppa ON c.id = cppa.collection_id
 			%s
@@ -506,8 +506,8 @@ func (r *MySQLCollectionRepository) GetCollectionItemPageData(ctx context.Contex
 				p.date_modified AS p_date_modified,
 				p.active     AS p_active,
 				ROW_NUMBER() OVER (PARTITION BY cp.collection_id, cp.plan_id ORDER BY p.name ASC) AS rn
-			FROM collection_plan cp
-			INNER JOIN plan p ON cp.plan_id = p.id
+			FROM ` + entityid.CollectionPlan + ` cp
+			INNER JOIN ` + entityid.Plan + ` p ON cp.plan_id = p.id
 			WHERE cp.collection_id = ? AND cp.active = 1 AND p.active = 1
 		),
 		collection_plans_agg AS (
@@ -555,7 +555,7 @@ func (r *MySQLCollectionRepository) GetCollectionItemPageData(ctx context.Contex
 					)
 				) AS collection_parent
 			FROM collection_parent cpp
-			INNER JOIN collection cp ON cpp.parent_id = cp.id
+			INNER JOIN ` + entityid.Collection + ` cp ON cpp.parent_id = cp.id
 			WHERE cpp.collection_id = ? AND cpp.active = 1 AND cp.active = 1
 		)
 		SELECT
@@ -567,7 +567,7 @@ func (r *MySQLCollectionRepository) GetCollectionItemPageData(ctx context.Contex
 			c.date_modified,
 			COALESCE(cpa.collection_plans, JSON_ARRAY()) AS collection_plans,
 			cppa.collection_parent
-		FROM collection c
+		FROM ` + entityid.Collection + ` c
 		LEFT JOIN collection_plans_agg cpa ON c.id = cpa.collection_id
 		LEFT JOIN collection_parent_agg cppa ON c.id = cppa.collection_id
 		WHERE c.id = ? AND c.active = 1

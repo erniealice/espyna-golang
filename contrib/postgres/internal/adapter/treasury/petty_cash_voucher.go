@@ -271,7 +271,7 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 				pcv.status,
 				pcv.approved_by,
 				pcv.approved_at
-			FROM petty_cash_voucher pcv
+			FROM ` + entityid.PettyCashVoucher + ` pcv
 			WHERE ($1::text IS NULL OR $1::text = '' OR
 			       pcv.voucher_number ILIKE $1 OR
 			       pcv.description ILIKE $1 OR
@@ -410,7 +410,7 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherItemPageData(
 				pcv.status,
 				pcv.approved_by,
 				pcv.approved_at
-			FROM petty_cash_voucher pcv
+			FROM ` + entityid.PettyCashVoucher + ` pcv
 			WHERE pcv.id = $1
 		)
 		SELECT * FROM enriched LIMIT 1;

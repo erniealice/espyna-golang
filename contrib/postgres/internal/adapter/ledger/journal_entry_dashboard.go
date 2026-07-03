@@ -8,6 +8,8 @@ import (
 	"time"
 
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
+
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 // CountByStatus returns counts of journal entries grouped by status (DRAFT/POSTED/REVERSED)
@@ -35,7 +37,7 @@ func (r *PostgresJournalEntryRepository) CountByStatus(
 	if since.IsZero() {
 		query = `
 			SELECT je.status, COUNT(*)::bigint
-			FROM journal_entry je
+			FROM ` + entityid.JournalEntry + ` je
 			WHERE je.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR je.workspace_id = $1)
 			GROUP BY je.status`
@@ -43,7 +45,7 @@ func (r *PostgresJournalEntryRepository) CountByStatus(
 	} else {
 		query = `
 			SELECT je.status, COUNT(*)::bigint
-			FROM journal_entry je
+			FROM ` + entityid.JournalEntry + ` je
 			WHERE je.active = true
 			  AND je.date_created >= $2
 			  AND ($1::text IS NULL OR $1::text = '' OR je.workspace_id = $1)
@@ -99,7 +101,7 @@ func (r *PostgresJournalEntryRepository) RecentEntries(
 			je.total_debit,
 			je.total_credit,
 			je.date_created
-		FROM journal_entry je
+		FROM ` + entityid.JournalEntry + ` je
 		WHERE je.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR je.workspace_id = $1)
 		ORDER BY je.date_created DESC

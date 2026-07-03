@@ -102,7 +102,7 @@ func (r *SQLServerFulfillmentReturnRepository) GetFulfillmentReturn(ctx context.
 	query := `
 		SELECT id, fulfillment_id, reason, status, refund_amount, currency,
 		       processed_by_id, notes, active, date_created, completed_at
-		FROM fulfillment_return
+		FROM ` + entityid.FulfillmentReturn + `
 		WHERE id = @p1 AND active = 1
 	`
 
@@ -167,7 +167,7 @@ func (r *SQLServerFulfillmentReturnRepository) UpdateFulfillmentReturn(ctx conte
 	}
 
 	query := `
-		UPDATE fulfillment_return
+		UPDATE ` + entityid.FulfillmentReturn + `
 		SET status = @p1,
 		    refund_amount = @p2,
 		    processed_by_id = @p3,
@@ -216,7 +216,7 @@ func (r *SQLServerFulfillmentReturnRepository) DeleteFulfillmentReturn(ctx conte
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	_, err := exec.ExecContext(ctx,
-		`UPDATE fulfillment_return SET active = 0 WHERE id = @p1`,
+		`UPDATE ` + entityid.FulfillmentReturn + ` SET active = 0 WHERE id = @p1`,
 		id,
 	)
 	if err != nil {
@@ -236,7 +236,7 @@ func (r *SQLServerFulfillmentReturnRepository) ListFulfillmentReturns(ctx contex
 	query := `
 		SELECT id, fulfillment_id, reason, status, refund_amount, currency,
 		       processed_by_id, notes, active, date_created, completed_at
-		FROM fulfillment_return
+		FROM ` + entityid.FulfillmentReturn + `
 		WHERE fulfillment_id = @p1 AND active = 1
 		ORDER BY date_created DESC
 	`

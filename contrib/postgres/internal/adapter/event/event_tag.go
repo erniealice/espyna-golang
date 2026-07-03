@@ -272,7 +272,7 @@ func (r *PostgresEventTagRepository) GetEventTagListPageData(
 				et.active,
 				et.date_created,
 				et.date_modified
-			FROM event_tag et
+			FROM %s et
 			WHERE et.active = true
 			  AND et.workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
@@ -287,7 +287,7 @@ func (r *PostgresEventTagRepository) GetEventTagListPageData(
 		FROM enriched e
 		%s
 		LIMIT $3 OFFSET $4;
-	`, orderByClause)
+	`, entityid.EventTag, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
 	if err != nil {
@@ -405,7 +405,7 @@ func (r *PostgresEventTagRepository) GetEventTagItemPageData(
 			et.active,
 			et.date_created,
 			et.date_modified
-		FROM event_tag et
+		FROM ` + entityid.EventTag + ` et
 		WHERE et.id = $1 AND et.workspace_id = $2 AND et.active = true
 		LIMIT 1;
 	`

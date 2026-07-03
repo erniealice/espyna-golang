@@ -3,6 +3,7 @@
 package treasury
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -33,7 +34,7 @@ func (r *MySQLLoanPaymentRepository) SumDueWithin(
 	// Args: now, until, workspaceID x3
 	const query = `
 		SELECT COALESCE(SUM(l.remaining_balance), 0)
-		FROM loan l
+		FROM ` + entityid.Loan + ` l
 		WHERE l.active = 1
 		  AND l.maturity_date >= ?
 		  AND l.maturity_date <= ?
@@ -75,8 +76,8 @@ func (r *MySQLLoanPaymentRepository) RecentByLoan(
 			lp.total_amount,
 			lp.remaining_balance,
 			lp.date_created
-		FROM loan_payment lp
-		JOIN loan l ON l.id = lp.loan_id
+		FROM ` + entityid.LoanPayment + ` lp
+		JOIN ` + entityid.Loan + ` l ON l.id = lp.loan_id
 		WHERE (? IS NULL OR ? = '' OR l.workspace_id = ?)
 		ORDER BY lp.payment_date DESC, lp.date_created DESC
 		LIMIT ?`

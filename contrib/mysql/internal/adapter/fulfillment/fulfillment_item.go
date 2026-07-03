@@ -76,7 +76,7 @@ func (r *MySQLFulfillmentItemRepository) CreateFulfillmentItem(ctx context.Conte
 
 	// Dialect: no RETURNING — INSERT then SELECT back by id.
 	insertQuery := `
-		INSERT INTO fulfillment_item
+		INSERT INTO ` + entityid.FulfillmentItem + `
 			(id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 			 source_type, source_id, quantity_ordered, quantity_delivered, status, notes)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -103,7 +103,7 @@ func (r *MySQLFulfillmentItemRepository) CreateFulfillmentItem(ctx context.Conte
 	selectQuery := `
 		SELECT id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		       source_type, source_id, quantity_ordered, quantity_delivered, status, notes
-		FROM fulfillment_item
+		FROM ` + entityid.FulfillmentItem + `
 		WHERE id = ?
 	`
 	row := r.db.QueryRowContext(ctx, selectQuery, item.Id)
@@ -148,7 +148,7 @@ func (r *MySQLFulfillmentItemRepository) ListFulfillmentItems(ctx context.Contex
 	query := `
 		SELECT id, fulfillment_id, revenue_line_item_id, product_id, delivery_mode,
 		       source_type, source_id, quantity_ordered, quantity_delivered, status, notes
-		FROM fulfillment_item
+		FROM ` + entityid.FulfillmentItem + `
 		WHERE fulfillment_id = ?
 		ORDER BY id ASC
 	`
@@ -217,7 +217,7 @@ func (r *MySQLFulfillmentItemRepository) UpdateFulfillmentItemDelivered(ctx cont
 
 	// Dialect: $1, $2 → ?
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE fulfillment_item SET quantity_delivered = ? WHERE id = ?`,
+		`UPDATE ` + entityid.FulfillmentItem + ` SET quantity_delivered = ? WHERE id = ?`,
 		quantityDelivered, id,
 	)
 	if err != nil {

@@ -126,7 +126,7 @@ func (r *SQLServerTaxRegistrationKindRepository) FindByPartyType(ctx context.Con
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, code, name, description, jurisdiction,
 		        applicable_party_types, active
-		 FROM tax_registration_kind
+		 FROM ` + entityid.TaxRegistrationKind + `
 		 WHERE active = 1
 		   AND CHARINDEX(@p1, applicable_party_types) > 0
 		 ORDER BY name`,

@@ -240,7 +240,7 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 	query := `
 		WITH search_filtered AS (
 			SELECT s.*
-			FROM supplier_subscription s
+			FROM ` + entityid.SupplierSubscription + ` s
 			WHERE s.active = $7
 				AND ($8::text = '' OR s.workspace_id = $8::text)
 				AND ($1::text = '' OR s.name ILIKE $1)
@@ -262,7 +262,7 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 					'date_modified', (EXTRACT(EPOCH FROM cp.date_modified) * 1000)::bigint
 				) as cost_plan
 			FROM search_filtered sf
-			LEFT JOIN cost_plan cp ON sf.cost_plan_id = cp.id AND cp.active = true
+			LEFT JOIN ` + entityid.CostPlan + ` cp ON sf.cost_plan_id = cp.id AND cp.active = true
 		),
 		sorted AS (
 			SELECT * FROM enriched
@@ -408,8 +408,8 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionItemPage
 				'date_created', (EXTRACT(EPOCH FROM cp.date_created) * 1000)::bigint,
 				'date_modified', (EXTRACT(EPOCH FROM cp.date_modified) * 1000)::bigint
 			) as cost_plan
-		FROM supplier_subscription s
-		LEFT JOIN cost_plan cp ON s.cost_plan_id = cp.id AND cp.active = true
+		FROM ` + entityid.SupplierSubscription + ` s
+		LEFT JOIN ` + entityid.CostPlan + ` cp ON s.cost_plan_id = cp.id AND cp.active = true
 		WHERE s.id = $1
 		  AND ($2::text = '' OR s.workspace_id = $2::text)
 	`
@@ -501,7 +501,7 @@ func (r *PostgresSupplierSubscriptionRepository) CountActiveBySupplierIds(ctx co
 	if len(supplierIDs) > 0 {
 		rows, err = db.GetDB().QueryContext(ctx,
 			`SELECT supplier_id, COUNT(*)::int AS cnt
-			   FROM supplier_subscription
+			   FROM ` + entityid.SupplierSubscription + `
 			  WHERE active = TRUE
 			    AND ($1::text = '' OR workspace_id = $1::text)
 			    AND supplier_id = ANY($2)
@@ -511,7 +511,7 @@ func (r *PostgresSupplierSubscriptionRepository) CountActiveBySupplierIds(ctx co
 	} else {
 		rows, err = db.GetDB().QueryContext(ctx,
 			`SELECT supplier_id, COUNT(*)::int AS cnt
-			   FROM supplier_subscription
+			   FROM ` + entityid.SupplierSubscription + `
 			  WHERE active = TRUE
 			    AND ($1::text = '' OR workspace_id = $1::text)
 			  GROUP BY supplier_id`,

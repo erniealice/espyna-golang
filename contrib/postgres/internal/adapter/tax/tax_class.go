@@ -112,7 +112,7 @@ func (r *PostgresTaxClassRepository) FindByCode(ctx context.Context, code, direc
 		return nil, fmt.Errorf("FindByCode requires raw *sql.DB")
 	}
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(c) FROM tax_class c
+		`SELECT row_to_json(c) FROM ` + entityid.TaxClass + ` c
 		 WHERE code = $1 AND direction = $2 AND active = true
 		 LIMIT 1`,
 		code, direction,

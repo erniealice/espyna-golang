@@ -278,7 +278,7 @@ func (r *SQLServerJobTaskRepository) GetJobTaskListPageData(
 				jt.status,
 				jt.is_ad_hoc,
 				jt.assigned_to
-			FROM job_task jt
+			FROM ` + entityid.JobTask + ` jt
 			%s
 		),
 		counted AS (
@@ -419,7 +419,7 @@ func (r *SQLServerJobTaskRepository) GetJobTaskItemPageData(
 			jt.status,
 			jt.is_ad_hoc,
 			jt.assigned_to
-		FROM job_task jt
+		FROM ` + entityid.JobTask + ` jt
 		WHERE jt.id = @p1 AND jt.workspace_id = @p2 AND jt.active = 1
 	`
 
@@ -515,7 +515,7 @@ func (r *SQLServerJobTaskRepository) ListByPhase(
 			jt.status,
 			jt.is_ad_hoc,
 			jt.assigned_to
-		FROM job_task jt
+		FROM ` + entityid.JobTask + ` jt
 		WHERE jt.job_phase_id = @p1 AND jt.active = 1
 		ORDER BY jt.step_order ASC
 	`
@@ -621,7 +621,7 @@ func (r *SQLServerJobTaskRepository) ListByAssignee(
 			jt.status,
 			jt.is_ad_hoc,
 			jt.assigned_to
-		FROM job_task jt
+		FROM ` + entityid.JobTask + ` jt
 		WHERE jt.assigned_to = @p1 AND jt.active = 1
 		ORDER BY jt.date_created DESC
 	`

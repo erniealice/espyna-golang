@@ -247,8 +247,8 @@ func (r *MySQLPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			rem.paid_at_string,
 			rem.reference_number,
 			COUNT(*) OVER() AS total
-		FROM payroll_remittance rem
-		LEFT JOIN payroll_run pr ON pr.id = rem.payroll_run_id
+		FROM ` + entityid.PayrollRemittance + ` rem
+		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = rem.payroll_run_id
 		WHERE (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 		  AND (? IS NULL OR ? = '' OR rem.reference_number LIKE ?)
 		%s

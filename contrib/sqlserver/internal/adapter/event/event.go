@@ -294,7 +294,7 @@ func (r *SQLServerEventRepository) GetEventListPageData(
 				e.date_created,
 				e.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM event e
+			FROM ` + entityid.Event + ` e
 			%s
 		)
 		SELECT * FROM enriched
@@ -415,7 +415,7 @@ func (r *SQLServerEventRepository) GetEventItemPageData(
 			active,
 			date_created,
 			date_modified
-		FROM event
+		FROM ` + entityid.Event + `
 		WHERE id = @p1 AND active = 1
 	`
 

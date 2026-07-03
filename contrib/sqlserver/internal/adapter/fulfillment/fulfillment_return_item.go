@@ -70,7 +70,7 @@ func (r *SQLServerFulfillmentReturnItemRepository) CreateFulfillmentReturnItem(c
 	}
 
 	query := `
-		INSERT INTO fulfillment_return_item
+		INSERT INTO ` + entityid.FulfillmentReturnItem + `
 			(id, fulfillment_return_id, fulfillment_item_id, quantity_returned, reason)
 		OUTPUT inserted.id, inserted.fulfillment_return_id, inserted.fulfillment_item_id,
 		       inserted.quantity_returned, inserted.reason, inserted.date_created
@@ -117,7 +117,7 @@ func (r *SQLServerFulfillmentReturnItemRepository) ListFulfillmentReturnItems(ct
 
 	query := `
 		SELECT id, fulfillment_return_id, fulfillment_item_id, quantity_returned, reason, date_created
-		FROM fulfillment_return_item
+		FROM ` + entityid.FulfillmentReturnItem + `
 		WHERE fulfillment_return_id = @p1
 		ORDER BY id ASC
 	`

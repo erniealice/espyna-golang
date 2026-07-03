@@ -274,7 +274,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 				cp.active,
 				cp.date_created,
 				cp.date_modified
-			FROM collection_plan cp
+			FROM ` + entityid.CollectionPlan + ` cp
 			WHERE cp.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       cp.collection_id ILIKE $1 OR
@@ -390,7 +390,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanItemPageData(
 			cp.active,
 			cp.date_created,
 			cp.date_modified
-		FROM collection_plan cp
+		FROM ` + entityid.CollectionPlan + ` cp
 		WHERE cp.id = $1 AND cp.active = true
 		LIMIT 1;
 	`

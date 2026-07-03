@@ -521,8 +521,8 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	queryArgs = append(queryArgs, clientScopeArgs...)
 
 	// CTE query — single round-trip with:
-	//   • User denorm via LEFT JOIN "user" u
-	//   • PaymentTerm name via LEFT JOIN payment_term pt
+	//   • User denorm via LEFT JOIN "` + entityid.User + `" u
+	//   • PaymentTerm name via LEFT JOIN ` + entityid.PaymentTerm + ` pt
 	//   • Active subscription count via LEFT JOIN LATERAL subquery
 	//   • Windowed total count via COUNT(*) OVER () — avoids double-materialization
 	//     of the counted CTE pattern (A3 Q-PAGE-COUNT default tier).
@@ -570,12 +570,12 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				u.mobile_number AS user_phone_number,
 				-- Windowed total — same filter as the page rows; no separate CTE needed.
 				COUNT(*) OVER () AS total
-			FROM client c
-			LEFT JOIN "user" u ON c.user_id = u.id
-			LEFT JOIN payment_term pt ON c.payment_term_id = pt.id
+			FROM `+entityid.Client+` c
+			LEFT JOIN "`+entityid.User+`" u ON c.user_id = u.id
+			LEFT JOIN `+entityid.PaymentTerm+` pt ON c.payment_term_id = pt.id
 			LEFT JOIN LATERAL (
 				SELECT COUNT(*) AS active_subscriptions
-				FROM subscription s
+				FROM `+entityid.Subscription+` s
 				WHERE s.client_id = c.id
 				  AND s.active = true
 				  AND s.workspace_id = $1
@@ -755,7 +755,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			}
 		}
 
-		// Denorm: User fields from the LEFT JOIN "user" u.
+		// Denorm: User fields from the LEFT JOIN "` + entityid.User + `" u.
 		if userIdValue != nil {
 			u := &userpb.User{Id: *userIdValue}
 			if userFirstName != nil {
@@ -859,8 +859,8 @@ func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, cli
 			cc.category_id,
 			cat.name,
 			cat.description
-		FROM client_category cc
-		INNER JOIN category cat ON cc.category_id = cat.id
+		FROM ` + entityid.ClientCategory + ` cc
+		INNER JOIN ` + entityid.Category + ` cat ON cc.category_id = cat.id
 		WHERE cc.client_id = $1 AND cc.active = true AND cat.active = true
 		ORDER BY cat.name ASC
 	`
@@ -941,8 +941,8 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 				NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''),
 				c.id
 			) AS label
-		FROM client c
-		LEFT JOIN "user" u ON c.user_id = u.id
+		FROM ` + entityid.Client + ` c
+		LEFT JOIN "` + entityid.User + `" u ON c.user_id = u.id
 		WHERE c.workspace_id = $3
 			AND c.active = true
 			AND ($1::text = '' OR

@@ -315,7 +315,7 @@ func (r *PostgresActivityLaborRepository) ListByJob(ctx context.Context, req *pb
 		SELECT al.activity_id, al.staff_id, al.hours, al.rate_type,
 			   al.time_start, al.time_end
 		FROM %s al
-		INNER JOIN job_activity ja ON al.activity_id = ja.id AND ja.active = true
+		INNER JOIN `+entityid.JobActivity+` ja ON al.activity_id = ja.id AND ja.active = true
 		WHERE ja.job_id = $1%s
 		ORDER BY al.time_start DESC
 	`, r.tableName, staffClause)

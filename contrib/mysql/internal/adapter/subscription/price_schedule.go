@@ -275,7 +275,7 @@ func (r *MySQLPriceScheduleRepository) GetPriceScheduleListPageData(ctx context.
 	// Dialect: $N → ?, ILIKE → LIKE, active = true → active = 1,
 	// WHERE workspace_id = ? added (postgres gold was missing this — added here per brief).
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE active = 1 AND (? = '' OR workspace_id = ?) AND (? IS NULL OR ? = '' OR name LIKE ? OR description LIKE ?) ` + orderBy + ` LIMIT ? OFFSET ?`
+	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM ` + entityid.PriceSchedule + ` WHERE active = 1 AND (? = '' OR workspace_id = ?) AND (? IS NULL OR ? = '' OR name LIKE ? OR description LIKE ?) ` + orderBy + ` LIMIT ? OFFSET ?`
 	rows, err := r.db.QueryContext(ctx, query, wsID, wsID, searchPattern, searchPattern, searchPattern, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -325,7 +325,7 @@ func (r *MySQLPriceScheduleRepository) GetPriceScheduleItemPageData(ctx context.
 	if req == nil || req.PriceScheduleId == "" {
 		return nil, fmt.Errorf("price schedule ID required")
 	}
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE id = ? AND active = 1`
+	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM ` + entityid.PriceSchedule + ` WHERE id = ? AND active = 1`
 	row := r.db.QueryRowContext(ctx, query, req.PriceScheduleId)
 	var id, name, description string
 	var active bool
@@ -387,7 +387,7 @@ func (r *MySQLPriceScheduleRepository) FindApplicablePriceSchedule(ctx context.C
 	// (MySQL NULL comparison is identical to postgres for IS NULL).
 	query := `
 		SELECT id, name, description, active, date_time_start, date_time_end, location_id, date_created, date_modified
-		FROM price_schedule
+		FROM ` + entityid.PriceSchedule + `
 		WHERE active = 1
 		  AND location_id = ?
 		  AND date_time_start <= ?

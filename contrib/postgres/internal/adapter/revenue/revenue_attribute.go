@@ -269,8 +269,8 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 				ra.active,
 				COALESCE(rv.name, '') as revenue_name,
 				COUNT(*) OVER() AS total
-			FROM revenue_attribute ra
-			LEFT JOIN revenue rv ON ra.revenue_id = rv.id AND rv.active = true
+			FROM ` + entityid.RevenueAttribute + ` ra
+			LEFT JOIN ` + entityid.Revenue + ` rv ON ra.revenue_id = rv.id AND rv.active = true
 			WHERE ra.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ra.value ILIKE $1 OR
@@ -398,8 +398,8 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeItemPageData(
 				ra.date_modified,
 				ra.active,
 				COALESCE(rv.name, '') as revenue_name
-			FROM revenue_attribute ra
-			LEFT JOIN revenue rv ON ra.revenue_id = rv.id AND rv.active = true
+			FROM ` + entityid.RevenueAttribute + ` ra
+			LEFT JOIN ` + entityid.Revenue + ` rv ON ra.revenue_id = rv.id AND rv.active = true
 			WHERE ra.id = $1 AND ra.active = true
 			  AND ($2::text = '' OR rv.workspace_id = $2::text)
 		)

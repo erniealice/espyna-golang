@@ -282,8 +282,8 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 						)
 					) ORDER BY p.name ASC
 				) FILTER (WHERE p.id IS NOT NULL) as collection_plans
-			FROM collection_plan cp
-			INNER JOIN plan p ON cp.plan_id = p.id
+			FROM ` + entityid.CollectionPlan + ` cp
+			INNER JOIN ` + entityid.Plan + ` p ON cp.plan_id = p.id
 			WHERE cp.active = true AND p.active = true
 			GROUP BY cp.collection_id
 		),
@@ -309,14 +309,14 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 					)
 				) as collection_parent
 			FROM collection_parent cpp
-			INNER JOIN collection cp ON cpp.parent_id = cp.id
+			INNER JOIN ` + entityid.Collection + ` cp ON cpp.parent_id = cp.id
 			WHERE cpp.active = true AND cp.active = true
 		),
 
 		-- CTE 3: Apply search filter
 		search_filtered AS (
 			SELECT c.*
-			FROM collection c
+			FROM ` + entityid.Collection + ` c
 			WHERE c.active = true
 				AND ($1::text = '' OR
 					c.name ILIKE $1 OR
@@ -520,8 +520,8 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 						)
 					) ORDER BY p.name ASC
 				) FILTER (WHERE p.id IS NOT NULL) as collection_plans
-			FROM collection_plan cp
-			INNER JOIN plan p ON cp.plan_id = p.id
+			FROM ` + entityid.CollectionPlan + ` cp
+			INNER JOIN ` + entityid.Plan + ` p ON cp.plan_id = p.id
 			WHERE cp.collection_id = $1 AND cp.active = true AND p.active = true
 			GROUP BY cp.collection_id
 		),
@@ -547,7 +547,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 					)
 				) as collection_parent
 			FROM collection_parent cpp
-			INNER JOIN collection cp ON cpp.parent_id = cp.id
+			INNER JOIN ` + entityid.Collection + ` cp ON cpp.parent_id = cp.id
 			WHERE cpp.collection_id = $1 AND cpp.active = true AND cp.active = true
 		)
 
@@ -561,7 +561,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(ctx context.Con
 			c.date_modified,
 			COALESCE(cpa.collection_plans, ARRAY[]::jsonb[]) as collection_plans,
 			cppa.collection_parent
-		FROM collection c
+		FROM ` + entityid.Collection + ` c
 		LEFT JOIN collection_plans_agg cpa ON c.id = cpa.collection_id
 		LEFT JOIN collection_parent_agg cppa ON c.id = cppa.collection_id
 		WHERE c.id = $1 AND c.active = true

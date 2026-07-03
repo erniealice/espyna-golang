@@ -8,6 +8,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/database/operations"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
@@ -31,7 +32,7 @@ type TimeBucket struct {
 const eventWindowCountQuery = `
 	WITH base AS (
 		SELECT e.start_date_time_utc
-		FROM event e
+		FROM ` + entityid.Event + ` e
 		WHERE e.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)
 	)
@@ -129,7 +130,7 @@ func (r *PostgresEventRepository) UpcomingByStartDate(
 			e.active,
 			e.date_created,
 			e.date_modified
-		FROM event e
+		FROM ` + entityid.Event + ` e
 		WHERE e.active = true
 		  AND e.start_date_time_utc >= $2
 		  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)
@@ -220,7 +221,7 @@ func (r *PostgresEventRepository) CountByDay(
 		event_days AS (
 			SELECT to_timestamp(e.start_date_time_utc / 1000)::date AS bucket,
 			       COUNT(*)::bigint AS n
-			FROM event e
+			FROM ` + entityid.Event + ` e
 			WHERE e.active = true
 			  AND e.start_date_time_utc >= $4
 			  AND e.start_date_time_utc < $5
@@ -273,8 +274,8 @@ func (r *PostgresEventRepository) CountByTag(
 
 	const query = `
 		SELECT et.name, COUNT(DISTINCT eta.event_id)::bigint
-		FROM event_tag_assignment eta
-		JOIN event_tag et ON et.id = eta.event_tag_id
+		FROM ` + entityid.EventTagAssignment + ` eta
+		JOIN ` + entityid.EventTag + ` et ON et.id = eta.event_tag_id
 		WHERE eta.active = true
 		  AND et.active = true
 		  AND ($1::text IS NULL OR $1::text = '' OR et.workspace_id = $1)

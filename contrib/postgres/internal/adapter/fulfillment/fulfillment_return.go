@@ -104,7 +104,7 @@ func (r *PostgresFulfillmentReturnRepository) GetFulfillmentReturn(ctx context.C
 	query := `
 		SELECT id, fulfillment_id, reason, status, refund_amount, currency,
 		       processed_by_id, notes, active, date_created, completed_at
-		FROM fulfillment_return
+		FROM ` + entityid.FulfillmentReturn + `
 		WHERE id = $1 AND active = true
 	`
 
@@ -166,7 +166,7 @@ func (r *PostgresFulfillmentReturnRepository) UpdateFulfillmentReturn(ctx contex
 	}
 
 	query := `
-		UPDATE fulfillment_return
+		UPDATE ` + entityid.FulfillmentReturn + `
 		SET status = $1,
 		    refund_amount = $2,
 		    processed_by_id = $3,
@@ -212,7 +212,7 @@ func (r *PostgresFulfillmentReturnRepository) DeleteFulfillmentReturn(ctx contex
 
 	// Hoisted into the sanctioned core write funnel (P2 Phase-3 Q-WRITE-PREPARE,
 	// write-hoist-clean). UpdateColumnByID emits the byte-equivalent
-	// "UPDATE fulfillment_return SET active = false WHERE id = $1"; the literal
+	// "UPDATE " + entityid.FulfillmentReturn + " SET active = false WHERE id = $1"; the literal
 	// table name and id-only predicate are preserved (no workspace guard added).
 	if _, err := postgresCore.UpdateColumnByID(ctx, r.db, "fulfillment_return", "active = false", nil, id); err != nil {
 		return fmt.Errorf("failed to delete fulfillment return: %w", err)
@@ -229,7 +229,7 @@ func (r *PostgresFulfillmentReturnRepository) ListFulfillmentReturns(ctx context
 	query := `
 		SELECT id, fulfillment_id, reason, status, refund_amount, currency,
 		       processed_by_id, notes, active, date_created, completed_at
-		FROM fulfillment_return
+		FROM ` + entityid.FulfillmentReturn + `
 		WHERE fulfillment_id = $1 AND active = true
 		ORDER BY date_created DESC
 	`

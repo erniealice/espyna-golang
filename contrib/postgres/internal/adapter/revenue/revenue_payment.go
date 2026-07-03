@@ -320,7 +320,7 @@ func (r *PostgresRevenuePaymentRepository) GetRevenuePaymentListPageData(
 				rp.notes,
 				rp.payment_date,
 				rp.date_created
-			FROM revenue_payment rp
+			FROM ` + entityid.RevenuePayment + ` rp
 			WHERE ($4::text IS NULL OR $4::text = '' OR rp.revenue_id = $4)
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       rp.reference_number ILIKE $1 OR
@@ -409,7 +409,7 @@ func (r *PostgresRevenuePaymentRepository) GetRevenuePaymentItemPageData(
 				rp.notes,
 				rp.payment_date,
 				rp.date_created
-			FROM revenue_payment rp
+			FROM ` + entityid.RevenuePayment + ` rp
 			WHERE rp.id = $1
 		)
 		SELECT *, 0::bigint AS total FROM enriched LIMIT 1;

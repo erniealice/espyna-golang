@@ -256,7 +256,7 @@ func (r *SQLServerBillingEventRepository) GetBillingEventListPageData(
 	// sortField is author-controlled (validated above) — safe to interpolate.
 	query := fmt.Sprintf(`
 		WITH base AS (
-			SELECT * FROM billing_event WHERE active = 1
+			SELECT * FROM ` + entityid.BillingEvent + ` WHERE active = 1
 		)
 		SELECT b.*, COUNT(*) OVER () AS total
 		FROM base b

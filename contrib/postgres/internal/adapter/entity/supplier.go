@@ -132,8 +132,8 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 			u.last_name as user_last_name,
 			u.email_address as user_email_address,
 			u.mobile_number as user_phone_number
-		FROM supplier s
-		LEFT JOIN "user" u ON s.user_id = u.id
+		FROM ` + entityid.Supplier + ` s
+		LEFT JOIN "` + entityid.User + `" u ON s.user_id = u.id
 		WHERE s.id = $1 AND s.active = true
 	`
 
@@ -425,9 +425,9 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.mobile_number as user_phone_number
-			FROM supplier s
-			LEFT JOIN "user" u ON s.user_id = u.id
-			LEFT JOIN payment_term pt ON s.payment_term_id = pt.id
+			FROM `+entityid.Supplier+` s
+			LEFT JOIN "`+entityid.User+`" u ON s.user_id = u.id
+			LEFT JOIN `+entityid.PaymentTerm+` pt ON s.payment_term_id = pt.id
 			%s
 		)
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () replaces the prior
@@ -632,8 +632,8 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.mobile_number as user_phone_number
-			FROM supplier s
-			LEFT JOIN "user" u ON s.user_id = u.id
+			FROM ` + entityid.Supplier + ` s
+			LEFT JOIN "` + entityid.User + `" u ON s.user_id = u.id
 			WHERE s.id = $1 AND s.workspace_id = $2
 		)
 		SELECT * FROM enriched LIMIT 1;
@@ -747,8 +747,8 @@ func (r *PostgresSupplierRepository) loadSupplierCategories(ctx context.Context,
 			sc.category_id,
 			cat.name,
 			cat.description
-		FROM supplier_category sc
-		INNER JOIN category cat ON sc.category_id = cat.id
+		FROM ` + entityid.SupplierCategory + ` sc
+		INNER JOIN ` + entityid.Category + ` cat ON sc.category_id = cat.id
 		WHERE sc.supplier_id = $1 AND sc.active = true AND cat.active = true
 		ORDER BY cat.name ASC
 	`

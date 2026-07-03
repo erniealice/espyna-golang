@@ -267,7 +267,7 @@ func (r *PostgresPriceListRepository) GetPriceListListPageData(
 				location_id,
 				date_created,
 				date_modified
-			FROM price_list
+			FROM ` + entityid.PriceList + `
 			WHERE active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       name ILIKE $1 OR
@@ -336,7 +336,7 @@ func (r *PostgresPriceListRepository) GetPriceListItemPageData(ctx context.Conte
 	}
 
 	// Query price list
-	query := `SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified FROM price_list WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified FROM ` + entityid.PriceList + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PriceListId)
 	var id, name string
 	var description, locationId, dateStart, dateEnd sql.NullString
@@ -374,7 +374,7 @@ func (r *PostgresPriceListRepository) GetPriceListItemPageData(ctx context.Conte
 	}
 
 	// Query price products associated with this price list
-	ppQuery := `SELECT id, product_id, amount, currency, active, date_created, date_modified FROM price_product WHERE price_list_id = $1 AND active = true`
+	ppQuery := `SELECT id, product_id, amount, currency, active, date_created, date_modified FROM ` + entityid.PriceProduct + ` WHERE price_list_id = $1 AND active = true`
 	ppRows, err := r.db.QueryContext(ctx, ppQuery, req.PriceListId)
 	if err != nil {
 		return nil, fmt.Errorf("price products query failed: %w", err)
@@ -424,7 +424,7 @@ func (r *PostgresPriceListRepository) FindApplicablePriceList(ctx context.Contex
 
 	query := `
 		SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified
-		FROM price_list
+		FROM ` + entityid.PriceList + `
 		WHERE active = true
 		  AND location_id = $1
 		  AND date_start <= $2

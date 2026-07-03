@@ -247,7 +247,7 @@ func (r *SQLServerDelegateRepository) GetDelegateListPageData(ctx context.Contex
 		WITH
 		search_filtered AS (
 			SELECT d.*
-			FROM delegate d
+			FROM ` + entityid.Delegate + ` d
 			LEFT JOIN [user] u ON d.user_id = u.id
 			WHERE d.active = 1
 				AND (@p1 = '' OR
@@ -280,8 +280,8 @@ func (r *SQLServerDelegateRepository) GetDelegateListPageData(ctx context.Contex
 					dc.date_created,
 					dc.date_modified,
 					dc.active
-				 FROM delegate_client dc
-				 INNER JOIN client c ON dc.client_id = c.id
+				 FROM ` + entityid.DelegateClient + ` dc
+				 INNER JOIN ` + entityid.Client + ` c ON dc.client_id = c.id
 				 WHERE dc.delegate_id = sf.id AND dc.active = 1 AND c.active = 1
 				 ORDER BY dc.id ASC
 				 FOR JSON PATH) AS delegate_clients,
@@ -292,8 +292,8 @@ func (r *SQLServerDelegateRepository) GetDelegateListPageData(ctx context.Contex
 					ds.date_created,
 					ds.date_modified,
 					ds.active
-				 FROM delegate_supplier ds
-				 LEFT JOIN supplier s ON ds.supplier_id = s.id
+				 FROM ` + entityid.DelegateSupplier + ` ds
+				 LEFT JOIN ` + entityid.Supplier + ` s ON ds.supplier_id = s.id
 				 WHERE ds.delegate_id = sf.id AND ds.active = 1
 				 ORDER BY ds.id ASC
 				 FOR JSON PATH) AS delegate_suppliers,
@@ -482,8 +482,8 @@ func (r *SQLServerDelegateRepository) GetDelegateItemPageData(ctx context.Contex
 				dc.date_created,
 				dc.date_modified,
 				dc.active
-			 FROM delegate_client dc
-			 INNER JOIN client c ON dc.client_id = c.id
+			 FROM ` + entityid.DelegateClient + ` dc
+			 INNER JOIN ` + entityid.Client + ` c ON dc.client_id = c.id
 			 WHERE dc.delegate_id = d.id AND dc.active = 1 AND c.active = 1
 			 ORDER BY dc.id ASC
 			 FOR JSON PATH) AS delegate_clients,
@@ -494,12 +494,12 @@ func (r *SQLServerDelegateRepository) GetDelegateItemPageData(ctx context.Contex
 				ds.date_created,
 				ds.date_modified,
 				ds.active
-			 FROM delegate_supplier ds
-			 LEFT JOIN supplier s ON ds.supplier_id = s.id
+			 FROM ` + entityid.DelegateSupplier + ` ds
+			 LEFT JOIN ` + entityid.Supplier + ` s ON ds.supplier_id = s.id
 			 WHERE ds.delegate_id = d.id AND ds.active = 1
 			 ORDER BY ds.id ASC
 			 FOR JSON PATH) AS delegate_suppliers
-		FROM delegate d
+		FROM ` + entityid.Delegate + ` d
 		LEFT JOIN [user] u ON d.user_id = u.id
 		WHERE d.id = @p1 AND d.active = 1
 	`

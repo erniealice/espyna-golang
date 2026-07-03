@@ -293,7 +293,7 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 				w.active,
 				w.date_created,
 				w.date_modified
-			FROM workspace w
+			FROM `+entityid.Workspace+` w
 			%s
 		)
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
@@ -425,7 +425,7 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceItemPageData(
 			w.active,
 			w.date_created,
 			w.date_modified
-		FROM workspace w
+		FROM ` + entityid.Workspace + ` w
 		WHERE w.id = $1
 		LIMIT 1;
 	`
@@ -507,7 +507,7 @@ func (r *PostgresWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *
 	// 2. Check workspace_user exists for this user + target workspace
 	var wsUserID string
 	err := exec.QueryRowContext(ctx,
-		`SELECT wu.id FROM workspace_user wu
+		`SELECT wu.id FROM `+entityid.WorkspaceUser+` wu
 		 WHERE wu.user_id = $1 AND wu.workspace_id = $2 AND wu.active = true
 		 LIMIT 1`,
 		userID, req.WorkspaceId,
@@ -519,14 +519,14 @@ func (r *PostgresWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *
 	// 3. Get workspace name
 	var wsName string
 	_ = exec.QueryRowContext(ctx,
-		`SELECT name FROM workspace WHERE id = $1 AND active = true`,
+		`SELECT name FROM `+entityid.Workspace+` WHERE id = $1 AND active = true`,
 		req.WorkspaceId,
 	).Scan(&wsName)
 
 	// 4. Update session (A6 — check RowsAffected; 0 means the session token did
 	// not match an active row, so the switch silently no-opped before this fix).
 	res, err := exec.ExecContext(ctx,
-		`UPDATE "session" SET workspace_id = $1, workspace_user_id = $2
+		`UPDATE "`+entityid.Session+`" SET workspace_id = $1, workspace_user_id = $2
 		 WHERE token = $3 AND active = true`,
 		req.WorkspaceId, wsUserID, req.SessionToken,
 	)
@@ -552,8 +552,8 @@ func (r *PostgresWorkspaceRepository) ListUserWorkspaces(ctx context.Context, re
 
 	rows, err := exec.QueryContext(ctx,
 		`SELECT w.id, w.name, wu.id AS workspace_user_id
-		 FROM workspace w
-		 JOIN workspace_user wu ON wu.workspace_id = w.id
+		 FROM `+entityid.Workspace+` w
+		 JOIN `+entityid.WorkspaceUser+` wu ON wu.workspace_id = w.id
 		 WHERE wu.user_id = $1 AND wu.active = true AND w.active = true
 		 ORDER BY w.name`,
 		req.UserId,

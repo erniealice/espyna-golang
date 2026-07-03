@@ -217,7 +217,7 @@ func (r *MySQLPettyCashFundRepository) GetPettyCashFundListPageData(
 				pcf.current_balance,
 				pcf.custodian_id,
 				pcf.location_id
-			FROM petty_cash_fund pcf
+			FROM ` + entityid.PettyCashFund + ` pcf
 			WHERE pcf.active = 1
 			  AND (? IS NULL OR ? = '' OR
 			       pcf.name LIKE ?)
@@ -318,7 +318,7 @@ func (r *MySQLPettyCashFundRepository) GetPettyCashFundItemPageData(
 			SELECT pcf.id, pcf.date_created, pcf.date_modified, pcf.active,
 			       pcf.name, pcf.authorized_amount, pcf.current_balance,
 			       pcf.custodian_id, pcf.location_id
-			FROM petty_cash_fund pcf
+			FROM ` + entityid.PettyCashFund + ` pcf
 			WHERE pcf.id = ? AND pcf.active = 1
 		)
 		SELECT * FROM enriched LIMIT 1;

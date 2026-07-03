@@ -303,7 +303,7 @@ func (r *MySQLEventRepository) GetEventListPageData(
 				e.active,
 				e.date_created,
 				e.date_modified
-			FROM event e
+			FROM ` + entityid.Event + ` e
 			WHERE e.active = 1
 			  AND (? = '' OR e.workspace_id = ?)
 			  AND (? = '' OR
@@ -455,7 +455,7 @@ func (r *MySQLEventRepository) GetEventItemPageData(
 			active,
 			date_created,
 			date_modified
-		FROM event
+		FROM ` + entityid.Event + `
 		WHERE id = ? AND active = 1 AND workspace_id = ?
 	`
 

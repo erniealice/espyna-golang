@@ -312,8 +312,8 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 				it.serial_number,
 				it.performed_by,
 				COALESCE(ii.name, '') as inventory_item_name
-			FROM inventory_transaction it
-			LEFT JOIN inventory_item ii ON it.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventoryTransaction + ` it
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = true
 			WHERE it.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       it.transaction_type ILIKE $1 OR
@@ -498,8 +498,8 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPage
 				it.performed_by,
 				COALESCE(ii.name, '') as inventory_item_name,
 				COALESCE(ii.sku, '') as inventory_item_sku
-			FROM inventory_transaction it
-			LEFT JOIN inventory_item ii ON it.inventory_item_id = ii.id AND ii.active = true
+			FROM ` + entityid.InventoryTransaction + ` it
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = true
 			WHERE it.id = $1 AND it.active = true
 		)
 		SELECT * FROM enriched LIMIT 1;
@@ -652,10 +652,10 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageDa
 		       it.reference_type,
 		       it.reference_id,
 		       it.performed_by
-		FROM inventory_transaction it
-		LEFT JOIN inventory_item ii ON it.inventory_item_id = ii.id
-		LEFT JOIN product_variant pv ON ii.product_variant_id = pv.id
-		LEFT JOIN product p ON pv.product_id = p.id
+		FROM ` + entityid.InventoryTransaction + ` it
+		LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id
+		LEFT JOIN ` + entityid.ProductVariant + ` pv ON ii.product_variant_id = pv.id
+		LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id
 		WHERE it.active = true
 		  AND ($1 = '' OR ii.workspace_id = $1)
 		  AND ($2 = '' OR it.transaction_date >= $2::timestamptz)

@@ -257,7 +257,7 @@ func (r *SQLServerWorkspaceRepository) GetWorkspaceListPageData(
 				w.active,
 				w.date_created,
 				w.date_modified
-			FROM workspace w
+			FROM ` + entityid.Workspace + ` w
 			%s
 		),
 		counted AS (
@@ -386,7 +386,7 @@ func (r *SQLServerWorkspaceRepository) GetWorkspaceItemPageData(
 			w.active,
 			w.date_created,
 			w.date_modified
-		FROM workspace w
+		FROM ` + entityid.Workspace + ` w
 		WHERE w.id = @p1;
 	`
 
@@ -469,7 +469,7 @@ func (r *SQLServerWorkspaceRepository) SwitchWorkspace(ctx context.Context, req 
 	// Check workspace_user exists for this user + target workspace.
 	var wsUserID string
 	err := exec.QueryRowContext(ctx,
-		`SELECT TOP 1 wu.id FROM workspace_user wu
+		`SELECT TOP 1 wu.id FROM ` + entityid.WorkspaceUser + ` wu
 		 WHERE wu.user_id = @p1 AND wu.workspace_id = @p2 AND wu.active = 1`,
 		userID, req.WorkspaceId,
 	).Scan(&wsUserID)
@@ -480,7 +480,7 @@ func (r *SQLServerWorkspaceRepository) SwitchWorkspace(ctx context.Context, req 
 	// Get workspace name.
 	var wsName string
 	_ = exec.QueryRowContext(ctx,
-		`SELECT TOP 1 name FROM workspace WHERE id = @p1 AND active = 1`,
+		`SELECT TOP 1 name FROM ` + entityid.Workspace + ` WHERE id = @p1 AND active = 1`,
 		req.WorkspaceId,
 	).Scan(&wsName)
 
@@ -515,8 +515,8 @@ func (r *SQLServerWorkspaceRepository) ListUserWorkspaces(ctx context.Context, r
 
 	rows, err := exec.QueryContext(ctx,
 		`SELECT w.id, w.name, wu.id AS workspace_user_id
-		 FROM workspace w
-		 JOIN workspace_user wu ON wu.workspace_id = w.id
+		 FROM ` + entityid.Workspace + ` w
+		 JOIN ` + entityid.WorkspaceUser + ` wu ON wu.workspace_id = w.id
 		 WHERE wu.user_id = @p1 AND wu.active = 1 AND w.active = 1
 		 ORDER BY w.name`,
 		req.UserId,

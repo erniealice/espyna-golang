@@ -254,9 +254,9 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeListPageData(ctx
 				ba.active,
 				ba.date_created,
 				ba.date_modified
-			FROM balance_attribute ba
-			LEFT JOIN balance b ON ba.balance_id = b.id
-			LEFT JOIN subscription s ON b.subscription_id = s.id
+			FROM ` + entityid.BalanceAttribute + ` ba
+			LEFT JOIN ` + entityid.Balance + ` b ON ba.balance_id = b.id
+			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
 			WHERE ba.active = true
 			  AND ($4::text = '' OR s.workspace_id = $4::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR ba.value ILIKE $1))
@@ -315,7 +315,7 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeItemPageData(ctx
 	if req == nil || req.BalanceAttributeId == "" {
 		return nil, fmt.Errorf("balance attribute ID required")
 	}
-	query := `SELECT id, balance_id, attribute_id, value, active, date_created, date_modified FROM balance_attribute WHERE id = $1 AND active = true`
+	query := `SELECT id, balance_id, attribute_id, value, active, date_created, date_modified FROM ` + entityid.BalanceAttribute + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.BalanceAttributeId)
 	var id, balanceId, attributeId, attributeValue string
 	var active bool

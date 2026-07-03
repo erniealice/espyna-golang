@@ -268,7 +268,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 				jtp.job_template_id,
 				jtp.name,
 				jtp.phase_order
-			FROM job_template_phase jtp
+			FROM ` + entityid.JobTemplatePhase + ` jtp
 			WHERE jtp.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jtp.name ILIKE $1)
@@ -390,7 +390,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 			jtp.job_template_id,
 			jtp.name,
 			jtp.phase_order
-		FROM job_template_phase jtp
+		FROM ` + entityid.JobTemplatePhase + ` jtp
 		WHERE jtp.id = $1 AND jtp.active = true
 	`
 
@@ -467,7 +467,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			jtp.job_template_id,
 			jtp.name,
 			jtp.phase_order
-		FROM job_template_phase jtp
+		FROM ` + entityid.JobTemplatePhase + ` jtp
 		WHERE jtp.job_template_id = $1 AND jtp.active = true
 		ORDER BY jtp.phase_order ASC
 	`

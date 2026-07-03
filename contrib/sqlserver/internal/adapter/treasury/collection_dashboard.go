@@ -3,6 +3,7 @@
 package treasury
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"fmt"
 	"time"
@@ -38,7 +39,7 @@ func (r *SQLServerCollectionRepository) SumPending(
 
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'pending'
 		  AND (@p1 = '' OR tc.workspace_id = @p1)`
@@ -65,7 +66,7 @@ func (r *SQLServerCollectionRepository) SumOverdue(
 
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'pending'
 		  AND tc.payment_date IS NOT NULL
@@ -97,7 +98,7 @@ func (r *SQLServerCollectionRepository) SumCollectedToday(
 
 	const query = `
 		SELECT COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'completed'
 		  AND tc.payment_date >= @p2
@@ -130,7 +131,7 @@ func (r *SQLServerCollectionRepository) SumByModeWeek(
 	// no generate_series needed — just the direct aggregate.
 	const query = `
 		SELECT COALESCE(tc.collection_method_id, 'other'), COALESCE(SUM(tc.amount), 0)
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND tc.status = 'completed'
 		  AND tc.payment_date >= @p2
@@ -182,7 +183,7 @@ func (r *SQLServerCollectionRepository) RecentByDate(
 		SELECT TOP %d
 			tc.id, tc.active, tc.name, tc.amount, tc.status,
 			tc.currency, tc.reference_number, tc.payment_date, tc.collection_type
-		FROM treasury_collection tc
+		FROM ` + entityid.TreasuryCollection + ` tc
 		WHERE tc.active = 1
 		  AND (@p1 = '' OR tc.workspace_id = @p1)
 		ORDER BY COALESCE(tc.payment_date, tc.date_created) DESC`, limit)
@@ -247,7 +248,7 @@ func (r *SQLServerCollectionRepository) SumByDayLast30(
 		FROM days d
 		OUTER APPLY (
 			SELECT SUM(tc.amount) AS day_sum
-			FROM treasury_collection tc
+			FROM ` + entityid.TreasuryCollection + ` tc
 			WHERE tc.active = 1
 			  AND tc.status = 'completed'
 			  AND tc.payment_date >= d.bucket

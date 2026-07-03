@@ -224,7 +224,7 @@ func (r *SQLServerResourceRepository) GetResourceListPageData(
 				r.active,
 				r.date_created,
 				r.date_modified
-			FROM resource r
+			FROM ` + entityid.Resource + ` r
 			WHERE r.active = 1
 			  AND (@p1 = '' OR
 			       r.name LIKE @p1 OR
@@ -339,7 +339,7 @@ func (r *SQLServerResourceRepository) GetResourceItemPageData(
 			r.active,
 			r.date_created,
 			r.date_modified
-		FROM resource r
+		FROM ` + entityid.Resource + ` r
 		WHERE r.id = @p1 AND r.active = 1
 	`
 

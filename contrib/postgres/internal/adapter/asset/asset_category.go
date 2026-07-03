@@ -402,8 +402,8 @@ func (r *PostgresAssetCategoryRepository) ListAssetCategoriesWithPolicyRollup(
 					OR a.salvage_value IS DISTINCT FROM (a.acquisition_cost * COALESCE(ac.salvage_pct, ac.default_salvage_value_percent) / 100)::BIGINT
 				)
 			)                           AS assets_deviating
-		FROM asset_category ac
-		LEFT JOIN asset a ON a.asset_category_id = ac.id AND a.active = true
+		FROM ` + entityid.AssetCategory + ` ac
+		LEFT JOIN ` + entityid.Asset + ` a ON a.asset_category_id = ac.id AND a.active = true
 		WHERE ac.active = true
 		  AND ($1 = '' OR ac.workspace_id = $1)
 		GROUP BY ac.id

@@ -5,6 +5,7 @@ package entity
 import (
 	"context"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	homedash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/home"
 )
@@ -22,8 +23,8 @@ func (r *PostgresWorkspaceUserRoleRepository) ListUsersByRoleID(ctx context.Cont
 		       COALESCE(u.email_address, '') as email,
 		       COALESCE(TO_CHAR(wur.date_created, 'Mon DD, YYYY'), '') as date_assigned
 		FROM %s wur
-		JOIN workspace_user wu ON wur.workspace_user_id = wu.id
-		JOIN "user" u ON wu.user_id = u.id
+		JOIN `+entityid.WorkspaceUser+` wu ON wur.workspace_user_id = wu.id
+		JOIN "`+entityid.User+`" u ON wu.user_id = u.id
 		WHERE wur.role_id = $1 AND wur.active = true AND wu.workspace_id = $2
 		ORDER BY u.first_name, u.last_name
 	`, r.tableName)

@@ -290,8 +290,8 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			rem.paid_at_string,
 			rem.reference_number,
 			COUNT(*) OVER() AS total
-		FROM payroll_remittance rem
-		LEFT JOIN payroll_run pr ON pr.id = rem.payroll_run_id
+		FROM ` + entityid.PayrollRemittance + ` rem
+		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = rem.payroll_run_id
 		WHERE pr.workspace_id = $1
 		  AND ($2::text IS NULL OR $2::text = '' OR rem.reference_number ILIKE $2)
 		%s

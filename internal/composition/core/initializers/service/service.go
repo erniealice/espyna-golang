@@ -70,6 +70,9 @@ func InitializeAll(
 	taxUC := initServiceTax(entityComputeTaxes)
 	// Amortization (20260604 v1) — pure computation service.
 	amortUC := initServiceAmortization()
+	// Outcome Matrix (20260702) — service/operation/outcome_matrix generic
+	// principal-scoped grading grid (replaces app-local grade_sheet).
+	operationUC := initServiceOperation(db, i18nSvc, actionGate)
 
-	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC), nil
+	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC), nil
 }

@@ -34,6 +34,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/audit"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
+	outcomematrix "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/performance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/security"
@@ -60,6 +61,15 @@ type ServiceUseCases struct {
 	// wrapped from the shared package. Nil-safe: when unset, amortization
 	// computations degrade to nil.
 	Amortization *amortization.UseCases
+
+	// OutcomeMatrix (20260702) — service/operation/outcome_matrix. Generic
+	// principal-scoped grading grid (rows = client × job_template, columns =
+	// phase→task→criterion tree, cells = task_outcome); the cross-vertical
+	// replacement for the education-specific grade_sheet. Direct typed field
+	// (single service/operation candidate today); NOT named Operation to avoid
+	// confusion with the unrelated domain-driven Aggregate.Operation. Nil-safe:
+	// when no postgres provider is registered the read degrades to empty.
+	OutcomeMatrix *outcomematrix.UseCases
 }
 
 // NewServiceUseCases wires every service-driven sub-aggregate. All typed
@@ -82,15 +92,17 @@ func NewServiceUseCases(
 	perf *performance.UseCase,
 	tax *servicetax.UseCases,
 	amort *amortization.UseCases,
+	operation *outcomematrix.UseCases,
 ) *ServiceUseCases {
 	return &ServiceUseCases{
-		Audit:        audit,
-		Security:     security,
-		Auth:         auth,
-		Dashboard:    dash,
-		Reporting:    rep,
-		Performance:  perf,
-		Tax:          tax,
-		Amortization: amort,
+		Audit:         audit,
+		Security:      security,
+		Auth:          auth,
+		Dashboard:     dash,
+		Reporting:     rep,
+		Performance:   perf,
+		Tax:           tax,
+		Amortization:  amort,
+		OutcomeMatrix: operation,
 	}
 }

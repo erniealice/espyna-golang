@@ -5,6 +5,7 @@ package email
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -214,7 +215,11 @@ type graphEmailAddress struct {
 }
 
 type graphAttachment struct {
-	ID           string `json:"id"`
+	// ODataType is REQUIRED on outbound sends ("#microsoft.graph.fileAttachment")
+	// — Graph rejects attachment items without the type discriminator. Inbound
+	// payloads may or may not carry it; omitempty keeps reads unaffected.
+	ODataType    string `json:"@odata.type,omitempty"`
+	ID           string `json:"id,omitempty"`
 	Name         string `json:"name"`
 	ContentType  string `json:"contentType"`
 	Size         int64  `json:"size"`
@@ -397,6 +402,23 @@ func (p *MicrosoftGraphProvider) convertToGraphMessage(message ports.EmailMessag
 			},
 		}
 	}
+
+	// Attachments must be mapped into the Graph payload or they are silently
+	// dropped at the provider boundary (the message would send without them).
+	for _, att := range message.Attachments {
+		contentType := att.ContentType
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		graphMsg.Attachments = append(graphMsg.Attachments, graphAttachment{
+			ODataType:    "#microsoft.graph.fileAttachment",
+			Name:         att.Name,
+			ContentType:  contentType,
+			Size:         att.Size,
+			ContentBytes: base64.StdEncoding.EncodeToString(att.Data),
+		})
+	}
+	graphMsg.HasAttachments = len(graphMsg.Attachments) > 0
 
 	// Set to recipients
 	for _, to := range message.To {

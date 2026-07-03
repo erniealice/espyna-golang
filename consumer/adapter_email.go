@@ -3,6 +3,9 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"mime"
+	"net/http"
+	"path/filepath"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	emailpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/email"
@@ -209,10 +212,22 @@ func (a *EmailAdapter) SendHTMLEmailWithAttachment(ctx context.Context, to []str
 		TextBody: textBody,
 	}
 	if attachmentName != "" || len(attachmentData) > 0 {
+		// A typed content-type is required for MIME-correct delivery: providers
+		// write it verbatim into the part header, and an empty value invites
+		// client-side sniffing. Extension first (deterministic), content
+		// detection as fallback, octet-stream as the floor.
+		contentType := mime.TypeByExtension(filepath.Ext(attachmentName))
+		if contentType == "" && len(attachmentData) > 0 {
+			contentType = http.DetectContentType(attachmentData)
+		}
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
 		msg.Attachments = []ports.EmailAttachment{{
-			Name: attachmentName,
-			Data: attachmentData,
-			Size: int64(len(attachmentData)),
+			Name:        attachmentName,
+			ContentType: contentType,
+			Data:        attachmentData,
+			Size:        int64(len(attachmentData)),
 		}}
 	}
 	return a.SendEmail(ctx, msg)

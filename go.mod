@@ -14,6 +14,8 @@ require (
 	github.com/erniealice/espyna-golang/contrib/microsoft v0.1.0-alpha
 	github.com/erniealice/espyna-golang/contrib/paypal v0.1.0-alpha
 	github.com/erniealice/esqyma v0.1.0-alpha
+	github.com/erniealice/lyngua v0.1.0-alpha
+	github.com/erniealice/pyeza-golang v0.1.0-alpha
 	github.com/google/cel-go v0.23.0
 	github.com/google/uuid v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2

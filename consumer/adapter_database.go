@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	interfaces "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/database/common/interface"
@@ -95,6 +96,46 @@ func (a *DatabaseAdapter) Close() error {
 // GetOperations returns the underlying DatabaseOperation interface for advanced usage.
 func (a *DatabaseAdapter) GetOperations() interfaces.DatabaseOperation {
 	return a.ops
+}
+
+// GetRawDB returns the concrete *sql.DB backing the active database provider.
+//
+// It recovers the handle by the same path the composition layer used inline: it
+// first asks the DatabaseOperation for its GetDB() (SQL backends expose one),
+// then falls back to the container's database provider connection. When the
+// active backend has no SQL handle (Firestore/Mock) it returns an error rather
+// than a nil handle so callers fail closed.
+//
+// CONTRACT SCOPE — narrow by design: this exposes the concrete SQL handle for
+// ONE purpose, the transaction-manager bridge wired in the application
+// composition layer (the container). It is NOT a general query surface: all
+// other data access must go through the technology-agnostic DatabaseOperation
+// methods above. The accessor exists solely to retire the fragile multi-level
+// type-assertion chain the apps carried; keep its callers confined to the
+// composition/container boundary.
+func (a *DatabaseAdapter) GetRawDB() (*sql.DB, error) {
+	if a == nil {
+		return nil, fmt.Errorf("database adapter not initialized")
+	}
+	if a.ops != nil {
+		if getter, ok := a.ops.(interface{ GetDB() *sql.DB }); ok {
+			if db := getter.GetDB(); db != nil {
+				return db, nil
+			}
+		}
+	}
+	if a.container != nil {
+		if provider := a.container.GetDatabaseProvider(); provider != nil {
+			if connector, ok := provider.(interface{ GetConnection() any }); ok {
+				if rawConn := connector.GetConnection(); rawConn != nil {
+					if db, ok := rawConn.(*sql.DB); ok && db != nil {
+						return db, nil
+					}
+				}
+			}
+		}
+	}
+	return nil, fmt.Errorf("no *sql.DB available from the active database backend")
 }
 
 // --- Generic CRUD Operations ---

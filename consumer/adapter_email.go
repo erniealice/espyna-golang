@@ -195,3 +195,25 @@ func (a *EmailAdapter) SendHTMLEmail(ctx context.Context, to []string, subject, 
 		TextBody: textBody,
 	})
 }
+
+// SendHTMLEmailWithAttachment sends an HTML email carrying a single named
+// attachment. It routes the attachment bytes through EmailMessage.Attachments so
+// they reach the provider (SendHTMLEmail has no attachment slot and silently
+// drops them). When attachmentName and attachmentData are both empty it behaves
+// exactly like SendHTMLEmail (no attachment added).
+func (a *EmailAdapter) SendHTMLEmailWithAttachment(ctx context.Context, to []string, subject, htmlBody, textBody, attachmentName string, attachmentData []byte) (*emailpb.SendEmailResponse, error) {
+	msg := ports.EmailMessage{
+		To:       to,
+		Subject:  subject,
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	}
+	if attachmentName != "" || len(attachmentData) > 0 {
+		msg.Attachments = []ports.EmailAttachment{{
+			Name: attachmentName,
+			Data: attachmentData,
+			Size: int64(len(attachmentData)),
+		}}
+	}
+	return a.SendEmail(ctx, msg)
+}

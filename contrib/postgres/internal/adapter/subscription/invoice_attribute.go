@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	invoiceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/invoice_attribute"
@@ -245,7 +245,27 @@ func (r *PostgresInvoiceAttributeRepository) GetInvoiceAttributeListPageData(ctx
 	// the enriched projection (and therefore the scan order) unchanged. Empty wsID
 	// = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `WITH enriched AS (SELECT ia.id, ia.invoice_id, ia.attribute_id, ia.value, ia.active, ia.date_created, ia.date_modified FROM invoice_attribute ia LEFT JOIN invoice i ON ia.invoice_id = i.id LEFT JOIN subscription s ON i.subscription_id = s.id WHERE ia.active = true AND ($4::text = '' OR s.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR ia.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	query := `
+		WITH enriched AS (SELECT
+				ia.id,
+				ia.invoice_id,
+				ia.attribute_id,
+				ia.value,
+				ia.active,
+				ia.date_created,
+				ia.date_modified
+			FROM invoice_attribute ia
+			LEFT JOIN invoice i ON ia.invoice_id = i.id
+			LEFT JOIN subscription s ON i.subscription_id = s.id
+			WHERE ia.active = true
+			  AND ($4::text = '' OR s.workspace_id = $4::text)
+			  AND ($1::text IS NULL OR $1::text = '' OR ia.value ILIKE $1))
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		` + orderBy + `
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

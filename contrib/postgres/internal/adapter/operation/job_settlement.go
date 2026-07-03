@@ -11,11 +11,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_settlement"
 )
@@ -309,10 +309,9 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 				CASE WHEN $4 = 'allocated_amount' AND $5 = 'ASC' THEN allocated_amount END ASC,
 				CASE WHEN $4 = 'settlement_date' AND $5 = 'DESC' THEN settlement_date END DESC,
 				CASE WHEN $4 = 'settlement_date' AND $5 = 'ASC' THEN settlement_date END ASC
-		),
-		total_count AS (
-			SELECT count(*) as total FROM sorted
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			s.id,
 			s.job_activity_id,
@@ -327,9 +326,8 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 			s.date_created,
 			s.active,
 			s.job_activity,
-			tc.total as _total_count
+			COUNT(*) OVER () AS _total_count
 		FROM sorted s
-		CROSS JOIN total_count tc
 		LIMIT $2 OFFSET $3
 	`
 

@@ -262,7 +262,11 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		}
 	}
 	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
+	// Only override the default when the request supplies a NON-BLANK field. A
+	// blank field would otherwise overwrite the default with "", slip past the
+	// `sortField != ""` allowlist guard below, and interpolate into `ORDER BY  DESC`
+	// (a query syntax error). Blank → keep the default, matching BuildOrderBy.
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortField = req.Sort.Fields[0].Field
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
@@ -285,7 +289,31 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 	// session identity. FAIL-CLOSED: an empty WorkspaceID matches no row (no
 	// empty-string escape — that would leak every tenant).
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `WITH enriched AS (SELECT id, delegate_id, client_id, active, date_created, date_modified, role_id, granted_by_user_id, workspace_id FROM delegate_client WHERE active = true AND workspace_id = $4::text AND ($1::text IS NULL OR $1::text = '' OR delegate_id ILIKE $1 OR client_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `
+		WITH enriched AS (SELECT
+				id,
+				delegate_id,
+				client_id,
+				active,
+				date_created,
+				date_modified,
+				role_id,
+				granted_by_user_id,
+				workspace_id
+			FROM delegate_client
+			WHERE active = true
+			  AND workspace_id = $4::text
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       delegate_id ILIKE $1 OR
+			       client_id ILIKE $1))
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		ORDER BY ` + sortField + ` ` + sortOrder + `
+		LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {

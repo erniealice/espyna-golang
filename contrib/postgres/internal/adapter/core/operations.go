@@ -13,13 +13,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/database/model"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/model"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/erniealice/espyna-golang/shared/database/schema"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	_ "github.com/lib/pq"
 )
@@ -541,7 +541,14 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 
 	// Apply filters from FilterRequest
 	if params != nil && params.Filters != nil {
-		filterConditions, filterValues, nextIndex := p.buildFilterConditions(params.Filters, paramIndex)
+		filterConditions, filterValues, nextIndex, err := p.buildFilterConditions(params.Filters, paramIndex)
+		if err != nil {
+			return nil, model.NewDatabaseError(
+				fmt.Sprintf("invalid filter: %v", err),
+				"INVALID_FILTER_FIELD",
+				400,
+			)
+		}
 		whereConditions = append(whereConditions, filterConditions...)
 		values = append(values, filterValues...)
 		paramIndex = nextIndex
@@ -560,6 +567,15 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 		}
 		var likeClauses []string
 		for _, col := range fields {
+			// search_fields arrives on the wire (SearchOptions.search_fields) and is
+			// interpolated as an identifier — fail closed on anything non-identifier.
+			if err := ValidateSQLIdent(col); err != nil {
+				return nil, model.NewDatabaseError(
+					fmt.Sprintf("invalid search field: %v", err),
+					"INVALID_SEARCH_FIELD",
+					400,
+				)
+			}
 			values = append(values, query)
 			likeClauses = append(likeClauses, fmt.Sprintf("%s ILIKE $%d", col, paramIndex))
 			paramIndex++
@@ -572,6 +588,14 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	if params != nil && params.Sort != nil && len(params.Sort.Fields) > 0 {
 		orderByParts := make([]string, 0, len(params.Sort.Fields))
 		for _, sortField := range params.Sort.Fields {
+			// Sort field names are request-supplied and interpolated as identifiers.
+			if err := ValidateSQLIdent(sortField.Field); err != nil {
+				return nil, model.NewDatabaseError(
+					fmt.Sprintf("invalid sort field: %v", err),
+					"INVALID_SORT_FIELD",
+					400,
+				)
+			}
 			direction := "ASC"
 			if sortField.Direction == commonpb.SortDirection_DESC {
 				direction = "DESC"
@@ -728,6 +752,16 @@ func (p *PostgresOperations) Query(ctx context.Context, tableName string, queryB
 
 	// Apply query conditions
 	for _, condition := range filter.Conditions {
+		// Condition fields are interpolated as identifiers (values are $N-bound).
+		// QueryBuilder inputs are Go-authored today, but validate anyway — this is
+		// the last boundary before query text.
+		if err := ValidateSQLIdent(condition.Field); err != nil {
+			return nil, model.NewDatabaseError(
+				fmt.Sprintf("invalid query condition field: %v", err),
+				"INVALID_CONDITION_FIELD",
+				400,
+			)
+		}
 		switch condition.Operator {
 		case "==":
 			whereConditions = append(whereConditions, fmt.Sprintf("%s = $%d", condition.Field, paramIndex))
@@ -788,6 +822,13 @@ func (p *PostgresOperations) Query(ctx context.Context, tableName string, queryB
 	if len(filter.OrderBy) > 0 {
 		orderParts := make([]string, len(filter.OrderBy))
 		for i, orderBy := range filter.OrderBy {
+			if err := ValidateSQLIdent(orderBy.Field); err != nil {
+				return nil, model.NewDatabaseError(
+					fmt.Sprintf("invalid order-by field: %v", err),
+					"INVALID_SORT_FIELD",
+					400,
+				)
+			}
 			direction := "ASC"
 			if !orderBy.Ascending {
 				direction = "DESC"
@@ -870,13 +911,19 @@ func (p *PostgresOperations) QueryOne(ctx context.Context, tableName string, que
 // Helper methods
 
 // buildFilterConditions builds WHERE conditions from FilterRequest
-func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int) {
+func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int, error) {
 	conditions := []string{}
 	values := []any{}
 	paramIndex := startIndex
 
 	for _, filter := range filterReq.Filters {
 		field := filter.Field
+		// Filter field names are request-supplied and interpolated as identifiers
+		// (values are $N-bound). Fail closed — dropping the filter instead would
+		// silently widen the result set.
+		if err := ValidateSQLIdent(field); err != nil {
+			return nil, nil, startIndex, fmt.Errorf("filter field: %w", err)
+		}
 
 		switch ft := filter.FilterType.(type) {
 		case *commonpb.TypedFilter_StringFilter:
@@ -964,7 +1011,7 @@ func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterReq
 		}
 	}
 
-	return conditions, values, paramIndex
+	return conditions, values, paramIndex, nil
 }
 
 // buildStringFilter builds SQL condition for StringFilter

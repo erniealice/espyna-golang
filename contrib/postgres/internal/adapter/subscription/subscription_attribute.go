@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
@@ -243,7 +243,26 @@ func (r *PostgresSubscriptionAttributeRepository) GetSubscriptionAttributeListPa
 	// explicit sa.* column list keeps the scan unaffected by the join. Empty
 	// wsID = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `WITH enriched AS (SELECT sa.id, sa.subscription_id, sa.attribute_id, sa.value, sa.active, sa.date_created, sa.date_modified FROM subscription_attribute sa LEFT JOIN subscription s ON sa.subscription_id = s.id WHERE sa.active = true AND ($4::text = '' OR s.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR sa.value ILIKE $1)) SELECT e.*, COUNT(*) OVER () AS total FROM enriched e ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	query := `
+		WITH enriched AS (SELECT
+				sa.id,
+				sa.subscription_id,
+				sa.attribute_id,
+				sa.value,
+				sa.active,
+				sa.date_created,
+				sa.date_modified
+			FROM subscription_attribute sa
+			LEFT JOIN subscription s ON sa.subscription_id = s.id
+			WHERE sa.active = true
+			  AND ($4::text = '' OR s.workspace_id = $4::text)
+			  AND ($1::text IS NULL OR $1::text = '' OR sa.value ILIKE $1))
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		` + orderBy + `
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

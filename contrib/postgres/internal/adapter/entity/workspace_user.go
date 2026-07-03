@@ -12,9 +12,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -405,7 +405,10 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 	}
 
 	searchFields := []string{"u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	// Hard WHERE conditions: always active + workspace_id
 	hardWhere := "wu.active = true AND wu.workspace_id = $1"

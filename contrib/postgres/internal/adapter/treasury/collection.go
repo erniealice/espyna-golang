@@ -13,11 +13,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -293,7 +293,11 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 
 	sortField := "tc.date_created"
 	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
+	// Only override the default when the request supplies a NON-BLANK field. A
+	// blank field would otherwise overwrite the default with "", slip past the
+	// `sortField != ""` allowlist guard below, and interpolate into `ORDER BY  DESC`
+	// (a query syntax error). Blank → keep the default, matching BuildOrderBy.
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortField = req.Sort.Fields[0].Field
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"

@@ -11,9 +11,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -261,7 +261,11 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 	}
 
 	sortField, sortOrder := "date_created", "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
+	// Only override the default when the request supplies a NON-BLANK field. A
+	// blank field would otherwise overwrite the default with "", slip past the
+	// `sortField != ""` allowlist guard below, and interpolate into `ORDER BY  DESC`
+	// (a query syntax error). Blank → keep the default, matching BuildOrderBy.
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortField = req.Sort.Fields[0].Field
 		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
 			sortOrder = "ASC"
@@ -280,7 +284,27 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "product_collection", productCollectionSortableSQLCols)
 	}
 
-	query := `WITH enriched AS (SELECT id, product_id, collection_id, active, date_created, date_modified FROM product_collection WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR product_id ILIKE $1 OR collection_id ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ORDER BY ` + sortField + ` ` + sortOrder + ` LIMIT $2 OFFSET $3;`
+	query := `
+		WITH enriched AS (SELECT
+				id,
+				product_id,
+				collection_id,
+				active,
+				date_created,
+				date_modified
+			FROM product_collection
+			WHERE active = true
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       product_id ILIKE $1 OR
+			       collection_id ILIKE $1))
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		ORDER BY ` + sortField + ` ` + sortOrder + `
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

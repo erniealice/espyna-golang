@@ -193,7 +193,7 @@ func (r *PostgresJobRepository) TopByCompletionRisk(
 			SELECT
 				p.job_id,
 				COUNT(*)                                            AS total,
-				SUM(CASE WHEN p.status = 'JOB_PHASE_STATUS_COMPLETED' THEN 1 ELSE 0 END) AS done
+				COUNT(*) FILTER (WHERE p.status = 'JOB_PHASE_STATUS_COMPLETED') AS done
 			FROM job_phase p
 			WHERE p.active = true
 			GROUP BY p.job_id

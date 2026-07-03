@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventtagpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_tag"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -278,14 +278,13 @@ func (r *PostgresEventTagRepository) GetEventTagListPageData(
 			  AND ($2::text IS NULL OR $2::text = '' OR
 				   et.name ILIKE $2 OR
 				   et.description ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		%s
 		LIMIT $3 OFFSET $4;
 	`, orderByClause)

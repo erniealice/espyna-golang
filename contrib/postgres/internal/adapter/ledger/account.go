@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -336,7 +336,10 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 	// Build parameterized WHERE clauses via shared helper.
 	// $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"a.name", "a.code"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereStr := " AND a.workspace_id = $1"
 	if len(filterClauses) > 0 {

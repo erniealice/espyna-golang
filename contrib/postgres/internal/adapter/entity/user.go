@@ -12,9 +12,9 @@ import (
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -266,7 +266,10 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 
 	// Build filter/search WHERE clauses starting at $1
 	searchFields := []string{"first_name", "last_name", "email_address"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := ""
 	if len(filterClauses) > 0 {

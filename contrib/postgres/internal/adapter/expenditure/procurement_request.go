@@ -12,11 +12,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 )
@@ -242,10 +242,12 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 			       pr.request_number ILIKE $2 OR
 			       pr.justification ILIKE $2 OR
 			       s.name ILIKE $2)
-		),
-		counted AS (SELECT COUNT(*) AS total FROM enriched)
-		SELECT e.*, c.total
-		FROM enriched e, counted c
+		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		ORDER BY ` + orderBy + `
 		LIMIT $3 OFFSET $4;
 	`

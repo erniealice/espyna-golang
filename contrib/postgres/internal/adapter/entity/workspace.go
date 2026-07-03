@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -267,7 +267,10 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 
 	// Build filter/search WHERE clauses (start at $1)
 	searchFields := []string{"w.name", "w.description"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := ""
 	if len(filterClauses) > 0 {
@@ -292,14 +295,13 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 				w.date_modified
 			FROM workspace w
 			%s
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		%s
 		LIMIT $%d OFFSET $%d;
 	`, whereSQL, orderByClause, limitIdx, offsetIdx)

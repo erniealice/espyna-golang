@@ -39,8 +39,8 @@ type LocationAreaCount = locationdash.LocationAreaCount
 func (r *PostgresLocationRepository) CountByStatus(ctx context.Context, workspaceID string) (map[string]int64, error) {
 	query := fmt.Sprintf(`
 		SELECT
-			COALESCE(SUM(CASE WHEN active = true THEN 1 ELSE 0 END), 0) AS active_count,
-			COALESCE(SUM(CASE WHEN active = false THEN 1 ELSE 0 END), 0) AS inactive_count,
+			COUNT(*) FILTER (WHERE active = true) AS active_count,
+			COUNT(*) FILTER (WHERE active = false) AS inactive_count,
 			COUNT(*) AS total
 		FROM %s
 		WHERE ($1::text IS NULL OR $1::text = '' OR workspace_id = $1)

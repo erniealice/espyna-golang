@@ -9,9 +9,9 @@ import (
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
@@ -275,18 +275,16 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 				CASE WHEN $4 = 'date_time_start' AND $5 = 'DESC' THEN date_time_start END DESC,
 				CASE WHEN $4 = 'date_time_end' AND $5 = 'ASC' THEN date_time_end END ASC,
 				CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN date_time_end END DESC
-		),
-		total_count AS (
-			SELECT count(*) as total FROM sorted
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			s.id, s.name, s.supplier_id, s.cost_plan_id,
 			s.date_time_start, s.date_time_end, s.active,
 			s.date_created, s.date_modified,
 			s.cost_plan,
-			tc.total as _total_count
+			COUNT(*) OVER () AS _total_count
 		FROM sorted s
-		CROSS JOIN total_count tc
 		LIMIT $2 OFFSET $3
 	`
 

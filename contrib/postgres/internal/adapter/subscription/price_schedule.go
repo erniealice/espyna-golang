@@ -11,9 +11,9 @@ import (
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -307,7 +307,25 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 	// A1: price_schedule has its own workspace_id column (verified against the
 	// baseline schema), so scope directly. Empty wsID = service-to-service call.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM price_schedule WHERE active = true AND ($4::text = '' OR workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	query := `
+		SELECT
+			id,
+			name,
+			description,
+			active,
+			date_created,
+			date_modified,
+			location_id,
+			date_time_start,
+			date_time_end
+		FROM price_schedule
+		WHERE active = true
+		  AND ($4::text = '' OR workspace_id = $4::text)
+		  AND ($1::text IS NULL OR $1::text = '' OR
+		       name ILIKE $1 OR
+		       description ILIKE $1)
+		` + orderBy + `
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

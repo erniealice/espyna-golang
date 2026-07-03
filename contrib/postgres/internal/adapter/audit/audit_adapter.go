@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/lib/pq"
 )
 
@@ -102,16 +102,33 @@ func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogReq
 		return fmt.Errorf("audit: insert audit_entry: %w", err)
 	}
 
-	const changeSQL = `
-		INSERT INTO audit_trail.audit_field_change (
-			audit_entry_id, field_name, field_type, old_value, new_value
-		) VALUES ($1, $2, $3, $4, $5)`
+	// Batched insert (A7 N+1 fix): LogEntry runs on every audited write, and the
+	// prior loop issued one INSERT round-trip per changed field. unnest() expands
+	// the parallel arrays row-wise so all field changes land in a single statement.
+	if len(req.FieldChanges) > 0 {
+		names := make([]string, len(req.FieldChanges))
+		types := make([]int32, len(req.FieldChanges))
+		olds := make([]string, len(req.FieldChanges))
+		news := make([]string, len(req.FieldChanges))
+		for i, fc := range req.FieldChanges {
+			names[i] = fc.FieldName
+			types[i] = fc.FieldType
+			olds[i] = fc.OldValue
+			news[i] = fc.NewValue
+		}
 
-	for _, fc := range req.FieldChanges {
+		const changeSQL = `
+			INSERT INTO audit_trail.audit_field_change (
+				audit_entry_id, field_name, field_type, old_value, new_value
+			)
+			SELECT $1::uuid, u.field_name, u.field_type, u.old_value, u.new_value
+			FROM unnest($2::text[], $3::smallint[], $4::text[], $5::text[])
+			     AS u(field_name, field_type, old_value, new_value)`
+
 		if _, err := exec.ExecContext(ctx, changeSQL,
-			entryID, fc.FieldName, fc.FieldType, fc.OldValue, fc.NewValue,
+			entryID, pq.Array(names), pq.Array(types), pq.Array(olds), pq.Array(news),
 		); err != nil {
-			return fmt.Errorf("audit: insert audit_field_change (field=%s): %w", fc.FieldName, err)
+			return fmt.Errorf("audit: insert audit_field_change batch (%d fields): %w", len(req.FieldChanges), err)
 		}
 	}
 

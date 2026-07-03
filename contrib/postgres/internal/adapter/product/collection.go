@@ -9,9 +9,9 @@ import (
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -349,14 +349,11 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 				CASE WHEN $4 = 'description' AND $5 = 'DESC' THEN description END DESC,
 				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
 				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC
-		),
-
-		-- CTE 6: Calculate total count for pagination
-		total_count AS (
-			SELECT count(*) as total FROM sorted
 		)
 
 		-- Final SELECT with pagination
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			s.id,
 			s.name,
@@ -366,9 +363,8 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Con
 			s.date_modified,
 			s.collection_plans,
 			s.collection_parent,
-			tc.total as _total_count
+			COUNT(*) OVER () AS _total_count
 		FROM sorted s
-		CROSS JOIN total_count tc
 		LIMIT $2 OFFSET $3
 	`
 

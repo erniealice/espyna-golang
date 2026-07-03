@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -409,7 +409,13 @@ func (r *PostgresBillingEventRepository) listByColumn(
 	// keeps only billing_event columns for the dynamic scan. Empty wsID =
 	// service-to-service call → no scoping. column is allowlisted above.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT be.* FROM ` + r.tableName + ` be LEFT JOIN subscription s ON be.subscription_id = s.id WHERE be.` + column + ` = $1 AND be.active = true AND ($2::text = '' OR s.workspace_id = $2::text) ORDER BY be.date_created ASC`
+	query := `SELECT be.*
+		FROM ` + r.tableName + ` be
+		LEFT JOIN subscription s ON be.subscription_id = s.id
+		WHERE be.` + column + ` = $1
+		  AND be.active = true
+		  AND ($2::text = '' OR s.workspace_id = $2::text)
+		ORDER BY be.date_created ASC`
 	rows, err := r.db.QueryContext(ctx, query, value, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("billing_event query (%s=%s): %w", column, value, err)

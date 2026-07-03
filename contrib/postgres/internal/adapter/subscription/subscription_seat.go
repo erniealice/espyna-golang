@@ -10,10 +10,10 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -246,11 +246,39 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 	// subscription_seat carries its own workspace_id column; scope directly on it.
 	// Empty wsID = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT id, subscription_id, staff_id, client_id, workspace_id, product_plan_id, product_variant_id, contracted_amount, contracted_currency, role_title, seniority, date_start, date_end, status, review_cadence_value, review_cadence_unit, position, replaces_id, work_request_id, active, date_created, date_modified
+	query := `
+		SELECT
+			id,
+			subscription_id,
+			staff_id,
+			client_id,
+			workspace_id,
+			product_plan_id,
+			product_variant_id,
+			contracted_amount,
+			contracted_currency,
+			role_title,
+			seniority,
+			date_start,
+			date_end,
+			status,
+			review_cadence_value,
+			review_cadence_unit,
+			position,
+			replaces_id,
+			work_request_id,
+			active,
+			date_created,
+			date_modified
 		FROM subscription_seat
 		WHERE active = true
-			AND ($4::text = '' OR workspace_id = $4::text)
-			AND ($1::text IS NULL OR $1::text = '' OR COALESCE(role_title,'') ILIKE $1 OR COALESCE(position,'') ILIKE $1 OR status ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
+		  AND ($4::text = '' OR workspace_id = $4::text)
+		  AND ($1::text IS NULL OR $1::text = '' OR
+		       COALESCE(role_title,'') ILIKE $1 OR
+		       COALESCE(position,'') ILIKE $1 OR
+		       status ILIKE $1)
+		` + orderBy + `
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -276,8 +304,34 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatItemPageData(ctx
 	// list query at GetSubscriptionSeatListPageData and GetSubscriptionItemPageData).
 	// Empty wsID = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT id, subscription_id, staff_id, client_id, workspace_id, product_plan_id, product_variant_id, contracted_amount, contracted_currency, role_title, seniority, date_start, date_end, status, review_cadence_value, review_cadence_unit, position, replaces_id, work_request_id, active, date_created, date_modified
-		FROM subscription_seat WHERE id = $1 AND active = true AND ($2::text = '' OR workspace_id = $2::text)`
+	query := `
+		SELECT
+			id,
+			subscription_id,
+			staff_id,
+			client_id,
+			workspace_id,
+			product_plan_id,
+			product_variant_id,
+			contracted_amount,
+			contracted_currency,
+			role_title,
+			seniority,
+			date_start,
+			date_end,
+			status,
+			review_cadence_value,
+			review_cadence_unit,
+			position,
+			replaces_id,
+			work_request_id,
+			active,
+			date_created,
+			date_modified
+		FROM subscription_seat
+		WHERE id = $1
+		  AND active = true
+		  AND ($2::text = '' OR workspace_id = $2::text)`
 	row := r.db.QueryRowContext(ctx, query, req.SubscriptionSeatId, wsID)
 	seat, err := scanSubscriptionSeatRow(row.Scan)
 	if err == sql.ErrNoRows {
@@ -318,8 +372,34 @@ func (r *PostgresSubscriptionSeatRepository) LockSubscriptionSeatForUpdate(ctx c
 		return nil, fmt.Errorf("subscription_seat adapter: dbOps does not provide a transaction-aware executor")
 	}
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT id, subscription_id, staff_id, client_id, workspace_id, product_plan_id, product_variant_id, contracted_amount, contracted_currency, role_title, seniority, date_start, date_end, status, review_cadence_value, review_cadence_unit, position, replaces_id, work_request_id, active, date_created, date_modified
-		FROM subscription_seat WHERE id = $1 AND ($2::text = '' OR workspace_id = $2::text) FOR UPDATE`
+	query := `
+		SELECT
+			id,
+			subscription_id,
+			staff_id,
+			client_id,
+			workspace_id,
+			product_plan_id,
+			product_variant_id,
+			contracted_amount,
+			contracted_currency,
+			role_title,
+			seniority,
+			date_start,
+			date_end,
+			status,
+			review_cadence_value,
+			review_cadence_unit,
+			position,
+			replaces_id,
+			work_request_id,
+			active,
+			date_created,
+			date_modified
+		FROM subscription_seat
+		WHERE id = $1
+		  AND ($2::text = '' OR workspace_id = $2::text)
+		FOR UPDATE`
 	row := exec.GetExecutor(ctx).QueryRowContext(ctx, query, id, wsID)
 	seat, err := scanSubscriptionSeatRow(row.Scan)
 	if err == sql.ErrNoRows {

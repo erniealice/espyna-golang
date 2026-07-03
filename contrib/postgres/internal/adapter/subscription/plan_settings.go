@@ -10,10 +10,10 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	plansettingspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_settings"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -276,7 +276,22 @@ func (r *PostgresPlanSettingsRepository) GetPlanSettingsListPageData(ctx context
 	// explicit ps.* column list keeps the scan unaffected by the join. Empty wsID =
 	// service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT ps.id, ps.plan_id, ps.name, ps.description, ps.active, ps.date_created, ps.date_modified FROM plan_settings ps LEFT JOIN plan p ON ps.plan_id = p.id WHERE ps.active = true AND ($4::text = '' OR p.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR ps.plan_id ILIKE $1) ORDER BY ps.date_created DESC LIMIT $2 OFFSET $3;`
+	query := `
+		SELECT
+			ps.id,
+			ps.plan_id,
+			ps.name,
+			ps.description,
+			ps.active,
+			ps.date_created,
+			ps.date_modified
+		FROM plan_settings ps
+		LEFT JOIN plan p ON ps.plan_id = p.id
+		WHERE ps.active = true
+		  AND ($4::text = '' OR p.workspace_id = $4::text)
+		  AND ($1::text IS NULL OR $1::text = '' OR ps.plan_id ILIKE $1)
+		ORDER BY ps.date_created DESC
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

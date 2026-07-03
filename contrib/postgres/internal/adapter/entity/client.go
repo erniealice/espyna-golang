@@ -465,7 +465,10 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	// Build filter/search WHERE clauses ($1 reserved for workspace_id, start at $2).
 	// Search spans client name + internal_id + representative user name/email.
 	searchFields := []string{"c.name", "c.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE c.workspace_id = $1"
 	if len(filterClauses) > 0 {

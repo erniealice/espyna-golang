@@ -11,11 +11,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/inventory_movement"
@@ -330,10 +330,9 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 				CASE WHEN $5 = 'unit_cost' AND $6 = 'ASC' THEN unit_cost END ASC,
 				CASE WHEN $5 = 'movement_date' AND $6 = 'DESC' THEN movement_date END DESC,
 				CASE WHEN $5 = 'movement_date' AND $6 = 'ASC' THEN movement_date END ASC
-		),
-		total_count AS (
-			SELECT count(*) as total FROM sorted
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			s.id,
 			s.workspace_id,
@@ -359,9 +358,8 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 			s.product,
 			s.from_location,
 			s.to_location,
-			tc.total as _total_count
+			COUNT(*) OVER () AS _total_count
 		FROM sorted s
-		CROSS JOIN total_count tc
 		LIMIT $3 OFFSET $4
 	`
 

@@ -11,9 +11,9 @@ import (
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
@@ -256,7 +256,30 @@ func (r *PostgresPriceListRepository) GetPriceListListPageData(
 		return nil, err
 	}
 
-	query := `WITH enriched AS (SELECT id, name, description, active, date_start, date_end, location_id, date_created, date_modified FROM price_list WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ` + orderByClause + ` LIMIT $2 OFFSET $3;`
+	query := `
+		WITH enriched AS (SELECT
+				id,
+				name,
+				description,
+				active,
+				date_start,
+				date_end,
+				location_id,
+				date_created,
+				date_modified
+			FROM price_list
+			WHERE active = true
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       name ILIKE $1 OR
+			       description ILIKE $1))
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		` + orderByClause + `
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

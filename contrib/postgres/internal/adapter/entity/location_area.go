@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationareapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_area"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -271,14 +271,13 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 			  AND ($2::text IS NULL OR $2::text = '' OR
 				   name ILIKE $2 OR
 				   description ILIKE $2)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		` + orderByClause + `
 		LIMIT $3 OFFSET $4;
 	`

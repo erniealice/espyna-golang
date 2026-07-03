@@ -12,9 +12,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pettycashvoucherpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_voucher"
 )
@@ -276,14 +276,13 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 			       pcv.voucher_number ILIKE $1 OR
 			       pcv.description ILIKE $1 OR
 			       pcv.payee ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		` + orderByClause + `
 		LIMIT $2 OFFSET $3;
 	`

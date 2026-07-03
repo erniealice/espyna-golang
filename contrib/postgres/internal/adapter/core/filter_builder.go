@@ -10,22 +10,34 @@ import (
 )
 
 // BuildFilterWhere constructs parameterized WHERE clauses from proto filter/search requests.
-// Returns (clauses, args, nextParamIndex). Caller joins clauses with " AND ".
+// Returns (clauses, args, nextParamIndex, error). Caller joins clauses with " AND ".
 // searchFields specifies which columns to ILIKE search against.
 // This function is used by entity CTE adapters to avoid duplicating filter logic.
+//
+// Injection guard: filter VALUES are always bound via $N placeholders, but the
+// filter FIELD names are interpolated into the query text. Every field is
+// therefore validated through ValidateSQLIdent and the whole call fails closed
+// on the first non-identifier field (callers must propagate the error — a
+// silently dropped filter would widen the result set).
 func BuildFilterWhere(
 	filters *commonpb.FilterRequest,
 	search *commonpb.SearchRequest,
 	searchFields []string,
 	startIdx int,
-) (clauses []string, args []any, nextIdx int) {
+) (clauses []string, args []any, nextIdx int, err error) {
 	nextIdx = startIdx
 
-	// Search — ILIKE OR block across declared search fields
+	// Search — ILIKE OR block across declared search fields. searchFields is an
+	// author-controlled literal slice at every call site (never request-derived),
+	// but validate each anyway so the function stays self-defending if a future
+	// caller ever wires a dynamic column in. The search TEXT is bound as $N.
 	if search != nil && search.Query != "" && len(searchFields) > 0 {
 		query := "%" + search.Query + "%"
 		var likeClauses []string
 		for _, col := range searchFields {
+			if err := ValidateSQLIdent(col); err != nil {
+				return nil, nil, startIdx, fmt.Errorf("search field: %w", err)
+			}
 			args = append(args, query)
 			likeClauses = append(likeClauses, fmt.Sprintf("%s ILIKE $%d", col, nextIdx))
 			nextIdx++
@@ -37,6 +49,9 @@ func BuildFilterWhere(
 	if filters != nil {
 		for _, filter := range filters.Filters {
 			field := filter.Field
+			if err := ValidateSQLIdent(field); err != nil {
+				return nil, nil, startIdx, fmt.Errorf("filter field: %w", err)
+			}
 
 			switch ft := filter.FilterType.(type) {
 			case *commonpb.TypedFilter_StringFilter:
@@ -176,5 +191,5 @@ func BuildFilterWhere(
 		}
 	}
 
-	return clauses, args, nextIdx
+	return clauses, args, nextIdx, nil
 }

@@ -11,9 +11,9 @@ import (
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -292,7 +292,35 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 	// unqualified, quoted column — resolves unambiguously against the CTE output
 	// and the scan order stays identical. Empty wsID = service-to-service call.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `WITH enriched AS (SELECT pp.id, pp.plan_id, pp.billing_amount, pp.billing_currency, pp.name, pp.description, pp.active, pp.date_created, pp.date_modified, pp.price_schedule_id, pp.billing_kind, pp.amount_basis, pp.billing_cycle_value, pp.billing_cycle_unit, pp.default_term_value, pp.default_term_unit FROM price_plan pp LEFT JOIN plan pl ON pp.plan_id = pl.id WHERE pp.active = true AND ($4::text = '' OR pl.workspace_id = $4::text) AND ($1::text IS NULL OR $1::text = '' OR pp.plan_id ILIKE $1 OR pp.billing_currency ILIKE $1)) SELECT * FROM enriched ` + orderBy + ` LIMIT $2 OFFSET $3;`
+	query := `
+		WITH enriched AS (SELECT
+				pp.id,
+				pp.plan_id,
+				pp.billing_amount,
+				pp.billing_currency,
+				pp.name,
+				pp.description,
+				pp.active,
+				pp.date_created,
+				pp.date_modified,
+				pp.price_schedule_id,
+				pp.billing_kind,
+				pp.amount_basis,
+				pp.billing_cycle_value,
+				pp.billing_cycle_unit,
+				pp.default_term_value,
+				pp.default_term_unit
+			FROM price_plan pp
+			LEFT JOIN plan pl ON pp.plan_id = pl.id
+			WHERE pp.active = true
+			  AND ($4::text = '' OR pl.workspace_id = $4::text)
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       pp.plan_id ILIKE $1 OR
+			       pp.billing_currency ILIKE $1))
+		SELECT *
+		FROM enriched
+		` + orderBy + `
+		LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -368,7 +396,27 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	if req == nil || req.PricePlanId == "" {
 		return nil, fmt.Errorf("price plan ID required")
 	}
-	query := `SELECT id, plan_id, billing_amount, billing_currency, name, description, active, date_created, date_modified, price_schedule_id, billing_kind, amount_basis, billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit FROM price_plan WHERE id = $1 AND active = true`
+	query := `
+		SELECT
+			id,
+			plan_id,
+			billing_amount,
+			billing_currency,
+			name,
+			description,
+			active,
+			date_created,
+			date_modified,
+			price_schedule_id,
+			billing_kind,
+			amount_basis,
+			billing_cycle_value,
+			billing_cycle_unit,
+			default_term_value,
+			default_term_unit
+		FROM price_plan
+		WHERE id = $1
+		  AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PricePlanId)
 	var id, planId, billingCurrency string
 	var name, description sql.NullString

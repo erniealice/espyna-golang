@@ -11,9 +11,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -285,14 +285,13 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pv.sku ILIKE $1 OR
 			       p.name ILIKE $1)
-		),
-		counted AS (
-			SELECT COUNT(*) as total FROM enriched
 		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
 			e.*,
-			c.total
-		FROM enriched e, counted c
+			COUNT(*) OVER () AS total
+		FROM enriched e
 		%s
 		LIMIT $2 OFFSET $3;
 	`, orderByClause)

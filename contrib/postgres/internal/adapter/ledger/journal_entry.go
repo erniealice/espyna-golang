@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -276,7 +276,10 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 
 	// Build WHERE clauses. $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"je.description", "je.entry_number"}
-	filterClauses, filterArgs, nextIdx := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereStr := " AND je.workspace_id = $1"
 	if len(filterClauses) > 0 {

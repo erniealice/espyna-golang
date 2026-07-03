@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -244,7 +244,28 @@ func (r *PostgresLocationAttributeRepository) GetLocationAttributeListPageData(c
 		return nil, err
 	}
 
-	query := `WITH enriched AS (SELECT id, location_id, key, value, active, date_created, date_modified FROM location_attribute WHERE active = true AND ($1::text IS NULL OR $1::text = '' OR key ILIKE $1 OR value ILIKE $1)), counted AS (SELECT COUNT(*) as total FROM enriched) SELECT e.*, c.total FROM enriched e, counted c ` + orderByClause + ` LIMIT $2 OFFSET $3;`
+	query := `
+		WITH enriched AS (SELECT
+				id,
+				location_id,
+				key,
+				value,
+				active,
+				date_created,
+				date_modified
+			FROM location_attribute
+			WHERE active = true
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       key ILIKE $1 OR
+			       value ILIKE $1))
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		` + orderByClause + `
+		LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
 	if err != nil {

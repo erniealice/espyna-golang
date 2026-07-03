@@ -464,12 +464,10 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 				CASE WHEN $4 = 'user_id' AND $5 = 'DESC' THEN user_id END DESC,
 				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
 				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC
-		),
-
-		-- CTE 5: Calculate total count for pagination
-		total_count AS (
-			SELECT count(*) as total FROM sorted
 		)
+
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
 
 		-- Final SELECT with pagination
 		SELECT
@@ -481,9 +479,8 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			s.user,
 			s.delegate_clients,
 			s.delegate_suppliers,
-			tc.total as _total_count
+			COUNT(*) OVER () AS _total_count
 		FROM sorted s
-		CROSS JOIN total_count tc
 		LIMIT $2 OFFSET $3
 	`
 

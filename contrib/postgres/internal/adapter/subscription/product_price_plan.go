@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
@@ -348,10 +348,22 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanItemPageData(ctx
 	}
 	// Model D: same join-through shape as the list query — surface product_id +
 	// variant_id from product_plan on the returned ProductPlan embed.
-	query := `SELECT ppp.id, ppp.price_plan_id, ppp.product_plan_id, ppp.billing_amount, ppp.billing_currency, ppp.active, ppp.date_created, ppp.date_modified, pp.product_id, pp.product_variant_id
+	query := `
+		SELECT
+			ppp.id,
+			ppp.price_plan_id,
+			ppp.product_plan_id,
+			ppp.billing_amount,
+			ppp.billing_currency,
+			ppp.active,
+			ppp.date_created,
+			ppp.date_modified,
+			pp.product_id,
+			pp.product_variant_id
 		FROM product_price_plan ppp
 		LEFT JOIN product_plan pp ON pp.id = ppp.product_plan_id
-		WHERE ppp.id = $1 AND ppp.active = true`
+		WHERE ppp.id = $1
+		  AND ppp.active = true`
 	row := r.db.QueryRowContext(ctx, query, req.ProductPricePlanId)
 	var id, pricePlanId, productPlanId, billingCurrency string
 	var billingAmount int64

@@ -17,14 +17,33 @@ import (
 	"github.com/erniealice/pyeza-golang/types"
 )
 
+// LabelResolver maps a descriptor label key to its final display string. It
+// receives the descriptor's Go-default label as the fallback and returns the
+// tier-overridden value when the key exists in the loaded cascade, otherwise
+// the fallback unchanged. A nil LabelResolver means "no cascade" — the
+// descriptor Go default is emitted verbatim (the pre-growth behavior).
+type LabelResolver func(labelKey, fallback string) string
+
+// IconResolver is the icon-key analogue of LabelResolver. Same nil semantics:
+// nil emits the descriptor Go-default icon verbatim.
+type IconResolver func(iconKey, fallback string) string
+
 // NavResolver bridges the compose engine's Nav system to the sidebar's
 // types.SidebarItem / types.SidebarApp types. It resolves route keys from
 // descriptors into concrete href URLs and optionally prepends a workspace
 // slug for per-request sidebar generation.
+//
+// labelResolver / iconResolver are OPTIONAL. When both are nil (the default
+// from NewNavResolver) Pick and its siblings emit descriptor Go defaults, so
+// output is byte-identical to the pre-cascade behavior. An app opts into the
+// lyngua three-level cascade by supplying closures via WithLabelResolver; the
+// resolvers then flow through WithWorkspace-derived copies unchanged.
 type NavResolver struct {
 	result        *compose.Result
 	workspaceSlug string
 	clientID      string
+	labelResolver LabelResolver
+	iconResolver  IconResolver
 }
 
 // NewNavResolver wraps a compose.Result for sidebar href resolution.
@@ -34,13 +53,26 @@ func NewNavResolver(result *compose.Result) *NavResolver {
 
 // WithWorkspace returns a copy of the NavResolver that prepends /w/{slug}
 // (and optionally /as/{clientID}) to every resolved href. The original
-// NavResolver is not mutated.
+// NavResolver is not mutated. Any configured label/icon resolvers are carried
+// into the copy so a per-request workspace resolver keeps its cascade.
 func (nav *NavResolver) WithWorkspace(slug, clientID string) *NavResolver {
-	return &NavResolver{
-		result:        nav.result,
-		workspaceSlug: slug,
-		clientID:      clientID,
-	}
+	cp := *nav
+	cp.workspaceSlug = slug
+	cp.clientID = clientID
+	return &cp
+}
+
+// WithLabelResolver returns a copy of the NavResolver whose Pick / PickWithVariants
+// / PickTabs / PickGrid emit cascade-resolved labels and icons instead of the
+// descriptor Go defaults. The original NavResolver is not mutated. Passing nil
+// for either closure disables that dimension of the cascade (that dimension
+// falls back to the descriptor default), so callers can opt into label-only or
+// icon-only resolution. The resolvers are preserved across WithWorkspace copies.
+func (nav *NavResolver) WithLabelResolver(label LabelResolver, icon IconResolver) *NavResolver {
+	cp := *nav
+	cp.labelResolver = label
+	cp.iconResolver = icon
+	return &cp
 }
 
 // Href resolves a single NavItem's route key to its final href URL. Returns
@@ -121,11 +153,49 @@ func (nav *NavResolver) Pick(unitKey string, itemKeys ...string) []types.Sidebar
 }
 
 func (nav *NavResolver) resolveLabel(item compose.NavItem) string {
-	return item.Label
+	return nav.resolveLabelKey(item.LabelKey, item.Key, item.Label)
 }
 
 func (nav *NavResolver) resolveIcon(item compose.NavItem) string {
-	return item.Icon
+	return nav.resolveIconKey(item.IconKey, item.Key, item.Icon)
+}
+
+// resolveLabelKey applies the label cascade. With no resolver configured it
+// returns fallback verbatim (pre-growth behavior). Key-derivation convention:
+// when the descriptor's explicit labelKey is empty, the item's own key
+// (deriveKey) seeds the cascade lookup; callers that must NOT derive a key
+// (e.g. bottom-nav tabs, whose labels come from a separate message bundle)
+// pass an empty deriveKey, which keeps fallback unless an explicit labelKey is
+// present. Either way the resolver is contracted to return fallback on a miss,
+// so a set-but-non-matching key is still byte-identical to the default.
+func (nav *NavResolver) resolveLabelKey(labelKey, deriveKey, fallback string) string {
+	if nav.labelResolver == nil {
+		return fallback
+	}
+	key := labelKey
+	if key == "" {
+		key = deriveKey
+	}
+	if key == "" {
+		return fallback
+	}
+	return nav.labelResolver(key, fallback)
+}
+
+// resolveIconKey is the icon-key analogue of resolveLabelKey; same nil and
+// key-derivation semantics.
+func (nav *NavResolver) resolveIconKey(iconKey, deriveKey, fallback string) string {
+	if nav.iconResolver == nil {
+		return fallback
+	}
+	key := iconKey
+	if key == "" {
+		key = deriveKey
+	}
+	if key == "" {
+		return fallback
+	}
+	return nav.iconResolver(key, fallback)
 }
 
 // RouteMapValue looks up a dot-notation route key directly in the compose

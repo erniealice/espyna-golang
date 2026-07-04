@@ -36,14 +36,16 @@ fi
 
 # ---------------------------------------------------------------------------
 # Generate the known-table list from registry/entityid/entityid.go.
-# Matches lines like:  Name = "table_name"
+# Matches lines like:  Name = "table_name"  and the schema-qualified audit
+# exception  Name = "audit_trail.audit_entry"  (the value class allows a "."
+# so the two audit-trail constants flow through into the known-table list).
 # ---------------------------------------------------------------------------
 TMPDIR_AUDIT="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_AUDIT"' EXIT
 
 TABLES_FILE="$TMPDIR_AUDIT/tables.txt"
-grep -oE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*"[a-z_][a-z0-9_]*"' "$ENTITYID_FILE" \
-  | sed -E 's/^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*"([a-z_][a-z0-9_]*)"/\1/' \
+grep -oE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*"[a-z_][a-z0-9_.]*"' "$ENTITYID_FILE" \
+  | sed -E 's/^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*"([a-z_][a-z0-9_.]*)"/\1/' \
   | sort -u > "$TABLES_FILE"
 
 table_count=$(wc -l < "$TABLES_FILE" | tr -d ' ')
@@ -52,7 +54,14 @@ printf "%s=== audit-table-names: %s known tables from %s ===%s\n" "$C_CYAN" "$ta
 # Build a single alternation regex: (FROM|JOIN|INTO|UPDATE)\s+(tbl1|tbl2|...)\b
 # and a DELETE FROM variant. Piping the table list into the regex keeps this
 # script table-count-agnostic (currently 240+, will grow).
-ALT="$(paste -sd'|' "$TABLES_FILE")"
+#
+# Escape any "." in a table name to a literal "\." before joining. Only the
+# schema-qualified audit-trail tables (audit_trail.audit_entry /
+# audit_trail.audit_field_change) carry a dot; without escaping, the regex "."
+# would over-match the mysql adapter's underscore form (audit_trail_audit_entry)
+# and false-positive. Escaped, the pattern matches only the literal postgres
+# form the entityid constant defines.
+ALT="$(sed 's/\./\\./g' "$TABLES_FILE" | paste -sd'|' -)"
 
 HITS_FILE="$TMPDIR_AUDIT/hits.txt"
 : > "$HITS_FILE"

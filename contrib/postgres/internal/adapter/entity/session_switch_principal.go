@@ -482,7 +482,7 @@ func writeSwitchAuditRow(ctx context.Context, tx *sql.Tx, row switchAuditRow) er
 	}
 
 	const insertSQL = `
-		INSERT INTO audit_trail.audit_entry (
+		INSERT INTO ` + entityid.AuditEntry + ` (
 			id, workspace_id,
 			actor_id, actor_type, actor_ip, actor_user_agent,
 			entity_type, entity_id, domain, action,

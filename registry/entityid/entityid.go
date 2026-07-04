@@ -224,6 +224,25 @@ const (
 	DocumentTemplate = "document_template"
 )
 
+// Audit-trail schema (EXCEPTION — schema-qualified, direct-SQL only).
+//
+// Unlike every other constant in this file, these two carry a schema prefix
+// ("audit_trail.") because the audit tables live in a dedicated PostgreSQL
+// schema, not the default (public) one. They are also the only entity IDs NOT
+// registered through the repository-factory registry: the audit adapter
+// (contrib/postgres/.../adapter/audit) and the session-switch adapter
+// (contrib/postgres/.../adapter/entity/session_switch_principal.go) write them
+// via direct SQL — audit must avoid PostgresOperations to prevent the
+// CRUD↔audit recursion. They are therefore deliberately NOT added to any domain
+// slice or buildAll(); they exist purely as the single source for the audit
+// table identifiers used by those two direct-SQL sites. The schema-qualified
+// value (with a ".") is why scripts/audit-table-names.sh matches a dotted
+// table-value class.
+const (
+	AuditEntry       = "audit_trail.audit_entry"
+	AuditFieldChange = "audit_trail.audit_field_change"
+)
+
 // Integration domain
 const (
 	IntegrationPayment = "integration_payment"

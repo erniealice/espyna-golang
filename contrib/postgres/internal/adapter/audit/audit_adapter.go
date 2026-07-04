@@ -11,6 +11,7 @@ import (
 	"time"
 
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/lib/pq"
 )
@@ -76,7 +77,7 @@ func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogReq
 	workspaceID := req.WorkspaceID
 
 	const entrySQL = `
-		INSERT INTO audit_trail.audit_entry (
+		INSERT INTO ` + entityid.AuditEntry + ` (
 			workspace_id, actor_id, actor_type, actor_ip, actor_user_agent,
 			entity_type, entity_id,
 			domain, action, permission_code, use_case, reason, method_name,
@@ -118,7 +119,7 @@ func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogReq
 		}
 
 		const changeSQL = `
-			INSERT INTO audit_trail.audit_field_change (
+			INSERT INTO ` + entityid.AuditFieldChange + ` (
 				audit_entry_id, field_name, field_type, old_value, new_value
 			)
 			SELECT $1::uuid, u.field_name, u.field_type, u.old_value, u.new_value
@@ -183,7 +184,7 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 			SELECT id, actor_id, actor_type, entity_type, entity_id,
 			       domain, action, permission_code, use_case, reason, method_name,
 			       request_id, field_count, occurred_at
-			FROM audit_trail.audit_entry
+			FROM ` + entityid.AuditEntry + `
 			WHERE entity_type = $1
 			  AND entity_id   = $2
 			  AND workspace_id = $3
@@ -196,7 +197,7 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 			SELECT id, actor_id, actor_type, entity_type, entity_id,
 			       domain, action, permission_code, use_case, reason, method_name,
 			       request_id, field_count, occurred_at
-			FROM audit_trail.audit_entry
+			FROM ` + entityid.AuditEntry + `
 			WHERE entity_type = $1
 			  AND entity_id   = $2
 			  AND workspace_id = $3
@@ -253,7 +254,7 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 
 		const changesSQL = `
 			SELECT audit_entry_id, field_name, field_type, old_value, new_value
-			FROM audit_trail.audit_field_change
+			FROM ` + entityid.AuditFieldChange + `
 			WHERE audit_entry_id = ANY($1)
 			ORDER BY audit_entry_id, id`
 
@@ -314,7 +315,7 @@ func (a *auditAdapter) ListByActor(ctx context.Context, req *infraports.ListByAc
 			SELECT id, actor_id, actor_type, use_case,
 			       COALESCE(request_url, ''), COALESCE(referer, ''),
 			       occurred_at
-			FROM audit_trail.audit_entry
+			FROM ` + entityid.AuditEntry + `
 			WHERE actor_id = $1
 			  AND use_case LIKE $2
 			ORDER BY occurred_at DESC
@@ -326,7 +327,7 @@ func (a *auditAdapter) ListByActor(ctx context.Context, req *infraports.ListByAc
 			SELECT id, actor_id, actor_type, use_case,
 			       COALESCE(request_url, ''), COALESCE(referer, ''),
 			       occurred_at
-			FROM audit_trail.audit_entry
+			FROM ` + entityid.AuditEntry + `
 			WHERE actor_id = $1
 			ORDER BY occurred_at DESC
 			LIMIT $2`

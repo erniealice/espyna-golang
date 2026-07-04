@@ -3,19 +3,21 @@ module github.com/erniealice/espyna-golang
 go 1.25.1
 
 require (
-	github.com/erniealice/espyna-golang/contrib/asiapay v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/aws v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/azure v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/calendly v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/fiber v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/gin v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/google v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/maya v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/microsoft v0.1.0-alpha
-	github.com/erniealice/espyna-golang/contrib/paypal v0.1.0-alpha
-	github.com/erniealice/esqyma v0.1.0-alpha
-	github.com/erniealice/lyngua v0.1.0-alpha
-	github.com/erniealice/pyeza-golang v0.1.0-alpha
+	github.com/erniealice/espyna-golang/contrib/asiapay v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/aws v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/azure v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/calendly v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/fiber v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/gin v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/google v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/grpc v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/maya v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/microsoft v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/paypal v0.1.0-alpha.1
+	github.com/erniealice/espyna-golang/contrib/postgres v0.1.0-alpha.1
+	github.com/erniealice/esqyma v0.1.0-alpha.1
+	github.com/erniealice/lyngua v0.1.0-alpha.1
+	github.com/erniealice/pyeza-golang v0.1.0-alpha.1
 	github.com/google/cel-go v0.23.0
 	github.com/google/uuid v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
@@ -103,6 +105,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
@@ -121,6 +124,7 @@ require (
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.66.0 // indirect
+	github.com/yuin/goldmark v1.7.17 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.38.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0 // indirect

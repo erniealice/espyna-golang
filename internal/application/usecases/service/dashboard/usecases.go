@@ -219,6 +219,7 @@ func NewDashboardUseCases(deps *Deps) *DashboardUseCases {
 			Job:               deps.Job,
 			JobActivity:       deps.JobActivity,
 			JobActivityRecent: deps.JobActivityRecent,
+			ActionGatekeeper:  deps.ActionGatekeeper,
 		}), // Wave C P1.C.9 LANDED 2026-05-21 (source aggregate `operation`)
 		Product: product.NewUseCases(&product.Deps{
 			Product: deps.Product,

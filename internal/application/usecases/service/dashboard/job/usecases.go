@@ -40,6 +40,8 @@
 // Wave B P1.C.9 — see docs/wiki/articles/hexagonal-rules.md §8.
 package job
 
+import "github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+
 // UseCases aggregates every service-driven job dashboard use case.
 type UseCases struct {
 	GetJobDashboard *GetJobDashboardUseCase
@@ -59,6 +61,11 @@ type Deps struct {
 	Job               JobDashboardRepository
 	JobActivity       JobActivityDashboardRepository
 	JobActivityRecent JobActivityRecentRepository
+
+	// ActionGatekeeper enforces the Gate 1 `job:list` capability on the
+	// dashboard read (mirrors the job list use case). Nil-safe: the
+	// gatekeeper's Check denies by default when nil.
+	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // NewUseCases wires every job-dashboard service use case from grouped
@@ -75,6 +82,7 @@ func NewUseCases(deps *Deps) *UseCases {
 				JobActivity:       deps.JobActivity,
 				JobActivityRecent: deps.JobActivityRecent,
 			},
+			deps.ActionGatekeeper,
 		),
 	}
 }

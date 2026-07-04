@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	jobdashpb "github.com/erniealice/esqyma/pkg/schema/v1/service/dashboard/job"
@@ -87,18 +89,28 @@ type GetJobDashboardRepositories struct {
 // relocation moves the proto contract out of the Go-only Request/Response
 // shape and into the service-driven category.
 //
-// **No authcheck.Check.** Per hexagonal-rules.md §8 service-driven domains
-// take a conditional subset of layers; dashboard reads are authenticated by
-// the upstream HTTP view middleware. Matches the Admin/Equity pilot pattern.
+// **Gate 1 (Action) check.** This dashboard read returns real, workspace-scoped
+// job names, deadlines, labor hours and risk rows, so it MUST gate on the same
+// `job:list` capability that guards the job list use case (usecases/domain/
+// operation/job ListJobsUseCase). The Execute method runs the gatekeeper before
+// touching any repository; a principal lacking `job:list` is denied fail-closed.
+// Under AUTHZ_ENFORCE shadow mode the gatekeeper short-circuits allow (matching
+// the fycha reporting use cases) so the gate is enforcement-consistent — it
+// closes the moment AUTHZ_ENFORCE flips on.
 type GetJobDashboardUseCase struct {
-	repositories GetJobDashboardRepositories
+	repositories     GetJobDashboardRepositories
+	actionGatekeeper *actiongate.ActionGatekeeper
 }
 
 // NewGetJobDashboardUseCase wires the use case from grouped dependencies.
 func NewGetJobDashboardUseCase(
 	repositories GetJobDashboardRepositories,
+	actionGate *actiongate.ActionGatekeeper,
 ) *GetJobDashboardUseCase {
-	return &GetJobDashboardUseCase{repositories: repositories}
+	return &GetJobDashboardUseCase{
+		repositories:     repositories,
+		actionGatekeeper: actionGate,
+	}
 }
 
 // Execute runs the aggregate queries and assembles the proto response.
@@ -108,6 +120,16 @@ func (uc *GetJobDashboardUseCase) Execute(
 	ctx context.Context,
 	req *jobdashpb.GetJobDashboardRequest,
 ) (*jobdashpb.GetJobDashboardResponse, error) {
+	// Gate 1 (Action): same capability that guards the job list use case.
+	// Fail-closed on missing/insufficient permission; short-circuits allow in
+	// AUTHZ_ENFORCE shadow mode.
+	if err := uc.actionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Job,
+		Action: entityid.ActionList,
+	}); err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	workspaceID := ""
 	if req != nil {

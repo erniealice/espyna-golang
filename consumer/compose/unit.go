@@ -207,14 +207,6 @@ func trimBaseSegment(key string) string {
 	return ""
 }
 
-// entityKeyOrDefault returns EntityKey, falling back to Key.
-func (u Unit) entityKeyOrDefault() string {
-	if u.EntityKey != "" {
-		return u.EntityKey
-	}
-	return u.Key
-}
-
 // MountContext is what the engine hands every unit's Mount closure in phase 2.
 // It carries the shared composition targets plus typed cross-unit lookup.
 type MountContext struct {

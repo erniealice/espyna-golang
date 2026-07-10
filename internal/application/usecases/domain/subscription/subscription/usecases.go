@@ -6,7 +6,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -25,9 +27,11 @@ type JobTemplateInstantiator interface {
 
 // SubscriptionRepositories groups all repository dependencies
 type SubscriptionRepositories struct {
-	Subscription subscriptionpb.SubscriptionDomainServiceServer
-	Client       clientpb.ClientDomainServiceServer
-	PricePlan    priceplanpb.PricePlanDomainServiceServer
+	Subscription  subscriptionpb.SubscriptionDomainServiceServer
+	Client        clientpb.ClientDomainServiceServer
+	PricePlan     priceplanpb.PricePlanDomainServiceServer
+	Plan          planpb.PlanDomainServiceServer                   // Only for CreateSubscription code-gen ({grade})
+	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer // Only for CreateSubscription code-gen ({price_schedule})
 }
 
 // SubscriptionServices groups all business service dependencies
@@ -35,9 +39,10 @@ type SubscriptionServices struct {
 	Authorizer              ports.Authorizer
 	Transactor              ports.Transactor
 	Translator              ports.Translator
-	ActionGatekeeper *actiongate.ActionGatekeeper
+	ActionGatekeeper        *actiongate.ActionGatekeeper
 	IDGenerator             ports.IDGenerator // Only for CreateSubscription
 	JobTemplateInstantiator JobTemplateInstantiator
+	CodeFormat              string // SUBSCRIPTION_CODE_FORMAT template; only for CreateSubscription
 }
 
 // UseCases contains all subscription-related use cases.
@@ -72,9 +77,11 @@ func NewUseCases(
 ) *UseCases {
 	// Build individual grouped parameters for each use case
 	createRepos := CreateSubscriptionRepositories{
-		Subscription: repositories.Subscription,
-		Client:       repositories.Client,
-		PricePlan:    repositories.PricePlan,
+		Subscription:  repositories.Subscription,
+		Client:        repositories.Client,
+		PricePlan:     repositories.PricePlan,
+		Plan:          repositories.Plan,
+		PriceSchedule: repositories.PriceSchedule,
 	}
 	createServices := CreateSubscriptionServices{
 		ActionGatekeeper:        services.ActionGatekeeper,
@@ -83,6 +90,7 @@ func NewUseCases(
 		Translator:              services.Translator,
 		IDGenerator:             services.IDGenerator,
 		JobTemplateInstantiator: services.JobTemplateInstantiator,
+		CodeFormat:              services.CodeFormat,
 	}
 
 	readRepos := ReadSubscriptionRepositories{
@@ -90,9 +98,9 @@ func NewUseCases(
 	}
 	readServices := ReadSubscriptionServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdateSubscriptionRepositories{
@@ -102,9 +110,9 @@ func NewUseCases(
 	}
 	updateServices := UpdateSubscriptionServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	deleteRepos := DeleteSubscriptionRepositories{
@@ -112,9 +120,9 @@ func NewUseCases(
 	}
 	deleteServices := DeleteSubscriptionServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListSubscriptionsRepositories{
@@ -122,9 +130,9 @@ func NewUseCases(
 	}
 	listServices := ListSubscriptionsServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listPageDataRepos := GetSubscriptionListPageDataRepositories{
@@ -132,9 +140,9 @@ func NewUseCases(
 	}
 	listPageDataServices := GetSubscriptionListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	itemPageDataRepos := GetSubscriptionItemPageDataRepositories{
@@ -142,9 +150,9 @@ func NewUseCases(
 	}
 	itemPageDataServices := GetSubscriptionItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	countActiveRepos := CountActiveByClientIdsRepositories{
@@ -152,8 +160,8 @@ func NewUseCases(
 	}
 	countActiveServices := CountActiveByClientIdsServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Translator:       services.Translator,
 	}
 
 	listByPricePlanRepos := ListSubscriptionsByPricePlanRepositories{
@@ -161,9 +169,9 @@ func NewUseCases(
 	}
 	listByPricePlanServices := ListSubscriptionsByPricePlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{

@@ -32,8 +32,8 @@ import (
 	// Application ports (for service interfaces)
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
-	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Infrastructure adapters for mock services
 	mockAuth "github.com/erniealice/espyna-golang/internal/infrastructure/adapters/secondary/auth/mock"
@@ -871,7 +871,8 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 	// the application owner (service-admin) wires the postgres-backed
 	// reference.Checker via the container path when running on postgres.
 	subscriptionUseCases, err := domain.InitializeSubscription(subscriptionRepos, authSvc, txSvc, i18nSvc, idSvc,
-		actiongate.NewActionGatekeeper(authSvc, i18nSvc), jobTemplateInstantiator, ports.NewNoOpReferenceChecker())
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc), jobTemplateInstantiator, ports.NewNoOpReferenceChecker(),
+		container.config.SubscriptionCodeFormat)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize subscription use cases: %v\n", err)
 		return nil, err

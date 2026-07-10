@@ -13,7 +13,9 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
+	"github.com/lib/pq"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -165,7 +167,59 @@ func (r *PostgresSubscriptionGroupRepository) listAll(ctx context.Context, filte
 		}
 		items = append(items, item)
 	}
+	if err := r.enrichPriceSchedules(ctx, items); err != nil {
+		return nil, err
+	}
 	return items, nil
+}
+
+// enrichPriceSchedules populates the nested SubscriptionGroup.price_schedule
+// read-model object via a single STATUS-AGNOSTIC batch query. A cohort may
+// legitimately reference an archived/inactive academic-year price_schedule, so
+// this join deliberately applies NO active filter (unlike ReadPriceSchedule /
+// ListPriceSchedules). Single query, no N+1.
+func (r *PostgresSubscriptionGroupRepository) enrichPriceSchedules(ctx context.Context, items []*pb.SubscriptionGroup) error {
+	if r.db == nil || len(items) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	var ids []string
+	for _, item := range items {
+		id := item.GetPriceScheduleId()
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT id, name FROM price_schedule WHERE id = ANY($1)`, pq.Array(ids))
+	if err != nil {
+		return fmt.Errorf("failed to enrich price schedules: %w", err)
+	}
+	defer rows.Close()
+	byID := make(map[string]*priceschedulepb.PriceSchedule, len(ids))
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return fmt.Errorf("failed to scan price schedule row: %w", err)
+		}
+		byID[id] = &priceschedulepb.PriceSchedule{Id: id, Name: name}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed to iterate price schedule rows: %w", err)
+	}
+	for _, item := range items {
+		if ps, ok := byID[item.GetPriceScheduleId()]; ok {
+			item.PriceSchedule = ps
+		}
+	}
+	return nil
 }
 
 func subscriptionGroupFromResult(result any) (*pb.SubscriptionGroup, error) {

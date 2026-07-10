@@ -7,28 +7,36 @@ import (
 	"time"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
 type CreateSubscriptionRepositories struct {
-	Subscription subscriptionpb.SubscriptionDomainServiceServer
-	Client       clientpb.ClientDomainServiceServer
-	PricePlan    priceplanpb.PricePlanDomainServiceServer
+	Subscription  subscriptionpb.SubscriptionDomainServiceServer
+	Client        clientpb.ClientDomainServiceServer
+	PricePlan     priceplanpb.PricePlanDomainServiceServer
+	Plan          planpb.PlanDomainServiceServer
+	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
 }
 
 type CreateSubscriptionServices struct {
 	Authorizer              ports.Authorizer
 	Transactor              ports.Transactor
 	Translator              ports.Translator
-	ActionGatekeeper *actiongate.ActionGatekeeper
+	ActionGatekeeper        *actiongate.ActionGatekeeper
 	IDGenerator             ports.IDGenerator
 	JobTemplateInstantiator JobTemplateInstantiator
+	// CodeFormat is the SUBSCRIPTION_CODE_FORMAT template threaded from the
+	// composition root (.env). Empty or "auto" -> DefaultCodeFormat. The domain
+	// layer never reads env directly; this value is injected.
+	CodeFormat string
 }
 
 // CreateSubscriptionUseCase handles the business logic for creating subscriptions
@@ -71,6 +79,14 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	pricePlan, err := uc.validateEntityReferences(ctx, req.Data)
 	if err != nil {
 		return nil, err
+	}
+
+	// Auto-generate subscription.code when the caller did not supply one.
+	// Never overwrite a caller-supplied code, and never block creation on a
+	// generation lookup failure (best-effort; blank tokens for the rest).
+	if req.Data != nil && req.Data.GetCode() == "" {
+		generated := uc.generateSubscriptionCode(ctx, req.Data, pricePlan)
+		req.Data.Code = &generated
 	}
 
 	// Business enrichment
@@ -251,4 +267,47 @@ func (uc *CreateSubscriptionUseCase) validateEntityReferences(ctx context.Contex
 	}
 
 	return resolvedPricePlan, nil
+}
+
+// generateSubscriptionCode resolves the fixed token set from the create
+// request's client + price_plan (plan_id, price_schedule_id) and renders the
+// configured SUBSCRIPTION_CODE_FORMAT template. It is fully best-effort: any
+// lookup error contributes empty tokens rather than aborting creation. The
+// caller only invokes this when req.Data.Code == "".
+func (uc *CreateSubscriptionUseCase) generateSubscriptionCode(ctx context.Context, subscription *subscriptionpb.Subscription, pricePlan *priceplanpb.PricePlan) string {
+	var client *clientpb.Client
+	var plan *planpb.Plan
+	var schedule *priceschedulepb.PriceSchedule
+
+	// Student names come from the client's own first_name/last_name.
+	if subscription.ClientId != "" && uc.repositories.Client != nil {
+		if resp, err := uc.repositories.Client.ReadClient(ctx, &clientpb.ReadClientRequest{
+			Data: &clientpb.Client{Id: subscription.ClientId},
+		}); err == nil && resp != nil && len(resp.Data) > 0 {
+			client = resp.Data[0]
+		}
+	}
+
+	if pricePlan != nil {
+		// {grade} <- price_plan.plan_id -> plan.name
+		if planID := pricePlan.GetPlanId(); planID != "" && uc.repositories.Plan != nil {
+			if resp, err := uc.repositories.Plan.ReadPlan(ctx, &planpb.ReadPlanRequest{
+				Data: &planpb.Plan{Id: &planID},
+			}); err == nil && resp != nil && len(resp.Data) > 0 {
+				plan = resp.Data[0]
+			}
+		}
+		// {price_schedule} <- price_plan.price_schedule_id -> price_schedule.name.
+		// price_schedule_id is optional (master/non-scheduled plans) -> empty token.
+		if scheduleID := pricePlan.GetPriceScheduleId(); scheduleID != "" && uc.repositories.PriceSchedule != nil {
+			if resp, err := uc.repositories.PriceSchedule.ReadPriceSchedule(ctx, &priceschedulepb.ReadPriceScheduleRequest{
+				Data: &priceschedulepb.PriceSchedule{Id: scheduleID},
+			}); err == nil && resp != nil && len(resp.Data) > 0 {
+				schedule = resp.Data[0]
+			}
+		}
+	}
+
+	tokens := ResolveCodeTokens(client, plan, schedule)
+	return FormatCode(uc.services.CodeFormat, tokens)
 }

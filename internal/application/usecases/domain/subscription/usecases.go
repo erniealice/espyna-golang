@@ -132,6 +132,7 @@ func NewUseCases(
 	actionGate *actiongate.ActionGatekeeper,
 	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
 	refChecker ports.ReferenceChecker,
+	codeFormat string,
 ) *SubscriptionUseCases {
 	if refChecker == nil {
 		refChecker = ports.NewNoOpReferenceChecker()
@@ -235,9 +236,11 @@ func NewUseCases(
 
 	subscriptionUC := subscriptionUseCases.NewUseCases(
 		subscriptionUseCases.SubscriptionRepositories{
-			Subscription: repos.Subscription,
-			Client:       repos.Client,
-			PricePlan:    repos.PricePlan,
+			Subscription:  repos.Subscription,
+			Client:        repos.Client,
+			PricePlan:     repos.PricePlan,
+			Plan:          repos.Plan,
+			PriceSchedule: repos.PriceSchedule,
 		},
 		subscriptionUseCases.SubscriptionServices{
 			Authorizer:              authSvc,
@@ -246,6 +249,7 @@ func NewUseCases(
 			IDGenerator:             idService,
 			JobTemplateInstantiator: jobTemplateInstantiator,
 			ActionGatekeeper:        actionGate,
+			CodeFormat:              codeFormat,
 		},
 	)
 

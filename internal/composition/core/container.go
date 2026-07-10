@@ -36,17 +36,17 @@ type RouteManager interface {
 
 // Platform holds all core infrastructure services with mock defaults
 type Platform struct {
-	Auth           contracts.Service           // Authentication/Authorization service
-	Storage        contracts.Service           // Storage service (files, uploads)
-	Metrics        contracts.Service           // Metrics and monitoring service
-	Logger         contracts.Service           // Logging service
-	Cache          contracts.Service           // Caching service
-	Transaction    ports.Transactor            // Transaction port (real DB-backed, NoOp when no DB)
-	IDGen          contracts.Service           // ID generation service (UUID v7, etc.)
-	Email          ports.EmailProvider         // Email provider service (Gmail, SendGrid, etc.)
-	Payment        ports.PaymentProvider       // Payment provider service (AsiaPay, Stripe, etc.)
-	Scheduler      ports.SchedulerProvider     // Scheduler provider service (Calendly, etc.)
-	Tabular        ports.TabularSourceProvider // Tabular data provider (Google Sheets, etc.)
+	Auth                  contracts.Service                  // Authentication/Authorization service
+	Storage               contracts.Service                  // Storage service (files, uploads)
+	Metrics               contracts.Service                  // Metrics and monitoring service
+	Logger                contracts.Service                  // Logging service
+	Cache                 contracts.Service                  // Caching service
+	Transaction           ports.Transactor                   // Transaction port (real DB-backed, NoOp when no DB)
+	IDGen                 contracts.Service                  // ID generation service (UUID v7, etc.)
+	Email                 ports.EmailProvider                // Email provider service (Gmail, SendGrid, etc.)
+	Payment               ports.PaymentProvider              // Payment provider service (AsiaPay, Stripe, etc.)
+	Scheduler             ports.SchedulerProvider            // Scheduler provider service (Calendly, etc.)
+	Tabular               ports.TabularSourceProvider        // Tabular data provider (Google Sheets, etc.)
 	WorkflowEngine        ports.WorkflowEngineService        // Orchestration engine service
 	WorkflowAssigneeQuery ports.WorkflowAssigneeQueryService // Engine identity bridge (read-only)
 
@@ -85,11 +85,11 @@ func (m *MockService) Health(ctx context.Context) error {
 // NewDefaultPlatform creates a Platform struct with mock defaults
 func NewDefaultPlatform() *Platform {
 	return &Platform{
-		Auth:        NewMockService("mock-auth"), // Placeholder - actual auth service created separately
-		Storage:     NewMockService("mock-storage"),
-		Metrics:     NewMockService("mock-metrics"),
-		Logger:      NewMockService("mock-logger"),
-		Cache:       NewMockService("mock-cache"),
+		Auth:    NewMockService("mock-auth"), // Placeholder - actual auth service created separately
+		Storage: NewMockService("mock-storage"),
+		Metrics: NewMockService("mock-metrics"),
+		Logger:  NewMockService("mock-logger"),
+		Cache:   NewMockService("mock-cache"),
 		// Transaction is a real ports.Transactor (NOT a MockService). The NoOp
 		// fallback reports SupportsTransactions()==false so use cases take their
 		// executeCore (no-tx) branch — identical to the pre-wiring dormant
@@ -132,6 +132,11 @@ type Config struct {
 	// Runtime configuration
 	BusinessType       string
 	WorkflowEngineMode string
+
+	// SubscriptionCodeFormat is the SUBSCRIPTION_CODE_FORMAT template read from
+	// env; threaded into the subscription CreateSubscription use case for
+	// auto-generating subscription.code. Empty or "auto" -> the default format.
+	SubscriptionCodeFormat string
 
 	// Routing configuration
 	RoutingConfig *routing.Config
@@ -181,6 +186,7 @@ func NewContainerFromEnv() (*Container, error) {
 	container.config.BusinessType = getEnv("BUSINESS_TYPE", "education")
 	container.config.WorkflowEngineMode = strings.ToLower(getEnv("CONFIG_WORKFLOW_ENGINE_MODE", "late"))
 	fmt.Printf("   Workflow:  %s\n", container.config.WorkflowEngineMode)
+	container.config.SubscriptionCodeFormat = getEnv("SUBSCRIPTION_CODE_FORMAT", "auto")
 
 	// Note: Database table config is now handled by the registry - adapters register their
 	// own table config builders and the Manager retrieves it based on the active provider.

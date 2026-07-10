@@ -19,6 +19,7 @@ func InitializeSubscription(
 	actionGate *actiongate.ActionGatekeeper,
 	jobTemplateInstantiator subscriptionUseCases.JobTemplateInstantiator,
 	refChecker ports.ReferenceChecker,
+	codeFormat string,
 ) (*subscription.SubscriptionUseCases, error) {
 	// Use the domain's constructor which properly handles all use case creation
 	return subscription.NewUseCases(
@@ -55,5 +56,6 @@ func InitializeSubscription(
 		actionGate,
 		jobTemplateInstantiator,
 		refChecker,
+		codeFormat,
 	), nil
 }

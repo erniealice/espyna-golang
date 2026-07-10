@@ -390,7 +390,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					'active', c.active,
 					'date_created', (EXTRACT(EPOCH FROM c.date_created) * 1000)::bigint,
 					'date_modified', (EXTRACT(EPOCH FROM c.date_modified) * 1000)::bigint,
-					'user', jsonb_build_object(
+					-- NULL-guard nested objects: an unmatched LEFT JOIN would
+					-- otherwise emit an all-null object, which protojson
+					-- rejects — silently dropping the WHOLE parent object.
+					'user', CASE WHEN u.id IS NULL THEN NULL ELSE jsonb_build_object(
 						'id', u.id,
 						'first_name', u.first_name,
 						'last_name', u.last_name,
@@ -398,7 +401,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 						'active', u.active,
 						'date_created', (EXTRACT(EPOCH FROM u.date_created) * 1000)::bigint,
 						'date_modified', (EXTRACT(EPOCH FROM u.date_modified) * 1000)::bigint
-					)
+					) END
 				) as client,
 				jsonb_build_object(
 					'id', pp.id,
@@ -408,14 +411,14 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					'active', pp.active,
 					'date_created', (EXTRACT(EPOCH FROM pp.date_created) * 1000)::bigint,
 					'date_modified', (EXTRACT(EPOCH FROM pp.date_modified) * 1000)::bigint,
-					'plan', jsonb_build_object(
+					'plan', CASE WHEN p.id IS NULL THEN NULL ELSE jsonb_build_object(
 						'id', p.id,
 						'name', p.name,
 						'description', p.description,
 						'active', p.active,
 						'date_created', (EXTRACT(EPOCH FROM p.date_created) * 1000)::bigint,
 						'date_modified', (EXTRACT(EPOCH FROM p.date_modified) * 1000)::bigint
-					)
+					) END
 				) as price_plan
 			FROM search_filtered sf
 			LEFT JOIN ` + entityid.Client + ` c ON sf.client_id = c.id AND c.active = true
@@ -633,7 +636,10 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 				'active', c.active,
 				'date_created', (EXTRACT(EPOCH FROM c.date_created) * 1000)::bigint,
 				'date_modified', (EXTRACT(EPOCH FROM c.date_modified) * 1000)::bigint,
-				'user', jsonb_build_object(
+				-- NULL-guard nested objects: an unmatched LEFT JOIN would
+				-- otherwise emit an all-null object, which protojson rejects —
+				-- silently dropping the WHOLE parent object (blank enrichment).
+				'user', CASE WHEN u.id IS NULL THEN NULL ELSE jsonb_build_object(
 					'id', u.id,
 					'first_name', u.first_name,
 					'last_name', u.last_name,
@@ -641,11 +647,12 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 					'active', u.active,
 					'date_created', (EXTRACT(EPOCH FROM u.date_created) * 1000)::bigint,
 					'date_modified', (EXTRACT(EPOCH FROM u.date_modified) * 1000)::bigint
-				)
+				) END
 			) as client,
 			jsonb_build_object(
 				'id', pp.id,
 				'plan_id', pp.plan_id,
+				'price_schedule_id', pp.price_schedule_id,
 				'name', pp.name,
 				'description', pp.description,
 				'active', pp.active,
@@ -658,7 +665,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 				'entitled_occurrences', pp.entitled_occurrences,
 				'date_created', (EXTRACT(EPOCH FROM pp.date_created) * 1000)::bigint,
 				'date_modified', (EXTRACT(EPOCH FROM pp.date_modified) * 1000)::bigint,
-				'plan', jsonb_build_object(
+				'plan', CASE WHEN p.id IS NULL THEN NULL ELSE jsonb_build_object(
 					'id', p.id,
 					'name', p.name,
 					'description', p.description,
@@ -667,7 +674,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 					'visits_per_cycle', p.visits_per_cycle,
 					'date_created', (EXTRACT(EPOCH FROM p.date_created) * 1000)::bigint,
 					'date_modified', (EXTRACT(EPOCH FROM p.date_modified) * 1000)::bigint
-				)
+				) END
 			) as price_plan
 		FROM ` + entityid.Subscription + ` s
 		LEFT JOIN ` + entityid.Client + ` c ON s.client_id = c.id AND c.active = true

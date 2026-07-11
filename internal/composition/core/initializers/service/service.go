@@ -73,6 +73,9 @@ func InitializeAll(
 	// Outcome Matrix (20260702) — service/operation/outcome_matrix generic
 	// principal-scoped grading grid (replaces app-local grade_sheet).
 	operationUC := initServiceOperation(db, i18nSvc, actionGate)
+	// Job-Template Summary (20260711) — service/operation/job_template_summary
+	// generic resolver-scoped template-grain delivery summary (one GROUP-BY read).
+	jobTemplateSummaryUC := initServiceOperationJobTemplateSummary(db, i18nSvc, actionGate)
 
-	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC), nil
+	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC, jobTemplateSummaryUC), nil
 }

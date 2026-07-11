@@ -3,10 +3,12 @@ package service
 import (
 	"database/sql"
 
+	summarypb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/job_template_summary"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	jobtemplatesummaryusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_template_summary"
 	outcomematrixusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
 	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
@@ -37,6 +39,37 @@ func outcomeMatrixQueryFromDB(db *sql.DB) matrixpb.OutcomeMatrixServiceServer {
 		return nil
 	}
 	if q, ok := result.(matrixpb.OutcomeMatrixServiceServer); ok {
+		return q
+	}
+	return nil
+}
+
+// initServiceOperationJobTemplateSummary wires the service-layer
+// job-template-summary read (service/operation/job_template_summary). Like
+// initServiceOperation it threads the ActionGatekeeper through, because the
+// read gates on job:list.
+func initServiceOperationJobTemplateSummary(db *sql.DB, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper) *jobtemplatesummaryusecases.UseCases {
+	query := jobTemplateSummaryQueryFromDB(db)
+	return jobtemplatesummaryusecases.NewUseCases(
+		jobtemplatesummaryusecases.Repositories{Query: query},
+		jobtemplatesummaryusecases.Services{Translator: i18nSvc, ActionGatekeeper: actionGate},
+	)
+}
+
+// jobTemplateSummaryQueryFromDB returns the registered job-template-summary
+// query port backed by the provided raw connection, or nil when no provider has
+// been registered (e.g. non-postgres / non-mock builds). The factory takes
+// `any` to dodge the cyclic import — see registry/job_template_summary.go.
+func jobTemplateSummaryQueryFromDB(db *sql.DB) summarypb.JobTemplateSummaryServiceServer {
+	factory, ok := internalregistry.GetJobTemplateSummaryFactory()
+	if !ok || factory == nil {
+		return nil
+	}
+	result := factory(db)
+	if result == nil {
+		return nil
+	}
+	if q, ok := result.(summarypb.JobTemplateSummaryServiceServer); ok {
 		return q
 	}
 	return nil

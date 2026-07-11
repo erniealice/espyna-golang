@@ -34,6 +34,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/audit"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
+	jobtemplatesummary "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_template_summary"
 	outcomematrix "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/performance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting"
@@ -70,6 +71,14 @@ type ServiceUseCases struct {
 	// confusion with the unrelated domain-driven Aggregate.Operation. Nil-safe:
 	// when no postgres provider is registered the read degrades to empty.
 	OutcomeMatrix *outcomematrix.UseCases
+
+	// JobTemplateSummary (20260711) — service/operation/job_template_summary.
+	// Generic resolver-scoped, template-grain delivery-summary aggregate (one
+	// GROUP-BY read: one row per job_template with >=1 scoped job for a job
+	// status). Sibling of OutcomeMatrix under service/operation; direct typed
+	// field. Nil-safe: when no postgres provider is registered the read degrades
+	// to empty.
+	JobTemplateSummary *jobtemplatesummary.UseCases
 }
 
 // NewServiceUseCases wires every service-driven sub-aggregate. All typed
@@ -93,16 +102,18 @@ func NewServiceUseCases(
 	tax *servicetax.UseCases,
 	amort *amortization.UseCases,
 	operation *outcomematrix.UseCases,
+	jobTemplateSummary *jobtemplatesummary.UseCases,
 ) *ServiceUseCases {
 	return &ServiceUseCases{
-		Audit:         audit,
-		Security:      security,
-		Auth:          auth,
-		Dashboard:     dash,
-		Reporting:     rep,
-		Performance:   perf,
-		Tax:           tax,
-		Amortization:  amort,
-		OutcomeMatrix: operation,
+		Audit:              audit,
+		Security:           security,
+		Auth:               auth,
+		Dashboard:          dash,
+		Reporting:          rep,
+		Performance:        perf,
+		Tax:                tax,
+		Amortization:       amort,
+		OutcomeMatrix:      operation,
+		JobTemplateSummary: jobTemplateSummary,
 	}
 }

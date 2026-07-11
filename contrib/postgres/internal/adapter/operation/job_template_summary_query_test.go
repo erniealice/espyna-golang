@@ -179,7 +179,93 @@ func TestJobTemplateSummarySQL_FiltersAndPagination(t *testing.T) {
 			t.Errorf("DISTINCT job count missing:\n%s", stmt)
 		}
 		if !strings.Contains(stmt, "ORDER BY sg.name, jt.name") {
-			t.Errorf("locked ORDER BY (group, template) missing:\n%s", stmt)
+			t.Errorf("locked ORDER BY (group, template) prefix missing:\n%s", stmt)
+		}
+		// Deterministic DELIVERER order: the per-template staff rows must be
+		// ordered so collateDeliverySummaries folds them in a stable sequence.
+		if !strings.Contains(stmt, "ORDER BY sg.name, jt.name, staff_name, st.id") {
+			t.Errorf("deterministic deliverer ORDER BY tail (staff_name, st.id) missing:\n%s", stmt)
+		}
+	})
+}
+
+// TestCollateDeliverySummaries pins the multi-deliverer fold (S8 §F): per-(template,
+// staff) rows collapse into ONE summary per template carrying ALL deliverers in
+// arrival order; single-deliverer templates keep one deliverer; job_count is the
+// MAX across a template's rows; a template spanning two delivery groups keeps
+// distinct rows (only the staff axis folds).
+func TestCollateDeliverySummaries(t *testing.T) {
+	t.Run("single_deliverer_passthrough", func(t *testing.T) {
+		got := collateDeliverySummaries([]summaryScanRow{
+			{templateID: "t1", templateName: "Math", groupID: "g1", groupName: "Nickel",
+				staffID: "s1", staffName: "Ana", jobCount: 28,
+				priceScheduleID: "ps1", priceScheduleName: "AY25-26", outputProductID: "p1", outputProductName: "Math"},
+		})
+		if len(got) != 1 {
+			t.Fatalf("want 1 summary, got %d", len(got))
+		}
+		if got[0].GetJobCount() != 28 {
+			t.Errorf("job_count: want 28, got %d", got[0].GetJobCount())
+		}
+		if len(got[0].GetDeliverers()) != 1 || got[0].GetDeliverers()[0].GetStaffName() != "Ana" {
+			t.Errorf("want single deliverer Ana, got %+v", got[0].GetDeliverers())
+		}
+	})
+
+	t.Run("two_deliverers_fold_into_one_row_stable_order", func(t *testing.T) {
+		// Ordered upstream by staff_name (Cabornay before Purisima).
+		got := collateDeliverySummaries([]summaryScanRow{
+			{templateID: "t1", templateName: "Arts — AY 2025-2026", groupID: "g1", groupName: "Nickel",
+				staffID: "s2", staffName: "D. Cabornay", jobCount: 28,
+				priceScheduleID: "ps1", outputProductID: "p1"},
+			{templateID: "t1", templateName: "Arts — AY 2025-2026", groupID: "g1", groupName: "Nickel",
+				staffID: "s1", staffName: "A. Purisima", jobCount: 28,
+				priceScheduleID: "ps1", outputProductID: "p1"},
+		})
+		if len(got) != 1 {
+			t.Fatalf("want 1 folded summary, got %d", len(got))
+		}
+		dels := got[0].GetDeliverers()
+		if len(dels) != 2 {
+			t.Fatalf("want 2 deliverers, got %d", len(dels))
+		}
+		if dels[0].GetStaffName() != "D. Cabornay" || dels[1].GetStaffName() != "A. Purisima" {
+			t.Errorf("arrival order not preserved: %q, %q", dels[0].GetStaffName(), dels[1].GetStaffName())
+		}
+		if got[0].GetJobCount() != 28 {
+			t.Errorf("merged roster job_count: want 28 (MAX), got %d", got[0].GetJobCount())
+		}
+	})
+
+	t.Run("job_count_is_max_across_rows", func(t *testing.T) {
+		got := collateDeliverySummaries([]summaryScanRow{
+			{templateID: "t1", groupID: "g1", staffID: "s1", staffName: "A", jobCount: 20},
+			{templateID: "t1", groupID: "g1", staffID: "s2", staffName: "B", jobCount: 28},
+		})
+		if len(got) != 1 || got[0].GetJobCount() != 28 {
+			t.Errorf("want single summary with MAX job_count 28, got %+v", got)
+		}
+	})
+
+	t.Run("distinct_groups_stay_separate", func(t *testing.T) {
+		got := collateDeliverySummaries([]summaryScanRow{
+			{templateID: "t1", groupID: "g1", groupName: "Nickel", staffID: "s1", staffName: "A", jobCount: 28},
+			{templateID: "t1", groupID: "g2", groupName: "Tin", staffID: "s1", staffName: "A", jobCount: 26},
+		})
+		if len(got) != 2 {
+			t.Fatalf("a template spanning two groups must keep 2 rows, got %d", len(got))
+		}
+	})
+
+	t.Run("blank_staff_id_yields_no_deliverer", func(t *testing.T) {
+		got := collateDeliverySummaries([]summaryScanRow{
+			{templateID: "t1", groupID: "g1", staffID: "", staffName: "", jobCount: 0},
+		})
+		if len(got) != 1 {
+			t.Fatalf("want 1 summary, got %d", len(got))
+		}
+		if len(got[0].GetDeliverers()) != 0 {
+			t.Errorf("blank staff must not create a deliverer, got %+v", got[0].GetDeliverers())
 		}
 	})
 }

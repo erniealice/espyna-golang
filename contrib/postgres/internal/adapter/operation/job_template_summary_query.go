@@ -118,7 +118,12 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 	}
 	defer rows.Close()
 
-	var summaries []*summarypb.JobTemplateSummary
+	// The aggregate yields ONE row per (template, staff): a merged, multi-
+	// deliverer template (one deliverer per delivered phase — each holds an active
+	// subscription_seat whose product_plan matches the template's umbrella output
+	// product at umbrella grain) produces >1 row. Scan raw rows, then collate them
+	// into one summary per template carrying all deliverers (collateDeliverySummaries).
+	var scanned []summaryScanRow
 	for rows.Next() {
 		var (
 			templateID, templateName string
@@ -140,23 +145,22 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 		); err != nil {
 			return nil, fmt.Errorf("job_template_summary: scan: %w", err)
 		}
-		summaries = append(summaries, &summarypb.JobTemplateSummary{
-			JobTemplateId:         templateID,
-			JobTemplateName:       templateName,
-			SubscriptionGroupId:   groupID,
-			SubscriptionGroupName: groupName,
-			StaffId:               staffID,
-			StaffName:             staffName,
-			JobCount:              jobCount,
-			PriceScheduleId:       priceScheduleID.String,
-			PriceScheduleName:     priceScheduleName.String,
-			OutputProductId:       outputProductID.String,
-			OutputProductName:     outputProductName.String,
+		scanned = append(scanned, summaryScanRow{
+			templateID: templateID, templateName: templateName,
+			groupID: groupID, groupName: groupName,
+			staffID: staffID, staffName: staffName,
+			jobCount:          jobCount,
+			priceScheduleID:   priceScheduleID.String,
+			priceScheduleName: priceScheduleName.String,
+			outputProductID:   outputProductID.String,
+			outputProductName: outputProductName.String,
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("job_template_summary: rows: %w", err)
 	}
+
+	summaries := collateDeliverySummaries(scanned)
 
 	resp := &summarypb.ListJobTemplateSummariesResponse{
 		Summaries: summaries,
@@ -174,6 +178,65 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 		}
 	}
 	return resp, nil
+}
+
+// summaryScanRow is one raw (template, staff) aggregate row before deliverer
+// collation.
+type summaryScanRow struct {
+	templateID, templateName string
+	groupID, groupName       string
+	staffID, staffName       string
+	jobCount                 int32
+	priceScheduleID          string
+	priceScheduleName        string
+	outputProductID          string
+	outputProductName        string
+}
+
+// collateDeliverySummaries folds the per-(template,staff) aggregate rows into ONE
+// JobTemplateSummary per (template, group, schedule, product), gathering every
+// staff row as a Deliverer in ARRIVAL order — the adapter orders rows by
+// (group, template, staff_name, staff_id), a stable, deterministic deliverer order.
+// A merged deliverable legitimately has >1 deliverer (one per delivered phase);
+// single-deliverer templates collapse to one summary with one Deliverer (unchanged
+// shape for today's data). job_count is the MAX across a template's deliverer rows:
+// every deliverer's active seats reach the FULL merged roster (umbrella-grain seat
+// match), so the per-staff DISTINCT counts are equal and MAX is the roster size
+// (over a single row it is that row's count — today's behavior byte-for-byte). The
+// collation key includes group/schedule/product so a template that ever spanned two
+// delivery groups keeps its distinct rows (folds ONLY the staff axis).
+func collateDeliverySummaries(scanned []summaryScanRow) []*summarypb.JobTemplateSummary {
+	var out []*summarypb.JobTemplateSummary
+	byKey := map[string]*summarypb.JobTemplateSummary{}
+	for _, r := range scanned {
+		key := r.templateID + "\x00" + r.groupID + "\x00" + r.priceScheduleID + "\x00" + r.outputProductID
+		s := byKey[key]
+		if s == nil {
+			s = &summarypb.JobTemplateSummary{
+				JobTemplateId:         r.templateID,
+				JobTemplateName:       r.templateName,
+				SubscriptionGroupId:   r.groupID,
+				SubscriptionGroupName: r.groupName,
+				JobCount:              r.jobCount,
+				PriceScheduleId:       r.priceScheduleID,
+				PriceScheduleName:     r.priceScheduleName,
+				OutputProductId:       r.outputProductID,
+				OutputProductName:     r.outputProductName,
+			}
+			byKey[key] = s
+			out = append(out, s)
+		}
+		if r.jobCount > s.JobCount {
+			s.JobCount = r.jobCount
+		}
+		if r.staffID != "" {
+			s.Deliverers = append(s.Deliverers, &summarypb.Deliverer{
+				StaffId:   r.staffID,
+				StaffName: r.staffName,
+			})
+		}
+	}
+	return out
 }
 
 // paginationBounds clamps a PaginationRequest to (limit, offset). limit==0 means
@@ -295,11 +358,14 @@ LEFT JOIN ` + entityid.Product + ` op
 }
 
 // jobTemplateSummaryGroupOrder is the GROUP BY + ORDER BY tail. The grain is one
-// row per (template, group, staff, schedule, product); education1 has exactly
-// one group+staff+schedule per template, so this collapses to one row per
-// template. ORDER BY group name then template name is the LOCKED view order.
+// row per (template, group, staff, schedule, product); a merged, multi-deliverer
+// template produces one row per staff (collateDeliverySummaries folds them into one
+// summary carrying all deliverers). ORDER BY group name then template name is the
+// LOCKED view order; the trailing staff_name, st.id keys make the per-template
+// DELIVERER order deterministic (a stable multi-name render). The leading
+// `sg.name, jt.name` prefix is unchanged, so a template's rows stay contiguous.
 func jobTemplateSummaryGroupOrder() string {
 	return `GROUP BY jt.id, jt.name, sg.id, sg.name, st.id, u.first_name, u.last_name,
          ps.id, ps.name, jt.output_product_id, op.name
-ORDER BY sg.name, jt.name`
+ORDER BY sg.name, jt.name, staff_name, st.id`
 }

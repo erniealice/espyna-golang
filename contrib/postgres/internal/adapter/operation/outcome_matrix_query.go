@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	criteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
@@ -123,11 +124,15 @@ func (a *PostgresOutcomeMatrixQuery) loadTemplateName(ctx context.Context, jobTe
 // decomposition (job_template_phase → job_template_task → template_task_criteria
 // → outcome_criteria), ordered by phase_order, step_order, sequence_order.
 // Independent of which cells are recorded — every template leaf is a column.
+// The phase-header label is composed here (composePhaseLabel): when the phase
+// carries a sub-deliverable (output_product_variant_id → product_variant) its
+// variant name is appended as a parenthetical ("Semester 1 (Visual Arts)").
 func (a *PostgresOutcomeMatrixQuery) loadColumnTree(ctx context.Context, jobTemplateID, workspaceID string) ([]*matrixpb.PhaseColumn, error) {
 	q := `
 SELECT
     jtp.id                        AS phase_id,
     jtp.name                      AS phase_name,
+    pv.sku                        AS variant_name,
     jtp.phase_order,
     jtt.id                        AS task_id,
     jtt.name                      AS task_name,
@@ -154,6 +159,8 @@ JOIN ` + entityid.TemplateTaskCriteria + ` ttc
        ON ttc.job_template_task_id = jtt.id AND ttc.active
 JOIN ` + entityid.OutcomeCriteria + ` oc
        ON oc.id = ttc.outcome_criteria_id AND oc.active
+LEFT JOIN ` + entityid.ProductVariant + ` pv
+       ON pv.id = jtp.output_product_variant_id AND pv.active
 WHERE jtp.job_template_id = $1
   AND jtp.active
   AND EXISTS (
@@ -177,6 +184,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 	for rows.Next() {
 		var (
 			phaseID, phaseName       string
+			variantName              sql.NullString
 			phaseOrder               int32
 			taskID, taskName         string
 			stepOrder                int32
@@ -194,7 +202,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 			required                 sql.NullBool
 		)
 		if err := rows.Scan(
-			&phaseID, &phaseName, &phaseOrder,
+			&phaseID, &phaseName, &variantName, &phaseOrder,
 			&taskID, &taskName, &stepOrder,
 			&seqOrder,
 			&criteriaID, &criteriaName, &criteriaType,
@@ -208,7 +216,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 		if phase == nil {
 			phase = &matrixpb.PhaseColumn{
 				JobTemplatePhaseId: phaseID,
-				Label:              phaseName,
+				Label:              composePhaseLabel(phaseName, variantName),
 				SequenceOrder:      phaseOrder,
 			}
 			phaseByID[phaseID] = phase
@@ -307,7 +315,8 @@ SELECT DISTINCT ON (j.client_id, jt.id, ttc.id)
        t.text_value,
        t.categorical_value,
        t.pass_fail_value,
-       COALESCE(t.recorded_by, '')    AS recorded_by
+       COALESCE(t.recorded_by, '')    AS recorded_by,
+       COALESCE(jt.assigned_to, '')   AS assigned_to
 FROM ` + entityid.Job + ` j
 JOIN ` + entityid.JobPhase + ` jp
        ON jp.job_id = j.id AND jp.active
@@ -349,10 +358,11 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 			categorical    sql.NullString
 			passFail       sql.NullBool
 			recordedBy     string
+			assignedTo     string
 		)
 		if err := rows.Scan(
 			&clientID, &jobTaskID, &jobTemplateTID, &criteriaID,
-			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &recordedBy,
+			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &recordedBy, &assignedTo,
 		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan cells: %w", err)
 		}
@@ -369,12 +379,7 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		}
 
 		hasOutcome := outcomeID.Valid && outcomeID.String != ""
-		editable := false
-		if hasOutcome {
-			editable = staffOK && recordedBy == actingStaff
-		} else {
-			editable = staffOK && jobTaskID != ""
-		}
+		editable := computeCellEditable(hasOutcome, staffOK, recordedBy, assignedTo, actingStaff, jobTaskID)
 
 		cell := &matrixpb.OutcomeCell{
 			OutcomeId:  nullStringVal(outcomeID),
@@ -405,6 +410,44 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		return nil, fmt.Errorf("outcome_matrix: cells rows: %w", err)
 	}
 	return out, nil
+}
+
+// composePhaseLabel renders one phase column-group header. When the phase carries
+// a sub-deliverable (job_template_phase.output_product_variant_id → product_variant)
+// the variant name is appended as a parenthetical ("Semester 1 (Visual Arts)") so a
+// merged, multi-variant deliverable's otherwise same-named phase groups read as
+// distinct subjects; a phase with no variant renders its bare name. This is the ONE
+// label-composition site: the matrix proto's PhaseColumn.Label is a resolved display
+// string, so composing here (adapter) matches the existing adapter-resolves-server-
+// side-display-labels convention (staff_name / template name) and needs no new proto
+// field on PhaseColumn. Generic: no vertical vocabulary — the strand name is DATA
+// carried by the product_variant row.
+func composePhaseLabel(name string, variantName sql.NullString) string {
+	if variantName.Valid {
+		if v := strings.TrimSpace(variantName.String); v != "" {
+			return name + " (" + v + ")"
+		}
+	}
+	return name
+}
+
+// computeCellEditable decides whether the acting STAFF principal may edit a matrix
+// cell. A non-staff principal (staffOK=false) never edits (operators reach the
+// roster read-only via the authorized ALL widen). RECORDED cells (an outcome
+// exists) keep recorder-only semantics UNCHANGED — editable iff the acting staff is
+// the recorder. EMPTY cells (no outcome yet) are editable only by the staff the
+// cell's task is ASSIGNED to (job_task.assigned_to): on a merged, multi-deliverer
+// class this stops one strand's teacher from entering grades into the other
+// strand's unassessed cells (design §E hazard). An unassigned empty cell
+// (assigned_to == "") is never editable (fail-closed).
+func computeCellEditable(hasOutcome, staffOK bool, recordedBy, assignedTo, actingStaff, jobTaskID string) bool {
+	if !staffOK {
+		return false
+	}
+	if hasOutcome {
+		return recordedBy == actingStaff
+	}
+	return jobTaskID != "" && assignedTo == actingStaff
 }
 
 // parseCriteriaType maps the stored enum-name string (e.g.

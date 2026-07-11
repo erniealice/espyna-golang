@@ -218,11 +218,19 @@ func (r *PostgresJobRepository) DeleteJob(ctx context.Context, req *pb.DeleteJob
 	}, nil
 }
 
-// ListJobs lists job records with optional filters
+// ListJobs lists job records with optional filters.
+//
+// Pagination is forwarded to dbOps.List (fixed 2026-07-11, 20260710
+// staff-class-list plan build spec §3): previously only Filters was copied
+// into params, so every call silently landed on page 1 at the adapter's
+// 100-row default regardless of the caller's requested page/limit — the
+// "silent truncation" bug (3,514 of 3,614 active education jobs were
+// invisible with no indicator). Callers that omit both Filters and
+// Pagination keep the prior nil-params behavior byte-for-byte.
 func (r *PostgresJobRepository) ListJobs(ctx context.Context, req *pb.ListJobsRequest) (*pb.ListJobsResponse, error) {
 	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if req != nil && (req.Filters != nil || req.Pagination != nil) {
+		params = &interfaces.ListParams{Filters: req.Filters, Pagination: req.Pagination}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

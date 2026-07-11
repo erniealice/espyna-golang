@@ -31,6 +31,12 @@ import (
 // operational reads must be confined to that staff member's own rows.
 const PrincipalTypeStaff int32 = 7
 
+// originTypeSubscription is the text token the job table stores for the esqyma
+// domain.operation.v1.OriginType member ORIGIN_TYPE_SUBSCRIPTION (jobs persist
+// the full protojson enum name). The subscription_seat tier below matches it
+// exactly so the seat→job join only reaches subscription-originated jobs.
+const originTypeSubscription = "ORIGIN_TYPE_SUBSCRIPTION"
+
 // StaffRowScope reports whether the active session principal is a STAFF principal
 // and, if so, the staff.id its operational reads must be confined to.
 //
@@ -71,9 +77,15 @@ func workspaceScope(ctx context.Context) string {
 // staff.id ($staffP) serves within one workspace ($wsP): the client_id of any job
 // the staff is assigned to (job_task.assigned_to) OR has recorded/reviewed an
 // outcome for (task_outcome.recorded_by|reviewed_by), joined up through
-// job_phase to job.client_id. The workspace bound (belt-and-suspenders) confines
-// the graph walk to the session workspace even if an outer query's workspace
-// predicate is bypassed. Table names come from registry/entityid (no literals).
+// job_phase to job.client_id, OR whose origin subscription carries the staff's
+// active seat matched to the job's deliverable (subscription_seat.staff_id, the
+// assignment source of truth: the seat's product_plan.product_id must equal the
+// job template's output_product_id; a template with no output_product_id matches
+// no seat — inner-join, fail-closed). The workspace bound (belt-and-suspenders)
+// confines the graph walk to the session workspace even if an outer query's
+// workspace predicate is bypassed; the seat branch binds BOTH sides (job AND
+// seat carry their own workspace_id) because job.origin_id is plain text, not
+// an FK. Table names come from registry/entityid (no literals).
 func reachableClientUnion(staffP, wsP int) string {
 	s := fmt.Sprintf("$%d", staffP)
 	w := fmt.Sprintf("$%d", wsP)
@@ -86,14 +98,27 @@ func reachableClientUnion(staffP, wsP int) string {
 		" JOIN " + entityid.JobPhase + " jp2 ON jp2.job_id = j2.id" +
 		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
 		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
-		" WHERE (t.recorded_by = " + s + " OR t.reviewed_by = " + s + ") AND j2.workspace_id = " + w
+		" WHERE (t.recorded_by = " + s + " OR t.reviewed_by = " + s + ") AND j2.workspace_id = " + w +
+		" UNION " +
+		"SELECT j3.client_id FROM " + entityid.Job + " j3" +
+		" JOIN " + entityid.SubscriptionSeat + " ss ON ss.subscription_id = j3.origin_id" +
+		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = j3.job_template_id" +
+		" JOIN " + entityid.ProductPlan + " pl ON pl.id = ss.product_plan_id AND pl.product_id = tpl.output_product_id" +
+		" WHERE ss.staff_id = " + s + " AND ss.status = 'active' AND ss.active = true" +
+		" AND j3.origin_type = '" + originTypeSubscription + "'" +
+		" AND j3.workspace_id = " + w + " AND ss.workspace_id = " + w
 }
 
 // reachableJobUnion is the graph-derived set of job.id values the acting staff.id
-// ($staffP) is assigned to OR has recorded/reviewed an outcome for, within one
-// workspace ($wsP). job_phase/job_task carry no workspace_id, so the workspace
-// bound is enforced by joining job (aliased jw/jw2) on the phase's job_id. Table
-// names come from registry/entityid (no literals).
+// ($staffP) is assigned to, has recorded/reviewed an outcome for, OR holds an
+// active subscription_seat on the job's origin subscription matched to the job's
+// deliverable (the seat's product_plan.product_id must equal the job template's
+// output_product_id; a template with no output_product_id matches no seat —
+// inner-join, fail-closed), within one workspace ($wsP). job_phase/job_task
+// carry no workspace_id, so the workspace bound is enforced by joining job
+// (aliased jw/jw2) on the phase's job_id; the seat branch binds BOTH sides (job
+// AND seat carry their own workspace_id) because job.origin_id is plain text,
+// not an FK. Table names come from registry/entityid (no literals).
 func reachableJobUnion(staffP, wsP int) string {
 	s := fmt.Sprintf("$%d", staffP)
 	w := fmt.Sprintf("$%d", wsP)
@@ -106,7 +131,15 @@ func reachableJobUnion(staffP, wsP int) string {
 		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
 		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
 		" JOIN " + entityid.Job + " jw2 ON jw2.id = jp2.job_id AND jw2.workspace_id = " + w +
-		" WHERE t.recorded_by = " + s + " OR t.reviewed_by = " + s
+		" WHERE t.recorded_by = " + s + " OR t.reviewed_by = " + s +
+		" UNION " +
+		"SELECT jw3.id FROM " + entityid.Job + " jw3" +
+		" JOIN " + entityid.SubscriptionSeat + " ss ON ss.subscription_id = jw3.origin_id" +
+		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = jw3.job_template_id" +
+		" JOIN " + entityid.ProductPlan + " pl ON pl.id = ss.product_plan_id AND pl.product_id = tpl.output_product_id" +
+		" WHERE ss.staff_id = " + s + " AND ss.status = 'active' AND ss.active = true" +
+		" AND jw3.origin_type = '" + originTypeSubscription + "'" +
+		" AND jw3.workspace_id = " + w + " AND ss.workspace_id = " + w
 }
 
 // StaffScopeClause returns a SQL predicate fragment that confines a read to the
@@ -155,11 +188,14 @@ func StaffScopeClauseAny(ctx context.Context, cols []string, nextParam int) (cla
 
 // StaffReachableClientClause confines a CLIENT query (the client row aliased as
 // clientAlias, e.g. "c") to the clients the active STAFF principal serves — the
-// client_id of any job the staff is assigned to OR has recorded/reviewed an outcome
-// for, via the GENERIC operational-delivery graph (job_task.assigned_to /
-// task_outcome.recorded_by|reviewed_by → job_phase → job.client_id). Same 3-state
-// contract as StaffScopeClause; emits an IN(<graph subquery>) because clients carry
-// no staff column. The reviewed_by axis keeps parity with the task_outcome adapter.
+// client_id of any job the staff is assigned to, has recorded/reviewed an outcome
+// for, or holds an active deliverable-matched subscription_seat on the origin
+// subscription of, via the GENERIC operational-delivery graph
+// (job_task.assigned_to / task_outcome.recorded_by|reviewed_by → job_phase →
+// job.client_id, plus subscription_seat.staff_id → job.origin_id with the
+// plan-product↔template-output match). Same 3-state contract as
+// StaffScopeClause; emits an IN(<graph subquery>) because clients carry no
+// staff column. The reviewed_by axis keeps parity with the task_outcome adapter.
 //
 // Two positional args are appended in order: $nextParam = the session staff.id,
 // $(nextParam+1) = the session workspace.id (belt-and-suspenders workspace bound
@@ -178,9 +214,11 @@ func StaffReachableClientClause(ctx context.Context, clientAlias string, nextPar
 }
 
 // StaffReachableJobClause confines a JOB query (the job row aliased as jobAlias,
-// e.g. "j") to the jobs the active STAFF principal is assigned to OR has
-// recorded/reviewed an outcome for. Same 3-state contract; graph-derived through
-// job_phase/job_task/task_outcome.
+// e.g. "j") to the jobs the active STAFF principal is assigned to, has
+// recorded/reviewed an outcome for, or holds an active deliverable-matched
+// subscription_seat on the origin subscription of. Same 3-state contract;
+// graph-derived through job_phase/job_task/task_outcome/subscription_seat
+// (seat tier matched via job_template/product_plan).
 //
 // Two positional args are appended in order: $nextParam = the session staff.id,
 // $(nextParam+1) = the session workspace.id. Callers MUST advance their
@@ -198,7 +236,9 @@ func StaffReachableJobClause(ctx context.Context, jobAlias string, nextParam int
 }
 
 // StaffReachableClientExistsSQL returns a query that yields a single bool: whether
-// the given staff.id can reach the given client.id via the delivery graph. It is
+// the given staff.id can reach the given client.id via the delivery graph or an
+// active deliverable-matched subscription_seat on the client's job's origin
+// subscription. It is
 // for the generic dbOps by-id Read paths (ReadClient / item views) that have no
 // WHERE seam — run it (after StaffRowScope reports a staff principal) and treat a
 // false / no-row result as not-found, so an out-of-scope client is indistinguishable
@@ -215,6 +255,14 @@ func StaffReachableClientExistsSQL() string {
 		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
 		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
 		" WHERE (t.recorded_by = $1 OR t.reviewed_by = $1) AND j2.client_id = $2 AND j2.workspace_id = $3" +
+		" UNION " +
+		"SELECT 1 FROM " + entityid.Job + " j3" +
+		" JOIN " + entityid.SubscriptionSeat + " ss ON ss.subscription_id = j3.origin_id" +
+		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = j3.job_template_id" +
+		" JOIN " + entityid.ProductPlan + " pl ON pl.id = ss.product_plan_id AND pl.product_id = tpl.output_product_id" +
+		" WHERE ss.staff_id = $1 AND ss.status = 'active' AND ss.active = true" +
+		" AND j3.origin_type = '" + originTypeSubscription + "'" +
+		" AND j3.client_id = $2 AND j3.workspace_id = $3 AND ss.workspace_id = $3" +
 		")"
 }
 
@@ -233,14 +281,23 @@ func StaffReachableJobExistsSQL() string {
 		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
 		" JOIN " + entityid.Job + " jw2 ON jw2.id = jp2.job_id AND jw2.workspace_id = $3" +
 		" WHERE (t.recorded_by = $1 OR t.reviewed_by = $1) AND jp2.job_id = $2" +
+		" UNION " +
+		"SELECT 1 FROM " + entityid.Job + " jw3" +
+		" JOIN " + entityid.SubscriptionSeat + " ss ON ss.subscription_id = jw3.origin_id" +
+		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = jw3.job_template_id" +
+		" JOIN " + entityid.ProductPlan + " pl ON pl.id = ss.product_plan_id AND pl.product_id = tpl.output_product_id" +
+		" WHERE ss.staff_id = $1 AND ss.status = 'active' AND ss.active = true" +
+		" AND jw3.origin_type = '" + originTypeSubscription + "'" +
+		" AND jw3.id = $2 AND jw3.workspace_id = $3 AND ss.workspace_id = $3" +
 		")"
 }
 
 // StaffReachableClientIDsSQL returns a query yielding the DISTINCT set of
-// client.id values the acting staff.id reaches via the delivery graph, confined
-// to one workspace. It is the row-set seam for the GENERIC dbOps.List path
-// (ListClients) that has no WHERE seam: fetch the set once, then drop any listed
-// row whose id is absent (fail-closed). Args order: $1 = staffID, $2 = workspaceID.
+// client.id values the acting staff.id reaches via the delivery graph or an
+// active deliverable-matched subscription_seat, confined to one workspace. It is the
+// row-set seam for the GENERIC dbOps.List path (ListClients) that has no WHERE
+// seam: fetch the set once, then drop any listed row whose id is absent
+// (fail-closed). Args order: $1 = staffID, $2 = workspaceID.
 func StaffReachableClientIDsSQL() string {
 	return reachableClientUnion(1, 2)
 }

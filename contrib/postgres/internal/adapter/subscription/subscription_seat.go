@@ -10,6 +10,7 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	principalscope "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
@@ -130,6 +131,17 @@ func (r *PostgresSubscriptionSeatRepository) ReadSubscriptionSeat(ctx context.Co
 
 	subscriptionSeat := subscriptionSeatFromResultJSON(resultJSON)
 
+	// Staff row-scope: the generic dbOps.Read by id has no WHERE seam, so guard
+	// post-read — a STAFF principal may only read its OWN seat row (the seat
+	// carries the staff.id on staff_id). Fail-closed → not-found on an empty
+	// session staff.id or another staff's seat, so an out-of-scope seat is
+	// indistinguishable from a missing one. Non-staff unaffected.
+	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
+		if staffID == "" || subscriptionSeat.StaffId != staffID {
+			return nil, fmt.Errorf("subscription seat with ID '%s' not found", req.Data.Id)
+		}
+	}
+
 	return &subscriptionseatpb.ReadSubscriptionSeatResponse{
 		Data:    []*subscriptionseatpb.SubscriptionSeat{subscriptionSeat},
 		Success: true,
@@ -191,7 +203,8 @@ func (r *PostgresSubscriptionSeatRepository) DeleteSubscriptionSeat(ctx context.
 
 // ListSubscriptionSeats lists subscription seats using common PostgreSQL operations.
 // Supports filters by subscription_id and client_id (the IDOR-scoping denorm) via
-// the request's common.FilterRequest.
+// the request's common.FilterRequest. A STAFF principal receives only its OWN
+// seat rows (fail-closed); non-staff principals are unaffected.
 func (r *PostgresSubscriptionSeatRepository) ListSubscriptionSeats(ctx context.Context, req *subscriptionseatpb.ListSubscriptionSeatsRequest) (*subscriptionseatpb.ListSubscriptionSeatsResponse, error) {
 	var params *interfaces.ListParams
 	if req != nil && req.Filters != nil {
@@ -202,13 +215,24 @@ func (r *PostgresSubscriptionSeatRepository) ListSubscriptionSeats(ctx context.C
 		return nil, fmt.Errorf("failed to list subscription seats: %w", err)
 	}
 
+	// Staff row-scope (IDOR): the generic dbOps.List applies workspace scoping
+	// only — a STAFF principal may only list its OWN seat rows (the seat carries
+	// the staff.id on staff_id), regardless of the request's filters. Fail-closed:
+	// empty session staff.id ⇒ zero rows. Non-staff / no-session callers: list
+	// unchanged.
+	staffID, staffScoped := principalscope.StaffRowScope(ctx)
+
 	var subscriptionSeats []*subscriptionseatpb.SubscriptionSeat
 	for _, result := range listResult.Data {
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
 			continue
 		}
-		subscriptionSeats = append(subscriptionSeats, subscriptionSeatFromResultJSON(resultJSON))
+		seat := subscriptionSeatFromResultJSON(resultJSON)
+		if staffScoped && (staffID == "" || seat.StaffId != staffID) {
+			continue
+		}
+		subscriptionSeats = append(subscriptionSeats, seat)
 	}
 
 	return &subscriptionseatpb.ListSubscriptionSeatsResponse{
@@ -246,6 +270,12 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 	// subscription_seat carries its own workspace_id column; scope directly on it.
 	// Empty wsID = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
+
+	// Row-scope to the active STAFF principal's own seats (staff_id column).
+	// Non-staff principals: no-op. The staff.id bind is appended AFTER the
+	// existing search/limit/offset/workspace args ($1-$4) so $5 lines up;
+	// placeholders are positional, independent of SQL clause order.
+	seatScope, seatScopeArgs := principalscope.StaffScopeClause(ctx, "staff_id", 5)
 	query := `
 		SELECT
 			id,
@@ -276,10 +306,12 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 		  AND ($1::text IS NULL OR $1::text = '' OR
 		       COALESCE(role_title,'') ILIKE $1 OR
 		       COALESCE(position,'') ILIKE $1 OR
-		       status ILIKE $1)
+		       status ILIKE $1)` + seatScope + `
 		` + orderBy + `
 		LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+	args := []any{searchPattern, limit, offset, wsID}
+	args = append(args, seatScopeArgs...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -304,6 +336,12 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatItemPageData(ctx
 	// list query at GetSubscriptionSeatListPageData and GetSubscriptionItemPageData).
 	// Empty wsID = service-to-service call → no scoping.
 	wsID := identity.Must(ctx).WorkspaceID
+
+	// Row-scope to the active STAFF principal's own seats (staff_id column), so an
+	// out-of-scope seat is indistinguishable from a missing one. Non-staff: no-op.
+	// The staff.id bind is appended AFTER the id ($1) and workspace ($2) args so
+	// $3 lines up.
+	seatScope, seatScopeArgs := principalscope.StaffScopeClause(ctx, "staff_id", 3)
 	query := `
 		SELECT
 			id,
@@ -331,8 +369,10 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatItemPageData(ctx
 		FROM ` + entityid.SubscriptionSeat + `
 		WHERE id = $1
 		  AND active = true
-		  AND ($2::text = '' OR workspace_id = $2::text)`
-	row := r.db.QueryRowContext(ctx, query, req.SubscriptionSeatId, wsID)
+		  AND ($2::text = '' OR workspace_id = $2::text)` + seatScope
+	args := []any{req.SubscriptionSeatId, wsID}
+	args = append(args, seatScopeArgs...)
+	row := r.db.QueryRowContext(ctx, query, args...)
 	seat, err := scanSubscriptionSeatRow(row.Scan)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("subscription seat not found")

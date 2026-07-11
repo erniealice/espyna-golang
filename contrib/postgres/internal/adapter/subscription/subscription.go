@@ -874,14 +874,15 @@ func (r *PostgresSubscriptionRepository) ListSubscriptionsByPricePlan(ctx contex
 			},
 		},
 	}}
-	if activeOnly {
-		filters = append(filters, &commonpb.TypedFilter{
-			Field: "active",
-			FilterType: &commonpb.TypedFilter_BooleanFilter{
-				BooleanFilter: &commonpb.BooleanFilter{Value: true},
-			},
-		})
-	}
+	// Always carry the resolved active value: GetSubscriptionListPageData
+	// defaults to active-only when the filter is absent, so omitting it on
+	// ActiveOnly=false would silently return active rows anyway.
+	filters = append(filters, &commonpb.TypedFilter{
+		Field: "active",
+		FilterType: &commonpb.TypedFilter_BooleanFilter{
+			BooleanFilter: &commonpb.BooleanFilter{Value: activeOnly},
+		},
+	})
 
 	pageReq := &subscriptionpb.GetSubscriptionListPageDataRequest{
 		Filters:    &commonpb.FilterRequest{Filters: filters},

@@ -145,13 +145,13 @@ func TestReachableSQLShape(t *testing.T) {
 		wantRefs []string // entityid table constants that must appear
 	}{
 		{"StaffReachableClientExistsSQL", StaffReachableClientExistsSQL(), []int{1, 2, 3},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome}},
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
 		{"StaffReachableJobExistsSQL", StaffReachableJobExistsSQL(), []int{1, 2, 3},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome}},
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
 		{"StaffReachableClientIDsSQL", StaffReachableClientIDsSQL(), []int{1, 2},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome}},
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
 		{"StaffReachableJobIDsSQL", StaffReachableJobIDsSQL(), []int{1, 2},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome}},
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -165,6 +165,17 @@ func TestReachableSQLShape(t *testing.T) {
 				if !strings.Contains(c.sql, ref) {
 					t.Errorf("%s: missing table reference %q", c.name, ref)
 				}
+			}
+			// The seat tier must stay narrowed to ACTIVE seats on
+			// subscription-originated jobs, matched to the job's deliverable
+			// (the seat's plan product must equal the job template's output
+			// product) — a widened token here widens the visibility union for
+			// every staff principal.
+			if !strings.Contains(c.sql, "ss.status = 'active'") || !strings.Contains(c.sql, originTypeSubscription) {
+				t.Errorf("%s: seat tier missing active-seat / origin_type restriction: %s", c.name, c.sql)
+			}
+			if !strings.Contains(c.sql, "pl.product_id = tpl.output_product_id") {
+				t.Errorf("%s: seat tier missing the plan-product/template-output match: %s", c.name, c.sql)
 			}
 		})
 	}

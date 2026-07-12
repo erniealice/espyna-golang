@@ -17,6 +17,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
@@ -233,6 +234,73 @@ var jobOutcomeSummarySortableSQLCols = []string{
 	"attachment_ids", "active", "date_created", "date_modified",
 }
 
+// jobOutcomeSummaryProjection is the schema-faithful column list projected by
+// every custom-SQL read (the enriched list adds a total; the single-row reads
+// project it verbatim). Sourced from a single place so the scanner's dests()
+// order stays in lockstep across all three call sites.
+const jobOutcomeSummaryProjection = `
+			jos.id, jos.job_id, jos.summary_type, jos.overall_determination,
+			jos.scoring_method, jos.summary_score, jos.total_criteria_count,
+			jos.pass_count, jos.fail_count, jos.conditional_count,
+			jos.deferred_count, jos.na_count, jos.narrative,
+			jos.issued_by, jos.issued_date, jos.valid_until_date,
+			jos.supersedes_id, jos.attachment_ids, jos.active,
+			jos.date_created, jos.date_modified,
+			jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
+			jos.workspace_id, jos.client_id`
+
+// sessionWorkspaceID returns the session identity's workspace id, or "" when no
+// identity is present. Sourcing from the SESSION (never a request param) is the
+// multi-tenancy invariant; the empty fallback is FAIL-CLOSED — a caller with no
+// workspace binds jos.workspace_id = '' which matches no real row (every
+// job_outcome_summary carries a non-empty workspace_id). Mirrors the
+// outcome_matrix_query.go workspace sourcing (FromContext, not identity.Must,
+// so a missing identity fails closed rather than panicking).
+func sessionWorkspaceID(ctx context.Context) string {
+	if id, ok := identity.FromContext(ctx); ok && id != nil {
+		return id.WorkspaceID
+	}
+	return ""
+}
+
+// jobOutcomeSummaryListPageDataSQL builds the paginated list query. The
+// workspace predicate ($4) and the staff clause ($5, when a STAFF principal is
+// active) both live inside the enriched CTE so COUNT(*) OVER () matches the
+// scoped set. HAZ-02 close: jos.workspace_id = $4 is always present.
+func jobOutcomeSummaryListPageDataSQL(josColumns, staffClause, orderByClause string) string {
+	return `
+		WITH enriched AS (
+			SELECT ` + josColumns + `
+			FROM ` + entityid.JobOutcomeSummary + ` jos
+			WHERE jos.active = true
+			  AND jos.workspace_id = $4
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       jos.narrative ILIKE $1)` + staffClause + `
+		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT
+			e.*, COUNT(*) OVER () AS total
+		FROM enriched e
+		` + orderByClause + `
+		LIMIT $2 OFFSET $3;
+	`
+}
+
+// jobOutcomeSummaryByColumnSQL builds a single-row read filtered by whereExpr
+// ($1), always workspace-bound ($2, HAZ-02 close), with an optional staff clause
+// ($3) and an optional trailing suffix (e.g. ORDER BY / LIMIT).
+func jobOutcomeSummaryByColumnSQL(whereExpr, staffClause, suffix string) string {
+	q := `
+		SELECT` + jobOutcomeSummaryProjection + `
+		FROM ` + entityid.JobOutcomeSummary + ` jos
+		WHERE ` + whereExpr + ` AND jos.active = true AND jos.workspace_id = $2` + staffClause
+	if suffix != "" {
+		q += "\n\t\t" + suffix
+	}
+	return q + "\n\t"
+}
+
 // GetJobOutcomeSummaryListPageData retrieves job outcome summaries with pagination
 func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 	ctx context.Context,
@@ -283,29 +351,14 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		jos.workspace_id, jos.client_id
 	`
 
-	// Staff row-scope (Phase 4): a STAFF principal sees only summaries it issued
-	// ($4, session-derived). Predicate lives inside the enriched CTE so the
-	// counted total matches the scoped set. Non-staff → empty clause.
-	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 4)
+	// HAZ-02 close (Q-SEC-7): bind the workspace ($4, session identity — never a
+	// request param). Fail-closed: an empty workspace binds jos.workspace_id = ''
+	// which matches no real row. Staff row-scope shifts to $5.
+	workspaceID := sessionWorkspaceID(ctx)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 5)
+	query := jobOutcomeSummaryListPageDataSQL(josColumns, staffClause, orderByClause)
 
-	query := `
-		WITH enriched AS (
-			SELECT ` + josColumns + `
-			FROM ` + entityid.JobOutcomeSummary + ` jos
-			WHERE jos.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       jos.narrative ILIKE $1)` + staffClause + `
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*, COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
-	`
-
-	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset}, staffArgs...)...)
+	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset, workspaceID}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job outcome summary list page data: %w", err)
 	}
@@ -360,26 +413,13 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryItemPageData(
 		return nil, fmt.Errorf("job outcome summary ID is required")
 	}
 
-	// Staff row-scope (Phase 4): a STAFF principal may only read a summary it
-	// issued ($2). Fail-closed → not-found otherwise. Non-staff → empty clause.
-	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 2)
+	// HAZ-02 close (Q-SEC-7): bind the workspace ($2, session identity). Staff
+	// row-scope shifts to $3 (a STAFF principal may only read a summary it issued).
+	workspaceID := sessionWorkspaceID(ctx)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 3)
+	query := jobOutcomeSummaryByColumnSQL("jos.id = $1", staffClause, "")
 
-	query := `
-		SELECT
-			jos.id, jos.job_id, jos.summary_type, jos.overall_determination,
-			jos.scoring_method, jos.summary_score, jos.total_criteria_count,
-			jos.pass_count, jos.fail_count, jos.conditional_count,
-			jos.deferred_count, jos.na_count, jos.narrative,
-			jos.issued_by, jos.issued_date, jos.valid_until_date,
-			jos.supersedes_id, jos.attachment_ids, jos.active,
-			jos.date_created, jos.date_modified,
-			jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
-			jos.workspace_id, jos.client_id
-		FROM ` + entityid.JobOutcomeSummary + ` jos
-		WHERE jos.id = $1 AND jos.active = true` + staffClause + `
-	`
-
-	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobOutcomeSummaryId}, staffArgs...)...)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobOutcomeSummaryId, workspaceID}, staffArgs...)...)
 
 	summary, err := scanJobOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {
@@ -404,29 +444,13 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 		return nil, fmt.Errorf("job ID is required")
 	}
 
-	// Staff row-scope (Phase 4): the latest summary for a job is visible to a
-	// STAFF principal only if it issued it ($2). Fail-closed → empty result
-	// (sql.ErrNoRows path) otherwise. Non-staff → empty clause.
-	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 2)
+	// HAZ-02 close (Q-SEC-7): bind the workspace ($2, session identity). Staff
+	// row-scope shifts to $3 (fail-closed → empty result via sql.ErrNoRows).
+	workspaceID := sessionWorkspaceID(ctx)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 3)
+	query := jobOutcomeSummaryByColumnSQL("jos.job_id = $1", staffClause, "ORDER BY jos.date_created DESC\n\t\tLIMIT 1")
 
-	query := `
-		SELECT
-			jos.id, jos.job_id, jos.summary_type, jos.overall_determination,
-			jos.scoring_method, jos.summary_score, jos.total_criteria_count,
-			jos.pass_count, jos.fail_count, jos.conditional_count,
-			jos.deferred_count, jos.na_count, jos.narrative,
-			jos.issued_by, jos.issued_date, jos.valid_until_date,
-			jos.supersedes_id, jos.attachment_ids, jos.active,
-			jos.date_created, jos.date_modified,
-			jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
-			jos.workspace_id, jos.client_id
-		FROM ` + entityid.JobOutcomeSummary + ` jos
-		WHERE jos.job_id = $1 AND jos.active = true` + staffClause + `
-		ORDER BY jos.date_created DESC
-		LIMIT 1
-	`
-
-	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
+	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobId, workspaceID}, staffArgs...)...)
 
 	summary, err := scanJobOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {

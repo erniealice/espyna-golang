@@ -232,6 +232,7 @@ func (r *PostgresPriceScheduleRepository) DeletePriceSchedule(ctx context.Contex
 var priceScheduleSortableSQLCols = []string{
 	"id", "active", "name", "description", "location_id", "client_id",
 	"date_time_start", "date_time_end", "date_created", "date_modified",
+	"sort_order",
 }
 
 var priceScheduleSortSpec = espynahttp.SortSpec{AllowedCols: priceScheduleSortableSQLCols}
@@ -317,7 +318,8 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 			date_modified,
 			location_id,
 			date_time_start,
-			date_time_end
+			date_time_end,
+			sort_order
 		FROM ` + entityid.PriceSchedule + `
 		WHERE active = true
 		  AND ($4::text = '' OR workspace_id = $4::text)
@@ -339,13 +341,17 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 		var dateCreated, dateModified time.Time
 		var locationId sql.NullString
 		var dateTimeStart, dateTimeEnd sql.NullTime
-		if err := rows.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateTimeStart, &dateTimeEnd); err != nil {
+		var sortOrder sql.NullInt32
+		if err := rows.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateTimeStart, &dateTimeEnd, &sortOrder); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
 		priceSchedule := &priceschedulepb.PriceSchedule{Id: id, Name: name, Description: &description, Active: active}
 		if locationId.Valid && locationId.String != "" {
 			priceSchedule.LocationId = &locationId.String
+		}
+		if sortOrder.Valid {
+			priceSchedule.SortOrder = &sortOrder.Int32
 		}
 		if dateTimeStart.Valid {
 			priceSchedule.DateTimeStart = timestamppb.New(dateTimeStart.Time)
@@ -375,14 +381,15 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleItemPageData(ctx conte
 	if req == nil || req.PriceScheduleId == "" {
 		return nil, fmt.Errorf("price schedule ID required")
 	}
-	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end FROM ` + entityid.PriceSchedule + ` WHERE id = $1 AND active = true`
+	query := `SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end, sort_order FROM ` + entityid.PriceSchedule + ` WHERE id = $1 AND active = true`
 	row := r.db.QueryRowContext(ctx, query, req.PriceScheduleId)
 	var id, name, description string
 	var active bool
 	var dateCreated, dateModified time.Time
 	var locationId sql.NullString
 	var dateTimeStart, dateTimeEnd sql.NullTime
-	if err := row.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateTimeStart, &dateTimeEnd); err == sql.ErrNoRows {
+	var sortOrder sql.NullInt32
+	if err := row.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateTimeStart, &dateTimeEnd, &sortOrder); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price schedule not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -390,6 +397,9 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleItemPageData(ctx conte
 	priceSchedule := &priceschedulepb.PriceSchedule{Id: id, Name: name, Description: &description, Active: active}
 	if locationId.Valid && locationId.String != "" {
 		priceSchedule.LocationId = &locationId.String
+	}
+	if sortOrder.Valid {
+		priceSchedule.SortOrder = &sortOrder.Int32
 	}
 	if dateTimeStart.Valid {
 		priceSchedule.DateTimeStart = timestamppb.New(dateTimeStart.Time)

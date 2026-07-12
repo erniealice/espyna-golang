@@ -195,3 +195,32 @@ func TestTransmuteSkipsInactiveBands(t *testing.T) {
 		t.Fatalf("got (%v,%v) want live", b, err)
 	}
 }
+
+func TestSelectTerminalPhase(t *testing.T) {
+	// Year-final policy: the highest-phase_order graded phase carries.
+	s1 := PhaseRollup{JobPhaseID: "p1", PhaseOrder: 1, Composite: 28, ScaledScore: 7, ScaledLabel: "7"}
+	s2 := PhaseRollup{JobPhaseID: "p2", PhaseOrder: 2, Composite: 20, ScaledScore: 5, ScaledLabel: "5"}
+
+	// Two semesters, S2 differs from S1 (the discriminating case): terminal = S2.
+	got, ok := SelectTerminalPhase([]PhaseRollup{s1, s2})
+	if !ok || got.JobPhaseID != "p2" || got.ScaledLabel != "5" {
+		t.Fatalf("two-phase: got (%+v, ok=%v), want terminal p2/label 5", got, ok)
+	}
+
+	// Order independence: input order must not change the terminal.
+	got, ok = SelectTerminalPhase([]PhaseRollup{s2, s1})
+	if !ok || got.JobPhaseID != "p2" {
+		t.Fatalf("reversed input: got (%+v, ok=%v), want terminal p2", got, ok)
+	}
+
+	// Single-phase (only Semester 2 populated): that lone phase passes through.
+	got, ok = SelectTerminalPhase([]PhaseRollup{s2})
+	if !ok || got.JobPhaseID != "p2" || got.ScaledScore != 5 {
+		t.Fatalf("single-phase: got (%+v, ok=%v), want p2 pass-through", got, ok)
+	}
+
+	// No graded phases: ok=false (caller suppresses, no fabrication).
+	if _, ok := SelectTerminalPhase(nil); ok {
+		t.Fatalf("empty: want ok=false")
+	}
+}

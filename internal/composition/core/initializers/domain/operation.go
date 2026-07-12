@@ -48,6 +48,10 @@ func InitializeOperation(
 		// PhaseOutcomeSummary CRUD use-cases.
 		TaskOutcome:         repos.TaskOutcome,
 		PhaseOutcomeSummary: repos.PhaseOutcomeSummary,
+		// JobOutcomeSummary + JobOutcomeLine are the year-final roll-up write
+		// targets (ComputeJobOutcome). Without JobOutcomeSummary threaded here
+		// the job roll-up nil-derefs on its GetByJob idempotency lookup.
+		JobOutcomeSummary:   repos.JobOutcomeSummary,
 		JobOutcomeLine:      repos.JobOutcomeLine,
 		ReportingCheckpoint: repos.ReportingCheckpoint,
 		// Performance Evaluation (20260604 v1).

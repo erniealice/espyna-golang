@@ -480,6 +480,10 @@ func NewUseCases(
 			ScoreScaleBand:           repos.ScoreScaleBand,
 			TaskOutcome:              repos.TaskOutcome,
 			PhaseOutcomeSummary:      repos.PhaseOutcomeSummary,
+			// Job-level (year-final) roll-up: source job + write targets.
+			Job:               repos.Job,
+			JobOutcomeSummary: repos.JobOutcomeSummary,
+			JobOutcomeLine:    repos.JobOutcomeLine,
 		},
 		gradeComputeUseCases.Services{
 			Authorizer:       authSvc,

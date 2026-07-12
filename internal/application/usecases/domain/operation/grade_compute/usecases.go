@@ -15,6 +15,9 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
+	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
+	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
@@ -38,6 +41,12 @@ type Repositories struct {
 	ScoreScaleBand           scorescalebandpb.ScoreScaleBandDomainServiceServer
 	TaskOutcome              taskoutcomepb.TaskOutcomeDomainServiceServer
 	PhaseOutcomeSummary      phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
+	// Job-level (year-final) roll-up target + source rows. Job supplies the
+	// denormalized client_id/workspace_id (portal-read design) and the subject
+	// label; JobOutcomeSummary/JobOutcomeLine are the write targets.
+	Job                 jobpb.JobDomainServiceServer
+	JobOutcomeSummary   joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
+	JobOutcomeLine      joboutcomelinepb.JobOutcomeLineDomainServiceServer
 }
 
 // Services groups the cross-cutting services (auth gate, transactions, i18n, id).
@@ -52,11 +61,13 @@ type Services struct {
 // UseCases contains all grade-compute orchestration use cases.
 type UseCases struct {
 	ComputePhaseOutcome *ComputePhaseOutcomeUseCase
+	ComputeJobOutcome   *ComputeJobOutcomeUseCase
 }
 
 // NewUseCases constructs the grade-compute use-case sub-aggregate.
 func NewUseCases(repositories Repositories, services Services) *UseCases {
 	return &UseCases{
 		ComputePhaseOutcome: NewComputePhaseOutcomeUseCase(repositories, services),
+		ComputeJobOutcome:   NewComputeJobOutcomeUseCase(repositories, services),
 	}
 }

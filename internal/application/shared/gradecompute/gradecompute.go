@@ -184,6 +184,42 @@ func TransmuteExactKey(bands []*scorescalebandpb.ScoreScaleBand, key string) (*s
 	return nil, fmt.Errorf("gradecompute: no EXACT_MAP band matches key=%q", key)
 }
 
+// PhaseRollup is one graded phase's already-transmuted result — the input to
+// the JOB-level (multi-phase) roll-up. Composite is the phase's raw composite
+// (the /32 SUM); ScaledScore/ScaledLabel are its transmuted grade.
+type PhaseRollup struct {
+	JobPhaseID  string
+	PhaseOrder  int32
+	Composite   float64
+	ScaledScore float64
+	ScaledLabel string
+}
+
+// SelectTerminalPhase implements the year-final job roll-up policy: the job's
+// outcome inherits the TERMINAL (highest phase_order) graded phase's grade —
+// the last reporting period's transmuted grade passes through as the job grade.
+//
+// Determined empirically (education, 2026-07-12) by comparing every candidate
+// rule against the authoritative prod report-card `final` grades: terminal
+// pass-through matched 96.2% overall (97.6% excluding the one non-formulaic
+// subject, Physical & Health Education, which prod grades holistically) and
+// 93.6% on the discriminating set where the two semesters differ — while every
+// averaging variant (transmute-of-averaged-composite, rounded-average-of-band,
+// year-wide best-fit) matched far worse (<66%). A single-phase job (one graded
+// period) passes that lone phase through unchanged (it IS the terminal phase).
+// Generic reading: a "last milestone determines the job outcome" policy for any
+// phased job. ok=false when there are no graded phases (the caller suppresses —
+// no fabrication).
+func SelectTerminalPhase(phases []PhaseRollup) (terminal PhaseRollup, ok bool) {
+	for _, p := range phases {
+		if !ok || p.PhaseOrder > terminal.PhaseOrder {
+			terminal = p
+			ok = true
+		}
+	}
+	return terminal, ok
+}
+
 // BandOutput is the (scaled_score, scaled_label) pair a transmuted band yields,
 // ready to stamp onto a summary. score is 0 when the band has no numeric output
 // (a label-only band).

@@ -67,3 +67,53 @@ func ComputePhaseOutcome(ctx context.Context, container *core.Container, jobPhas
 	}
 	return out, nil
 }
+
+// JobGradeComputeResult is the public shape returned by ComputeJobOutcome: the
+// upserted job_outcome_summary id + line id and the year-final grade drawn from
+// the terminal (Semester-2) phase.
+type JobGradeComputeResult struct {
+	JobID              string
+	SummaryID          string
+	LineID             string
+	ScoringSchemeID    string
+	Composite          float64
+	ScaledScore        float64
+	ScaledLabel        string
+	TerminalJobPhaseID string
+}
+
+// ComputeJobOutcome runs the real year-final job roll-up for one job against the
+// container's wired operation use-cases, upserting job_outcome_summary +
+// job_outcome_line. The ctx must carry an authorized principal (the use-case
+// action-gates a JobOutcomeSummary:create). It reads the job's already-computed
+// phase_outcome_summary rows and passes the terminal phase's grade through.
+func ComputeJobOutcome(ctx context.Context, container *core.Container, jobID string) (*JobGradeComputeResult, error) {
+	if container == nil {
+		return nil, fmt.Errorf("grade compute: nil container")
+	}
+	uc := container.GetUseCases()
+	if uc == nil || uc.Operation == nil || uc.Operation.GradeCompute == nil || uc.Operation.GradeCompute.ComputeJobOutcome == nil {
+		return nil, fmt.Errorf("grade compute: ComputeJobOutcome use-case not wired on the operation rollup")
+	}
+	resp, err := uc.Operation.GradeCompute.ComputeJobOutcome.Execute(ctx, &grade_compute.ComputeJobOutcomeRequest{
+		JobId: jobID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := &JobGradeComputeResult{
+		JobID:              jobID,
+		ScoringSchemeID:    resp.ScoringSchemeId,
+		Composite:          resp.Composite,
+		ScaledScore:        resp.ScaledScore,
+		ScaledLabel:        resp.ScaledLabel,
+		TerminalJobPhaseID: resp.TerminalJobPhaseId,
+	}
+	if resp.Summary != nil {
+		out.SummaryID = resp.Summary.Id
+	}
+	if resp.Line != nil {
+		out.LineID = resp.Line.Id
+	}
+	return out, nil
+}

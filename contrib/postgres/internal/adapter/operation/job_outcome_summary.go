@@ -278,7 +278,9 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		jos.deferred_count, jos.na_count, jos.narrative,
 		jos.issued_by, jos.issued_date, jos.valid_until_date,
 		jos.supersedes_id, jos.attachment_ids, jos.active,
-		jos.date_created, jos.date_modified
+		jos.date_created, jos.date_modified,
+		jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
+		jos.workspace_id, jos.client_id
 	`
 
 	// Staff row-scope (Phase 4): a STAFF principal sees only summaries it issued
@@ -370,7 +372,9 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryItemPageData(
 			jos.deferred_count, jos.na_count, jos.narrative,
 			jos.issued_by, jos.issued_date, jos.valid_until_date,
 			jos.supersedes_id, jos.attachment_ids, jos.active,
-			jos.date_created, jos.date_modified
+			jos.date_created, jos.date_modified,
+			jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
+			jos.workspace_id, jos.client_id
 		FROM ` + entityid.JobOutcomeSummary + ` jos
 		WHERE jos.id = $1 AND jos.active = true` + staffClause + `
 	`
@@ -413,7 +417,9 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 			jos.deferred_count, jos.na_count, jos.narrative,
 			jos.issued_by, jos.issued_date, jos.valid_until_date,
 			jos.supersedes_id, jos.attachment_ids, jos.active,
-			jos.date_created, jos.date_modified
+			jos.date_created, jos.date_modified,
+			jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
+			jos.workspace_id, jos.client_id
 		FROM ` + entityid.JobOutcomeSummary + ` jos
 		WHERE jos.job_id = $1 AND jos.active = true` + staffClause + `
 		ORDER BY jos.date_created DESC
@@ -438,154 +444,151 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 	}, nil
 }
 
-// scanJobOutcomeSummaryRowWithTotal scans a row with a total count column
-func scanJobOutcomeSummaryRowWithTotal(rows *sql.Rows) (*pb.JobOutcomeSummary, int64, error) {
-	var (
-		id                   string
-		jobID                string
-		summaryType          string
-		overallDetermination string
-		scoringMethod        string
-		summaryScore         sql.NullFloat64
-		totalCriteriaCount   int32
-		passCount            int32
-		failCount            int32
-		conditionalCount     int32
-		deferredCount        int32
-		naCount              int32
-		narrative            sql.NullString
-		issuedBy             string
-		issuedDate           sql.NullInt64
-		validUntilDate       sql.NullString
-		supersedesId         sql.NullString
-		attachmentIdsStr     string
-		active               bool
-		dateCreated          sql.NullInt64
-		dateModified         sql.NullInt64
-		total                int64
-	)
+// josFields is the schema-faithful scan destination set for job_outcome_summary.
+// Every column except id/active is nullable in the table, and issued_date /
+// date_created / date_modified are timestamptz — so the dests must be
+// NullString / NullInt32 / NullTime or Scan errors on the FIRST real row (the
+// prior plain-string/int32/NullInt64-for-timestamptz dests could never read a
+// written row; job_outcome_summary was empty so the bug was latent). Mirrors
+// the fixed phase_outcome_summary scanner.
+type josFields struct {
+	id                   string
+	jobID                sql.NullString
+	summaryType          sql.NullString
+	overallDetermination sql.NullString
+	scoringMethod        sql.NullString
+	summaryScore         sql.NullFloat64
+	totalCriteriaCount   sql.NullInt32
+	passCount            sql.NullInt32
+	failCount            sql.NullInt32
+	conditionalCount     sql.NullInt32
+	deferredCount        sql.NullInt32
+	naCount              sql.NullInt32
+	narrative            sql.NullString
+	issuedBy             sql.NullString
+	issuedDate           sql.NullTime
+	validUntilDate       sql.NullString
+	supersedesId         sql.NullString
+	attachmentIds        sql.NullString
+	active               bool
+	dateCreated          sql.NullTime
+	dateModified         sql.NullTime
+	scoringSchemeId      sql.NullString
+	scaledScore          sql.NullFloat64
+	scaledLabel          sql.NullString
+	workspaceId          sql.NullString
+	clientId             sql.NullString
+}
 
-	err := rows.Scan(
-		&id, &jobID, &summaryType, &overallDetermination,
-		&scoringMethod, &summaryScore, &totalCriteriaCount,
-		&passCount, &failCount, &conditionalCount,
-		&deferredCount, &naCount, &narrative,
-		&issuedBy, &issuedDate, &validUntilDate,
-		&supersedesId, &attachmentIdsStr, &active,
-		&dateCreated, &dateModified, &total,
-	)
-	if err != nil {
+// dests returns the scan-target pointers in projection order (see the three
+// query column lists). Optionally appends a trailing *int64 total sink.
+func (f *josFields) dests(total *int64) []any {
+	d := []any{
+		&f.id, &f.jobID, &f.summaryType, &f.overallDetermination,
+		&f.scoringMethod, &f.summaryScore, &f.totalCriteriaCount,
+		&f.passCount, &f.failCount, &f.conditionalCount,
+		&f.deferredCount, &f.naCount, &f.narrative,
+		&f.issuedBy, &f.issuedDate, &f.validUntilDate,
+		&f.supersedesId, &f.attachmentIds, &f.active,
+		&f.dateCreated, &f.dateModified,
+		&f.scoringSchemeId, &f.scaledScore, &f.scaledLabel,
+		&f.workspaceId, &f.clientId,
+	}
+	if total != nil {
+		d = append(d, total)
+	}
+	return d
+}
+
+// scanJobOutcomeSummaryRowWithTotal scans a row with a trailing total count column
+func scanJobOutcomeSummaryRowWithTotal(rows *sql.Rows) (*pb.JobOutcomeSummary, int64, error) {
+	var f josFields
+	var total int64
+	if err := rows.Scan(f.dests(&total)...); err != nil {
 		return nil, 0, fmt.Errorf("failed to scan job outcome summary row: %w", err)
 	}
-
-	summary := buildJobOutcomeSummary(id, jobID, summaryType, overallDetermination,
-		scoringMethod, summaryScore, totalCriteriaCount, passCount, failCount,
-		conditionalCount, deferredCount, naCount, narrative, issuedBy, issuedDate,
-		validUntilDate, supersedesId, attachmentIdsStr, active, dateCreated, dateModified)
-	return summary, total, nil
+	return buildJobOutcomeSummary(&f), total, nil
 }
 
 // scanJobOutcomeSummarySingleRow scans a single sql.Row into a JobOutcomeSummary proto
 func scanJobOutcomeSummarySingleRow(row *sql.Row) (*pb.JobOutcomeSummary, error) {
-	var (
-		id                   string
-		jobID                string
-		summaryType          string
-		overallDetermination string
-		scoringMethod        string
-		summaryScore         sql.NullFloat64
-		totalCriteriaCount   int32
-		passCount            int32
-		failCount            int32
-		conditionalCount     int32
-		deferredCount        int32
-		naCount              int32
-		narrative            sql.NullString
-		issuedBy             string
-		issuedDate           sql.NullInt64
-		validUntilDate       sql.NullString
-		supersedesId         sql.NullString
-		attachmentIdsStr     string
-		active               bool
-		dateCreated          sql.NullInt64
-		dateModified         sql.NullInt64
-	)
-
-	err := row.Scan(
-		&id, &jobID, &summaryType, &overallDetermination,
-		&scoringMethod, &summaryScore, &totalCriteriaCount,
-		&passCount, &failCount, &conditionalCount,
-		&deferredCount, &naCount, &narrative,
-		&issuedBy, &issuedDate, &validUntilDate,
-		&supersedesId, &attachmentIdsStr, &active,
-		&dateCreated, &dateModified,
-	)
-	if err != nil {
+	var f josFields
+	if err := row.Scan(f.dests(nil)...); err != nil {
 		return nil, err
 	}
-
-	return buildJobOutcomeSummary(id, jobID, summaryType, overallDetermination,
-		scoringMethod, summaryScore, totalCriteriaCount, passCount, failCount,
-		conditionalCount, deferredCount, naCount, narrative, issuedBy, issuedDate,
-		validUntilDate, supersedesId, attachmentIdsStr, active, dateCreated, dateModified), nil
+	return buildJobOutcomeSummary(&f), nil
 }
 
-func buildJobOutcomeSummary(
-	id string, jobID string, summaryType string, overallDetermination string,
-	scoringMethod string, summaryScore sql.NullFloat64, totalCriteriaCount int32,
-	passCount int32, failCount int32, conditionalCount int32,
-	deferredCount int32, naCount int32, narrative sql.NullString,
-	issuedBy string, issuedDate sql.NullInt64, validUntilDate sql.NullString,
-	supersedesId sql.NullString, attachmentIdsStr string, active bool,
-	dateCreated sql.NullInt64, dateModified sql.NullInt64,
-) *pb.JobOutcomeSummary {
+func buildJobOutcomeSummary(f *josFields) *pb.JobOutcomeSummary {
 	summary := &pb.JobOutcomeSummary{
-		Id:                   id,
-		Active:               active,
-		JobId:                jobID,
-		SummaryType:          enumspb.SummaryType(enumspb.SummaryType_value[summaryType]),
-		OverallDetermination: enumspb.OverallDetermination(enumspb.OverallDetermination_value[overallDetermination]),
-		ScoringMethod:        enumspb.ScoringMethod(enumspb.ScoringMethod_value[scoringMethod]),
-		TotalCriteriaCount:   totalCriteriaCount,
-		PassCount:            passCount,
-		FailCount:            failCount,
-		ConditionalCount:     conditionalCount,
-		DeferredCount:        deferredCount,
-		NaCount:              naCount,
-		IssuedBy:             issuedBy,
+		Id:                 f.id,
+		Active:             f.active,
+		JobId:              f.jobID.String,
+		TotalCriteriaCount: f.totalCriteriaCount.Int32,
+		PassCount:          f.passCount.Int32,
+		FailCount:          f.failCount.Int32,
+		ConditionalCount:   f.conditionalCount.Int32,
+		DeferredCount:      f.deferredCount.Int32,
+		NaCount:            f.naCount.Int32,
+		IssuedBy:           f.issuedBy.String,
 	}
-
-	if summaryScore.Valid {
-		summary.SummaryScore = &summaryScore.Float64
+	if f.summaryType.Valid {
+		summary.SummaryType = enumspb.SummaryType(enumspb.SummaryType_value[f.summaryType.String])
 	}
-	if narrative.Valid {
-		summary.Narrative = &narrative.String
+	if f.overallDetermination.Valid {
+		summary.OverallDetermination = enumspb.OverallDetermination(enumspb.OverallDetermination_value[f.overallDetermination.String])
 	}
-	if issuedDate.Valid {
-		summary.IssuedDate = &issuedDate.Int64
+	if f.scoringMethod.Valid {
+		summary.ScoringMethod = enumspb.ScoringMethod(enumspb.ScoringMethod_value[f.scoringMethod.String])
 	}
-	if validUntilDate.Valid {
-		summary.ValidUntilDate = &validUntilDate.String
+	if f.summaryScore.Valid {
+		summary.SummaryScore = &f.summaryScore.Float64
 	}
-	if supersedesId.Valid {
-		summary.SupersedesId = &supersedesId.String
+	if f.narrative.Valid {
+		summary.Narrative = &f.narrative.String
 	}
-	if attachmentIdsStr != "" {
+	if f.issuedDate.Valid {
+		ms := f.issuedDate.Time.UnixMilli()
+		summary.IssuedDate = &ms
+	}
+	if f.validUntilDate.Valid {
+		summary.ValidUntilDate = &f.validUntilDate.String
+	}
+	if f.supersedesId.Valid {
+		summary.SupersedesId = &f.supersedesId.String
+	}
+	if f.attachmentIds.Valid && f.attachmentIds.String != "" {
 		var ids []string
-		if err := json.Unmarshal([]byte(attachmentIdsStr), &ids); err == nil {
+		if err := json.Unmarshal([]byte(f.attachmentIds.String), &ids); err == nil {
 			summary.AttachmentIds = ids
 		}
 	}
-	if dateCreated.Valid {
-		summary.DateCreated = &dateCreated.Int64
-		dcStr := time.UnixMilli(dateCreated.Int64).Format(time.RFC3339)
+	if f.dateCreated.Valid {
+		ms := f.dateCreated.Time.UnixMilli()
+		summary.DateCreated = &ms
+		dcStr := f.dateCreated.Time.Format(time.RFC3339)
 		summary.DateCreatedString = &dcStr
 	}
-	if dateModified.Valid {
-		summary.DateModified = &dateModified.Int64
-		dmStr := time.UnixMilli(dateModified.Int64).Format(time.RFC3339)
+	if f.dateModified.Valid {
+		ms := f.dateModified.Time.UnixMilli()
+		summary.DateModified = &ms
+		dmStr := f.dateModified.Time.Format(time.RFC3339)
 		summary.DateModifiedString = &dmStr
 	}
-
+	if f.scoringSchemeId.Valid {
+		summary.ScoringSchemeId = &f.scoringSchemeId.String
+	}
+	if f.scaledScore.Valid {
+		summary.ScaledScore = &f.scaledScore.Float64
+	}
+	if f.scaledLabel.Valid {
+		summary.ScaledLabel = &f.scaledLabel.String
+	}
+	if f.workspaceId.Valid {
+		summary.WorkspaceId = f.workspaceId.String
+	}
+	if f.clientId.Valid {
+		summary.ClientId = &f.clientId.String
+	}
 	return summary
 }

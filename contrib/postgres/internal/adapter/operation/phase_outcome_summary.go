@@ -474,15 +474,17 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 	}, nil
 }
 
+// Every column except id/active is nullable in the table, and the date columns
+// are timestamptz — the dest types must match or Scan errors on real rows.
 func scanPOSFields(scanFn func(dest ...any) error) (
-	id string, jobPhaseID string, jobID string,
-	summaryType string, phaseDetermination string, scoringMethod string,
-	summaryScore sql.NullFloat64, totalCriteriaCount int32,
-	passCount int32, failCount int32, conditionalCount int32,
-	deferredCount int32, naCount int32, narrative sql.NullString,
-	issuedBy string, issuedDate sql.NullInt64,
+	id string, jobPhaseID sql.NullString, jobID sql.NullString,
+	summaryType sql.NullString, phaseDetermination sql.NullString, scoringMethod sql.NullString,
+	summaryScore sql.NullFloat64, totalCriteriaCount sql.NullInt32,
+	passCount sql.NullInt32, failCount sql.NullInt32, conditionalCount sql.NullInt32,
+	deferredCount sql.NullInt32, naCount sql.NullInt32, narrative sql.NullString,
+	issuedBy sql.NullString, issuedDate sql.NullTime,
 	supersedesId sql.NullString, active bool,
-	dateCreated sql.NullInt64, dateModified sql.NullInt64, err error,
+	dateCreated sql.NullTime, dateModified sql.NullTime, err error,
 ) {
 	err = scanFn(
 		&id, &jobPhaseID, &jobID, &summaryType,
@@ -520,25 +522,25 @@ func scanPhaseOutcomeSummaryRows(rows *sql.Rows) ([]*pb.PhaseOutcomeSummary, err
 func scanPhaseOutcomeSummaryRowWithTotal(rows *sql.Rows) (*pb.PhaseOutcomeSummary, int64, error) {
 	var (
 		id                 string
-		jobPhaseID         string
-		jobID              string
-		summaryType        string
-		phaseDetermination string
-		scoringMethod      string
+		jobPhaseID         sql.NullString
+		jobID              sql.NullString
+		summaryType        sql.NullString
+		phaseDetermination sql.NullString
+		scoringMethod      sql.NullString
 		summaryScore       sql.NullFloat64
-		totalCriteriaCount int32
-		passCount          int32
-		failCount          int32
-		conditionalCount   int32
-		deferredCount      int32
-		naCount            int32
+		totalCriteriaCount sql.NullInt32
+		passCount          sql.NullInt32
+		failCount          sql.NullInt32
+		conditionalCount   sql.NullInt32
+		deferredCount      sql.NullInt32
+		naCount            sql.NullInt32
 		narrative          sql.NullString
-		issuedBy           string
-		issuedDate         sql.NullInt64
+		issuedBy           sql.NullString
+		issuedDate         sql.NullTime
 		supersedesId       sql.NullString
 		active             bool
-		dateCreated        sql.NullInt64
-		dateModified       sql.NullInt64
+		dateCreated        sql.NullTime
+		dateModified       sql.NullTime
 		total              int64
 	)
 
@@ -577,30 +579,30 @@ func scanPhaseOutcomeSummarySingleRow(row *sql.Row) (*pb.PhaseOutcomeSummary, er
 }
 
 func buildPhaseOutcomeSummary(
-	id string, jobPhaseID string, jobID string,
-	summaryType string, phaseDetermination string, scoringMethod string,
-	summaryScore sql.NullFloat64, totalCriteriaCount int32,
-	passCount int32, failCount int32, conditionalCount int32,
-	deferredCount int32, naCount int32, narrative sql.NullString,
-	issuedBy string, issuedDate sql.NullInt64,
+	id string, jobPhaseID sql.NullString, jobID sql.NullString,
+	summaryType sql.NullString, phaseDetermination sql.NullString, scoringMethod sql.NullString,
+	summaryScore sql.NullFloat64, totalCriteriaCount sql.NullInt32,
+	passCount sql.NullInt32, failCount sql.NullInt32, conditionalCount sql.NullInt32,
+	deferredCount sql.NullInt32, naCount sql.NullInt32, narrative sql.NullString,
+	issuedBy sql.NullString, issuedDate sql.NullTime,
 	supersedesId sql.NullString, active bool,
-	dateCreated sql.NullInt64, dateModified sql.NullInt64,
+	dateCreated sql.NullTime, dateModified sql.NullTime,
 ) *pb.PhaseOutcomeSummary {
 	summary := &pb.PhaseOutcomeSummary{
 		Id:                 id,
 		Active:             active,
-		JobPhaseId:         jobPhaseID,
-		JobId:              jobID,
-		SummaryType:        enumspb.SummaryType(enumspb.SummaryType_value[summaryType]),
-		PhaseDetermination: enumspb.OverallDetermination(enumspb.OverallDetermination_value[phaseDetermination]),
-		ScoringMethod:      enumspb.ScoringMethod(enumspb.ScoringMethod_value[scoringMethod]),
-		TotalCriteriaCount: totalCriteriaCount,
-		PassCount:          passCount,
-		FailCount:          failCount,
-		ConditionalCount:   conditionalCount,
-		DeferredCount:      deferredCount,
-		NaCount:            naCount,
-		IssuedBy:           issuedBy,
+		JobPhaseId:         jobPhaseID.String,
+		JobId:              jobID.String,
+		SummaryType:        enumspb.SummaryType(enumspb.SummaryType_value[summaryType.String]),
+		PhaseDetermination: enumspb.OverallDetermination(enumspb.OverallDetermination_value[phaseDetermination.String]),
+		ScoringMethod:      enumspb.ScoringMethod(enumspb.ScoringMethod_value[scoringMethod.String]),
+		TotalCriteriaCount: totalCriteriaCount.Int32,
+		PassCount:          passCount.Int32,
+		FailCount:          failCount.Int32,
+		ConditionalCount:   conditionalCount.Int32,
+		DeferredCount:      deferredCount.Int32,
+		NaCount:            naCount.Int32,
+		IssuedBy:           issuedBy.String,
 	}
 
 	if summaryScore.Valid {
@@ -610,19 +612,22 @@ func buildPhaseOutcomeSummary(
 		summary.Narrative = &narrative.String
 	}
 	if issuedDate.Valid {
-		summary.IssuedDate = &issuedDate.Int64
+		ms := issuedDate.Time.UnixMilli()
+		summary.IssuedDate = &ms
 	}
 	if supersedesId.Valid {
 		summary.SupersedesId = &supersedesId.String
 	}
 	if dateCreated.Valid {
-		summary.DateCreated = &dateCreated.Int64
-		dcStr := time.UnixMilli(dateCreated.Int64).Format(time.RFC3339)
+		ms := dateCreated.Time.UnixMilli()
+		summary.DateCreated = &ms
+		dcStr := dateCreated.Time.Format(time.RFC3339)
 		summary.DateCreatedString = &dcStr
 	}
 	if dateModified.Valid {
-		summary.DateModified = &dateModified.Int64
-		dmStr := time.UnixMilli(dateModified.Int64).Format(time.RFC3339)
+		ms := dateModified.Time.UnixMilli()
+		summary.DateModified = &ms
+		dmStr := dateModified.Time.Format(time.RFC3339)
 		summary.DateModifiedString = &dmStr
 	}
 

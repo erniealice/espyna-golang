@@ -370,8 +370,14 @@ func (uc *ComputePhaseOutcomeUseCase) upsertSummary(
 	label := scaledLabel
 
 	// Look for an existing summary to update (re-grade) rather than duplicate.
-	existing, _ := uc.repositories.PhaseOutcomeSummary.GetByJobPhase(ctx,
+	// A lookup failure MUST abort: swallowing it here degrades every re-grade
+	// into a duplicate insert.
+	existing, err := uc.repositories.PhaseOutcomeSummary.GetByJobPhase(ctx,
 		&phaseoutcomesummarypb.GetPhaseOutcomeSummaryByJobPhaseRequest{JobPhaseId: req.JobPhaseId})
+	if err != nil {
+		return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.lookup_summary_failed",
+			"[ERR-DEFAULT] failed to look up existing phase_outcome_summary for job_phase %s: %w"), req.JobPhaseId, err)
+	}
 
 	// NOTE: phase_outcome_summary has no scoring_scheme_id column, so the resolved
 	// scheme id cannot be snapshotted onto the row (it is returned in the response

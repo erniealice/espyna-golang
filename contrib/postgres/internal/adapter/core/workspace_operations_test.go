@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -78,7 +78,9 @@ func newStubWorkspaceOps(inner *stubInner, wsHasColumn bool) *WorkspaceAwareOper
 
 // newCtxWithWorkspace injects a workspace ID into a context.
 func newCtxWithWorkspace(wsID string) context.Context {
-	return contextutil.WithWorkspaceID(context.Background(), wsID)
+	return identity.WithRequestIdentity(context.Background(), &identity.RequestIdentity{
+		WorkspaceID: wsID,
+	})
 }
 
 // ─── Read: NULL workspace_id on a tenant-scoped table ────────────────────────

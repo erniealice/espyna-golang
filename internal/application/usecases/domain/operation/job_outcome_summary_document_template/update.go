@@ -29,6 +29,12 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, req *pb.UpdateJobOutcomeSu
 	// that changes it. Clear it so a plain Update can never promote/demote a
 	// binding (RA2 P1); the adapter also strips it and freezes published rows.
 	req.Data.VersionStatus = enums.VersionStatus_VERSION_STATUS_UNSPECIFIED
+	// version is server-owned too — only Publish allocates it (MAX(published)+1).
+	// Clear it so a plain Update can never clobber a published lineage's version,
+	// including via a publish/Update TOCTOU race (the frozen-field filter reads an
+	// unlocked snapshot, so version must not depend on that read). The adapter
+	// also strips it. (B4 codex finding #3 — lifecycle/version immutable to Update.)
+	req.Data.Version = 0
 	ms := time.Now().UnixMilli()
 	req.Data.DateModified = &ms
 	return uc.repo.UpdateJobOutcomeSummaryDocumentTemplate(ctx, req)

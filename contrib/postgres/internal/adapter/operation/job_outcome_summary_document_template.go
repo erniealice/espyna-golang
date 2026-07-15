@@ -153,6 +153,13 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) UpdateJobOutcomeSu
 	// that changes it. Strip it from every CRUD Update so an operator can never
 	// promote/demote a binding through plain Update (RA2 P1).
 	delete(data, "version_status")
+	// version is server-owned too — only the Publish transaction allocates it.
+	// Strip it from every CRUD Update (belt to the use case's suspenders) so a
+	// concurrent Update can never clobber a published lineage's version. This is
+	// unconditional (not gated on the frozen-check read below), so it holds even
+	// under a publish/Update TOCTOU where the frozen read still sees DRAFT
+	// (B4 codex finding #3 — Update can mutate neither lifecycle nor version).
+	delete(data, "version")
 	// RA2 P1 — a PUBLISHED (or DEPRECATED) binding is immutable except for the
 	// admin gate + audit stamp: its lineage/scope/template/version/validity are
 	// frozen. When the current row is not a DRAFT, filter the write payload down

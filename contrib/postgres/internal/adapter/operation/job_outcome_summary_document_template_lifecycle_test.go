@@ -99,6 +99,7 @@ func TestUpdateBinding_DraftRowStaysFullyMutable(t *testing.T) {
 		Data: &pb.JobOutcomeSummaryDocumentTemplate{
 			Id:                 "b-1",
 			DocumentTemplateId: "dt-2",
+			Version:            7, // server-owned — must be stripped even on a draft
 		},
 	})
 	if err != nil {
@@ -106,6 +107,12 @@ func TestUpdateBinding_DraftRowStaysFullyMutable(t *testing.T) {
 	}
 	if got := fake.lastUpdate["document_template_id"]; got != "dt-2" {
 		t.Errorf("draft row: document_template_id must remain mutable, got %v", got)
+	}
+	// version is server-owned (only Publish allocates it): stripped unconditionally
+	// so a publish/Update TOCTOU can never clobber a published lineage's version
+	// (B4 codex finding #3).
+	if _, ok := fake.lastUpdate["version"]; ok {
+		t.Errorf("draft row: server-owned version must be stripped from Update (got %v)", fake.lastUpdate["version"])
 	}
 }
 

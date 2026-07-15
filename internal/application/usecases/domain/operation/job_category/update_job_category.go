@@ -40,6 +40,9 @@ func (uc *UpdateJobCategoryUseCase) Execute(ctx context.Context, req *pb.UpdateJ
 	if req == nil || req.Data == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_category.validation.data_required", "Data is required [DEFAULT]"))
 	}
+	// workspace_id is the immutable tenant anchor; never honor a client-supplied
+	// workspace on update (gate H1).
+	req.Data.WorkspaceId = nil
 	now := time.Now()
 	ms := now.UnixMilli()
 	s := now.Format(time.RFC3339)

@@ -40,6 +40,9 @@ func (uc *CreateJobCategoryUseCase) Execute(ctx context.Context, req *pb.CreateJ
 	if req == nil || req.Data == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_category.validation.data_required", "Data is required [DEFAULT]"))
 	}
+	// Tenancy is assigned from the trusted request context by the persistence
+	// layer; never honor a client-supplied workspace on write (gate H1).
+	req.Data.WorkspaceId = nil
 	uc.enrich(req.Data)
 	return uc.repositories.JobCategory.CreateJobCategory(ctx, req)
 }

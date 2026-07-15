@@ -77,6 +77,9 @@ func (uc *CreateUseCase) Execute(ctx context.Context, req *pb.CreateJobOutcomeSu
 	if err := uc.svc.requireRequest(ctx, req != nil && req.Data != nil); err != nil {
 		return nil, err
 	}
+	// Tenancy is assigned from the trusted request context by the persistence
+	// layer; never honor a client-supplied workspace on write (gate H1).
+	req.Data.WorkspaceId = ""
 	now := time.Now()
 	if req.Data.Id == "" && uc.svc.IDGenerator != nil {
 		req.Data.Id = uc.svc.IDGenerator.GenerateID()
@@ -119,6 +122,9 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, req *pb.UpdateJobOutcomeSu
 	if err := uc.svc.requireRequest(ctx, req != nil && req.Data != nil); err != nil {
 		return nil, err
 	}
+	// workspace_id is the immutable tenant anchor; never honor a client-supplied
+	// workspace on update (gate H1).
+	req.Data.WorkspaceId = ""
 	ms := time.Now().UnixMilli()
 	req.Data.DateModified = &ms
 	return uc.repo.UpdateJobOutcomeSummaryDocumentTemplate(ctx, req)

@@ -70,15 +70,21 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) CreateJobOutcomeSu
 	if err != nil {
 		return nil, err
 	}
+	// protoToMap canonicalizes keys to snake_case (gate H1), so hydrate-only and
+	// FK keys are matched by their column spelling here.
 	// hydrate-only fields never persist.
-	delete(data, "documentTemplate")
-	delete(data, "priceSchedule")
+	delete(data, "document_template")
+	delete(data, "price_schedule")
+	// Tenancy is owned by the workspace-aware decorator, which injects the trusted
+	// workspace_id on Create. Strip any client-supplied workspace key so it can
+	// never win a key-normalization collision (gate H1).
+	stripClientWorkspaceKeys(data)
 	// empty optional FK ("" from a form) → SQL NULL so the FK constraint holds.
-	if v, ok := data["priceScheduleId"].(string); ok && v == "" {
-		data["priceScheduleId"] = nil
+	if v, ok := data["price_schedule_id"].(string); ok && v == "" {
+		data["price_schedule_id"] = nil
 	}
-	if v, ok := data["supersedesBindingId"].(string); ok && v == "" {
-		data["supersedesBindingId"] = nil
+	if v, ok := data["supersedes_binding_id"].(string); ok && v == "" {
+		data["supersedes_binding_id"] = nil
 	}
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
@@ -114,13 +120,17 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) UpdateJobOutcomeSu
 	if err != nil {
 		return nil, err
 	}
-	delete(data, "documentTemplate")
-	delete(data, "priceSchedule")
-	if v, ok := data["priceScheduleId"].(string); ok && v == "" {
-		data["priceScheduleId"] = nil
+	// protoToMap canonicalizes keys to snake_case (gate H1).
+	delete(data, "document_template")
+	delete(data, "price_schedule")
+	// workspace_id is the immutable tenant anchor: strip both spellings so an
+	// Update payload can never reassign the row to another workspace (gate H1).
+	stripClientWorkspaceKeys(data)
+	if v, ok := data["price_schedule_id"].(string); ok && v == "" {
+		data["price_schedule_id"] = nil
 	}
-	if v, ok := data["supersedesBindingId"].(string); ok && v == "" {
-		data["supersedesBindingId"] = nil
+	if v, ok := data["supersedes_binding_id"].(string); ok && v == "" {
+		data["supersedes_binding_id"] = nil
 	}
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {

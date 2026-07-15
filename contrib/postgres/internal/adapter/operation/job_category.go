@@ -58,6 +58,11 @@ func (r *PostgresJobCategoryRepository) CreateJobCategory(ctx context.Context, r
 	if err != nil {
 		return nil, err
 	}
+	// Tenancy is owned by the workspace-aware decorator, which injects the trusted
+	// workspace_id from the request context on Create. Strip any client-supplied
+	// workspace key so it can never reach the write path and win a key-normalization
+	// collision (gate H1).
+	stripClientWorkspaceKeys(data)
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job category: %w", err)
@@ -92,6 +97,9 @@ func (r *PostgresJobCategoryRepository) UpdateJobCategory(ctx context.Context, r
 	if err != nil {
 		return nil, err
 	}
+	// workspace_id is the immutable tenant anchor: strip both spellings so an
+	// Update payload can never reassign the row to another workspace (gate H1).
+	stripClientWorkspaceKeys(data)
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update job category: %w", err)

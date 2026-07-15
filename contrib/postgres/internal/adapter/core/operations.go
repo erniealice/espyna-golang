@@ -336,6 +336,13 @@ func (p *PostgresOperations) Update(ctx context.Context, tableName string, id st
 		if column == "id" {
 			continue
 		}
+		// Tenant-anchor immutability (gate H1): never emit workspace_id in an UPDATE
+		// SET, even if a caller — or a key-normalization collision — smuggled it into
+		// the payload. Create is the sole path that assigns workspace_id. (keys are
+		// already snake_cased by normalizeKeys above, so this catches workspaceId too.)
+		if column == "workspace_id" {
+			continue
+		}
 		if !validColumns[column] {
 			skipped = append(skipped, column)
 			continue
@@ -1841,6 +1848,13 @@ func normalizeKeys(data map[string]any) map[string]any {
 	}
 	return result
 }
+
+// CamelToSnake exposes the camelToSnake canonicalization to sibling adapter
+// packages that must snake-case protojson keys to the persisted column spelling
+// BEFORE handing a write payload to the tenancy-aware decorator + write path.
+// Single-sourcing the algorithm here keeps the entity adapters' canonicalization
+// (contrib/.../operation/proto_map.go, gate H1) byte-identical to normalizeKeys.
+func CamelToSnake(s string) string { return camelToSnake(s) }
 
 // camelToSnake converts camelCase to snake_case.
 func camelToSnake(s string) string {

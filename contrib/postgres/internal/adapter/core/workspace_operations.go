@@ -427,6 +427,12 @@ func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string,
 		// Clone the map to avoid mutating the caller's data.
 		cloned := make(map[string]any, len(data)+1)
 		for k, v := range data {
+			// Drop any client-supplied workspace key (either spelling) so it can
+			// never coexist with — and nondeterministically overwrite via the
+			// key-normalization collision — the trusted value injected below (gate H1).
+			if k == "workspace_id" || k == "workspaceId" {
+				continue
+			}
 			cloned[k] = v
 		}
 		cloned["workspace_id"] = wsID
@@ -506,12 +512,16 @@ func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string,
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return nil, err
 		}
-		// Strip workspace_id from the update payload; it must never change.
+		// Strip the workspace key from the update payload; the tenant anchor must
+		// never change. BOTH spellings are removed — the camelCase workspaceId
+		// (protojson) would otherwise survive the strip and then win the camel→snake
+		// normalization collision, reassigning the row to another workspace (gate H1).
 		cloned := make(map[string]any, len(data))
 		for k, v := range data {
-			if k != "workspace_id" {
-				cloned[k] = v
+			if k == "workspace_id" || k == "workspaceId" {
+				continue
 			}
+			cloned[k] = v
 		}
 		data = cloned
 	} else if wsID != "" && columnLessTenantTables[tableName] {

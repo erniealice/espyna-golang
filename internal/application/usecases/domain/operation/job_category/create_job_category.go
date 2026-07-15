@@ -3,6 +3,7 @@ package job_category
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -39,6 +40,11 @@ func (uc *CreateJobCategoryUseCase) Execute(ctx context.Context, req *pb.CreateJ
 	}
 	if req == nil || req.Data == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_category.validation.data_required", "Data is required [DEFAULT]"))
+	}
+	// S-6 — minimal required-field validation: name is the display label and the
+	// only non-optional business field on job_category (code/status are optional).
+	if strings.TrimSpace(req.Data.Name) == "" {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_category.validation.name_required", "A name is required [DEFAULT]"))
 	}
 	// Tenancy is assigned from the trusted request context by the persistence
 	// layer; never honor a client-supplied workspace on write (gate H1).

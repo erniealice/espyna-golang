@@ -485,6 +485,13 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 		v := *tpl.OutputProductVariantId
 		job.OutputProductVariantId = &v
 	}
+	// Denormalized job_category, copied from the workspace-owned template at
+	// materialize time (job.proto:139 — copy-at-materialize; M7). NULL template
+	// category → NULL job category.
+	if tpl.JobCategoryId != nil && *tpl.JobCategoryId != "" {
+		v := *tpl.JobCategoryId
+		job.JobCategoryId = &v
+	}
 	if tpl.WorkspaceId != nil && *tpl.WorkspaceId != "" {
 		v := *tpl.WorkspaceId
 		job.WorkspaceId = &v

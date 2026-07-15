@@ -41,7 +41,7 @@ type PostgresJobCategoryRepository struct {
 
 func NewPostgresJobCategoryRepository(dbOps interfaces.DatabaseOperation, tableName string) pb.JobCategoryDomainServiceServer {
 	if tableName == "" {
-		tableName = "job_category"
+		tableName = entityid.JobCategory
 	}
 	var db *sql.DB
 	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {

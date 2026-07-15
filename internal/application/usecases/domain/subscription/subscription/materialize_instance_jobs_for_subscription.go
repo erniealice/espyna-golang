@@ -771,6 +771,12 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnCycleJob(
 		DateModified:       &dc,
 		DateModifiedString: &dcs,
 	}
+	// Denormalized job_category, copied from the workspace-owned template at
+	// materialize time (job.proto:139 — copy-at-materialize; M7).
+	if tpl.JobCategoryId != nil && *tpl.JobCategoryId != "" {
+		v := *tpl.JobCategoryId
+		job.JobCategoryId = &v
+	}
 	if tpl.DefaultFulfillmentType != nil {
 		job.FulfillmentType = *tpl.DefaultFulfillmentType
 	}
@@ -883,6 +889,12 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnOnceAtShellStart(
 			DateCreatedString:  &dcs,
 			DateModified:       &dc,
 			DateModifiedString: &dcs,
+		}
+		// Denormalized job_category, copied from the workspace-owned template at
+		// materialize time (job.proto:139 — copy-at-materialize; M7).
+		if tpl.JobCategoryId != nil && *tpl.JobCategoryId != "" {
+			v := *tpl.JobCategoryId
+			job.JobCategoryId = &v
 		}
 		if tpl.DefaultFulfillmentType != nil {
 			job.FulfillmentType = *tpl.DefaultFulfillmentType
@@ -1561,6 +1573,12 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnUsageJob(
 		DateCreatedString:  &dcs,
 		DateModified:       &dc,
 		DateModifiedString: &dcs,
+	}
+	// Denormalized job_category, copied from the workspace-owned template at
+	// materialize time (job.proto:139 — copy-at-materialize; M7).
+	if tpl.JobCategoryId != nil && *tpl.JobCategoryId != "" {
+		v := *tpl.JobCategoryId
+		job.JobCategoryId = &v
 	}
 	if tpl.DefaultFulfillmentType != nil {
 		job.FulfillmentType = *tpl.DefaultFulfillmentType

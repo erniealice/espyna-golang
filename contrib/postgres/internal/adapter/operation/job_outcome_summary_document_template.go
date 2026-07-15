@@ -22,10 +22,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// versionStatusPublished is the persisted (protojson) name of the operation
-// VersionStatus PUBLISHED value. The resolver gates on it; CRUD round-trips
-// version_status via protojson's native enum-name serialization.
-const versionStatusPublished = "VERSION_STATUS_PUBLISHED"
+// Persisted (protojson) names of the operation VersionStatus enum values. The
+// resolver gates on PUBLISHED; the publish transaction is the ONLY path that
+// flips DRAFT→PUBLISHED. CRUD round-trips version_status via protojson's native
+// enum-name serialization.
+const (
+	versionStatusDraft      = "VERSION_STATUS_DRAFT"
+	versionStatusPublished  = "VERSION_STATUS_PUBLISHED"
+	versionStatusDeprecated = "VERSION_STATUS_DEPRECATED"
+)
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.JobOutcomeSummaryDocumentTemplate, func(conn any, tableName string) (any, error) {
@@ -42,6 +47,14 @@ func init() {
 // template-binding CRUD + the applicability resolver + the publish transaction.
 // The resolver and publish paths use the raw *sql.DB (CTE + multi-statement TX);
 // CRUD delegates to the workspace-aware dbOps decorator.
+//
+// Server-owned lifecycle (RA2 P1). A binding is born DRAFT + unversioned; the
+// only path that flips it to PUBLISHED and allocates its real version is the
+// Publish transaction. Create forces DRAFT; Update filters immutable fields once
+// a row is PUBLISHED/DEPRECATED; Publish is a draft-only, affected-row-checked,
+// publish-flips-sibling transaction. These persistence-layer guards are the belt
+// to the use-case suspenders — a bypassed use case can still never mint a
+// published row or mutate a published lineage through CRUD.
 type PostgresJobOutcomeSummaryDocumentTemplateRepository struct {
 	pb.UnimplementedJobOutcomeSummaryDocumentTemplateDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
@@ -79,6 +92,16 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) CreateJobOutcomeSu
 	// workspace_id on Create. Strip any client-supplied workspace key so it can
 	// never win a key-normalization collision (gate H1).
 	stripClientWorkspaceKeys(data)
+	// RA2 P1 — server-owned lifecycle. A binding is ALWAYS born DRAFT and
+	// unversioned/provisional (version=0). Never honor a client-supplied
+	// version_status, version, or publish audit; only the Publish transaction may
+	// flip version_status→PUBLISHED and allocate the real version. This is the
+	// persistence-layer belt to the use-case suspenders.
+	data["version_status"] = versionStatusDraft
+	data["version"] = 0
+	delete(data, "published_at")
+	delete(data, "published_at_string")
+	delete(data, "published_by")
 	// empty optional FK ("" from a form) → SQL NULL so the FK constraint holds.
 	if v, ok := data["price_schedule_id"].(string); ok && v == "" {
 		data["price_schedule_id"] = nil
@@ -126,6 +149,21 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) UpdateJobOutcomeSu
 	// workspace_id is the immutable tenant anchor: strip both spellings so an
 	// Update payload can never reassign the row to another workspace (gate H1).
 	stripClientWorkspaceKeys(data)
+	// version_status is server-owned; the Publish transaction is the ONLY path
+	// that changes it. Strip it from every CRUD Update so an operator can never
+	// promote/demote a binding through plain Update (RA2 P1).
+	delete(data, "version_status")
+	// RA2 P1 — a PUBLISHED (or DEPRECATED) binding is immutable except for the
+	// admin gate + audit stamp: its lineage/scope/template/version/validity are
+	// frozen. When the current row is not a DRAFT, filter the write payload down
+	// to the mutable safelist so an arbitrary CRUD Update can never mutate a
+	// published lineage (codex RA2 P1). Drafts stay fully mutable. Read is
+	// workspace-scoped by the decorator, so a cross-tenant id resolves nothing.
+	if current, rerr := r.dbOps.Read(ctx, r.tableName, req.Data.Id); rerr == nil {
+		if bindingLifecycleIsFrozen(current) {
+			filterToMutableBindingFields(data)
+		}
+	}
 	if v, ok := data["price_schedule_id"].(string); ok && v == "" {
 		data["price_schedule_id"] = nil
 	}
@@ -173,6 +211,34 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) ListJobOutcomeSumm
 	return &pb.ListJobOutcomeSummaryDocumentTemplatesResponse{Data: items, Success: true}, nil
 }
 
+// bindingLifecycleIsFrozen reports whether a persisted binding row is in a
+// terminal (PUBLISHED or DEPRECATED) lifecycle state whose immutable fields must
+// not change through a plain CRUD Update.
+func bindingLifecycleIsFrozen(row any) bool {
+	m, ok := row.(map[string]any)
+	if !ok {
+		return false
+	}
+	vs, _ := m["version_status"].(string)
+	return vs == versionStatusPublished || vs == versionStatusDeprecated
+}
+
+// filterToMutableBindingFields drops every key from a write payload except the
+// admin gate (active) + audit stamp (date_modified). Used to freeze the immutable
+// fields of a PUBLISHED/DEPRECATED binding on Update (RA2 P1).
+func filterToMutableBindingFields(data map[string]any) {
+	allowed := map[string]bool{
+		"active":               true,
+		"date_modified":        true,
+		"date_modified_string": true,
+	}
+	for k := range data {
+		if !allowed[k] {
+			delete(data, k)
+		}
+	}
+}
+
 func jobOutcomeSummaryDocumentTemplateFromResult(result any) (*pb.JobOutcomeSummaryDocumentTemplate, error) {
 	m, ok := result.(map[string]any)
 	if ok {
@@ -192,6 +258,52 @@ func jobOutcomeSummaryDocumentTemplateFromResult(result any) (*pb.JobOutcomeSumm
 }
 
 // --- Resolver -------------------------------------------------------------
+
+// findApplicableSQL builds the resolver query. Table identifiers come from the
+// registry/entityid constants (table-name single-source invariant, Q-TABLE-NAMES)
+// — never bare literals. Extracted so the predicate shape (tenant gate, published
+// gate, half-open validity, exact-before-fallback ordering, LIMIT 2 ambiguity
+// guard) is unit-testable without a live DB.
+//
+// Params: $1=workspace(ctx), $2=price_schedule_id, $3='VERSION_STATUS_PUBLISHED',
+// $4=as_of.
+func findApplicableSQL() string {
+	return fmt.Sprintf(`
+		WITH requested_scope AS (
+			SELECT NULLIF($2, '') AS price_schedule_id
+			WHERE NULLIF($2, '') IS NULL
+			   OR EXISTS (SELECT 1 FROM %[3]s ps
+			              WHERE ps.id = NULLIF($2, '') AND ps.workspace_id = $1)
+		)
+		SELECT
+			b.id, b.workspace_id, b.document_template_id, b.price_schedule_id, b.version,
+			b.version_status, b.validity_start, b.validity_end, b.supersedes_binding_id,
+			b.active, b.created_by, b.published_at, b.published_by, b.date_created, b.date_modified,
+			dt.id, dt.name, dt.description, dt.active, dt.workspace_id, dt.template_type,
+			dt.document_purpose, dt.storage_container, dt.storage_key, dt.original_filename,
+			dt.file_size_bytes, dt.is_default, dt.created_by, dt.status, dt.module_key,
+			ps.id, ps.name, ps.active, ps.workspace_id,
+			CASE WHEN rs.price_schedule_id IS NOT NULL AND b.price_schedule_id = rs.price_schedule_id THEN 0 ELSE 1 END AS match_rank
+		FROM %[1]s b
+		CROSS JOIN requested_scope rs
+		JOIN %[2]s dt
+			ON dt.id = b.document_template_id AND dt.workspace_id = b.workspace_id
+		LEFT JOIN %[3]s ps
+			ON ps.id = b.price_schedule_id AND ps.workspace_id = b.workspace_id
+		WHERE b.workspace_id = $1
+			AND b.active = true
+			AND b.version_status = $3
+			AND dt.active = true
+			AND dt.status = 'active'
+			AND dt.template_type = 'docx'
+			AND NULLIF(dt.storage_key, '') IS NOT NULL
+			AND (b.validity_start IS NULL OR b.validity_start <= $4)
+			AND (b.validity_end IS NULL OR $4 < b.validity_end)
+			AND (b.price_schedule_id = rs.price_schedule_id OR b.price_schedule_id IS NULL)
+		ORDER BY match_rank, b.version DESC
+		LIMIT 2`,
+		entityid.JobOutcomeSummaryDocumentTemplate, entityid.DocumentTemplate, entityid.PriceSchedule)
+}
 
 // FindApplicableJobOutcomeSummaryDocumentTemplate resolves the single applicable,
 // published, active binding for (price_schedule_id, as_of). Tenant isolation is
@@ -222,42 +334,7 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 		asOf = req.AsOf.AsTime().UTC()
 	}
 
-	query := `
-		WITH requested_scope AS (
-			SELECT NULLIF($2, '') AS price_schedule_id
-			WHERE NULLIF($2, '') IS NULL
-			   OR EXISTS (SELECT 1 FROM price_schedule ps
-			              WHERE ps.id = NULLIF($2, '') AND ps.workspace_id = $1)
-		)
-		SELECT
-			b.id, b.workspace_id, b.document_template_id, b.price_schedule_id, b.version,
-			b.version_status, b.validity_start, b.validity_end, b.supersedes_binding_id,
-			b.active, b.created_by, b.published_at, b.published_by, b.date_created, b.date_modified,
-			dt.id, dt.name, dt.description, dt.active, dt.workspace_id, dt.template_type,
-			dt.document_purpose, dt.storage_container, dt.storage_key, dt.original_filename,
-			dt.file_size_bytes, dt.is_default, dt.created_by, dt.status, dt.module_key,
-			ps.id, ps.name, ps.active, ps.workspace_id,
-			CASE WHEN rs.price_schedule_id IS NOT NULL AND b.price_schedule_id = rs.price_schedule_id THEN 0 ELSE 1 END AS match_rank
-		FROM job_outcome_summary_document_template b
-		CROSS JOIN requested_scope rs
-		JOIN document_template dt
-			ON dt.id = b.document_template_id AND dt.workspace_id = b.workspace_id
-		LEFT JOIN price_schedule ps
-			ON ps.id = b.price_schedule_id AND ps.workspace_id = b.workspace_id
-		WHERE b.workspace_id = $1
-			AND b.active = true
-			AND b.version_status = $3
-			AND dt.active = true
-			AND dt.status = 'active'
-			AND dt.template_type = 'docx'
-			AND NULLIF(dt.storage_key, '') IS NOT NULL
-			AND (b.validity_start IS NULL OR b.validity_start <= $4)
-			AND (b.validity_end IS NULL OR $4 < b.validity_end)
-			AND (b.price_schedule_id = rs.price_schedule_id OR b.price_schedule_id IS NULL)
-		ORDER BY match_rank, b.version DESC
-		LIMIT 2`
-
-	rows, err := r.db.QueryContext(ctx, query, wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf)
+	rows, err := r.db.QueryContext(ctx, findApplicableSQL(), wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf)
 	if err != nil {
 		return nil, fmt.Errorf("resolver query failed: %w", err)
 	}
@@ -271,20 +348,20 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 	var results []scanned
 	for rows.Next() {
 		var (
-			bID, bWorkspaceID, bDocTmplID                            string
+			bID, bWorkspaceID, bDocTmplID                             string
 			bPriceScheduleID, bVersionStatus, bSupersedes, bCreatedBy sql.NullString
-			bPublishedBy                                             sql.NullString
-			bVersion                                                 sql.NullInt32
-			bActive                                                  sql.NullBool
-			bValidityStart, bValidityEnd                             sql.NullTime
-			bPublishedAt, bDateCreated, bDateModified                sql.NullInt64
+			bPublishedBy                                              sql.NullString
+			bVersion                                                  sql.NullInt32
+			bActive                                                   sql.NullBool
+			bValidityStart, bValidityEnd                              sql.NullTime
+			bPublishedAt, bDateCreated, bDateModified                 sql.NullInt64
 
-			dtID                                                     string
-			dtName, dtDescription, dtWorkspaceID, dtTemplateType     sql.NullString
-			dtDocumentPurpose, dtStorageContainer, dtStorageKey      sql.NullString
-			dtOriginalFilename, dtCreatedBy, dtStatus, dtModuleKey   sql.NullString
-			dtActive, dtIsDefault                                    sql.NullBool
-			dtFileSizeBytes                                          sql.NullInt64
+			dtID                                                   string
+			dtName, dtDescription, dtWorkspaceID, dtTemplateType   sql.NullString
+			dtDocumentPurpose, dtStorageContainer, dtStorageKey    sql.NullString
+			dtOriginalFilename, dtCreatedBy, dtStatus, dtModuleKey sql.NullString
+			dtActive, dtIsDefault                                  sql.NullBool
+			dtFileSizeBytes                                        sql.NullInt64
 
 			psID, psName, psWorkspaceID sql.NullString
 			psActive                    sql.NullBool
@@ -434,11 +511,39 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 
 // --- Publish --------------------------------------------------------------
 
+// nextBindingVersion allocates the next published version in a lineage. NULL
+// (no prior published sibling) → 1; otherwise MAX(published.version)+1. Pure so
+// the version-allocation rule is unit-testable without a DB.
+func nextBindingVersion(maxPublished sql.NullInt32) int32 {
+	if maxPublished.Valid {
+		return maxPublished.Int32 + 1
+	}
+	return 1
+}
+
+// publishFlipSQL is the guarded flip that promotes the target DRAFT to PUBLISHED.
+// The WHERE clause carries the draft-only predicate ($7); the caller checks
+// RowsAffected == 1 so a concurrent publish (or a non-draft target) fails closed
+// instead of double-publishing. Table identifier from entityid (Q-TABLE-NAMES).
+func publishFlipSQL() string {
+	return fmt.Sprintf(`UPDATE %s
+		    SET version_status = $1, version = $2, published_at = $3, published_by = $4, date_modified = $3
+		  WHERE id = $5 AND workspace_id = $6 AND version_status = $7`,
+		entityid.JobOutcomeSummaryDocumentTemplate)
+}
+
 // PublishJobOutcomeSummaryDocumentTemplate flips a DRAFT binding to PUBLISHED and
 // closes the prior published sibling's validity_end in ONE transaction
 // (publish-flips-sibling). The prior sibling stays PUBLISHED so historical as_of
-// resolution still finds it. version is re-allocated MAX(version)+1 in the
-// lineage under the transaction. Workspace comes from trusted context.
+// resolution still finds it (RA-spec §4: DEPRECATED is reserved for
+// administrative retirement, never supersession). version is re-allocated
+// MAX(published.version)+1 in the lineage under the transaction. Workspace comes
+// from trusted context.
+//
+// Draft-only + concurrency-safe (RA2 P1): the target is loaded FOR UPDATE and
+// must be an active DRAFT; the flip UPDATE re-asserts the DRAFT predicate and the
+// affected-row count is verified == 1, so a published/deprecated/inactive row can
+// never be republished and two concurrent publishes cannot both win.
 func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) PublishJobOutcomeSummaryDocumentTemplate(ctx context.Context, req *pb.PublishJobOutcomeSummaryDocumentTemplateRequest) (*pb.PublishJobOutcomeSummaryDocumentTemplateResponse, error) {
 	if req == nil || req.Id == "" {
 		return nil, fmt.Errorf("binding ID is required")
@@ -454,46 +559,56 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) PublishJobOutcomeS
 	publishedBy := id.UserID
 	nowMillis := time.Now().UTC().UnixMilli()
 
+	tbl := entityid.JobOutcomeSummaryDocumentTemplate
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Load the target (workspace-scoped).
+	// Load + LOCK the target (workspace-scoped). FOR UPDATE serializes concurrent
+	// publishes of the same binding; the DRAFT/active gate rejects re-publishing a
+	// published/deprecated/inactive row.
 	var (
 		targetPriceScheduleID sql.NullString
 		targetValidityStart   sql.NullTime
+		targetVersionStatus   sql.NullString
+		targetActive          sql.NullBool
 	)
 	err = tx.QueryRowContext(ctx,
-		`SELECT price_schedule_id, validity_start
-		   FROM job_outcome_summary_document_template
-		  WHERE id = $1 AND workspace_id = $2`, req.Id, wsID).
-		Scan(&targetPriceScheduleID, &targetValidityStart)
+		fmt.Sprintf(`SELECT price_schedule_id, validity_start, version_status, active
+			   FROM %s
+			  WHERE id = $1 AND workspace_id = $2
+			  FOR UPDATE`, tbl), req.Id, wsID).
+		Scan(&targetPriceScheduleID, &targetValidityStart, &targetVersionStatus, &targetActive)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("binding not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("load target: %w", err)
 	}
+	if !targetActive.Valid || !targetActive.Bool {
+		return nil, fmt.Errorf("only an active draft binding can be published")
+	}
+	if !targetVersionStatus.Valid || targetVersionStatus.String != versionStatusDraft {
+		return nil, fmt.Errorf("only a draft binding can be published (current status: %q)", targetVersionStatus.String)
+	}
 
 	// Allocate the next version in the lineage (workspace + price_schedule bucket),
-	// excluding the target itself.
+	// counting PUBLISHED siblings only — drafts are unversioned/provisional.
 	var maxVersion sql.NullInt32
 	err = tx.QueryRowContext(ctx,
-		`SELECT MAX(version)
-		   FROM job_outcome_summary_document_template
-		  WHERE workspace_id = $1
-		    AND COALESCE(price_schedule_id, '') = COALESCE($2, '')
-		    AND id <> $3`, wsID, targetPriceScheduleID, req.Id).
+		fmt.Sprintf(`SELECT MAX(version)
+			   FROM %s
+			  WHERE workspace_id = $1
+			    AND COALESCE(price_schedule_id, '') = COALESCE($2, '')
+			    AND version_status = $3`, tbl), wsID, targetPriceScheduleID, versionStatusPublished).
 		Scan(&maxVersion)
 	if err != nil {
 		return nil, fmt.Errorf("compute next version: %w", err)
 	}
-	newVersion := int32(1)
-	if maxVersion.Valid {
-		newVersion = maxVersion.Int32 + 1
-	}
+	newVersion := nextBindingVersion(maxVersion)
 
 	// Close the prior published sibling (leave it PUBLISHED for historical as_of).
 	closeAt := targetValidityStart
@@ -501,24 +616,30 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) PublishJobOutcomeS
 		closeAt = sql.NullTime{Time: time.Now().UTC(), Valid: true}
 	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE job_outcome_summary_document_template
-		    SET validity_end = $1, date_modified = $2
-		  WHERE workspace_id = $3
-		    AND COALESCE(price_schedule_id, '') = COALESCE($4, '')
-		    AND id <> $5
-		    AND version_status = $6
-		    AND (validity_end IS NULL OR validity_end > $1)`,
+		fmt.Sprintf(`UPDATE %s
+			    SET validity_end = $1, date_modified = $2
+			  WHERE workspace_id = $3
+			    AND COALESCE(price_schedule_id, '') = COALESCE($4, '')
+			    AND id <> $5
+			    AND version_status = $6
+			    AND (validity_end IS NULL OR validity_end > $1)`, tbl),
 		closeAt.Time, nowMillis, wsID, targetPriceScheduleID, req.Id, versionStatusPublished); err != nil {
 		return nil, fmt.Errorf("close prior sibling: %w", err)
 	}
 
-	// Flip the target to PUBLISHED.
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE job_outcome_summary_document_template
-		    SET version_status = $1, version = $2, published_at = $3, published_by = $4, date_modified = $3
-		  WHERE id = $5 AND workspace_id = $6`,
-		versionStatusPublished, newVersion, nowMillis, publishedBy, req.Id, wsID); err != nil {
+	// Flip the target to PUBLISHED — guarded by the DRAFT predicate + affected-row
+	// check so a concurrent publish cannot double-apply.
+	res, err := tx.ExecContext(ctx, publishFlipSQL(),
+		versionStatusPublished, newVersion, nowMillis, publishedBy, req.Id, wsID, versionStatusDraft)
+	if err != nil {
 		return nil, fmt.Errorf("publish target: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("publish affected-row check: %w", err)
+	}
+	if affected != 1 {
+		return nil, fmt.Errorf("publish did not apply: binding is no longer a draft (concurrent publish?)")
 	}
 
 	if err := tx.Commit(); err != nil {

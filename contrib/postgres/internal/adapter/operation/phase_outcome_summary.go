@@ -446,6 +446,14 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 	// phase summaries it issued ($2). Non-staff → empty clause.
 	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 2)
 
+	// Newest-first ordering is a CONSUMER CONTRACT (gate M1). When a consumer
+	// fans these rows into a map keyed by job_phase_id (or job_id) it MUST
+	// keep-first, not last-write-wins: `date_created DESC` puts the current
+	// lineage head first, so overwriting the same key drops back to the OLDEST
+	// active revision. The schema permits supersession with no single-active-head
+	// constraint, so the head is chosen by this ordering. The consuming fayna
+	// summary builders (outcome_summary/document/data.go, student_card/page.go)
+	// own the keep-first selection; flagged for Integrate.
 	query := `
 		SELECT
 			pos.id, pos.job_phase_id, pos.job_id, pos.summary_type,

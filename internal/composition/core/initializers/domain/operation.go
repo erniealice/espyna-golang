@@ -32,7 +32,19 @@ func InitializeOperation(
 		JobTemplateTask:     repos.JobTemplateTask,
 		JobTemplateRelation: repos.JobTemplateRelation,
 		JobActivity:         repos.JobActivity,
-		OutcomeCriteria:     repos.OutcomeCriteria,
+		// JobCategory — per-workspace job taxonomy reference entity (20260714).
+		JobCategory: repos.JobCategory,
+		// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
+		JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate,
+		OutcomeCriteria:                   repos.OutcomeCriteria,
+		// TemplateTaskCriteria backs the A/B/C/D criterion ordering
+		// (template_task_criteria.sequence_order) that the report-card document
+		// builder prefers via ListTemplateTaskCriterias. Built by the provider
+		// but — like TaskOutcome/PhaseOutcomeSummary below — it was not threaded
+		// through here, leaving ListTemplateTaskCriteriaUseCase's repo nil (a
+		// nil-deref the moment the builder lists criteria; ordering then degraded
+		// to a stable criteria-id fallback). Threading it restores sequence_order.
+		TemplateTaskCriteria: repos.TemplateTaskCriteria,
 		// Education grading (20260616 v1).
 		ScoringScheme:            repos.ScoringScheme,
 		ScoringComponent:         repos.ScoringComponent,

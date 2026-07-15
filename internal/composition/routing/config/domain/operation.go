@@ -9,6 +9,8 @@ import (
 	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
 	evaluationtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
+	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
+	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
@@ -143,6 +145,99 @@ func ConfigureOperationDomain(operationUseCases *operationuc.OperationUseCases) 
 				Method:  "POST",
 				Path:    "/api/operation/job-template/get-item-page-data",
 				Handler: contracts.NewGenericHandler(operationUseCases.JobTemplate.GetJobTemplateItemPageData, &jobtemplatepb.GetJobTemplateItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// JobCategory routes (per-workspace job taxonomy reference entity — 20260714).
+	if operationUseCases.JobCategory != nil {
+		if operationUseCases.JobCategory.CreateJobCategory != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-category/create",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobCategory.CreateJobCategory, &jobcategorypb.CreateJobCategoryRequest{}),
+			})
+		}
+		if operationUseCases.JobCategory.ReadJobCategory != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-category/read",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobCategory.ReadJobCategory, &jobcategorypb.ReadJobCategoryRequest{}),
+			})
+		}
+		if operationUseCases.JobCategory.UpdateJobCategory != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-category/update",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobCategory.UpdateJobCategory, &jobcategorypb.UpdateJobCategoryRequest{}),
+			})
+		}
+		if operationUseCases.JobCategory.DeleteJobCategory != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-category/delete",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobCategory.DeleteJobCategory, &jobcategorypb.DeleteJobCategoryRequest{}),
+			})
+		}
+		if operationUseCases.JobCategory.ListJobCategories != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-category/list",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobCategory.ListJobCategories, &jobcategorypb.ListJobCategoriesRequest{}),
+			})
+		}
+		if operationUseCases.JobCategory.GetJobCategoryListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-category/get-list-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobCategory.GetJobCategoryListPageData, &jobcategorypb.GetJobCategoryListPageDataRequest{}),
+			})
+		}
+		if operationUseCases.JobCategory.GetJobCategoryItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-category/get-item-page-data",
+				Handler: contracts.NewGenericHandler(operationUseCases.JobCategory.GetJobCategoryItemPageData, &jobcategorypb.GetJobCategoryItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// JobOutcomeSummaryDocumentTemplate routes (report-card template binding — 20260714).
+	if operationUseCases.JobOutcomeSummaryDocumentTemplate != nil {
+		b := operationUseCases.JobOutcomeSummaryDocumentTemplate
+		if b.CreateJobOutcomeSummaryDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-summary-document-template/create",
+				Handler: contracts.NewGenericHandler(b.CreateJobOutcomeSummaryDocumentTemplate, &joboutcomesummarydoctmplpb.CreateJobOutcomeSummaryDocumentTemplateRequest{}),
+			})
+		}
+		if b.ReadJobOutcomeSummaryDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-summary-document-template/read",
+				Handler: contracts.NewGenericHandler(b.ReadJobOutcomeSummaryDocumentTemplate, &joboutcomesummarydoctmplpb.ReadJobOutcomeSummaryDocumentTemplateRequest{}),
+			})
+		}
+		if b.UpdateJobOutcomeSummaryDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-summary-document-template/update",
+				Handler: contracts.NewGenericHandler(b.UpdateJobOutcomeSummaryDocumentTemplate, &joboutcomesummarydoctmplpb.UpdateJobOutcomeSummaryDocumentTemplateRequest{}),
+			})
+		}
+		if b.DeleteJobOutcomeSummaryDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-summary-document-template/delete",
+				Handler: contracts.NewGenericHandler(b.DeleteJobOutcomeSummaryDocumentTemplate, &joboutcomesummarydoctmplpb.DeleteJobOutcomeSummaryDocumentTemplateRequest{}),
+			})
+		}
+		if b.ListJobOutcomeSummaryDocumentTemplates != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-outcome-summary-document-template/list",
+				Handler: contracts.NewGenericHandler(b.ListJobOutcomeSummaryDocumentTemplates, &joboutcomesummarydoctmplpb.ListJobOutcomeSummaryDocumentTemplatesRequest{}),
 			})
 		}
 	}

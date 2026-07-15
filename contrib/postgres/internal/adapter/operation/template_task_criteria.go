@@ -178,11 +178,19 @@ func (r *PostgresTemplateTaskCriteriaRepository) DeleteTemplateTaskCriteria(ctx 
 	}, nil
 }
 
-// ListTemplateTaskCriterias lists template_task_criteria records with optional filters
+// ListTemplateTaskCriterias lists template_task_criteria records with optional
+// filters + pagination.
+//
+// Pagination pass-through (mirrors ListTaskOutcomes, task_outcome.go): the
+// caller's req.Pagination MUST be forwarded into ListParams. Dropping it forced
+// the generic core List onto its default page at offset 0 on EVERY call, so a
+// paging caller re-read the same first page and never advanced. Callers that
+// omit both Filters and Pagination keep the prior nil-params behavior
+// byte-for-byte.
 func (r *PostgresTemplateTaskCriteriaRepository) ListTemplateTaskCriterias(ctx context.Context, req *pb.ListTemplateTaskCriteriasRequest) (*pb.ListTemplateTaskCriteriasResponse, error) {
 	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if req != nil && (req.Filters != nil || req.Pagination != nil) {
+		params = &interfaces.ListParams{Filters: req.Filters, Pagination: req.Pagination}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

@@ -18,6 +18,8 @@ import (
 	evaluationtemplateitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template_item"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
+	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
+	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
@@ -55,6 +57,10 @@ type OperationRepositories struct {
 	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
 	JobTemplateRelation  jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
 	JobActivity          jobactivitypb.JobActivityDomainServiceServer
+	// JobCategory — per-workspace job taxonomy reference entity (20260714).
+	JobCategory jobcategorypb.JobCategoryDomainServiceServer
+	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
+	JobOutcomeSummaryDocumentTemplate joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
 	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
@@ -161,6 +167,18 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	jobActivityRepo, err := repoCreator.CreateRepository(entityid.JobActivity, conn, tableConfig.TableName(entityid.JobActivity))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_activity repository: %w", err)
+	}
+
+	// JobCategory — per-workspace job taxonomy reference entity (20260714).
+	jobCategoryRepo, err := repoCreator.CreateRepository(entityid.JobCategory, conn, tableConfig.TableName(entityid.JobCategory))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create job_category repository: %w", err)
+	}
+
+	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
+	jobOutcomeSummaryDocumentTemplateRepo, err := repoCreator.CreateRepository(entityid.JobOutcomeSummaryDocumentTemplate, conn, tableConfig.TableName(entityid.JobOutcomeSummaryDocumentTemplate))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create job_outcome_summary_document_template repository: %w", err)
 	}
 
 	outcomeCriteriaRepo, err := repoCreator.CreateRepository(entityid.OutcomeCriteria, conn, tableConfig.TableName(entityid.OutcomeCriteria))
@@ -308,6 +326,8 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		JobTemplateTask:      jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
 		JobTemplateRelation:  jobTemplateRelationServer,
 		JobActivity:          jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
+		JobCategory:          jobCategoryRepo.(jobcategorypb.JobCategoryDomainServiceServer),
+		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateRepo.(joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer),
 		OutcomeCriteria:      outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),
 		CriteriaThreshold:    criteriaThresholdRepo.(criteriathresholdpb.CriteriaThresholdDomainServiceServer),
 		CriteriaOption:       criteriaOptionRepo.(criteriaoptionpb.CriteriaOptionDomainServiceServer),

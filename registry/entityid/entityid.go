@@ -273,6 +273,14 @@ const (
 	ActivityExpense     = "activity_expense"
 	JobSettlement       = "job_settlement"
 	InventoryMovement   = "inventory_movement"
+	// Job categorization taxonomy (20260714) — per-workspace reference entity
+	// that groups job_templates (and, denormalized, jobs) by a stable `code`.
+	JobCategory = "job_category"
+	// Report-card template binding (20260714) — binds the job_outcome_summary
+	// outcome family to a generic document_template, scoped by workspace +
+	// (optional) price_schedule, versioned. Owns the publication lifecycle +
+	// validity window that must NOT live on the shared document_template.
+	JobOutcomeSummaryDocumentTemplate = "job_outcome_summary_document_template"
 )
 
 // Operation domain — Layer 7: Outcome
@@ -516,6 +524,8 @@ var OperationEntities = []string{
 	Job, JobPhase, JobTask, JobActivity,
 	ActivityLabor, ActivityMaterial, ActivityExpense,
 	JobSettlement, InventoryMovement,
+	JobCategory,
+	JobOutcomeSummaryDocumentTemplate,
 	Evaluation, EvaluationResponse, EvaluationTemplate,
 	EvaluationTemplateItem, EvaluationCycle, EvaluationCycleMember,
 	WorkRequest, WorkRequestType,

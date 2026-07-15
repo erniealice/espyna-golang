@@ -367,7 +367,8 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryItemPageDa
 			pos.total_criteria_count, pos.pass_count, pos.fail_count,
 			pos.conditional_count, pos.deferred_count, pos.na_count,
 			pos.narrative, pos.issued_by, pos.issued_date,
-			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
+			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified,
+			pos.scaled_score, pos.scaled_label
 		FROM ` + entityid.PhaseOutcomeSummary + ` pos
 		WHERE pos.id = $1 AND pos.active = true` + staffClause + `
 	`
@@ -407,7 +408,8 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 			pos.total_criteria_count, pos.pass_count, pos.fail_count,
 			pos.conditional_count, pos.deferred_count, pos.na_count,
 			pos.narrative, pos.issued_by, pos.issued_date,
-			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
+			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified,
+			pos.scaled_score, pos.scaled_label
 		FROM ` + entityid.PhaseOutcomeSummary + ` pos
 		WHERE pos.job_phase_id = $1 AND pos.active = true` + staffClause + `
 		ORDER BY pos.date_created DESC
@@ -451,7 +453,8 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 			pos.total_criteria_count, pos.pass_count, pos.fail_count,
 			pos.conditional_count, pos.deferred_count, pos.na_count,
 			pos.narrative, pos.issued_by, pos.issued_date,
-			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified
+			pos.supersedes_id, pos.active, pos.date_created, pos.date_modified,
+			pos.scaled_score, pos.scaled_label
 		FROM ` + entityid.PhaseOutcomeSummary + ` pos
 		WHERE pos.job_id = $1 AND pos.active = true` + staffClause + `
 		ORDER BY pos.date_created DESC
@@ -484,7 +487,8 @@ func scanPOSFields(scanFn func(dest ...any) error) (
 	deferredCount sql.NullInt32, naCount sql.NullInt32, narrative sql.NullString,
 	issuedBy sql.NullString, issuedDate sql.NullTime,
 	supersedesId sql.NullString, active bool,
-	dateCreated sql.NullTime, dateModified sql.NullTime, err error,
+	dateCreated sql.NullTime, dateModified sql.NullTime,
+	scaledScore sql.NullFloat64, scaledLabel sql.NullString, err error,
 ) {
 	err = scanFn(
 		&id, &jobPhaseID, &jobID, &summaryType,
@@ -493,8 +497,28 @@ func scanPOSFields(scanFn func(dest ...any) error) (
 		&conditionalCount, &deferredCount, &naCount,
 		&narrative, &issuedBy, &issuedDate,
 		&supersedesId, &active, &dateCreated, &dateModified,
+		&scaledScore, &scaledLabel,
 	)
 	return
+}
+
+// applyPOSScaled sets the scaled_score/scaled_label projection (added to the
+// ListByJob / GetByJobPhase / GetItemPageData reads) onto the built proto. A
+// NULL column leaves the oneof unset. The GetListPageData path does NOT project
+// these columns (its scanPhaseOutcomeSummaryRowWithTotal scanner is unchanged),
+// so its rows carry them unset — same as before.
+func applyPOSScaled(s *pb.PhaseOutcomeSummary, scaledScore sql.NullFloat64, scaledLabel sql.NullString) {
+	if s == nil {
+		return
+	}
+	if scaledScore.Valid {
+		v := scaledScore.Float64
+		s.ScaledScore = &v
+	}
+	if scaledLabel.Valid {
+		v := scaledLabel.String
+		s.ScaledLabel = &v
+	}
 }
 
 func scanPhaseOutcomeSummaryRows(rows *sql.Rows) ([]*pb.PhaseOutcomeSummary, error) {
@@ -503,15 +527,18 @@ func scanPhaseOutcomeSummaryRows(rows *sql.Rows) ([]*pb.PhaseOutcomeSummary, err
 		id, jobPhaseID, jobID, summaryType, phaseDetermination, scoringMethod,
 			summaryScore, totalCriteriaCount, passCount, failCount, conditionalCount,
 			deferredCount, naCount, narrative, issuedBy, issuedDate,
-			supersedesId, active, dateCreated, dateModified, err := scanPOSFields(rows.Scan)
+			supersedesId, active, dateCreated, dateModified,
+			scaledScore, scaledLabel, err := scanPOSFields(rows.Scan)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan phase outcome summary row: %w", err)
 		}
-		summaries = append(summaries, buildPhaseOutcomeSummary(
+		summary := buildPhaseOutcomeSummary(
 			id, jobPhaseID, jobID, summaryType, phaseDetermination, scoringMethod,
 			summaryScore, totalCriteriaCount, passCount, failCount, conditionalCount,
 			deferredCount, naCount, narrative, issuedBy, issuedDate,
-			supersedesId, active, dateCreated, dateModified))
+			supersedesId, active, dateCreated, dateModified)
+		applyPOSScaled(summary, scaledScore, scaledLabel)
+		summaries = append(summaries, summary)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating phase outcome summary rows: %w", err)
@@ -567,15 +594,18 @@ func scanPhaseOutcomeSummarySingleRow(row *sql.Row) (*pb.PhaseOutcomeSummary, er
 	id, jobPhaseID, jobID, summaryType, phaseDetermination, scoringMethod,
 		summaryScore, totalCriteriaCount, passCount, failCount, conditionalCount,
 		deferredCount, naCount, narrative, issuedBy, issuedDate,
-		supersedesId, active, dateCreated, dateModified, err := scanPOSFields(row.Scan)
+		supersedesId, active, dateCreated, dateModified,
+		scaledScore, scaledLabel, err := scanPOSFields(row.Scan)
 	if err != nil {
 		return nil, err
 	}
-	return buildPhaseOutcomeSummary(
+	summary := buildPhaseOutcomeSummary(
 		id, jobPhaseID, jobID, summaryType, phaseDetermination, scoringMethod,
 		summaryScore, totalCriteriaCount, passCount, failCount, conditionalCount,
 		deferredCount, naCount, narrative, issuedBy, issuedDate,
-		supersedesId, active, dateCreated, dateModified), nil
+		supersedesId, active, dateCreated, dateModified)
+	applyPOSScaled(summary, scaledScore, scaledLabel)
+	return summary, nil
 }
 
 func buildPhaseOutcomeSummary(

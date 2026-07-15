@@ -193,10 +193,18 @@ func (r *PostgresJobTaskRepository) DeleteJobTask(ctx context.Context, req *pb.D
 }
 
 // ListJobTasks lists job task records with optional filters
+//
+// Pagination pass-through (mirrors ListJobs, job.go): the caller's
+// req.Pagination MUST be forwarded into ListParams. Dropping it forced the
+// generic core List onto its 100-row default at offset 0 on EVERY call, so a
+// paging caller (the report-card builder's page loop) re-read the same first
+// 100 rows for every page and never advanced — silently truncating a phase set
+// with >100 job_task rows in one job_phase_id chunk. Callers that omit both
+// Filters and Pagination keep the prior nil-params behavior byte-for-byte.
 func (r *PostgresJobTaskRepository) ListJobTasks(ctx context.Context, req *pb.ListJobTasksRequest) (*pb.ListJobTasksResponse, error) {
 	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if req != nil && (req.Filters != nil || req.Pagination != nil) {
+		params = &interfaces.ListParams{Filters: req.Filters, Pagination: req.Pagination}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

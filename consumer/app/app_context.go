@@ -121,6 +121,15 @@ type AppContext struct {
 	// GenerateDoc generates a document from a template + data.
 	GenerateDoc any
 
+	// ResolveTemplateBytes resolves the applicable published document-template
+	// binding for a given price_schedule (report-card render path) and returns the
+	// bound template's storage bytes. Signature:
+	//   func(ctx context.Context, priceScheduleID string) ([]byte, error)
+	// Returns (nil, nil) when no binding is configured or the storage object is
+	// unavailable → the caller falls back to its embedded template. Injected by
+	// the app container (binding resolver ∘ storage download).
+	ResolveTemplateBytes any
+
 	// ListAuditHistory lists audit trail entries for an entity.
 	ListAuditHistory any
 

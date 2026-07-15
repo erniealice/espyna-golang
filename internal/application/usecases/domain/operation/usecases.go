@@ -13,6 +13,8 @@ import (
 	gradeComputeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/grade_compute"
 	jobUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job"
 	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_activity"
+	jobCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_category"
+	jobOutcomeSummaryDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary_document_template"
 	jobOutcomeLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_line"
 	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary"
 	jobPhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_phase"
@@ -50,6 +52,8 @@ import (
 	evaluationtemplateitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template_item"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
+	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
+	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
@@ -105,6 +109,10 @@ type OperationRepositories struct {
 	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
 	JobTemplateRelation  jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
 	JobActivity          jobactivitypb.JobActivityDomainServiceServer
+	// JobCategory — per-workspace job taxonomy reference entity (20260714).
+	JobCategory jobcategorypb.JobCategoryDomainServiceServer
+	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
+	JobOutcomeSummaryDocumentTemplate joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
 	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
@@ -160,6 +168,10 @@ type OperationUseCases struct {
 	JobTemplateRelation  *jobTemplateRelationUseCases.UseCases
 	JobTemplateTask      *jobTemplateTaskUseCases.UseCases
 	JobActivity          *jobActivityUseCases.UseCases
+	// JobCategory — per-workspace job taxonomy reference entity (20260714).
+	JobCategory *jobCategoryUseCases.UseCases
+	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
+	JobOutcomeSummaryDocumentTemplate *jobOutcomeSummaryDocumentTemplateUseCases.UseCases
 	OutcomeCriteria      *outcomeCriteriaUseCases.UseCases
 	CriteriaThreshold    *criteriaThresholdUseCases.UseCases
 	CriteriaOption       *criteriaOptionUseCases.UseCases
@@ -293,6 +305,30 @@ func NewUseCases(
 	jobActivityUC := jobActivityUseCases.NewUseCases(
 		jobActivityUseCases.JobActivityRepositories{JobActivity: repos.JobActivity},
 		jobActivityUseCases.JobActivityServices{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	// JobCategory — per-workspace job taxonomy reference entity (20260714).
+	jobCategoryUC := jobCategoryUseCases.NewUseCases(
+		jobCategoryUseCases.Repositories{JobCategory: repos.JobCategory},
+		jobCategoryUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
+	jobOutcomeSummaryDocumentTemplateUC := jobOutcomeSummaryDocumentTemplateUseCases.NewUseCases(
+		jobOutcomeSummaryDocumentTemplateUseCases.Repositories{JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate},
+		jobOutcomeSummaryDocumentTemplateUseCases.Services{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,
 			Translator:       i18nSvc,
@@ -589,6 +625,8 @@ func NewUseCases(
 		JobTemplateRelation:  jobTemplateRelationUC,
 		JobTemplateTask:      jobTemplateTaskUC,
 		JobActivity:          jobActivityUC,
+		JobCategory:          jobCategoryUC,
+		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateUC,
 		OutcomeCriteria:      outcomeCriteriaUC,
 		CriteriaThreshold:    criteriaThresholdUC,
 		CriteriaOption:       criteriaOptionUC,

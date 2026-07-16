@@ -323,6 +323,16 @@ func (uc *ComputeJobOutcomeUseCase) upsertJobSummary(
 
 	if existing != nil && existing.JobOutcomeSummary != nil && existing.JobOutcomeSummary.Id != "" {
 		prev := existing.JobOutcomeSummary
+		// WRITE-BOUNDARY FREEZE GUARD (B2, Phase-1b): refuse to overwrite the
+		// year-final grade (scaled_score/scaled_label) on a frozen row. An
+		// is_authoritative summary (the imported prod finals) is immutable to
+		// recompute. Fail-closed here so the freeze holds for EVERY caller — not
+		// just cmd/year-final-compute's enumeration filter. A direct/API recompute
+		// of a frozen job aborts instead of clobbering the pinned grade.
+		if prev.IsAuthoritative {
+			return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.summary_frozen",
+				"[ERR-DEFAULT] refusing to overwrite authoritative (frozen) job_outcome_summary for job %s"), job.Id)
+		}
 		data.Id = prev.Id
 		data.DateCreated = prev.DateCreated
 		data.DateCreatedString = prev.DateCreatedString

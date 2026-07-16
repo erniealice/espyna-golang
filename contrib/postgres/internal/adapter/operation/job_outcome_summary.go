@@ -232,6 +232,7 @@ var jobOutcomeSummarySortableSQLCols = []string{
 	"conditional_count", "deferred_count", "na_count", "narrative",
 	"issued_by", "issued_date", "valid_until_date", "supersedes_id",
 	"attachment_ids", "active", "date_created", "date_modified",
+	"source", "is_authoritative",
 }
 
 // jobOutcomeSummaryProjection is the schema-faithful column list projected by
@@ -247,7 +248,8 @@ const jobOutcomeSummaryProjection = `
 			jos.supersedes_id, jos.attachment_ids, jos.active,
 			jos.date_created, jos.date_modified,
 			jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
-			jos.workspace_id, jos.client_id`
+			jos.workspace_id, jos.client_id,
+			jos.source, jos.is_authoritative`
 
 // sessionWorkspaceID returns the session identity's workspace id, or "" when no
 // identity is present. Sourcing from the SESSION (never a request param) is the
@@ -348,7 +350,8 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		jos.supersedes_id, jos.attachment_ids, jos.active,
 		jos.date_created, jos.date_modified,
 		jos.scoring_scheme_id, jos.scaled_score, jos.scaled_label,
-		jos.workspace_id, jos.client_id
+		jos.workspace_id, jos.client_id,
+		jos.source, jos.is_authoritative
 	`
 
 	// HAZ-02 close (Q-SEC-7): bind the workspace ($4, session identity — never a
@@ -502,6 +505,8 @@ type josFields struct {
 	scaledLabel          sql.NullString
 	workspaceId          sql.NullString
 	clientId             sql.NullString
+	source               sql.NullString
+	isAuthoritative      sql.NullBool
 }
 
 // dests returns the scan-target pointers in projection order (see the three
@@ -517,6 +522,7 @@ func (f *josFields) dests(total *int64) []any {
 		&f.dateCreated, &f.dateModified,
 		&f.scoringSchemeId, &f.scaledScore, &f.scaledLabel,
 		&f.workspaceId, &f.clientId,
+		&f.source, &f.isAuthoritative,
 	}
 	if total != nil {
 		d = append(d, total)
@@ -614,5 +620,13 @@ func buildJobOutcomeSummary(f *josFields) *pb.JobOutcomeSummary {
 	if f.clientId.Valid {
 		summary.ClientId = &f.clientId.String
 	}
+	if f.source.Valid {
+		summary.Source = &f.source.String
+	}
+	// is_authoritative is NOT NULL DEFAULT false in the table; NullBool.Bool is
+	// false when the column is NULL, which is the fail-closed reading (a row with
+	// no explicit freeze flag is treated as NOT frozen == overwritable, matching
+	// the column default).
+	summary.IsAuthoritative = f.isAuthoritative.Bool
 	return summary
 }
